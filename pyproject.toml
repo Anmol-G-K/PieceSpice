@@ -13,3 +13,9 @@ dependencies = [
     "seaborn>=0.13.2",
     "shapely>=2.1.2",
 ]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.3.0",
+    "notebook>=7.6.1",
+]

@@ -213,3 +213,7 @@ pyrightconfig.json
 .opencode/*
 MISC/*
 Spice-Library/*
+SpiceModels/*
+
+
+*.lib
