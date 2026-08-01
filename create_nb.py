@@ -15,6 +15,8 @@ This notebook runs SPICE simulations on any N-channel MOSFET model using NgSpice
 MOSFET source is node 0 (ground).
 
 **Configuration**: Edit the MODEL_CONFIG section below to change MOSFET.
+
+**Model limitation**: BSIM3 (Level 7) models used here are calibrated for low-Vds switching (Rds_on, gate charge, capacitances). Currents at Vds > 2V are over-predicted — BSIM3 lacks the drift-region physics present in real vertical DMOS. See `ROOT_CAUSE_IDMAX.md` for analysis and fix options.
 """))
 
 code1 = """import sys
