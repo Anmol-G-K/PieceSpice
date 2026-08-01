@@ -1,0 +1,15 @@
+[project]
+name = "piecespice"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "matplotlib>=3.10.9",
+    "numpy>=2.2.6",
+    "pandas>=2.3.3",
+    "polars>=1.43.2",
+    "pyspice>=1.5",
+    "rdp>=0.8",
+    "scipy>=1.15.3",
+    "seaborn>=0.13.2",
+    "shapely>=2.1.2",
+]
