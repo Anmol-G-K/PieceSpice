@@ -58,6 +58,23 @@ LIB_PATH = SPICE_MODELS_DIR / LIB_FILENAME
 WORK_DIR = PROJECT_ROOT
 NGSPICE_CMD = r'C:\\\\Progra~1\\\\Spice64\\\\bin\\\\ngspice_con.exe'
 
+# Auto-convert PSpice model if ngspice version doesn't exist
+if not LIB_PATH.exists():
+    pspice_lib = SPICE_MODELS_DIR / LIB_FILENAME.replace('ng_', '')
+    if pspice_lib.exists():
+        print(f"Converting {pspice_lib.name} -> {LIB_FILENAME}...")
+        import subprocess
+        result = subprocess.run([
+            sys.executable, str(PROJECT_ROOT / 'convert_spice.py'), str(pspice_lib)
+        ], capture_output=True, text=True, cwd=WORK_DIR)
+        if result.returncode == 0:
+            print("Conversion successful!")
+        else:
+            print(f"Conversion failed: {result.stderr}")
+            raise FileNotFoundError(f"Could not create {LIB_FILENAME}")
+    else:
+        raise FileNotFoundError(f"Neither {LIB_FILENAME} nor {pspice_lib.name} found in {SPICE_MODELS_DIR}")
+
 print(f"Project root: {PROJECT_ROOT}")
 print(f"Library: {LIB_PATH}")
 print(f"Library exists: {LIB_PATH.exists()}")
