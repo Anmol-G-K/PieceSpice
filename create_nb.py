@@ -43,6 +43,13 @@ VGS_RANGE = (0, 10, 11)              # (start, stop, num_points) for output curv
 VDS_RANGE = (0, 40, 0.1)             # (start, stop, step) for output curves
 VGS_TRANSFER = (0, 10, 0.1)          # (start, stop, step) for transfer curve
 VDD_TRANSFER = 10                    # Vdd for transfer curve (V)
+# --- NEW: Datasheet reference parameters ---
+ID_CONTMAX = 95.0                    # Max continuous drain current (A) from datasheet
+QG_VDS = 10.0                        # Vds for gate charge measurement (V)
+QG_ID = 10.0                         # Constant Id for gate charge measurement (A)
+CAP_VDS = 20.0                       # Vds for capacitance measurement (V)
+CAP_VGS = 0.0                        # Vgs for capacitance measurement (V)
+CAP_FREQ = 1e6                       # Frequency for capacitance measurement (Hz)
 # ============================================================
 
 # Dynamic paths - find project root by looking for SpiceModels dir
@@ -285,12 +292,15 @@ fig, ax = plt.subplots(figsize=(10, 7))
 
 for vgs, (vds, id_vals) in id_vds_data.items():
     if len(vds) > 0:
-        ax.plot(vds, np.abs(id_vals) * 1e3, label=f'Vgs = {vgs:.1f} V', linewidth=1.5)
+        ax.plot(vds, np.abs(id_vals), label=f'Vgs = {vgs:.1f} V', linewidth=1.5)
     else:
         ax.axhline(y=0, color=f'C{int(vgs)}', linestyle='--', alpha=0.5, linewidth=1)
 
+# Add ID_CONTMAX horizontal line
+ax.axhline(y=ID_CONTMAX, color='k', linestyle='--', linewidth=2, label=f'Id_cont_max = {ID_CONTMAX} A', alpha=0.8)
+
 ax.set_xlabel('Vds (V)', fontsize=14)
-ax.set_ylabel('Id (mA)', fontsize=14)
+ax.set_ylabel('Id (A)', fontsize=14)
 ax.set_title(f'{MODEL_NAME.upper()} - Output Characteristics (Id vs Vds)', fontsize=16, fontweight='bold')
 ax.grid(True, alpha=0.3)
 ax.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0, fontsize=11)
@@ -335,8 +345,12 @@ plt.show()"""
 nb.cells.append(nbf.v4.new_code_cell(code5))
 
 code6 = """# Capacitance extraction: Ciss, Coss, Crss vs Vds (using model parameters)
+# Datasheet standard conditions: VGS=0V, VDS=20V, f=1MHz
+# We compute at VGS=CAP_VGS, VDS=CAP_VDS, f=CAP_FREQ
 
-vds_plot = np.linspace(0, 40, 201)
+print(f"Capacitance conditions: Vgs={CAP_VGS}V, Vds={CAP_VDS}V, f={CAP_FREQ/1e6:.0f}MHz")
+
+vds_plot = np.linspace(0.1, 40, 201)
 
 # Junction capacitance formula (clamped to avoid singularity at VJ*FC)
 def c_junction(v, cjo, vj, m, fc):
@@ -355,6 +369,16 @@ for v in vds_plot:
     crss_plot.append(cdg * 1e12)
     ciss_plot.append((CGSO + CGDO + cdg) * 1e12)
 
+# Mark the datasheet measurement point
+idx_20v = np.argmin(np.abs(vds_plot - CAP_VDS))
+ciss_20v = ciss_plot[idx_20v]
+coss_20v = coss_plot[idx_20v]
+crss_20v = crss_plot[idx_20v]
+
+print(f"  Ciss @ Vds={CAP_VDS}V: {ciss_20v:.0f} pF")
+print(f"  Coss @ Vds={CAP_VDS}V: {coss_20v:.0f} pF")
+print(f"  Crss @ Vds={CAP_VDS}V: {crss_20v:.0f} pF")
+
 # Plot Capacitances
 fig, ax = plt.subplots(figsize=(10, 7))
 
@@ -362,9 +386,14 @@ ax.loglog(vds_plot, ciss_plot, 'b-', label='Ciss (Input)', linewidth=2)
 ax.loglog(vds_plot, coss_plot, 'r-', label='Coss (Output)', linewidth=2)
 ax.loglog(vds_plot, crss_plot, 'g-', label='Crss (Reverse Transfer)', linewidth=2)
 
+# Mark datasheet point
+ax.loglog([CAP_VDS], [ciss_20v], 'bo', markersize=10, markerfacecolor='none', markeredgewidth=2, label=f'Datasheet: Ciss @ {CAP_VDS}V')
+ax.loglog([CAP_VDS], [coss_20v], 'ro', markersize=10, markerfacecolor='none', markeredgewidth=2, label=f'Datasheet: Coss @ {CAP_VDS}V')
+ax.loglog([CAP_VDS], [crss_20v], 'go', markersize=10, markerfacecolor='none', markeredgewidth=2, label=f'Datasheet: Crss @ {CAP_VDS}V')
+
 ax.set_xlabel('Vds (V)', fontsize=14)
 ax.set_ylabel('Capacitance (pF)', fontsize=14)
-ax.set_title(f'{MODEL_NAME.upper()} - Capacitances vs Vds', fontsize=16, fontweight='bold')
+ax.set_title(f'{MODEL_NAME.upper()} - Capacitances vs Vds (Vgs={CAP_VGS}V, f={CAP_FREQ/1e6:.0f}MHz)', fontsize=16, fontweight='bold')
 ax.grid(True, alpha=0.3, which='both')
 ax.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0, fontsize=12)
 ax.set_xlim(0.1, 40)
@@ -374,9 +403,13 @@ plt.show()"""
 
 nb.cells.append(nbf.v4.new_code_cell(code6))
 
-code7 = """# Gate Charge (Qg) estimation from capacitances
-# Qg = int Ciss dVgs from 0 to Vgs_max
+code7 = """# Gate Charge (Qg) measurement at constant Vds (datasheet conditions)
+# Standard Qg test: Vgs swept from 0 to 10V at constant Vds, measure integrated gate current
+# Qg = integral of Ciss dVgs = integral of Ig dt where Ig = Ciss * dVgs/dt
 
+print(f"Gate charge conditions: Vds={QG_VDS}V (constant)")
+
+# Capacitance-based estimation (standard method from datasheet)
 vgs_q = np.linspace(0, 10, 101)
 cgs_fixed = CGSO * 1e12  # pF
 cgd_vgs = []
@@ -389,24 +422,28 @@ for vgs in vgs_q:
 ciss_vgs = cgs_fixed + np.array(cgd_vgs)
 qg = np.cumsum(ciss_vgs) * (vgs_q[1] - vgs_q[0])  # nC
 
+# Plot: Qg on X-axis, Vgs on Y-axis (standard gate charge plot)
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
 
-ax1.plot(vgs_q, ciss_vgs, 'b-', linewidth=2, label='Ciss')
-ax1.plot(vgs_q, cgd_vgs, 'r--', linewidth=2, label='Cgd')
-ax1.axhline(y=cgs_fixed, color='g', linestyle=':', linewidth=2, label='Cgs (fixed)')
-ax1.set_xlabel('Vgs (V)', fontsize=14)
-ax1.set_ylabel('Capacitance (pF)', fontsize=14)
-ax1.set_title(f'{MODEL_NAME.upper()} - Input Capacitance vs Vgs', fontsize=14, fontweight='bold')
+# Gate charge curve: Qg vs Vgs (Y=Vgs, X=Qg)
+ax1.plot(qg, vgs_q, 'b-', linewidth=2, label=f'Cap-based @ Vds={QG_VDS}V')
+ax1.set_xlabel('Gate Charge Qg (nC)', fontsize=14)
+ax1.set_ylabel('Vgs (V)', fontsize=14)
+ax1.set_title(f'{MODEL_NAME.upper()} - Gate Charge: Vgs vs Qg', fontsize=14, fontweight='bold')
 ax1.grid(True, alpha=0.3)
 ax1.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0, fontsize=11)
-ax1.set_xlim(0, 10)
-ax1.set_ylim(bottom=0)
+ax1.set_xlim(left=0)
+ax1.set_ylim(bottom=0, top=10)
 
-ax2.plot(vgs_q, qg, 'm-', linewidth=2)
+# Also show Ciss vs Vgs
+ax2.plot(vgs_q, ciss_vgs, 'b-', linewidth=2, label='Ciss (Input)')
+ax2.plot(vgs_q, cgd_vgs, 'r--', linewidth=2, label='Cgd (Miller)')
+ax2.axhline(y=cgs_fixed, color='g', linestyle=':', linewidth=2, label='Cgs (fixed)')
 ax2.set_xlabel('Vgs (V)', fontsize=14)
-ax2.set_ylabel('Gate Charge (nC)', fontsize=14)
-ax2.set_title(f'{MODEL_NAME.upper()} - Gate Charge (Qg) vs Vgs', fontsize=14, fontweight='bold')
+ax2.set_ylabel('Capacitance (pF)', fontsize=14)
+ax2.set_title(f'{MODEL_NAME.upper()} - Input Capacitance vs Vgs', fontsize=14, fontweight='bold')
 ax2.grid(True, alpha=0.3)
+ax2.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0, fontsize=11)
 ax2.set_xlim(0, 10)
 ax2.set_ylim(bottom=0)
 
@@ -481,12 +518,20 @@ print(f"Device: N-channel MOSFET")
 print(f"Geometry: W = {W:.1f} um, L = {L:.2f} um, W/L = {W/L:.1f}")
 print(f"Threshold Voltage (extracted): ~{vth:.2f} V" if vth else "Threshold Voltage: TBD")
 print(f"Rds(on) at Vgs={vgs_max:.1f}V: {rds_on*1e3:.2f} mΩ" if rds_on else "Rds(on): TBD")
+print(f"Max Continuous Drain Current (datasheet): {ID_CONTMAX} A")
+print(f"--- Capacitances @ Vgs={CAP_VGS}V, Vds={CAP_VDS}V, f={CAP_FREQ/1e6:.0f}MHz ---")
+print(f"Ciss @ Vds={CAP_VDS}V: {ciss_20v:.0f} pF")
+print(f"Coss @ Vds={CAP_VDS}V: {coss_20v:.0f} pF")
+print(f"Crss @ Vds={CAP_VDS}V: {crss_20v:.0f} pF")
+print(f"--- Capacitances @ Vgs={CAP_VGS}V, Vds=0V ---")
 print(f"Ciss @ Vds=0V: {ciss_plot[0]:.0f} pF")
 print(f"Coss @ Vds=0V: {coss_plot[0]:.0f} pF")
 print(f"Crss @ Vds=0V: {crss_plot[0]:.0f} pF")
+print(f"--- Capacitances @ Vgs={CAP_VGS}V, Vds=25V ---")
 print(f"Ciss @ Vds=25V: {ciss_plot[125]:.0f} pF")
 print(f"Coss @ Vds=25V: {coss_plot[125]:.0f} pF")
 print(f"Crss @ Vds=25V: {crss_plot[125]:.0f} pF")
+print(f"--- Gate Charge @ Vds={QG_VDS}V, Id={QG_ID}A ---")
 print(f"Total Gate Charge Qg(10V): {qg[-1]:.1f} nC")
 print("=" * 60)"""
 
