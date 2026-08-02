@@ -102,14 +102,85 @@ def extract_model_params(lib_path):
         value_str = match.group(2).strip().rstrip(';')
         # Try to evaluate simple expressions
         try:
-            # Clean up braces
-            value_str = value_str.strip('{}')
+            # Clean up braces and fix common typos
+            value_str = value_str.strip('{}').replace('}e-6', 'e-6')
             # Replace common parameter references with their values
             value_str = value_str.replace('pAA', str(params.get('paa', '10.856327')))
             value_str = value_str.replace('pWIDTH', str(params.get('pwidth', '1')))
             params[name] = float(eval(value_str))
         except:
             params[name] = value_str
+    
+    # Ensure numeric params are floats (handle string expressions)
+    for key in ['pwidth', 'paa', 'perim', 'prgate', 'pcjo', 'ptrc1', 'ptrc2']:
+        if key in params and isinstance(params[key], str):
+            try:
+                val = params[key].replace('}e-6', 'e-6')
+                val = val.replace('pAA', str(params.get('paa', '10.856327')))
+                params[key] = float(eval(val))
+            except:
+                pass
+    
+    # Extract explicit capacitor values from subcircuit - CGD0, CGS0, CDS0
+    cgd0_match = re.search(r'CGD0\\s+\\d+\\s+\\d+\\s+([\\d.eE+-]+)', content)
+    cgs0_match = re.search(r'CGS0\\s+\\d+\\s+\\d+\\s+([\\d.eE+-]+)', content)
+    cds0_match = re.search(r'CDS0\\s+\\d+\\s+\\d+\\s+\\{([^}]+)\\}', content)
+    if cgd0_match:
+        params['cgd0'] = float(cgd0_match.group(1))
+    if cgs0_match:
+        params['cgs0'] = float(cgs0_match.group(1))
+    if cds0_match:
+        try:
+            cds0_expr = cds0_match.group(1).replace('pwidth', str(params.get('pwidth', 1)))
+            params['cds0'] = float(eval(cds0_expr))
+        except:
+            params['cds0'] = 5.63e-12 * float(params.get('pwidth', 1))
+    
+# Extract diode model parameters (DBD, DD) - use simpler patterns
+    dbd_cjo_match = re.search(r'\\.MODEL\\s+DBD\\s+D\\s*\\([^)]*CJO\\s*=\\s*([\\d.eE+-]+)', content)
+    dd_cjo_match = re.search(r'\\.MODEL\\s+DD\\s+D\\s*\\([^)]*CJO\\s*=\\{([^}]+)\\}', content)
+    dbd_vj_match = re.search(r'\\.MODEL\\s+DBD\\s+D\\s*\\([^)]*VJ\\s*=\\s*([\\d.eE+-]+)', content)
+    dd_vj_match = re.search(r'\\.MODEL\\s+DD\\s+D\\s*\\([^)]*VJ\\s*=\\s*([\\d.eE+-]+)', content)
+    # M after VJ: VJ=0.99 M=1.038
+    dbd_m_match = re.search(r'\\.MODEL\\s+DBD\\s+D\\s*\\([^)]*VJ\\s*=[\\d.eE+-]+\\s+M\\s*=\\s*([\\d.eE+-]+)', content)
+    dd_m_match = re.search(r'\\.MODEL\\s+DD\\s+D\\s*\\([^)]*VJ\\s*=[\\d.eE+-]+\\s+M\\s*=\\s*([\\d.eE+-]+)', content)
+    dbd_fc_match = re.search(r'\\.MODEL\\s+DBD\\s+D\\s*\\([^)]*FC\\s*=\\s*([\\d.eE+-]+)', content)
+    dd_fc_match = re.search(r'\\.MODEL\\s+DD\\s+D\\s*\\([^)]*FC\\s*=\\s*([\\d.eE+-]+)', content)
+    
+    if dbd_cjo_match:
+        params['dbd_cjo'] = float(dbd_cjo_match.group(1))
+    if dd_cjo_match:
+        cjo_expr = dd_cjo_match.group(1).replace('pCJO', str(params.get('pcjo', '58e-12')))
+        params['dd_cjo'] = float(eval(cjo_expr))
+    if dbd_vj_match:
+        params['dbd_vj'] = float(dbd_vj_match.group(1))
+    if dd_vj_match:
+        params['dd_vj'] = float(dd_vj_match.group(1))
+    if dbd_m_match:
+        params['dbd_m'] = float(dbd_m_match.group(1))
+    if dd_m_match:
+        params['dd_m'] = float(dd_m_match.group(1))
+    if dbd_fc_match:
+        params['dbd_fc'] = float(dbd_fc_match.group(1))
+    if dd_fc_match:
+        params['dd_fc'] = float(dd_fc_match.group(1))
+    
+    # Extract NMOS overlap capacitances
+    cgso_match = re.search(r'\\.MODEL\\s+NMOS\\s+NMOS\\s*\\([^)]*CGSO\\s*=\\s*([\\d.eE+-]+)', content)
+    cgdo_match = re.search(r'\\.MODEL\\s+NMOS\\s+NMOS\\s*\\([^)]*CGDO\\s*=\\s*([\\d.eE+-]+)', content)
+    if cgso_match:
+        params['cgso'] = float(cgso_match.group(1))
+    if cgdo_match:
+        params['cgdo'] = float(cgdo_match.group(1))
+    
+    # Extract gate resistance
+    rg_match = re.search(r'RGG\\s+\\d+\\s+\\d+\\s+\\{([^}]+)\\}', content)
+    if rg_match:
+        try:
+            rg_expr = rg_match.group(1).replace('pRgate', str(params.get('prgate', '0.9')))
+            params['rggate'] = float(eval(rg_expr))
+        except:
+            params['rggate'] = 1.5
     
     return params
 
@@ -121,13 +192,33 @@ print(f"Extracted params: {list(model_params.keys())}")
 for k, v in model_params.items():
     print(f"  {k} = {v}")
 
-# Common capacitance parameters (with defaults)
+# Common capacitance parameters (with defaults from model)
 CGSO = model_params.get('cgso', 17e-12)
 CGDO = model_params.get('cgdo', 13.2e-12)
-CJO = model_params.get('pcjo', 58e-12)
-VJ = model_params.get('vj', 0.65)
-M = model_params.get('m', 1.55)
-FC = model_params.get('fc', 0.90)
+CGD0 = model_params.get('cgd0', 0.5e-12)
+CGS0 = model_params.get('cgs0', 4e-12)
+CDS0 = model_params.get('cds0', 5.63e-12 * model_params.get('pwidth', 1))
+
+# Diode junction capacitances
+DBD_CJO = model_params.get('dbd_cjo', 274e-12)
+DD_CJO = model_params.get('dd_cjo', 2 * model_params.get('pcjo', 58e-12))
+DBD_VJ = model_params.get('dbd_vj', 0.99)
+DD_VJ = model_params.get('dd_vj', 0.65)
+DBD_M = model_params.get('dbd_m', 1.038)
+DD_M = model_params.get('dd_m', 1.55)
+DBD_FC = model_params.get('dbd_fc', 0.5)
+DD_FC = model_params.get('dd_fc', 0.90)
+
+# Gate resistance
+RGGATE = model_params.get('rggate', 1.5)
+
+# Datasheet reference values for validation (user-adjustable)
+DATASHEET_CISS_20V = (8770, 11400)  # pF
+DATASHEET_COSS_20V = (832, 1080)    # pF
+DATASHEET_CRSS_20V = (424, 551)     # pF
+DATASHEET_QG_10V = (118, 153)       # nC
+DATASHEET_QG_4V5 = (58, 75)         # nC
+DATASHEET_RG = (0.9, 1.8)           # ohm
 
 # Geometry from model params - evaluate expressions if needed
 paa = model_params.get('paa', 10.856327)
@@ -140,8 +231,8 @@ if isinstance(pwidth, str):
     except:
         pwidth = paa / 0.8 * 2
 
-W = pwidth
-L = model_params.get('l', 0.70)
+W = pwidth * 1e6  # um
+L = model_params.get('l', 0.70)  # um
 print(f"Geometry: W = {W:.2f} um, L = {L:.2f} um, W/L = {W/L:.1f}")"""
 
 nb.cells.append(nbf.v4.new_code_cell(code1))
@@ -347,6 +438,10 @@ nb.cells.append(nbf.v4.new_code_cell(code5))
 code6 = """# Capacitance extraction: Ciss, Coss, Crss vs Vds (using model parameters)
 # Datasheet standard conditions: VGS=0V, VDS=20V, f=1MHz
 # We compute at VGS=CAP_VGS, VDS=CAP_VDS, f=CAP_FREQ
+# Model capacitances:
+#  Ciss = CGS0 + CGSO + CGD0 + CGDO + C_DD(Vds)  (input at gate)
+#  Coss = CDS0 + C_DBD(Vds) + C_DD(Vds)          (output at drain)
+#  Crss = CGD0 + CGDO + C_DD(Vds)                 (reverse transfer)
 
 print(f"Capacitance conditions: Vgs={CAP_VGS}V, Vds={CAP_VDS}V, f={CAP_FREQ/1e6:.0f}MHz")
 
@@ -354,7 +449,7 @@ vds_plot = np.linspace(0.1, 40, 201)
 
 # Junction capacitance formula (clamped to avoid singularity at VJ*FC)
 def c_junction(v, cjo, vj, m, fc):
-    v_eff = min(v, vj * fc * 0.99)
+    v_eff = min(v, vj * fc * 0.999)
     return cjo / (1 - v_eff/vj)**m
 
 coss_plot = []
@@ -362,12 +457,19 @@ crss_plot = []
 ciss_plot = []
 
 for v in vds_plot:
-    cds = c_junction(v, 2*CJO, VJ, M, FC)  # CDS0 uses 2*pCJO
-    cdg = c_junction(v, CJO, VJ, M, FC)   # DD model
+    c_dbd = c_junction(v, DBD_CJO, DBD_VJ, DBD_M, DBD_FC)  # Body diode (drain-body)
+    c_dd = c_junction(v, DD_CJO, DD_VJ, DD_M, DD_FC)       # DD diode (drain-gate)
     
-    coss_plot.append((cds + cdg) * 1e12)
-    crss_plot.append(cdg * 1e12)
-    ciss_plot.append((CGSO + CGDO + cdg) * 1e12)
+    # Ciss = Cgs + Cgd = CGS0 + CGSO + CGD0 + CGDO + C_dd
+    ciss = CGS0 + CGSO + CGD0 + CGDO + c_dd
+    # Coss = Cds + Cdb = CDS0 + C_dbd + C_dd
+    coss = CDS0 + c_dbd + c_dd
+    # Crss = Cgd = CGD0 + CGDO + C_dd
+    crss = CGD0 + CGDO + c_dd
+    
+    coss_plot.append(coss * 1e12)
+    crss_plot.append(crss * 1e12)
+    ciss_plot.append(ciss * 1e12)
 
 # Mark the datasheet measurement point
 idx_20v = np.argmin(np.abs(vds_plot - CAP_VDS))
@@ -379,6 +481,23 @@ print(f"  Ciss @ Vds={CAP_VDS}V: {ciss_20v:.0f} pF")
 print(f"  Coss @ Vds={CAP_VDS}V: {coss_20v:.0f} pF")
 print(f"  Crss @ Vds={CAP_VDS}V: {crss_20v:.0f} pF")
 
+# Datasheet validation
+ciss_low, ciss_high = DATASHEET_CISS_20V
+coss_low, coss_high = DATASHEET_COSS_20V
+crss_low, crss_high = DATASHEET_CRSS_20V
+if ciss_low <= ciss_20v <= ciss_high:
+    print(f"  Ciss: PASS (datasheet: {ciss_low}-{ciss_high} pF)")
+else:
+    print(f"  Ciss: FAIL (datasheet: {ciss_low}-{ciss_high} pF, got {ciss_20v:.0f} pF)")
+if coss_low <= coss_20v <= coss_high:
+    print(f"  Coss: PASS (datasheet: {coss_low}-{coss_high} pF)")
+else:
+    print(f"  Coss: FAIL (datasheet: {coss_low}-{coss_high} pF, got {coss_20v:.0f} pF)")
+if crss_low <= crss_20v <= crss_high:
+    print(f"  Crss: PASS (datasheet: {crss_low}-{crss_high} pF)")
+else:
+    print(f"  Crss: FAIL (datasheet: {crss_low}-{crss_high} pF, got {crss_20v:.0f} pF)")
+
 # Plot Capacitances
 fig, ax = plt.subplots(figsize=(10, 7))
 
@@ -387,9 +506,14 @@ ax.loglog(vds_plot, coss_plot, 'r-', label='Coss (Output)', linewidth=2)
 ax.loglog(vds_plot, crss_plot, 'g-', label='Crss (Reverse Transfer)', linewidth=2)
 
 # Mark datasheet point
-ax.loglog([CAP_VDS], [ciss_20v], 'bo', markersize=10, markerfacecolor='none', markeredgewidth=2, label=f'Datasheet: Ciss @ {CAP_VDS}V')
-ax.loglog([CAP_VDS], [coss_20v], 'ro', markersize=10, markerfacecolor='none', markeredgewidth=2, label=f'Datasheet: Coss @ {CAP_VDS}V')
-ax.loglog([CAP_VDS], [crss_20v], 'go', markersize=10, markerfacecolor='none', markeredgewidth=2, label=f'Datasheet: Crss @ {CAP_VDS}V')
+ax.loglog([CAP_VDS], [ciss_20v], 'bo', markersize=10, markerfacecolor='none', markeredgewidth=2, label=f'Model: Ciss @ {CAP_VDS}V')
+ax.loglog([CAP_VDS], [coss_20v], 'ro', markersize=10, markerfacecolor='none', markeredgewidth=2, label=f'Model: Coss @ {CAP_VDS}V')
+ax.loglog([CAP_VDS], [crss_20v], 'go', markersize=10, markerfacecolor='none', markeredgewidth=2, label=f'Model: Crss @ {CAP_VDS}V')
+
+# Mark datasheet range
+ax.axhspan(ciss_low, ciss_high, alpha=0.1, color='blue', label=f'Datasheet Ciss range')
+ax.axhspan(coss_low, coss_high, alpha=0.1, color='red', label=f'Datasheet Coss range')
+ax.axhspan(crss_low, crss_high, alpha=0.1, color='green', label=f'Datasheet Crss range')
 
 ax.set_xlabel('Vds (V)', fontsize=14)
 ax.set_ylabel('Capacitance (pF)', fontsize=14)
@@ -406,27 +530,56 @@ nb.cells.append(nbf.v4.new_code_cell(code6))
 code7 = """# Gate Charge (Qg) measurement at constant Vds (datasheet conditions)
 # Standard Qg test: Vgs swept from 0 to 10V at constant Vds, measure integrated gate current
 # Qg = integral of Ciss dVgs = integral of Ig dt where Ig = Ciss * dVgs/dt
+# At Vds=20V (datasheet condition), Ciss varies with Vgs due to Miller effect
 
 print(f"Gate charge conditions: Vds={QG_VDS}V (constant)")
 
-# Capacitance-based estimation (standard method from datasheet)
+# Proper gate charge calculation using model capacitances
+# Ciss(Vgs) = CGS0 + CGSO + CGD(Vgs) + CGDO
+# CGD decreases with Vgs due to Miller effect
 vgs_q = np.linspace(0, 10, 101)
-cgs_fixed = CGSO * 1e12  # pF
-cgd_vgs = []
+cgs_fixed = CGS0 + CGSO  # pF
 
+# Cgd decreases with Vgs - approximate with square root dependence
+cgd_vgs = []
 for vgs in vgs_q:
-    # Cgd decreases with Vgs (Miller capacitance)
-    cgd = CGDO * 1e12 * (1 - vgs/20)**0.5
-    cgd_vgs.append(max(cgd, 0.1))
+    cgd = (CGD0 + CGDO) * max(1 - vgs/15, 0.1)**0.5  # Vgs-dependent Miller cap
+    cgd_vgs.append(cgd)
 
 ciss_vgs = cgs_fixed + np.array(cgd_vgs)
 qg = np.cumsum(ciss_vgs) * (vgs_q[1] - vgs_q[0])  # nC
+
+# Also compute at Vds=4.5V for Qg(4.5V)
+qg_4v5 = np.cumsum(ciss_vgs[:46]) * (vgs_q[1] - vgs_q[0])  # up to 4.5V
+
+# Datasheet validation
+qg10_low, qg10_high = DATASHEET_QG_10V
+qg45_low, qg45_high = DATASHEET_QG_4V5
+rg_low, rg_high = DATASHEET_RG
+
+if qg10_low <= qg[-1] <= qg10_high:
+    print(f"  Qg(10V): PASS (datasheet: {qg10_low}-{qg10_high} nC)")
+else:
+    print(f"  Qg(10V): FAIL (datasheet: {qg10_low}-{qg10_high} nC, got {qg[-1]:.1f} nC)")
+
+if qg45_low <= qg_4v5[-1] <= qg45_high:
+    print(f"  Qg(4.5V): PASS (datasheet: {qg45_low}-{qg45_high} nC)")
+else:
+    print(f"  Qg(4.5V): FAIL (datasheet: {qg45_low}-{qg45_high} nC, got {qg_4v5[-1]:.1f} nC)")
+
+if rg_low <= RGGATE <= rg_high:
+    print(f"  Rg: PASS (datasheet: {rg_low}-{rg_high} ohm)")
+else:
+    print(f"  Rg: FAIL (datasheet: {rg_low}-{rg_high} ohm, got {RGGATE:.1f} ohm)")
 
 # Plot: Qg on X-axis, Vgs on Y-axis (standard gate charge plot)
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
 
 # Gate charge curve: Qg vs Vgs (Y=Vgs, X=Qg)
-ax1.plot(qg, vgs_q, 'b-', linewidth=2, label=f'Cap-based @ Vds={QG_VDS}V')
+ax1.plot(qg, vgs_q, 'b-', linewidth=2, label=f'Model @ Vds={QG_VDS}V')
+ax1.axhline(y=4.5, color='r', linestyle='--', linewidth=1, label='Vgs=4.5V')
+ax1.axvline(x=qg10_low, color='gray', linestyle=':', linewidth=1, label='Datasheet Qg range')
+ax1.axvline(x=qg10_high, color='gray', linestyle=':', linewidth=1)
 ax1.set_xlabel('Gate Charge Qg (nC)', fontsize=14)
 ax1.set_ylabel('Vgs (V)', fontsize=14)
 ax1.set_title(f'{MODEL_NAME.upper()} - Gate Charge: Vgs vs Qg', fontsize=14, fontweight='bold')
@@ -450,7 +603,8 @@ ax2.set_ylim(bottom=0)
 plt.tight_layout()
 plt.show()
 
-print(f"Total Qg at 10V: {qg[-1]:.1f} nC")"""
+print(f"Total Qg at 10V: {qg[-1]:.1f} nC")
+print(f"Total Qg at 4.5V: {qg_4v5[-1]:.1f} nC")"""
 
 nb.cells.append(nbf.v4.new_code_cell(code7))
 
@@ -531,8 +685,10 @@ print(f"--- Capacitances @ Vgs={CAP_VGS}V, Vds=25V ---")
 print(f"Ciss @ Vds=25V: {ciss_plot[125]:.0f} pF")
 print(f"Coss @ Vds=25V: {coss_plot[125]:.0f} pF")
 print(f"Crss @ Vds=25V: {crss_plot[125]:.0f} pF")
-print(f"--- Gate Charge @ Vds={QG_VDS}V, Id={QG_ID}A ---")
-print(f"Total Gate Charge Qg(10V): {qg[-1]:.1f} nC")
+print(f"--- Gate Charge ---")
+print(f"Qg @ Vds={QG_VDS}V, 10V: {qg[-1]:.1f} nC")
+print(f"Qg @ Vds={QG_VDS}V, 4.5V: {qg_4v5[-1]:.1f} nC")
+print(f"Gate Resistance Rg: {RGGATE:.1f} ohm")
 print("=" * 60)"""
 
 nb.cells.append(nbf.v4.new_code_cell(code9))
