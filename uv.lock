@@ -2040,6 +2040,8 @@ dependencies = [
 dev = [
     { name = "ipykernel" },
     { name = "ipywidgets" },
+    { name = "nbconvert" },
+    { name = "nbformat" },
     { name = "notebook" },
 ]
 
@@ -2061,6 +2063,8 @@ requires-dist = [
 dev = [
     { name = "ipykernel", specifier = ">=7.3.0" },
     { name = "ipywidgets", specifier = ">=8.1.8" },
+    { name = "nbconvert", specifier = ">=7.17.1" },
+    { name = "nbformat", specifier = ">=5.10.4" },
     { name = "notebook", specifier = ">=7.6.1" },
 ]
 

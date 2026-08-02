@@ -38,18 +38,28 @@ matplotlib.rcParams['font.size'] = 12
 # ============================================================
 MODEL_NAME = 'csd18510kcs'           # Model name (subcircuit name in .lib)
 LIB_FILENAME = 'ng_csd18510kcs.lib'  # Converted ngspice library file
-R_DRAIN = 0.0                        # Series drain resistance (ohm) - SET TO 0 TO DISABLE
+R_DRAIN = 0.0                        # Series drain resistance (ohm)
 VGS_RANGE = (0, 10, 11)              # (start, stop, num_points) for output curves
 VDS_RANGE = (0, 40, 0.1)             # (start, stop, step) for output curves
 VGS_TRANSFER = (0, 10, 0.1)          # (start, stop, step) for transfer curve
 VDD_TRANSFER = 10                    # Vdd for transfer curve (V)
-# --- NEW: Datasheet reference parameters ---
-ID_CONTMAX = 95.0                    # Max continuous drain current (A) from datasheet
-QG_VDS = 10.0                        # Vds for gate charge measurement (V)
-QG_ID = 10.0                         # Constant Id for gate charge measurement (A)
+
+# --- Measurement conditions ---
+ID_CONTMAX = 95.0                    # Max continuous drain current (A)
 CAP_VDS = 20.0                       # Vds for capacitance measurement (V)
 CAP_VGS = 0.0                        # Vgs for capacitance measurement (V)
 CAP_FREQ = 1e6                       # Frequency for capacitance measurement (Hz)
+QG_VDS = 10.0                        # Vds for gate charge measurement (V)
+
+# --- Datasheet validation ranges (set to None to skip validation) ---
+DATASHEET_CISS_RANGE = (8770, 11400)   # (low, high) pF; or None
+DATASHEET_COSS_RANGE = (832, 1080)     # (low, high) pF; or None
+DATASHEET_CRSS_RANGE = (424, 551)       # (low, high) pF; or None
+DATASHEET_QG_10V_RANGE = (118, 153)    # (low, high) nC; or None
+DATASHEET_QG_4V5_RANGE = (58, 75)      # (low, high) nC; or None
+DATASHEET_RG_RANGE = (0.9, 1.8)        # (low, high) ohm; or None
+DATASHEET_RDS_RANGE = None             # (low, high) mOhm; or None
+DATASHEET_VTH_RANGE = None             # (low, high) V; or None
 # ============================================================
 
 # Dynamic paths - find project root by looking for SpiceModels dir
@@ -182,6 +192,16 @@ def extract_model_params(lib_path):
         except:
             params['rggate'] = 1.5
     
+    # Extract L from M1 instance (format: M1 ... W={pwidth} L=0.70u ...)
+    l_match = re.search(r'M1\\s+\\d+\\s+\\d+\\s+\\d+\\s+\\d+\\s+\\w+\\s+W=\\{pwidth\\}\\s+L=([\\d.]+)[uUmM]', content)
+    if l_match:
+        params['l_extracted'] = float(l_match.group(1)) * 1e-6  # in meters
+    else:
+        # Try alternative pattern
+        l_match2 = re.search(r'L=([\\d.]+)[uUmM]', content)
+        if l_match2:
+            params['l_extracted'] = float(l_match2.group(1)) * 1e-6
+    
     return params
 
 model_params = extract_model_params(LIB_PATH)
@@ -212,13 +232,15 @@ DD_FC = model_params.get('dd_fc', 0.90)
 # Gate resistance
 RGGATE = model_params.get('rggate', 1.5)
 
-# Datasheet reference values for validation (user-adjustable)
-DATASHEET_CISS_20V = (8770, 11400)  # pF
-DATASHEET_COSS_20V = (832, 1080)    # pF
-DATASHEET_CRSS_20V = (424, 551)     # pF
-DATASHEET_QG_10V = (118, 153)       # nC
-DATASHEET_QG_4V5 = (58, 75)         # nC
-DATASHEET_RG = (0.9, 1.8)           # ohm
+# Datasheet validation ranges (from config - user adjustable)
+DATASHEET_CISS_RANGE = DATASHEET_CISS_RANGE
+DATASHEET_COSS_RANGE = DATASHEET_COSS_RANGE
+DATASHEET_CRSS_RANGE = DATASHEET_CRSS_RANGE
+DATASHEET_QG_10V_RANGE = DATASHEET_QG_10V_RANGE
+DATASHEET_QG_4V5_RANGE = DATASHEET_QG_4V5_RANGE
+DATASHEET_RG_RANGE = DATASHEET_RG_RANGE
+DATASHEET_RDS_RANGE = DATASHEET_RDS_RANGE
+DATASHEET_VTH_RANGE = DATASHEET_VTH_RANGE
 
 # Geometry from model params - evaluate expressions if needed
 paa = model_params.get('paa', 10.856327)
@@ -232,7 +254,7 @@ if isinstance(pwidth, str):
         pwidth = paa / 0.8 * 2
 
 W = pwidth * 1e6  # um
-L = model_params.get('l', 0.70)  # um
+L = model_params.get('l_extracted', 0.70e-6) * 1e6  # um
 print(f"Geometry: W = {W:.2f} um, L = {L:.2f} um, W/L = {W/L:.1f}")"""
 
 nb.cells.append(nbf.v4.new_code_cell(code1))
@@ -482,21 +504,24 @@ print(f"  Coss @ Vds={CAP_VDS}V: {coss_20v:.0f} pF")
 print(f"  Crss @ Vds={CAP_VDS}V: {crss_20v:.0f} pF")
 
 # Datasheet validation
-ciss_low, ciss_high = DATASHEET_CISS_20V
-coss_low, coss_high = DATASHEET_COSS_20V
-crss_low, crss_high = DATASHEET_CRSS_20V
-if ciss_low <= ciss_20v <= ciss_high:
-    print(f"  Ciss: PASS (datasheet: {ciss_low}-{ciss_high} pF)")
-else:
-    print(f"  Ciss: FAIL (datasheet: {ciss_low}-{ciss_high} pF, got {ciss_20v:.0f} pF)")
-if coss_low <= coss_20v <= coss_high:
-    print(f"  Coss: PASS (datasheet: {coss_low}-{coss_high} pF)")
-else:
-    print(f"  Coss: FAIL (datasheet: {coss_low}-{coss_high} pF, got {coss_20v:.0f} pF)")
-if crss_low <= crss_20v <= crss_high:
-    print(f"  Crss: PASS (datasheet: {crss_low}-{crss_high} pF)")
-else:
-    print(f"  Crss: FAIL (datasheet: {crss_low}-{crss_high} pF, got {crss_20v:.0f} pF)")
+if DATASHEET_CISS_RANGE is not None:
+    ciss_low, ciss_high = DATASHEET_CISS_RANGE
+    if ciss_low <= ciss_20v <= ciss_high:
+        print(f"  Ciss: PASS (datasheet: {ciss_low}-{ciss_high} pF)")
+    else:
+        print(f"  Ciss: FAIL (datasheet: {ciss_low}-{ciss_high} pF, got {ciss_20v:.0f} pF)")
+if DATASHEET_COSS_RANGE is not None:
+    coss_low, coss_high = DATASHEET_COSS_RANGE
+    if coss_low <= coss_20v <= coss_high:
+        print(f"  Coss: PASS (datasheet: {coss_low}-{coss_high} pF)")
+    else:
+        print(f"  Coss: FAIL (datasheet: {coss_low}-{coss_high} pF, got {coss_20v:.0f} pF)")
+if DATASHEET_CRSS_RANGE is not None:
+    crss_low, crss_high = DATASHEET_CRSS_RANGE
+    if crss_low <= crss_20v <= crss_high:
+        print(f"  Crss: PASS (datasheet: {crss_low}-{crss_high} pF)")
+    else:
+        print(f"  Crss: FAIL (datasheet: {crss_low}-{crss_high} pF, got {crss_20v:.0f} pF)")
 
 # Plot Capacitances
 fig, ax = plt.subplots(figsize=(10, 7))
@@ -511,9 +536,15 @@ ax.loglog([CAP_VDS], [coss_20v], 'ro', markersize=10, markerfacecolor='none', ma
 ax.loglog([CAP_VDS], [crss_20v], 'go', markersize=10, markerfacecolor='none', markeredgewidth=2, label=f'Model: Crss @ {CAP_VDS}V')
 
 # Mark datasheet range
-ax.axhspan(ciss_low, ciss_high, alpha=0.1, color='blue', label=f'Datasheet Ciss range')
-ax.axhspan(coss_low, coss_high, alpha=0.1, color='red', label=f'Datasheet Coss range')
-ax.axhspan(crss_low, crss_high, alpha=0.1, color='green', label=f'Datasheet Crss range')
+if DATASHEET_CISS_RANGE is not None:
+    ciss_low, ciss_high = DATASHEET_CISS_RANGE
+    ax.axhspan(ciss_low, ciss_high, alpha=0.1, color='blue', label=f'Datasheet Ciss range')
+if DATASHEET_COSS_RANGE is not None:
+    coss_low, coss_high = DATASHEET_COSS_RANGE
+    ax.axhspan(coss_low, coss_high, alpha=0.1, color='red', label=f'Datasheet Coss range')
+if DATASHEET_CRSS_RANGE is not None:
+    crss_low, crss_high = DATASHEET_CRSS_RANGE
+    ax.axhspan(crss_low, crss_high, alpha=0.1, color='green', label=f'Datasheet Crss range')
 
 ax.set_xlabel('Vds (V)', fontsize=14)
 ax.set_ylabel('Capacitance (pF)', fontsize=14)
@@ -553,24 +584,26 @@ qg = np.cumsum(ciss_vgs) * (vgs_q[1] - vgs_q[0])  # nC
 qg_4v5 = np.cumsum(ciss_vgs[:46]) * (vgs_q[1] - vgs_q[0])  # up to 4.5V
 
 # Datasheet validation
-qg10_low, qg10_high = DATASHEET_QG_10V
-qg45_low, qg45_high = DATASHEET_QG_4V5
-rg_low, rg_high = DATASHEET_RG
+if DATASHEET_QG_10V_RANGE is not None:
+    qg10_low, qg10_high = DATASHEET_QG_10V_RANGE
+    if qg10_low <= qg[-1] <= qg10_high:
+        print(f"  Qg(10V): PASS (datasheet: {qg10_low}-{qg10_high} nC)")
+    else:
+        print(f"  Qg(10V): FAIL (datasheet: {qg10_low}-{qg10_high} nC, got {qg[-1]:.1f} nC)")
 
-if qg10_low <= qg[-1] <= qg10_high:
-    print(f"  Qg(10V): PASS (datasheet: {qg10_low}-{qg10_high} nC)")
-else:
-    print(f"  Qg(10V): FAIL (datasheet: {qg10_low}-{qg10_high} nC, got {qg[-1]:.1f} nC)")
+if DATASHEET_QG_4V5_RANGE is not None:
+    qg45_low, qg45_high = DATASHEET_QG_4V5_RANGE
+    if qg45_low <= qg_4v5[-1] <= qg45_high:
+        print(f"  Qg(4.5V): PASS (datasheet: {qg45_low}-{qg45_high} nC)")
+    else:
+        print(f"  Qg(4.5V): FAIL (datasheet: {qg45_low}-{qg45_high} nC, got {qg_4v5[-1]:.1f} nC)")
 
-if qg45_low <= qg_4v5[-1] <= qg45_high:
-    print(f"  Qg(4.5V): PASS (datasheet: {qg45_low}-{qg45_high} nC)")
-else:
-    print(f"  Qg(4.5V): FAIL (datasheet: {qg45_low}-{qg45_high} nC, got {qg_4v5[-1]:.1f} nC)")
-
-if rg_low <= RGGATE <= rg_high:
-    print(f"  Rg: PASS (datasheet: {rg_low}-{rg_high} ohm)")
-else:
-    print(f"  Rg: FAIL (datasheet: {rg_low}-{rg_high} ohm, got {RGGATE:.1f} ohm)")
+if DATASHEET_RG_RANGE is not None:
+    rg_low, rg_high = DATASHEET_RG_RANGE
+    if rg_low <= RGGATE <= rg_high:
+        print(f"  Rg: PASS (datasheet: {rg_low}-{rg_high} ohm)")
+    else:
+        print(f"  Rg: FAIL (datasheet: {rg_low}-{rg_high} ohm, got {RGGATE:.1f} ohm)")
 
 # Plot: Qg on X-axis, Vgs on Y-axis (standard gate charge plot)
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
@@ -578,8 +611,10 @@ fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
 # Gate charge curve: Qg vs Vgs (Y=Vgs, X=Qg)
 ax1.plot(qg, vgs_q, 'b-', linewidth=2, label=f'Model @ Vds={QG_VDS}V')
 ax1.axhline(y=4.5, color='r', linestyle='--', linewidth=1, label='Vgs=4.5V')
-ax1.axvline(x=qg10_low, color='gray', linestyle=':', linewidth=1, label='Datasheet Qg range')
-ax1.axvline(x=qg10_high, color='gray', linestyle=':', linewidth=1)
+if DATASHEET_QG_10V_RANGE is not None:
+    qg10_low, qg10_high = DATASHEET_QG_10V_RANGE
+    ax1.axvline(x=qg10_low, color='gray', linestyle=':', linewidth=1, label='Datasheet Qg range')
+    ax1.axvline(x=qg10_high, color='gray', linestyle=':', linewidth=1)
 ax1.set_xlabel('Gate Charge Qg (nC)', fontsize=14)
 ax1.set_ylabel('Vgs (V)', fontsize=14)
 ax1.set_title(f'{MODEL_NAME.upper()} - Gate Charge: Vgs vs Qg', fontsize=14, fontweight='bold')
@@ -670,8 +705,28 @@ print(f"{MODEL_NAME.upper()} MOSFET - Key Parameters Summary")
 print("=" * 60)
 print(f"Device: N-channel MOSFET")
 print(f"Geometry: W = {W:.1f} um, L = {L:.2f} um, W/L = {W/L:.1f}")
-print(f"Threshold Voltage (extracted): ~{vth:.2f} V" if vth else "Threshold Voltage: TBD")
-print(f"Rds(on) at Vgs={vgs_max:.1f}V: {rds_on*1e3:.2f} mΩ" if rds_on else "Rds(on): TBD")
+
+# Vth with validation
+vth_str = f"Threshold Voltage (extracted): ~{vth:.2f} V" if vth else "Threshold Voltage: TBD"
+if vth and DATASHEET_VTH_RANGE is not None:
+    vth_low, vth_high = DATASHEET_VTH_RANGE
+    if vth_low <= vth <= vth_high:
+        vth_str += " [PASS]"
+    else:
+        vth_str += f" [FAIL: datasheet {vth_low}-{vth_high} V]"
+print(vth_str)
+
+# Rds(on) with validation
+rds_str = f"Rds(on) at Vgs={vgs_max:.1f}V: {rds_on*1e3:.2f} mΩ" if rds_on else "Rds(on): TBD"
+if rds_on and DATASHEET_RDS_RANGE is not None:
+    rds_low, rds_high = DATASHEET_RDS_RANGE
+    rds_mohm = rds_on * 1e3
+    if rds_low <= rds_mohm <= rds_high:
+        rds_str += " [PASS]"
+    else:
+        rds_str += f" [FAIL: datasheet {rds_low}-{rds_high} mΩ]"
+print(rds_str)
+
 print(f"Max Continuous Drain Current (datasheet): {ID_CONTMAX} A")
 print(f"--- Capacitances @ Vgs={CAP_VGS}V, Vds={CAP_VDS}V, f={CAP_FREQ/1e6:.0f}MHz ---")
 print(f"Ciss @ Vds={CAP_VDS}V: {ciss_20v:.0f} pF")
