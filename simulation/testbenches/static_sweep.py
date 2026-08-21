@@ -5,9 +5,9 @@ from typing import List, Dict, Tuple, Optional
 import numpy as np
 from PySpice.Spice.Netlist import Circuit
 from PySpice.Unit import *
-from piecespice.common.types import CurveData
-from piecespice.simulation.engine import SpiceEngine
-from piecespice.parser.preprocessor import normalize_pspice_netlist
+from common.types import CurveData
+from simulation.engine import SpiceEngine
+from parser.preprocessor import normalize_pspice_netlist
 
 
 class StaticSweepTestbench:

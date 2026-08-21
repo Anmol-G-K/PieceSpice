@@ -1,8 +1,8 @@
 """Unit tests for SPICE parser and preprocessor."""
 
 from pathlib import Path
-from piecespice.parser.netlist import NetlistParser
-from piecespice.parser.preprocessor import normalize_pspice_netlist
+from parser.netlist import NetlistParser
+from parser.preprocessor import normalize_pspice_netlist
 
 
 def test_parse_subcircuits():

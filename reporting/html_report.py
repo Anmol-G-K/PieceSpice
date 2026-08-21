@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Dict, Any, List
 import jinja2
 import plotly.graph_objects as go
-from piecespice.common.types import CurveData
+from common.types import CurveData
 
 
 HTML_TEMPLATE = """<!DOCTYPE html>

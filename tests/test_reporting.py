@@ -1,8 +1,8 @@
 """Unit tests for HTML reporting."""
 
 from pathlib import Path
-from piecespice.reporting.html_report import generate_html_report
-from piecespice.common.types import CurveData
+from reporting.html_report import generate_html_report
+from common.types import CurveData
 
 
 def test_html_report_generation(tmp_path):

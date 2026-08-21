@@ -1,6 +1,6 @@
 """Generates executable SPICE subcircuits from PieceSpice piecewise specifications."""
 
-from piecespice.common.types import PWLModelSpec
+from common.types import PWLModelSpec
 
 
 class NetlistBuilder:

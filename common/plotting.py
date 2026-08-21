@@ -7,7 +7,7 @@ All plot legends MUST be located on the EAST side (outside plotting area to the 
 from typing import Optional, List, Tuple, Union
 import matplotlib.pyplot as plt
 import numpy as np
-from piecespice.common.types import CurveData, WaveformData
+from common.types import CurveData, WaveformData
 
 
 def setup_style():

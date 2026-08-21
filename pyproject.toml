@@ -35,6 +35,7 @@ dev = [
     "pytest>=9.1.1",
     "pytest-benchmark>=5.2.3",
     "pytest-cov>=7.1.0",
+    "pytest-html>=4.2.0",
     "ruff>=0.16.4",
 ]
 
@@ -42,6 +43,20 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.targets.wheel]
+packages = [
+    "common",
+    "parser",
+    "models",
+    "approximation",
+    "simulation",
+    "metrics",
+    "reporting",
+    "cli",
+]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+addopts = "--html=reports/pytest_report.html --self-contained-html"
+

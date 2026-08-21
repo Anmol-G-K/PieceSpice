@@ -1,8 +1,8 @@
 """Unit tests for metrics and error calculation."""
 
 import numpy as np
-from piecespice.metrics.static import compute_curve_error
-from piecespice.metrics.loss import compute_switching_energy
+from metrics.static import compute_curve_error
+from metrics.loss import compute_switching_energy
 
 
 def test_curve_error():

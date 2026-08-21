@@ -1,7 +1,7 @@
 """Power MOSFET device data model."""
 
 from typing import Optional, Dict
-from piecespice.models.base import SemiconductorDevice
+from models.base import SemiconductorDevice
 
 
 class MOSFETDevice(SemiconductorDevice):

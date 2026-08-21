@@ -1,9 +1,9 @@
 """Unit tests for approximation and charge modeling algorithms."""
 
 import numpy as np
-from piecespice.approximation.pwlf_fit import fit_piecewise_linear
-from piecespice.approximation.rdp_compress import compress_rdp
-from piecespice.approximation.charge_model import compute_charge_qoss
+from approximation.pwlf_fit import fit_piecewise_linear
+from approximation.rdp_compress import compress_rdp
+from approximation.charge_model import compute_charge_qoss
 
 
 def test_pwlf_fit():

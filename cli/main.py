@@ -4,10 +4,10 @@ from pathlib import Path
 import typer
 from rich.console import Console
 from rich.table import Table
-from piecespice.parser.netlist import NetlistParser
-from piecespice.parser.preprocessor import normalize_pspice_netlist
-from piecespice.simulation.testbenches.static_sweep import StaticSweepTestbench
-from piecespice.reporting.html_report import generate_html_report
+from parser.netlist import NetlistParser
+from parser.preprocessor import normalize_pspice_netlist
+from simulation.testbenches.static_sweep import StaticSweepTestbench
+from reporting.html_report import generate_html_report
 
 app = typer.Typer(help="PieceSpice: SPICE to Piecewise-Linear Modeling Pipeline")
 console = Console()
