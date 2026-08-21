@@ -154,6 +154,55 @@ class StaticSweepTestbench:
             if temp_lib.exists():
                 temp_lib.unlink()
 
+    def run_threshold_voltage(
+        self,
+        lib_path: Path,
+        subcircuit_name: str,
+        i_target: float = 250e-6,
+        v_max: float = 6.0,
+        points: int = 3001,
+    ) -> Tuple[CurveData, float]:
+        """Extract Vgs(th) per the datasheet/JEDEC constant-current method.
+
+        Gate is shorted to drain so Vds = Vgs; the sweep is interpolated at
+        i_target (250 uA is the IR/Infineon datasheet convention). Note: this
+        returns whatever the vendor model encodes - a LEVEL=1 macromodel has
+        a hard threshold (no subthreshold conduction), so its Vth can differ
+        from the real device's datasheet-typical value.
+        """
+        temp_lib = _normalized_lib_file(lib_path)
+
+        try:
+            circuit = Circuit("Threshold_Voltage")
+            circuit.include(str(temp_lib.resolve()))
+            # Drain and gate tied together -> self-bias at Vds = Vgs
+            circuit.X("M1", subcircuit_name, "gd", "gd", circuit.gnd)
+            circuit.V("sweep", "gd", circuit.gnd, 0@u_V)
+
+            step = v_max / max(1, points - 1)
+            analysis = self.engine.run_dc_sweep(circuit, "Vsweep", 0, v_max, step)
+
+            v_arr = np.array(analysis.sweep)
+            id_arr = -np.array(analysis.Vsweep)
+            v_th = float(np.interp(i_target, id_arr, v_arr))
+
+            curve = CurveData(
+                name=(
+                    f"Threshold Sweep (Vds=Vgs) "
+                    f"- Vth={v_th:.3f}V @ Id={i_target * 1e6:.0f}uA"
+                ),
+                x_name="Gate-Source Voltage (Vgs)",
+                x_unit="V",
+                y_name="Drain Current (Id)",
+                y_unit="A",
+                x_data=v_arr.tolist(),
+                y_data=id_arr.tolist(),
+            )
+            return curve, v_th
+        finally:
+            if temp_lib.exists():
+                temp_lib.unlink()
+
     def run_body_diode(
         self,
         lib_path: Path,
