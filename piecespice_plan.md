@@ -69,141 +69,157 @@ To balance model compactness and accuracy:
 
 ---
 
-## 3. Multi-Fidelity Model Hierarchy
+## 3. Standard Datasheet Curves Definition
 
-PieceSpice provides three configurable tiers of approximation:
+PieceSpice automates extraction, piecewise fitting, and golden SPICE verification for the following standard datasheet curves:
 
-| Tier | Name | Target Use Case | Speedup | Fidelity Scope |
-|---|---|---|---|---|
-| **Tier 1** | **Behavioral Fast (PLECS-in-SPICE)** | Converter system sizing, loop stability, thermal steady-state | **50× - 200×** | Ideal switch + $R_{\text{ds(on)}}(T) +$ linear $C_{\text{oss,eq}} +$ LUT switching loss injection |
-| **Tier 2** | **Continuous Piecewise Linear (CPWL)** | Switching transient optimization, gate driver sizing | **10× - 50×** | Multi-segment $I_d(V_{ds}, V_{gs})$ surfaces, piecewise $Q_{\text{oss}}(V), Q_{\text{rss}}(V)$, PWL body diode |
-| **Tier 3** | **Harmonized Macromodel** | EMI pre-compliance, parasitic ringing, high-fidelity loss | **3× - 15×** | Full continuous $C^1$ behavioral sources, charge-based non-linear caps, package parasitics ($L_s, L_d, L_g, R_g$), Foster/Cauer thermal network |
-
----
-
-## 4. Architecture & Pipeline Breakdown
-
-```
-                    ┌──────────────────────────────┐
-                    │    Vendor SPICE Library      │
-                    │ (.lib / .subckt / .model)    │
-                    └──────────────┬───────────────┘
-                                   │
-                                   ▼
- ┌──────────────────────────────────────────────────────────────────┐
- │ Phase 1: Ingestion, Dialect Normalization & Parameter Extraction │
- │ • PSpice/LTspice to NgSpice syntax transpiler (handle .PARAM)    │
- │ • Unified Device Schema (Pydantic models)                        │
- └─────────────────────────────────┬────────────────────────────────┘
-                                   │
-                                   ▼
- ┌──────────────────────────────────────────────────────────────────┐
- │ Phase 2: Piecewise Generation & Approximation Engine             │
- │ • DC I-V Sweeps (Id-Vds, Id-Vgs)                                 │
- │ • Capacitance Sweeps (Ciss, Coss, Crss vs Vds)                   │
- │ • Charge Integration: Q(V) = ∫ C(v) dv                          │
- │ • Optimal Breakpoints (PWLF / RDP / Adaptive Error Bounding)     │
- │ • C¹ Smooth Continuous Piecewise Assembly                        │
- └─────────────────────────────────┬────────────────────────────────┘
-                                   │
-                                   ▼
- ┌──────────────────────────────────────────────────────────────────┐
- │ Phase 3: NgSpice Dual Simulation Harness                         │
- │ • Golden Reference Run (Vendor SPICE model)                      │
- │ • Candidate Run (PieceSpice Generated Model)                     │
- │ • Testbenches: DC Curve Sweep, Double Pulse Test (DPT), Buck     │
- └─────────────────────────────────┬────────────────────────────────┘
-                                   │
-                                   ▼
- ┌──────────────────────────────────────────────────────────────────┐
- │ Phase 4: Metrics, Verification & Automated Reporting             │
- │ • Static Error: L_inf, RMSE on Id(Vds, Vgs) and Qoss(Vds)        │
- │ • Dynamic Error: tr, tf, td(on), td(off), dv/dt, di/dt           │
- │ • Energy Error: Eon, Eoff, Eoss % difference                     │
- │ • Speed Benchmark: Execution time ratio & solver iterations      │
- │ • HTML / Markdown / Jupyter Notebook reports                     │
- └──────────────────────────────────────────────────────────────────┘
-```
-
-### 4.1 Phase 1: SPICE Parsing & Dialect Normalization (`piecespice/parser/`)
-- **Vendor Syntax Harmonization**:
-  - Automatically convert PSpice `.PARAM` definitions inside `.SUBCKT` into global scopes or pre-evaluate expressions `{2*pWidth}` before loading into NgSpice.
-  - Parse unencrypted `.subckt` hierarchies, `.model` statements (LEVEL 1, 3, BSIM, VDMOS), diode models, and dependent sources ($E, G, F, H$).
-- **Data Models (`piecespice/models/schema.py`)**:
-  - Strongly typed schemas with `pydantic` for device parameters ($V_{\text{th}}, R_{\text{ds(on)}}, Q_g, Q_{\text{oss}}, R_g, L_{\text{package}}$).
-
-### 4.2 Phase 2: Piecewise Approximation Engine (`piecespice/approximation/`)
-- **`pwl.py`**: Standard 1D/2D Piecewise Linear interpolator.
-- **`pwlf_fit.py`**: Optimal continuous piecewise linear fitting with customizable breakpoint counts ($K=3, 5, 8$).
-- **`rdp_compress.py`**: Ramer-Douglas-Peucker reduction for dynamic curve simplification with guaranteed error tolerance $\epsilon$.
-- **`charge_model.py`**: Converts non-linear $C(V)$ data into charge lookup tables $Q(V)$ and produces standard SPICE subcircuits using charge-conserving behavioral current sources (`B_source` / `G_source`).
-- **`smoother.py`**: $C^1$ transition kernels (softplus/sigmoid) across piecewise linear regions.
-
-### 4.3 Phase 3: NgSpice Simulation Harness (`piecespice/simulation/`)
-- **`engine.py`**: Robust wrapper over `PySpice.Spice.NgSpice.Shared.NgSpiceShared` with automated initialization, `.spiceinit` management, and error handling.
-- **Testbenches (`piecespice/simulation/testbenches/`)**:
-  1. `static_sweep.py`: Multi-curve DC characteristics ($I_d-V_{ds}$ at various $V_{gs}$, transfer curves $I_d-V_{gs}$, $R_{\text{ds(on)}}$ vs $I_d$).
-  2. `capacitance_sweep.py`: AC small-signal and large-signal charge extraction ($C_{\text{iss}}, C_{\text{oss}}, C_{\text{rss}}$ vs $V_{ds}$).
-  3. `double_pulse_test.py` (DPT): Industry-standard inductive switching test bench for measuring $t_{\text{rise}}, t_{\text{fall}}, t_{\text{delay}}, E_{\text{on}}, E_{\text{off}}, V_{\text{overshoot}}, di/dt, dv/dt$.
-  4. `buck_converter.py`: Continuous switched-mode converter operating at 100 kHz - 1 MHz to measure steady-state waveforms, efficiency, and wall-clock execution time.
-
-### 4.4 Phase 4: Comparison & Metrics Engine (`piecespice/metrics/` & `comparison/`)
-- **Static Metrics**:
-  - Max Absolute Error ($L_\infty$), Root Mean Square Error ($L_2$), Relative Error ($\%$) over operating voltage/current ranges.
-- **Switching & Dynamic Metrics**:
-  - Turn-on delay $t_{d(on)}$, rise time $t_r$, turn-off delay $t_{d(off)}$, fall time $t_f$.
-  - Peak drain current overshoot $I_{\text{peak}}$, peak drain-source voltage spike $V_{\text{peak}}$.
-  - Switching Energy:
-    $$E_{\text{on}} = \int_{t_1}^{t_2} v_{ds}(t) \cdot i_d(t)\, dt, \quad E_{\text{off}} = \int_{t_3}^{t_4} v_{ds}(t) \cdot i_d(t)\, dt$$
-- **Solver Performance Metrics**:
-  - Wall-clock simulation duration, total transient time steps, Newton-Raphson iteration count, solver rejection rate.
-
-### 4.5 Phase 5: CLI, Validation & Reporting (`piecespice/cli/`, `reporting/`)
-- **Typer CLI**:
-  - `piecespice parse <model.lib>`: Inspect and extract parameters.
-  - `piecespice approximate <model.lib> --tier 2 --segments 5`: Generate piecewise model netlist.
-  - `piecespice test <model.lib> --bench dpt`: Run comparison between SPICE and PieceSpice.
-  - `piecespice report <model.lib> --out report.html`: Generate complete visual validation report.
-- **Interactive Jupyter Notebooks (`notebooks/`)**:
-  - Step-by-step walkthroughs for DC extraction, DPT switching comparison, buck converter speedup demonstration, and parameter sensitivity studies.
-
----
-
-## 5. Dependency Management (Strict `uv`)
-
-All packages are strictly managed via `uv` in `pyproject.toml`:
-
-### Core Dependencies (`[project.dependencies]`)
-- `pyspice>=1.5`: Python interface to NgSpice shared library.
-- `numpy>=2.0`, `scipy>=1.15`: Numerical computation, curve integration, and optimization.
-- `pwlf>=2.6.0`: Continuous piecewise linear fitting.
-- `rdp>=0.8`: Ramer-Douglas-Peucker polyline simplification.
-- `pydantic>=2.10`: Parameter data structures and schema validation.
-- `typer>=0.15`: Command-line interface.
-- `rich>=13.9`: Formatted terminal output, tables, and progress tracking.
-- `pyyaml>=6.0`: Configuration and model metadata serialization.
-- `pandas>=2.2`, `polars>=1.0`: Tabular waveform and metric processing.
-- `matplotlib>=3.10`, `seaborn>=0.13`: Publication-quality waveform plots.
-- `tabulate>=0.10`, `jinja2>=3.1`: Markdown/HTML report generation.
-- `shapely>=2.0`: Geometric curve analysis.
-
-### Dev Dependencies (`[dependency-groups.dev]`)
-- `pytest>=8.3`, `pytest-cov>=6.0`, `pytest-benchmark>=5.2`: Unit tests, test coverage, and execution benchmarks.
-- `hypothesis>=6.120`: Property-based testing for curve approximations.
-- `ruff>=0.9`: Fast linting and formatting.
-- `jupyter>=1.1`, `notebook>=7.3`, `nbconvert>=7.16`, `ipykernel>=6.29`, `ipywidgets>=8.1`: Interactive analysis and automated notebook verification.
-
----
-
-## 6. Implementation Roadmap & Milestones
-
-| Sprint | Duration | Phase / Deliverables | Success Verification Checkpoint |
+| Curve # | Name | Formulation / Axes | Engineering Significance |
 |---|---|---|---|
-| **Sprint 1** | Week 1-2 | **Parser & Normalization Engine**<br>• Vendor `.lib` parser with `.PARAM` subcircuit flattening<br>• Pydantic device schema<br>• PySpice NgSpice shared initialization | Parse all models in `SpiceModels/` (`CSD16412Q5A`, `csd18510kcs`, `irfs7730pbf`) without NgSpice parser errors. |
-| **Sprint 2** | Week 3-4 | **Approximation Engine (Static & Capacitance)**<br>• DC $I_d(V_{ds}, V_{gs})$ PWLF / RDP extraction<br>• Charge-conserving $Q(V)$ extraction from $C_{iss}, C_{oss}, C_{rss}$<br>• Generation of Tier 1 & Tier 2 SPICE subcircuits | Static $I_d-V_{ds}$ RMSE < 3%; $Q_{\text{oss}}(V)$ charge conservation error < 1% across 0-100V. |
-| **Sprint 3** | Week 5-6 | **Simulation Harness & DPT Testbench**<br>• Automated Double Pulse Testbench (DPT) in PySpice<br>• Automated Buck Converter testbench<br>• Golden SPICE vs PieceSpice dual simulation runner | Automated DPT run produces overlaid transient waveforms ($v_{ds}, i_d, v_{gs}$) with zero convergence failures. |
-| **Sprint 4** | Week 7-8 | **Comparison Engine & Metrics Suite**<br>• Transient timing extraction ($t_r, t_f, t_d$)<br>• Switching energy integration ($E_{\text{on}}, E_{\text{off}}$)<br>• Wall-clock speedup and iteration benchmarking | Switching loss error < 10%; simulation speedup > 20× on 100-cycle buck converter. |
-| **Sprint 5** | Week 9-10 | **CLI, Validation & Reporting**<br>• Typer CLI commands (`approximate`, `simulate`, `compare`)<br>• 7 Interactive Jupyter Notebooks<br>• Pytest regression suite with GitHub Actions | `pytest` suite passes 100%; CLI runs end-to-end model generation and HTML report output. |
+| **Curve 1** | **Output Characteristics** | $I_d$ vs $V_{ds}$ for $V_{gs} \in [3.0\text{V}, 4.5\text{V}, 6.0\text{V}, 10.0\text{V}, 15.0\text{V}]$ | Captures ohmic region slope ($R_{\text{ds(on)}}$), knee transition, and saturation current limit. |
+| **Curve 2** | **Transfer Characteristics** | $I_d$ vs $V_{gs}$ at fixed $V_{ds} \ge 10\text{V}$ across $T_j \in [25^\circ\text{C}, 125^\circ\text{C}, 175^\circ\text{C}]$ | Extracts threshold voltage $V_{\text{th}}$, subthreshold slope, and transconductance $g_{\text{fs}}$. |
+| **Curve 3** | **On-State Resistance ($R_{\text{ds(on)}}$)** | $R_{\text{ds(on)}} = V_{ds} / I_d$ vs $I_d$ and vs $V_{gs}$ | Defines primary conduction loss across current range and gate overdrive voltages. |
+| **Curve 4** | **Capacitances vs $V_{ds}$** | $C_{\text{iss}}, C_{\text{oss}}, C_{\text{rss}}$ vs $V_{ds}$ (Log Scale: $0.1\text{V} - V_{\text{breakdown}}$) | Non-linear junction capacitances controlling switching speed, ringing, and charge loss. |
+| **Curve 5** | **Gate Charge Curve** | $V_{gs}$ vs $Q_g = \int I_g\, dt$ at constant $I_g, I_d, V_{\text{bus}}$ | Identifies $Q_{\text{gs}}$, Miller plateau charge $Q_{\text{gd}}$, and total gate charge $Q_g$. |
+| **Curve 6** | **Body Diode Forward Characteristic** | $I_{\text{sd}}$ vs $V_{\text{sd}}$ (3rd Quadrant) across temperatures | Evaluates dead-time conduction voltage drop and body diode losses. |
+| **Curve 7** | **Double Pulse Test (DPT) Transients** | $v_{ds}(t), i_d(t), v_{gs}(t), P_{\text{inst}}(t)$ during turn-on/turn-off | Yields $t_r, t_f, t_{d(on)}, t_{d(off)}, E_{\text{on}}, E_{\text{off}}, E_{\text{oss}}, dv/dt, di/dt$. |
+
+---
+
+## 4. Architectural & Implementation Constraints
+
+To ensure codebase cleanliness, repeatability, and presentation quality:
+
+### 4.1 Strict Package Management (`uv`)
+- All dependencies strictly added and locked via `uv` (`pyproject.toml` + `uv.lock`).
+- All scripts, tests, and notebooks executed strictly through `uv run`.
+
+### 4.2 Code vs Visualization Separation
+- **Core Algorithms (`piecespice/`)**: Pure Python `.py` modules containing classes, functions, numerical routines, and testbenches. Zero visualization logic or notebook-specific code.
+- **Visual Exploration & Analysis (`notebooks/`)**: Interactive Jupyter notebooks that import `piecespice` modules, execute testbenches, and render plots/tables.
+- **Automated Verification (`tests/`)**: Standard `pytest` suite ensuring 100% executable integrity.
+
+### 4.3 Mandatory Plotting Constraints
+- **EAST-Aligned Outside Legends**: All plot legends MUST be located strictly on the **EAST side (outside the plot canvas to the right)** via `loc='center left', bbox_to_anchor=(1.02, 0.5)` to ensure unobstructed waveform viewing.
+- **Legibility**: Figure DPI $\ge 150$ for display and $300$ for file export, font size $\ge 11\,\text{pt}$, dashed grid lines (`alpha=0.4`), and explicit engineering units (V, A, ns, $\mu\text{J}$, pF, $\text{m}\Omega$) on all axes.
+
+### 4.4 Self-Contained HTML Reporting
+- Automatic generation of interactive, standalone HTML reports using `jinja2` and `plotly` without external server dependencies.
+
+---
+
+## 5. Complete File Structure
+
+```
+PieceSpice/
+├── pyproject.toml              # Build config, dependencies, pytest configuration
+├── uv.lock                     # Strict uv lockfile
+├── README.md                   # Project overview & quickstart
+├── piecespice_plan.md          # Comprehensive architecture & execution plan
+├── SpiceModels/                # Vendor SPICE libraries (.lib, .spi)
+│   ├── CSD16412Q5A.lib
+│   ├── csd18510kcs.lib
+│   ├── irfs7730pbf.spi
+│   └── ...
+├── piecespice/                 # CORE ALGORITHMS (.py files)
+│   ├── __init__.py
+│   ├── common/
+│   │   ├── __init__.py
+│   │   ├── types.py            # Pydantic data models (CurveData, WaveformData, PWLModelSpec)
+│   │   └── plotting.py         # Standardized plotting helper with EAST legend constraint
+│   ├── parser/
+│   │   ├── __init__.py
+│   │   ├── preprocessor.py     # PSpice/LTspice .PARAM & expression flattener for NgSpice
+│   │   ├── netlist.py          # Subcircuit tree & pin inspection
+│   │   └── extractor.py        # Extracts device parameters
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── base.py             # SemiconductorDevice base class
+│   │   ├── mosfet.py           # MOSFETDevice model definition
+│   │   └── netlist_builder.py  # Emits Tier 1, 2, 3 SPICE subcircuits
+│   ├── approximation/
+│   │   ├── __init__.py
+│   │   ├── pwlf_fit.py         # Optimal Continuous PWL fitting with fixed/adaptive segments
+│   │   ├── rdp_compress.py     # 2D RDP curve reduction (Numpy 2.0+ compatible)
+│   │   ├── charge_model.py     # C(V) -> Q(V) numerical integration & charge source synthesis
+│   │   └── smoother.py         # C¹ smoothing functions (softplus, tanh)
+│   ├── simulation/
+│   │   ├── __init__.py
+│   │   ├── engine.py           # NgSpice / PySpice runner with error isolation
+│   │   └── testbenches/
+│   │       ├── __init__.py
+│   │       ├── static_sweep.py # Id-Vds, Id-Vgs, Rds(on), Body Diode sweeps
+│   │       ├── capacitance.py  # Ciss, Coss, Crss small-signal & Qoss sweeps
+│   │       ├── gate_charge.py  # Constant-current gate charge Q_g sweep
+│   │       ├── double_pulse.py # Double Pulse Test (DPT) switching transients & losses
+│   │       └── buck_converter.py# Switched-mode buck converter transient runner
+│   ├── metrics/
+│   │   ├── __init__.py
+│   │   ├── static.py           # L_inf, L_2 RMSE, relative error, R² for DC curves
+│   │   ├── switching.py        # tr, tf, td(on), td(off), dv/dt, di/dt extraction
+│   │   └── loss.py             # Eon, Eoff, Eoss numerical integration & percentage error
+│   ├── reporting/
+│   │   ├── __init__.py
+│   │   └── html_report.py      # Jinja2 + Plotly standalone self-contained HTML report generator
+│   └── cli/
+│       ├── __init__.py
+│       └── main.py             # Typer CLI entrypoint
+├── notebooks/                  # JUPYTER NOTEBOOKS (Visualizations & Analysis)
+│   ├── 01_datasheet_curves_extraction.ipynb  # Extract standard datasheet curves from SPICE
+│   ├── 02_piecewise_approximation.ipynb     # PWLF, RDP, and Charge Q(V) generation
+│   ├── 03_double_pulse_transients.ipynb     # DPT switching dynamics & loss comparison
+│   ├── 04_buck_converter_benchmark.ipynb    # Multi-cycle converter speedup & ripple
+│   └── 05_comprehensive_validation_report.ipynb # Full end-to-end comparison report
+└── tests/                      # AUTOMATED TEST SUITE
+    ├── test_parser.py          # Netlist parser & preprocessor tests
+    ├── test_approximation.py   # PWLF, RDP, and charge integration tests
+    ├── test_metrics.py         # Curve error & switching energy tests
+    └── test_reporting.py       # HTML report generation tests
+```
+
+---
+
+## 6. In-Depth Milestone & Task Breakdown (TODO List)
+
+### Milestone 1: Environment, Parser & SPICE Dialect Normalization
+- [x] Configure strict `uv` environment with `pyspice`, `ngspice`, `pwlf`, `pydantic`, `typer`, `plotly`.
+- [x] Implement `piecespice.parser.preprocessor` to flatten PSpice `.PARAM` scopes and evaluate curly-brace expressions `{...}`.
+- [x] Implement `piecespice.parser.netlist` to discover subcircuit names, ports, and models in `.lib` and `.spi` files.
+- [x] Implement `piecespice.common.plotting` enforcing the EAST-aligned legend rule.
+- [x] Validate parsing against `irfs7730pbf.spi` and `csd18510kcs.lib`.
+
+### Milestone 2: Automated Datasheet Curves Simulation
+- [x] Implement `piecespice.simulation.testbenches.static_sweep`:
+  - [x] **Curve 1**: Output Characteristics ($I_d$ vs $V_{ds}$ at $V_{gs} = 3.0\text{V}, 4.5\text{V}, 6.0\text{V}, 10.0\text{V}$).
+  - [x] **Curve 2**: Transfer Characteristics ($I_d$ vs $V_{gs}$ at $V_{ds} = 10\text{V}$).
+- [ ] Implement `piecespice.simulation.testbenches.capacitance`:
+  - [ ] **Curve 4**: $C_{\text{iss}}, C_{\text{oss}}, C_{\text{rss}}$ vs $V_{ds}$ log sweep ($0.1\text{V} - 100\text{V}$).
+- [ ] Implement `piecespice.simulation.testbenches.gate_charge`:
+  - [ ] **Curve 5**: Gate Charge $V_{gs}$ vs $Q_g$ under constant current drive.
+- [ ] Build Notebook `notebooks/01_datasheet_curves_extraction.ipynb` rendering all curves with EAST legends.
+
+### Milestone 3: Piecewise Approximation & Charge Integration Engines
+- [x] Implement `piecespice.approximation.pwlf_fit` for continuous piecewise linear regression with $K$ segments.
+- [x] Implement `piecespice.approximation.rdp_compress` with native Numpy 2.0 2D point pruning.
+- [x] Implement `piecespice.approximation.charge_model` calculating $Q_{\text{oss}}(V) = \int C_{\text{oss}}(v)\, dv$ and stored capacitive energy $E_{\text{oss}}$.
+- [x] Implement `piecespice.models.netlist_builder` synthesizing executable Tier 2 CPWL subcircuits with charge sources.
+- [x] Build Notebook `notebooks/02_piecewise_approximation.ipynb` evaluating fit residuals and segment counts.
+
+### Milestone 4: Switching Dynamics & Double Pulse Testbench (DPT)
+- [ ] Implement `piecespice.simulation.testbenches.double_pulse` for inductive clamped load switching.
+- [ ] Implement `piecespice.metrics.switching` to extract $t_r, t_f, t_{d(on)}, t_{d(off)}, dv/dt, di/dt$.
+- [ ] Implement `piecespice.metrics.loss` to compute $E_{\text{on}}$ and $E_{\text{off}}$ via $\int v_{ds}(t) \cdot i_d(t)\, dt$.
+- [ ] Build Notebook `notebooks/03_double_pulse_transients.ipynb` overlaying Golden SPICE vs PieceSpice Tier 2 switching waveforms.
+
+### Milestone 5: Switched-Mode Converter Benchmark & Speedup Evaluation
+- [ ] Implement `piecespice.simulation.testbenches.buck_converter` for closed-loop / open-loop multi-cycle operation.
+- [ ] Benchmark execution wall-clock time, iteration counts, and solver time step histories.
+- [ ] Build Notebook `notebooks/04_buck_converter_benchmark.ipynb` proving $>20\times$ speedup and zero convergence errors.
+
+### Milestone 6: Automated HTML Reporting & CLI Polish
+- [x] Implement `piecespice.reporting.html_report` emitting interactive, publication-quality Plotly + Jinja2 HTML dashboards.
+- [x] Implement Typer CLI (`parse`, `sweep`, `report`).
+- [x] Build Notebook `notebooks/05_comprehensive_validation_report.ipynb` generating `validation_report.html`.
+- [x] Verify complete `pytest` test suite passing 100%.
 
 ---
 
