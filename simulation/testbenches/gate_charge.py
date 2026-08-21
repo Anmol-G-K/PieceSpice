@@ -19,17 +19,25 @@ def run_gate_charge(
     lib_path: Path,
     subcircuit_name: str,
     v_bus: float = 40.0,
+    i_load: float = 50.0,
     i_gate: float = 5e-3,
     v_gs_max: float = 10.0,
-    t_end: float = 40e-6,
-    step_time: float = 50e-9,
+    t_end: float = 120e-6,
+    step_time: float = 20e-9,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Run the gate-charge transient under datasheet conditions.
+
+    A constant-current load (i_load into the drain) plus a rail-clamp diode
+    hold the device at its rated load current: an ideal voltage source on the
+    drain would let the macromodel conduct thousands of amps, driving its
+    internal capacitance-sense network unstable.
+    """
     """Run the gate-charge transient.
 
     Returns:
         q_g: Gate charge array [C]
         v_gs: Gate-source voltage array [V]
-        i_d: Drain current array [A]
+        v_ds: Drain-source voltage array [V]
     """
     raw = lib_path.read_text(encoding='utf-8', errors='ignore')
     temp_lib = lib_path.parent / f"_temp_norm_{lib_path.name}"
@@ -39,7 +47,14 @@ def run_gate_charge(
         circuit = Circuit("Gate_Charge")
         circuit.include(str(temp_lib.resolve()))
         circuit.X("M1", subcircuit_name, "d", "g", circuit.gnd)
-        circuit.V("bus", "d", circuit.gnd, float(v_bus)@u_V)
+        # Drain rail + clamp: before turn-on the load current charges the
+        # drain until the clamp returns it to the rail (~Vbus); after turn-on
+        # it flows through the channel, holding Id = i_load during the Miller
+        # plateau.
+        circuit.V("bus", "vbus", circuit.gnd, float(v_bus)@u_V)
+        circuit.model('DCLAMP', 'D', IS=1e-10)
+        circuit.D("clamp", "d", "vbus", model='DCLAMP')
+        circuit.I("load", circuit.gnd, "d", float(i_load)@u_A)
         circuit.PieceWiseLinearCurrentSource(
             "drive", "g", circuit.gnd,
             values=[
@@ -54,7 +69,7 @@ def run_gate_charge(
 
         time = np.array(analysis.time)
         v_gs = np.array(analysis.nodes['g'])
-        i_d = -np.array(analysis.branches['vbus'])
+        v_ds = np.array(analysis.nodes['d'])
         q_g = i_gate * time
 
         # Truncate at first crossing of v_gs_max
@@ -66,11 +81,11 @@ def run_gate_charge(
             frac = (v_gs_max - v0) / max(v1 - v0, 1e-15)
             t_cross = t0 + frac * (t1 - t0)
             keep = idx + 1
-            time, v_gs, i_d, q_g = time[:keep], v_gs[:keep], i_d[:keep], q_g[:keep]
+            time, v_gs, v_ds, q_g = time[:keep], v_gs[:keep], v_ds[:keep], q_g[:keep]
             q_g[-1] = i_gate * t_cross
             v_gs[-1] = v_gs_max
 
-        return q_g, v_gs, i_d
+        return q_g, v_gs, v_ds
     finally:
         if temp_lib.exists():
             temp_lib.unlink()

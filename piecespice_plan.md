@@ -269,11 +269,11 @@ PieceSpice/ (Project Root)
 - [ ] Build Notebook `notebooks/01_datasheet_curves_extraction.ipynb` rendering all curves with EAST legends.
 
 ### Milestone 3: Piecewise Approximation & Charge Integration Engines
-- [x] Implement `approximation.pwlf_fit` for continuous piecewise linear regression with $K$ segments.
-- [x] Implement `approximation.rdp_compress` with native Numpy 2.0 2D point pruning.
-- [x] Implement `approximation.charge_model` calculating $Q_{\text{oss}}(V) = \int C_{\text{oss}}(v)\, dv$ and stored capacitive energy $E_{\text{oss}}$.
-- [x] Implement `models.netlist_builder` synthesizing executable Tier 2 CPWL subcircuits with charge sources.
-- [x] Build Notebook `notebooks/02_piecewise_approximation.ipynb` evaluating fit residuals and segment counts.
+- [ ] Implement `approximation.pwlf_fit` for continuous piecewise linear regression with $K$ segments.
+- [ ] Implement `approximation.rdp_compress` with native Numpy 2.0 2D point pruning.
+- [ ] Implement `approximation.charge_model` calculating $Q_{\text{oss}}(V) = \int C_{\text{oss}}(v)\, dv$ and stored capacitive energy $E_{\text{oss}}$.
+- [ ] Implement `models.netlist_builder` synthesizing executable Tier 2 CPWL subcircuits with charge sources.
+- [ ] Build Notebook `notebooks/02_piecewise_approximation.ipynb` evaluating fit residuals and segment counts.
 
 ### Milestone 4: Switching Dynamics & Double Pulse Testbench (DPT)
 - [ ] Implement `simulation.testbenches.double_pulse` for inductive clamped load switching.
