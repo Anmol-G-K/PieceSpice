@@ -10,8 +10,18 @@ from simulation.engine import SpiceEngine
 from parser.preprocessor import normalize_pspice_netlist
 
 
+def _normalized_lib_file(lib_path: Path) -> Path:
+    """Write a dialect-normalized copy of the library next to the source."""
+    normalized = normalize_pspice_netlist(
+        lib_path.read_text(encoding='utf-8', errors='ignore')
+    )
+    temp_lib = lib_path.parent / f"_temp_norm_{lib_path.name}"
+    temp_lib.write_text(normalized)
+    return temp_lib
+
+
 class StaticSweepTestbench:
-    """Extracts output (Id-Vds), transfer (Id-Vgs), and on-resistance curves."""
+    """Extracts output (Id-Vds), transfer (Id-Vgs), on-resistance and body-diode curves."""
 
     def __init__(self, engine: Optional[SpiceEngine] = None):
         self.engine = engine or SpiceEngine()
@@ -26,12 +36,7 @@ class StaticSweepTestbench:
     ) -> List[CurveData]:
         """Extract output characteristics family: Id vs Vds for each Vgs."""
         curves: List[CurveData] = []
-        raw_text = lib_path.read_text(encoding='utf-8', errors='ignore')
-        normalized = normalize_pspice_netlist(raw_text)
-
-        # Temporary normalized file if needed or direct include
-        temp_lib = lib_path.parent / f"_temp_norm_{lib_path.name}"
-        temp_lib.write_text(normalized)
+        temp_lib = _normalized_lib_file(lib_path)
 
         try:
             for vgs in vgs_list:
@@ -76,10 +81,7 @@ class StaticSweepTestbench:
         vgs_points: int = 151,
     ) -> CurveData:
         """Extract transfer characteristic: Id vs Vgs at fixed Vds."""
-        raw_text = lib_path.read_text(encoding='utf-8', errors='ignore')
-        normalized = normalize_pspice_netlist(raw_text)
-        temp_lib = lib_path.parent / f"_temp_norm_{lib_path.name}"
-        temp_lib.write_text(normalized)
+        temp_lib = _normalized_lib_file(lib_path)
 
         try:
             circuit = Circuit("Transfer_Characteristics")
@@ -104,6 +106,93 @@ class StaticSweepTestbench:
                 y_data=id_arr.tolist(),
                 family_param="Vds",
                 family_value=float(vds_fixed),
+            )
+        finally:
+            if temp_lib.exists():
+                temp_lib.unlink()
+
+    def run_rds_on(
+        self,
+        lib_path: Path,
+        subcircuit_name: str,
+        vgs: float = 10.0,
+        vds_max: float = 2.5,
+        vds_points: int = 51,
+    ) -> CurveData:
+        """Extract Rds(on) = Vds/Id vs Id in the ohmic region at fixed Vgs."""
+        temp_lib = _normalized_lib_file(lib_path)
+
+        try:
+            circuit = Circuit("Rds_on")
+            circuit.include(str(temp_lib.resolve()))
+            circuit.X("M1", subcircuit_name, "d", "g", circuit.gnd)
+            circuit.V("ds", "d", circuit.gnd, 0@u_V)
+            circuit.V("gs", "g", circuit.gnd, vgs@u_V)
+
+            step = vds_max / max(1, vds_points - 1)
+            analysis = self.engine.run_dc_sweep(circuit, "Vds", 0, vds_max, step)
+
+            vds_arr = np.array(analysis.sweep)
+            id_arr = np.abs(np.array(analysis.Vds))
+
+            # Only meaningful where the device actually conducts
+            mask = id_arr > 1.0
+            rds_mohm = vds_arr[mask] / np.maximum(id_arr[mask], 1e-12) * 1e3
+
+            return CurveData(
+                name=f"On-State Resistance (Vgs={vgs}V)",
+                x_name="Drain Current (Id)",
+                x_unit="A",
+                y_name="On-Resistance (Rds(on))",
+                y_unit="mOhm",
+                x_data=id_arr[mask].tolist(),
+                y_data=rds_mohm.tolist(),
+                family_param="Vgs",
+                family_value=float(vgs),
+            )
+        finally:
+            if temp_lib.exists():
+                temp_lib.unlink()
+
+    def run_body_diode(
+        self,
+        lib_path: Path,
+        subcircuit_name: str,
+        vsd_max: float = 1.0,
+        points: int = 51,
+    ) -> CurveData:
+        """Extract body-diode forward characteristic Isd vs Vsd (gate off).
+
+        Voltage-driven with a conservative cap (~1 V): beyond that the diode
+        exponential saturates Newton iterations and the DC sweep diverges.
+        """
+        temp_lib = _normalized_lib_file(lib_path)
+
+        try:
+            circuit = Circuit("Body_Diode")
+            circuit.include(str(temp_lib.resolve()))
+            # Gate tied to source (channel off); + terminal at source so the
+            # internal body diode (anode=source/body, cathode=drain) conducts.
+            circuit.X("M1", subcircuit_name, "drn", "src", "src")
+            circuit.V("sd", "src", "drn", 0@u_V)
+            # Absolute potential anchor: without it the terminal island only
+            # sees leakage paths and the OP diverges (10 MOhm shunt ~ 1e-7 A).
+            circuit.R("bleed", "src", circuit.gnd, 10e6@u_Ohm)
+
+            step = vsd_max / max(1, points - 1)
+            analysis = self.engine.run_dc_sweep(circuit, "Vsd", 0, vsd_max, step)
+
+            vsd_arr = np.array(analysis.sweep)
+            isd_arr = -np.array(analysis.Vsd)  # conduction current src->drain
+
+            return CurveData(
+                name="Body Diode Forward Characteristic",
+                x_name="Source-Drain Voltage (Vsd)",
+                x_unit="V",
+                y_name="Source Current (Isd)",
+                y_unit="A",
+                x_data=vsd_arr.tolist(),
+                y_data=isd_arr.tolist(),
             )
         finally:
             if temp_lib.exists():
