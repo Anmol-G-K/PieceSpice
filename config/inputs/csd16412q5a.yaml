@@ -1,0 +1,52 @@
+# PieceSpice simulation input: TI NexFET CSD16412Q5A (PSpice BSIM3v3 LEVEL=7)
+# Single source of truth for all testbench conditions used by this vendor model.
+# Values mirror the datasheet test conditions (SLPS207A) used by notebook 01.
+
+device: csd16412q5a
+vendor: ti
+library: SpiceModels/CSD16412Q5A.lib
+subcircuit: CSD16412Q5A
+pins:
+  drain: "1"
+  gate: "2"
+  source: "3"
+
+conditions:
+  # --- static sweeps ---
+  Vgs_sweep: [4.5, 5.0, 6.0, 8.0, 10.0]      # output-characteristics family
+  Vds_sweep_max: 10.0                        # output char Vds ceiling [V]
+  Vds_points: 101
+  Vgs_fixed: 10.0                            # Rds(on) bias [V]
+  Vgs_alt: 4.5                               # second Rds(on) gate drive (datasheet condition)
+  Vds_fixed: 15.0                            # transfer reference [V] (gfs test condition)
+  Vgs_transfer_max: 15.0                     # transfer sweep ceiling [V]
+  Vgs_transfer_points: 301
+  Vds_rds_max: 2.5                           # ohmic-region sweep for Rds(on) [V]
+  Vds_rds_points: 51
+  Id_rds_min: 2.0                            # conduction mask for Rds(on) [A]
+
+  # --- threshold voltage (JEDEC constant-current method) ---
+  Id_th_target: 2.5e-4                       # 250 uA
+  Vgs_th_max: 6.0
+  Vgs_th_points: 3001
+
+  # --- body diode ---
+  Vsd_max: 1.0
+  Vsd_points: 51
+
+  # --- capacitances (small-signal AC @ 1 MHz) ---
+  Vds_cap_min: 0.1
+  Vds_cap_max: 25.0                          # body diode BV~27 V avalanches beyond this
+  Cap_points: 40
+  F_meas: 1.0e+06                            # [Hz]
+
+  # --- gate charge (quasi-static reconstruction) ---
+  Id_load: 10.0                              # datasheet plateau current [A]
+  Vbus: 12.5                                 # bus voltage for Qg reconstruction [V]
+  Vgs_qg_max: 4.5                            # datasheet Qg window
+  Vds_on: 0.05                               # residual drain voltage after collapse [V]
+  Qgd_typ_nC:                                # none - TI model needs no VM-03 calibration
+  Ig_drive: 0.005                            # nominal CC gate drive of the blocked transient [A]
+
+  # --- environment ---
+  temperature: 25.0                          # [degC]

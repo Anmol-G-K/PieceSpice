@@ -5,6 +5,40 @@ All timestamps are IST (UTC+05:30).
 
 ---
 
+## 2026-08-22 23:30 IST — Notebook 01 converted to config-driven input
+
+### Change
+
+`notebooks/01_datasheet_curves_extraction.ipynb` no longer hardcodes a `DEVICES`
+registry. Every simulation condition now comes from `config/inputs/<vendor>.yaml`
+via `config.yaml_io.load_input()` — the same source of truth used by
+`scripts/generate_outputs_irfs7730pbf.py`. Switching devices is a one-line change
+(`VENDOR = "csd16412q5a"`); outputs/plots are unchanged.
+
+### New file
+
+- `config/inputs/csd16412q5a.yaml` — first TI vendor input config. Captures the exact
+  SLPS207A datasheet conditions the notebook previously hardcoded (Vgs family 4.5–10 V,
+  transfer @ Vds=15 V/301 pts, dual Rds(on) gate drives via new `Vgs_alt: 4.5` key,
+  caps to 25 V/40 pts @ 1 MHz, Qg window Id=10 A/Vbus=12.5 V/Vgs→4.5 V,
+  `Qgd_typ_nC:` empty = no VM-03 calibration).
+
+### Supporting fix
+
+- `config/yaml_io.py`: `CONFIG_ROOT` was relative (`Path("config")`) and only resolved
+  when the process CWD happened to be the repo root — notebook kernels run from
+  `notebooks/`, which broke config discovery. Now anchored on the package's parent
+  directory so it works from any working directory.
+
+### Verification
+
+Notebook re-executed end-to-end with nbconvert: **18 cells, 0 errors, 7 figures**.
+All extracted figures match the previous hardcoded-condition run exactly
+(Rds(on) 8.47 / 12.24 mΩ, Vth 1.882 V, Ciss/Coss/Crss 412/348/33 pF,
+body-diode 837.5 mV, Qg 2.53 nC). `uv run pytest`: **46 passed**.
+
+---
+
 ## 2026-08-22 21:49 IST — YAML-based config & outputs (config-driven pipeline)
 
 ### Structure created

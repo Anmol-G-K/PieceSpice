@@ -15,7 +15,9 @@ from typing import Any, Dict, Optional
 
 import yaml
 
-CONFIG_ROOT = Path("config")
+# Anchor on the project root (parent of the package dir) so config resolution
+# works from any working directory (notebook kernels, scripts, tests).
+CONFIG_ROOT = Path(__file__).resolve().parent.parent / "config"
 INPUT_DIR = CONFIG_ROOT / "inputs"
 OUTPUT_DIR = CONFIG_ROOT / "outputs"
 
