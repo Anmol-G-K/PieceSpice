@@ -5,6 +5,48 @@ All timestamps are IST (UTC+05:30).
 
 ---
 
+## 2026-08-22 15:21 IST — Root cause analysis: Id = 1.5–1.7 kA vs datasheet ID = 246 A (new defect VM-04)
+
+### Trigger
+
+User flagged Curve 1 output characteristics showing Id ≈ 1.5–1.7 kA at Vgs = 10 V against
+the IRFS7730PBF Absolute Maximum Ratings (ID = 246 A @ TC=25 °C silicon-limited, 195 A
+package-limited, IDM 984 A pulsed).
+
+### Analysis performed
+
+- Re-ran Curve 1 and Curve 2 sweeps; measured Id @ Vgs=10 V, Vds=10 V = **1668.1 A**.
+- Hand-solved the LEVEL=1 core equations with the model's own parameters
+  (KP=465.97, VTO=4.34579, LAMBDA=0.0605061, RS=2.03 mΩ, RD=0.1 mΩ):
+  analytic Id_sat @ 10 V/10 V = **1727 A** — matches the measurement to ~4%.
+- Verified the fitter had no free parameter left: predicted Rds(on) =
+  1/(β·Vov) + RS + RD = 2.509 mΩ vs extracted 2.52 mΩ ✅; gfs @ 100 A ≈ 215 S vs
+  datasheet 249 S (−14%, expected for LEVEL=1).
+- Thermal cross-check of the datasheet rating: ID = 246 A is "Silicon Limited" —
+  P = 246² × 2.52 mΩ ≈ 152 W < PD max 375 W. At 1668 A, P ≈ 7 kW = 18.7× rated PD.
+
+### Verdict
+
+Not an extraction bug. The vendor model *does* conduct kA-level current by design:
+LEVEL=1 has no maximum-current parameter, no mobility degradation, no velocity
+saturation, no thermal feedback — so Id grows as Vov² without limit once KP and VTO are
+pinned by Rds(on) and the transfer shape. The datasheet's 246 A is a thermal/package
+limit that a purely electrical macromodel cannot encode. The model's realistic operating
+point is Id = 246 A at Vgs ≈ 5.66 V (interpolated from Curve 2).
+
+Recorded as defect **VM-04** in the new `vendor_model_defects.md` catalog, alongside
+VM-01 (no subthreshold / fake-high Vth), VM-02 (sense-and-mirror transient pathology),
+VM-03 (charge-inaccurate Cgd), and VM-05 (corrupted t=0 operating point).
+
+### Operating rules adopted for this device model
+
+1. Never drive beyond ~250–350 A continuous in testbenches.
+2. Derive operating points by transfer-curve interpolation at the target load current,
+   never from "Vgs = 10 V".
+3. Tier 2 synthesis should consider a soft current clamp near datasheet ID.
+
+---
+
 ## 2026-08-22 15:40 IST — Plotting overhaul + notebook 01 updated with gate-charge study
 
 ### Motivation
