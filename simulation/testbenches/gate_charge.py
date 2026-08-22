@@ -17,18 +17,30 @@ from typing import Tuple
 
 import numpy as np
 import pandas as pd
-from PySpice.Spice.Netlist import Circuit
-from PySpice.Unit import *
 
 from common.types import CurveData
 from parser.preprocessor import normalize_pspice_netlist
 from simulation.engine import SpiceEngine
+from simulation.testbenches.static_sweep import (
+    normalized_lib_copy, discard_normalized_lib,
+)
+
+
 def _interp_curve(curve: CurveData, x: np.ndarray) -> np.ndarray:
     """Interpolate a CurveData family onto x (clamped at the ends)."""
     xs = np.asarray(curve.x_data, dtype=float)
     ys = np.asarray(curve.y_data, dtype=float)
-    if xs[0] > xs[-1]:  # np.interp requires ascending x
-        xs, ys = xs[::-1], ys[::-1]
+    if not np.all(np.diff(xs) >= 0):
+        if np.all(np.diff(xs[::-1]) >= 0):
+            xs, ys = xs[::-1], ys[::-1]  # descending axis: flip to ascending
+        else:
+            order = np.argsort(xs, kind="stable")
+            xs, ys = xs[order], ys[order]
+            print(
+                f"[gate_charge] WARNING: curve {curve.name!r} x-axis was not "
+                f"monotonic; points re-sorted before interpolation. Verify "
+                f"upstream data ordering."
+            )
     return np.interp(x, xs, ys)
 
 
@@ -89,7 +101,16 @@ def reconstruct_gate_charge(
     Returns:
         df: DataFrame with columns [Qg_nC, Vgs_V] in datasheet format.
         breakpoints: dict with keys 'v_plateau_V', 'q_gs_nC', 'q_gd_nC',
-                     'q_tail_nC', 'q_total_nC', 'qgd_cal_scale'.
+                     'q_tail_nC', 'q_total_nC', 'qgd_cal_scale',
+                     'plateau_clipped' (True when Vgp exceeded v_gs_max and
+                     the Miller segment was folded into the tail — see note).
+
+    Note (plateau clipping):
+        If the required plateau Vgp exceeds v_gs_max, the drain never swings
+        within the requested gate window. The Miller charge is then appended
+        at the final gate voltage (Vgs = v_gs_max) instead of mid-table, so
+        the returned Qg(Vgs) stays monotonically increasing in voltage —
+        safe for downstream interpolation. 'plateau_clipped' flags it.
     """
     # --- Plateau voltage: Vgs where Id(Vgs) crosses Iload ---
     vgs_t = np.asarray(transfer_curve.x_data)
@@ -100,7 +121,17 @@ def reconstruct_gate_charge(
             f"[{id_t.min():.3g}, {id_t.max():.3g}] A"
         )
     v_plateau = float(np.interp(i_load, id_t, vgs_t))
-    v_plateau = min(v_plateau, v_gs_max)
+
+    plateau_clipped = v_plateau > v_gs_max
+    if plateau_clipped:
+        print(
+            f"[gate_charge] WARNING: required Miller plateau Vgp="
+            f"{v_plateau:.2f} V exceeds v_gs_max={v_gs_max} V; the drain "
+            f"never swings inside the requested gate window. Folding the "
+            f"Miller segment at the final gate voltage so Qg(Vgs) stays "
+            f"monotonic."
+        )
+        v_plateau = v_gs_max
 
     # --- Capacitances at operating points ---
     # Pre-plateau: drain still at Vbus; post-plateau: drain collapsed.
@@ -121,32 +152,49 @@ def reconstruct_gate_charge(
         qgd_total = qgd_total * cal_scale
     else:
         cal_scale = 1.0
-    q_seg2 = q_seg1[-1] + cum_qgd
+
+    if plateau_clipped:
+        # Fold Miller charge at the final gate voltage: Qg rises at constant
+        # Vgs = v_gs_max (voltage-monotonic, interpolation-safe).
+        q_seg2 = q_seg1[-1] + cum_qgd
+        vgs_seg2_v = np.full(n_points, v_gs_max)
+    else:
+        q_seg2 = q_seg1[-1] + cum_qgd
+        vgs_seg2_v = np.full(n_points, v_plateau)
 
     # --- Segment 3: tail = int Ciss(low-Vds) dVgs, Vgp -> Vgs_max ---
-    vgs_seg3 = np.linspace(v_plateau, v_gs_max, n_points)
-    q_seg3 = q_seg2[-1] + ciss_low * (vgs_seg3 - v_plateau)
+    if plateau_clipped:
+        # Tail collapses to zero width: the gate window ends at the plateau.
+        qg_c = np.concatenate([q_seg1, q_seg2[1:]])
+        vgs_full = np.concatenate([vgs_seg1, vgs_seg2_v[1:]])
+        q_tail = 0.0
+    else:
+        vgs_seg3 = np.linspace(v_plateau, v_gs_max, n_points)
+        q_seg3 = q_seg2[-1] + ciss_low * (vgs_seg3 - v_plateau)
+        qg_c = np.concatenate([q_seg1, q_seg2[1:], q_seg3[1:]])
+        vgs_full = np.concatenate([vgs_seg1, vgs_seg2_v[1:], vgs_seg3[1:]])
+        q_tail = (q_seg3[-1] - q_seg2[-1])
 
     # --- Assemble datasheet-format table ---
-    qg_c = np.concatenate([q_seg1, q_seg2[1:], q_seg3[1:]])
-    vgs_full = np.concatenate([vgs_seg1, np.full(n_points - 1, v_plateau),
-                               vgs_seg3[1:]])
     df = pd.DataFrame({"Qg_nC": qg_c * 1e9, "Vgs_V": vgs_full})
     # Collapse duplicate plateau rows to one for a clean single-value plateau
     df = df.drop_duplicates(subset="Qg_nC", keep="last").reset_index(drop=True)
 
+    q_total = float(qg_c[-1])
     breakpoints = {
         "v_plateau_V": v_plateau,
         "q_gs_nC": q_seg1[-1] * 1e9,
         "q_gd_nC": qgd_total * 1e9,
-        "q_tail_nC": (q_seg3[-1] - q_seg2[-1]) * 1e9,
-        "q_total_nC": q_seg3[-1] * 1e9,
+        "q_tail_nC": q_tail * 1e9,
+        "q_total_nC": q_total * 1e9,
         "qgd_cal_scale": cal_scale,
+        "plateau_clipped": plateau_clipped,
     }
     return df, breakpoints
 
 
-def plot_gate_charge(df: pd.DataFrame, breakpoints: dict, save_path=None):
+def plot_gate_charge(df: pd.DataFrame, breakpoints: dict, save_path=None,
+                     device_name: str = ""):
     """Plot the reconstructed Vgs vs Qg curve with the three segments labeled."""
     import matplotlib.pyplot as plt
     from common.plotting import setup_style
@@ -167,14 +215,17 @@ def plot_gate_charge(df: pd.DataFrame, breakpoints: dict, save_path=None):
                label=f"Qgs+Qgd = {q2:.1f} nC")
 
     for q, lbl in [(q1, "Qgs"), (q2, "Qgs+Qgd"),
-                   (breakpoints["q_total_nC"], f"Qg@10V = {breakpoints['q_total_nC']:.1f} nC")]:
+                   (breakpoints["q_total_nC"], f"Qg@max = {breakpoints['q_total_nC']:.1f} nC")]:
         ax.annotate(lbl, xy=(q, vp), xytext=(q, vp + 0.8),
                     fontsize=11, ha="center",
                     arrowprops=dict(arrowstyle="->", lw=0.8))
 
     ax.set_xlabel("Gate Charge Qg [nC]")
     ax.set_ylabel("Gate-Source Voltage Vgs [V]")
-    ax.set_title("Reconstructed Gate Charge Curve (IRFS7730PBF)")
+    ax.set_title(
+        f"{device_name + ' - ' if device_name else ''}"
+        f"Gate Charge (Quasi-Static Reconstruction)"
+    )
     # STRICT RULE: legend at EAST outside plotting area (constrained layout reserves room).
     ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5))
     from matplotlib.ticker import EngFormatter
@@ -200,17 +251,19 @@ def run_gate_charge(
     hold the device at its rated load current: an ideal voltage source on the
     drain would let the macromodel conduct thousands of amps, driving its
     internal capacitance-sense network unstable.
-    """
-    """Run the gate-charge transient.
+
+    WARNING (VM-02): on MODPEX sense-and-mirror vendor models (e.g.
+    IRFS7730PBF) this transient is structurally broken - the EV16/CAP/FI1/FI2
+    network pumps junk current into the gate and Vgs collapses. Prefer
+    `reconstruct_gate_charge` (quasi-static) for those devices.
 
     Returns:
-        q_g: Gate charge array [C]
+        q_g: Gate charge array [C] (i_gate * t; the 1 ns PWL ramp is treated
+            as instantaneous - negligible vs typical 100 us windows).
         v_gs: Gate-source voltage array [V]
         v_ds: Drain-source voltage array [V]
     """
-    raw = lib_path.read_text(encoding='utf-8', errors='ignore')
-    temp_lib = lib_path.parent / f"_temp_norm_{lib_path.name}"
-    temp_lib.write_text(normalize_pspice_netlist(raw))
+    temp_lib = normalized_lib_copy(lib_path)
 
     try:
         circuit = Circuit("Gate_Charge")
@@ -220,6 +273,7 @@ def run_gate_charge(
         # drain until the clamp returns it to the rail (~Vbus); after turn-on
         # it flows through the channel, holding Id = i_load during the Miller
         # plateau.
+        from PySpice.Unit import u_V as _u_V, u_A as _u_A, u_s as _u_s
         circuit.V("bus", "vbus", circuit.gnd, float(v_bus)@u_V)
         circuit.model('DCLAMP', 'D', IS=1e-10)
         circuit.D("clamp", "d", "vbus", model='DCLAMP')
@@ -256,5 +310,4 @@ def run_gate_charge(
 
         return q_g, v_gs, v_ds
     finally:
-        if temp_lib.exists():
-            temp_lib.unlink()
+        discard_normalized_lib(temp_lib)

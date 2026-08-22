@@ -5,6 +5,85 @@ All timestamps are IST (UTC+05:30).
 
 ---
 
+## 2026-08-23 00:20 IST — M1/M2 audit fixes: robustness, contracts, error isolation
+
+Audit of all M1 (parser, preprocessor, common) and M2 (static_sweep, capacitance,
+gate_charge, engine) files found 31 issues; all fixed in this pass. No M3+ files touched.
+
+### P0 — correctness blockers
+- **Vth silent clamp** (`static_sweep.run_threshold_voltage`): `np.interp` silently
+  returned Vth≈0 when the swept current never reached the 250 µA target. Now raises a
+  descriptive `ValueError` naming the sweep ceiling and target.
+- **Temp-lib race**: the fixed-name `_temp_norm_<lib>` file (3 duplicated copies across
+  testbenches) let concurrent runs clobber each other while ngspice held it open.
+  Consolidated into `normalized_lib_copy()` / `discard_normalized_lib()` in
+  `static_sweep.py` using PID-tagged `tempfile.mkstemp`; capacitance and gate_charge
+  now import the shared implementation. Old private name kept as alias.
+- **PWLModelSpec ↔ netlist_builder contract** (`common/types.py`,
+  `models/netlist_builder.py`): codified `PWL_META_KEYS` (mirroring `yaml_io.KEYS`) as
+  the producer/consumer key contract for Tier-2 metadata. The builder merges metadata
+  over documented defaults, warns on unknown keys, notes missing ones — never crashes.
+
+### P1 — logic & data-integrity fixes
+- **Preprocessor** (`parser/preprocessor.py`): joins `+` continuation lines before any
+  processing; `.PARAM` lines now accept multiple assignments (`.PARAM a=1 b={2*a}`)
+  plus the bare `.PARAM name expr` form; param table is case-insensitive (last
+  definition wins, original spelling preserved for output); unresolvable params emit an
+  explicit warning instead of failing silently downstream; degenerate/self-referential
+  resolutions return None rather than passing expression text through.
+- **Netlist parser** (`parser/netlist.py`): nested `.SUBCKT` definitions no longer
+  orphan outer frames (open-definition stack); named `.ENDS <name>` matches its own
+  definition; unterminated inner frames are closed at their parent's `.ENDS` so
+  raw_lines never leak between siblings; subckt names may contain any non-whitespace
+  characters.
+- **Gate charge** (`simulation/testbenches/gate_charge.py`): `_interp_curve` handles
+  non-monotonic x-axes (flip descending; re-sort + warn if unordered);
+  plateau-above-Vgs_max case folds the Miller segment at the final gate voltage so the
+  returned Qg(Vgs) stays voltage-monotonic (flagged via new `plateau_clipped`
+  breakpoint); stacked duplicate docstring on `run_gate_charge` merged (the discarded
+  one carried the rail-clamp rationale, now in the surviving docstring with a VM-02
+  warning); `plot_gate_charge` takes a `device_name` argument instead of hardcoding
+  "IRFS7730PBF" in every title.
+- **CurveData validation** (`common/types.py`): pydantic model validator rejects
+  mismatched x_data/y_data lengths at construction instead of exploding later in
+  `to_numpy()`. Family fields populated consistently: body-diode now carries
+  `family_param="Vgs", family_value=0.0`, threshold carries `Id_target`;
+  capacitance curves record measurement frequency in `metadata.note`.
+
+### P2 — robustness & diagnostics
+- **Engine** (`simulation/engine.py`): solver-option surface (reltol/abstol/vntol/gmin/
+  itl1/itl4, applied via .OPTIONS with graceful fallback to defaults when a backend
+  rejects them); DC/transient/AC calls wrapped with circuit title + options in effect;
+  new `run_ac_sweep` used by the capacitance bench. Honest docstring about the PySpice
+  hard-crash limitation. Temperature note added: vendor subcircuits are not always
+  temperature-parameterized — the option is set but may have no effect (safe fallback).
+- **Body diode**: bare `except Exception` replaced by targeted `RuntimeError` retry with
+  a logged diagnostic; known 10 MΩ bleed-anchor parasitic current (Vsd/10MΩ) now
+  subtracted analytically from exported Isd; family fields set.
+- **Capacitance**: uses the shared engine (its temperature setting was previously
+  ignored due to a hardcoded 25 °C simulator); constructor accepts `f_meas` with range
+  sanity check — out-of-band frequencies warn and continue, invalid values fall back to
+  the 1 MHz default (vendor-model limitation policy: warn, don't crash); top-of-sweep
+  breakdown guard warns when capacitances explode >100x.
+- **Sign-convention check** (`_check_sign`): warns when extracted current traces trend
+  negative, catching vendor models whose internal source orientation flips polarity.
+- **Mutable default arg** `vgs_list=[...]` → `None` sentinel.
+
+### Not changed (deliberate)
+- `SimulationResult` left as-is (unused scaffolding; wiring it into testbench returns
+  would change public APIs that M4/M5 will consume).
+- ngspice stdout capture beyond exception wrapping (full capture requires PySpice
+  internals; deferred).
+
+### Verification
+`uv run pytest`: **46 passed**. Notebook 01 re-executed end-to-end on BOTH vendors:
+18 cells / 0 errors / 7 figures each; all extracted values identical to pre-fix baseline
+(TI: Rds(on) 8.47/12.24 mΩ, Vth 1.882 V, Qg 2.53 nC; IR: plateau 4.90 V, Qgd 79 nC,
+Qg 226.65 nC, Vth 4.346 V). The new engine diagnostics are visible in the TI run
+(body-diode coarse-step retry now logs its reason).
+
+---
+
 ## 2026-08-22 23:30 IST — Notebook 01 converted to config-driven input
 
 ### Change

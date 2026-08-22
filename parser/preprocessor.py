@@ -1,7 +1,7 @@
 """PSpice and LTspice dialect normalizer for NgSpice compatibility."""
 
 import re
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 # Safe functions available inside .PARAM expression evaluation.
 _SAFE_FUNCS: Dict[str, Any] = {}
@@ -20,9 +20,28 @@ except ImportError:  # pragma: no cover
         sin=_math.sin, cos=_math.cos, tan=_math.tan,
     )
 
-_PARAM_RE = re.compile(
-    r'^\.PARAM\s+([A-Za-z0-9_]+)\s*=?\s*([^;\n$]+)', re.IGNORECASE
+# A logical line may carry multiple assignments: `.PARAM a=1 b={2*a}`.
+# The bare `.PARAM name expr` form (no '=') is also legal PSpice.
+_KV_RE = re.compile(
+    r'([A-Za-z][A-Za-z0-9_]*)\s*(?:=\s*)?([^\s=]+)'
 )
+
+
+def _strip_comment(line: str) -> str:
+    """Remove inline comments (``;`` and ``$``)."""
+    stripped = re.sub(r';.*$', '', line)
+    return re.sub(r'\$.*$', '', stripped)
+
+
+def join_continuations(lines: List[str]) -> List[str]:
+    """Join SPICE continuation lines (leading ``+``) onto their parent line."""
+    joined: List[str] = []
+    for raw in lines:
+        if raw.startswith('+') and joined:
+            joined[-1] = joined[-1].rstrip() + ' ' + raw[1:].strip()
+        else:
+            joined.append(raw)
+    return joined
 
 
 def _evaluate(expr: str, params: Dict[str, Any]) -> Any:
@@ -31,19 +50,27 @@ def _evaluate(expr: str, params: Dict[str, Any]) -> Any:
     for k, v in params.items():
         text = re.sub(rf'\b{k}\b', repr(v), text, flags=re.IGNORECASE)
     try:
-        return eval(text, {'__builtins__': None}, dict(_SAFE_FUNCS))
+        value = eval(text, {'__builtins__': None}, dict(_SAFE_FUNCS))
     except Exception:
-        return text  # leave unresolved; caller decides
+        return None  # unresolved; caller decides
+    # Guard against self-referential or degenerate resolutions that return the
+    # expression text unchanged.
+    if isinstance(value, str):
+        return None
+    return value
 
 
 def normalize_pspice_netlist(raw_content: str) -> str:
     """Normalize PSpice/LTspice vendor models for seamless simulation in NgSpice.
 
+    - Joins continuation lines (leading ``+``) before any processing
     - Strips inline comments (``;`` and ``$``)
-    - Resolves scoped .PARAM definitions, including forward references between
-      .PARAM statements (iterated until stable), and evaluates arithmetic
-      expressions with a safe function whitelist (min/max/sqrt/exp/log/...)
-    - Replaces parameter references like ``{pWidth}`` with evaluated numbers
+    - Resolves scoped .PARAM definitions, including multiple assignments per
+      line and forward references between .PARAM statements (iterated until
+      stable), and evaluates arithmetic expressions with a safe function
+      whitelist (min/max/sqrt/exp/log/...)
+    - Replaces parameter references like ``{pWidth}`` with evaluated numbers;
+      unresolvable parameters are left symbolic with a warning
     - Ensures .PARAM statements are placed before .SUBCKT statements
 
     Vendor files commonly define params in any order and across continuation
@@ -53,38 +80,55 @@ def normalize_pspice_netlist(raw_content: str) -> str:
     """
     params: Dict[str, Any] = {}
     pending: Dict[str, str] = {}  # name -> raw expression (possibly forward-ref)
-    lines = raw_content.splitlines()
+    display: Dict[str, str] = {}  # key -> original-case name (first seen wins)
+    lines = join_continuations(raw_content.splitlines())
     cleaned_lines = []
+    warnings: List[str] = []
 
-    # Pass 1: collect .PARAM definitions
+    # Pass 1: collect .PARAM definitions (possibly several per logical line)
     for line in lines:
-        stripped = re.sub(r';.*$', '', line)
-        stripped = re.sub(r'\$.*$', '', stripped).strip()
+        stripped = _strip_comment(line).strip()
         if not stripped or stripped.startswith('*'):
             continue
 
-        m = _PARAM_RE.match(stripped)
-        if m:
-            pending[m.group(1)] = m.group(2).strip()
+        if re.match(r'^\.PARAM', stripped, re.IGNORECASE):
+            tail = re.sub(r'^\.PARAM\s*', '', stripped, flags=re.IGNORECASE)
+            pairs = _KV_RE.findall(tail)
+            if not pairs:
+                warnings.append(f"unparseable .PARAM line skipped: {stripped!r}")
+                continue
+            for name, expr in pairs:
+                key = name.lower()  # SPICE params are case-insensitive; last wins
+                pending[key] = expr.strip()
+                display.setdefault(key, name)
 
-    # Pass 2: iterate param evaluation until fixed point (handles forward refs)
+    def lookup(name: str) -> Any:
+        """Case-insensitive param lookup."""
+        return params.get(name.lower())
+
+    # Pass 2: iterate param evaluation until fixed point (handles forward refs).
     for _ in range(len(pending) + 1):
         progressed = False
         for name, expr in list(pending.items()):
             val = _evaluate(expr, params)
-            evaluated = not isinstance(val, str) or val != expr.strip().strip('{} ')
-            if evaluated and name not in params:
+            if val is not None and name not in params:
                 params[name] = val
                 del pending[name]
                 progressed = True
         if not progressed:
             break
-    # Anything left in pending stays symbolic (e.g. references undefined names)
+
+    for name in sorted(pending, key=str.lower):
+        warnings.append(
+            f".PARAM {display.get(name, name)} could not be resolved from "
+            f"{pending[name]!r}; left symbolic (downstream ngspice parse may fail)"
+        )
+    for w in warnings:
+        print(f"[preprocessor] WARNING: {w}")
 
     # Pass 3: substitute params and clean lines
     for line in lines:
-        stripped = re.sub(r';.*$', '', line)
-        stripped = re.sub(r'\$.*$', '', stripped).strip()
+        stripped = _strip_comment(line).strip()
         if not stripped:
             continue
         if stripped.startswith('*'):
@@ -94,10 +138,12 @@ def normalize_pspice_netlist(raw_content: str) -> str:
         if re.match(r'^\.PARAM', stripped, re.IGNORECASE):
             continue  # Skip inline .PARAM; they will be prepended
 
-        for k, v in params.items():
-            stripped = re.sub(rf'\{{\s*{k}\s*\}}', str(v), stripped, flags=re.IGNORECASE)
+        # Substitute both {param} braces and bare word references, case-insensitive.
+        for k in params:
+            name = display.get(k, k)
+            stripped = re.sub(rf'\{{\s*{name}\s*\}}', str(params[k]), stripped, flags=re.IGNORECASE)
 
         cleaned_lines.append(stripped)
 
-    global_params = [f".PARAM {k}={v}" for k, v in params.items()]
+    global_params = [f".PARAM {display.get(k, k)}={v}" for k, v in params.items()]
     return '\n'.join(global_params + cleaned_lines)

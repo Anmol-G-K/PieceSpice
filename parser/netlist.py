@@ -11,6 +11,8 @@ _HEADER_PARAMS_RE = re.compile(
 _KV_RE = re.compile(
     r'([A-Za-z][A-Za-z0-9_]*)\s*=\s*([^\s=]+)'
 )
+_SUBCKT_RE = re.compile(r'^\.SUBCKT\s+(\S+)\s+(.+)', re.IGNORECASE)
+_ENDS_RE = re.compile(r'^\.ENDS(?:\s+(\S+))?\s*$', re.IGNORECASE)
 
 
 class SubcircuitInfo(BaseModel):
@@ -35,7 +37,15 @@ def _split_header_params(rest: str) -> tuple[List[str], Dict[str, str]]:
 
 
 class NetlistParser:
-    """Parses SPICE netlists and extracts subcircuit definitions."""
+    """Parses SPICE netlists and extracts subcircuit definitions.
+
+    Handles nested subcircuit definitions by tracking the open-definition
+    stack: each .SUBCKT opens a frame and only its own matching .ENDS closes
+    it (a named ``.ENDS <name>`` is matched to its definition; an unnamed
+    .ENDS closes the innermost open frame). Vendor libraries that define
+    helper subckts inside subckts therefore parse correctly instead of
+    orphaning the outer definitions.
+    """
 
     @staticmethod
     def parse_subcircuits(file_path: Path) -> List[SubcircuitInfo]:
@@ -43,33 +53,49 @@ class NetlistParser:
         lines = content.splitlines()
 
         subcircuits: List[SubcircuitInfo] = []
-        current_subckt: Optional[SubcircuitInfo] = None
+        # Stack of (info, name_lower). Innermost frame is last.
+        stack: List[tuple[SubcircuitInfo, str]] = []
 
         for line in lines:
             stripped = line.strip()
             if not stripped or stripped.startswith('*'):
                 continue
 
-            subckt_match = re.match(
-                r'^\.SUBCKT\s+([A-Za-z0-9_]+)\s+(.+)', stripped, re.IGNORECASE
-            )
+            subckt_match = _SUBCKT_RE.match(stripped)
             if subckt_match:
                 name = subckt_match.group(1)
                 nodes, params = _split_header_params(subckt_match.group(2))
-                current_subckt = SubcircuitInfo(
+                info = SubcircuitInfo(
                     name=name, nodes=nodes, raw_lines=[line], parameters=params
                 )
+                stack.append((info, name.lower()))
                 continue
 
-            ends_match = re.match(r'^\.ENDS', stripped, re.IGNORECASE)
-            if ends_match and current_subckt:
-                current_subckt.raw_lines.append(line)
-                subcircuits.append(current_subckt)
-                current_subckt = None
+            ends_match = _ENDS_RE.match(stripped)
+            if ends_match and stack:
+                ends_name = ends_match.group(1)
+                if ends_name is None:
+                    # Unnamed .ENDS closes the innermost open frame.
+                    info, _ = stack.pop()
+                else:
+                    # Named .ENDS closes the matching frame; anything opened
+                    # inside it (and never closed) is closed here too so no
+                    # raw_lines leak between sibling definitions.
+                    target = ends_name.lower()
+                    while stack and stack[-1][1] != target:
+                        orphaned, _ = stack.pop()
+                        orphaned.raw_lines.append(line)
+                        subcircuits.append(orphaned)
+                    if stack:
+                        info, _ = stack.pop()
+                    else:
+                        # .ENDS names an unknown subckt; ignore line.
+                        continue
+                info.raw_lines.append(line)
+                subcircuits.append(info)
                 continue
 
-            if current_subckt:
-                current_subckt.raw_lines.append(line)
+            if stack:
+                stack[-1][0].raw_lines.append(line)
 
         return subcircuits
-
