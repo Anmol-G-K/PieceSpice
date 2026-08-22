@@ -118,8 +118,15 @@ class StaticSweepTestbench:
         vgs: float = 10.0,
         vds_max: float = 2.5,
         vds_points: int = 51,
+        min_current: float = 1.0,
     ) -> CurveData:
-        """Extract Rds(on) = Vds/Id vs Id in the ohmic region at fixed Vgs."""
+        """Extract Rds(on) = Vds/Id vs Id in the ohmic region at fixed Vgs.
+
+        Args:
+            min_current: Only report points where the device conducts more than
+                this current [A] — below it the Vds/Id ratio is dominated by
+                leakage/numerical noise, not channel resistance.
+        """
         temp_lib = _normalized_lib_file(lib_path)
 
         try:
@@ -136,7 +143,7 @@ class StaticSweepTestbench:
             id_arr = np.abs(np.array(analysis.Vds))
 
             # Only meaningful where the device actually conducts
-            mask = id_arr > 1.0
+            mask = id_arr > min_current
             rds_mohm = vds_arr[mask] / np.maximum(id_arr[mask], 1e-12) * 1e3
 
             return CurveData(

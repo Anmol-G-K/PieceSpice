@@ -5,6 +5,65 @@ All timestamps are IST (UTC+05:30).
 
 ---
 
+## 2026-08-22 16:10 IST — M1/M2 audit: 3 implementation bugs fixed, VM-03 fixable defect fixed, test suite 8 → 34
+
+### Audit scope
+
+Full review of Milestone 1 (preprocessor, netlist parser, plotting) and Milestone 2
+(static_sweep, capacitance, gate_charge testbenches), pytest verification, missing-test
+gap fill, and a fixability pass over `vendor_model_defects.md`.
+
+### Implementation errors found & fixed
+
+**M1 — `parser/preprocessor.py`** (rewritten)
+1. *Forward-referenced params never resolved*: single-pass substitution left `.PARAM a {b*2}`
+   unresolved when `b` was defined later. Fixed with iterated evaluation to a fixed point.
+2. *`$` comments not stripped* despite the docstring promising it. Now stripped alongside `;`.
+3. *Unsafe bare `eval`*: replaced with a safe function whitelist
+   (min/max/sqrt/exp/log/log10/pow/sin/cos/tan via numpy, math fallback) and empty builtins.
+4. Unresolvable params now stay symbolic instead of crashing.
+
+**M1 — `parser/netlist.py`**
+5. *PSpice header params misread as pins*: `.SUBCKT DEMO 1 2 3 PARAMS: scale=1.5` produced
+   nodes `['1','2','3','PARAMS:','scale=1.5','temp=25']` and an empty parameters dict.
+   Added `_split_header_params`: pin list is now clean, params land in `SubcircuitInfo.parameters`.
+
+**M2 — `simulation/testbenches/static_sweep.py`**
+6. *Hardcoded conduction mask* in `run_rds_on` (`id_arr > 1.0`) silently dropped all data
+   for low-current devices. Exposed as parameter `min_current=1.0`.
+
+### Vendor-model defect fixability assessment (`vendor_model_defects.md`)
+
+- **VM-01, VM-02, VM-04, VM-05**: NOT fixable without mutating the vendor `.spi`
+  (explicitly forbidden — results would no longer be golden). Mitigations already shipped;
+  statuses unchanged in the catalog.
+- **VM-03 (charge-inaccurate Cgd)**: FIXABLE on our side. Added optional
+  `qgd_cal_nC` to `reconstruct_gate_charge` — rescales the Miller segment to a datasheet
+  Qgd target so total charge is physically meaningful; the applied factor is reported as
+  `qgd_cal_scale` in breakpoints. Verified on IRFS7730PBF @ Id=100 A, Vbus=38 V:
+  raw Qg = 183.8 nC (−32% vs datasheet 271); calibrated Qg = **226.8 nC**
+  (Qgs 67.2 / Qgd 79.0 exact / tail 80.6), remaining −16% gap attributed to Qgs/tail
+  overdrive inflation (VM-01) which calibration cannot address.
+
+### Tests: 8 → 34 (all passing)
+
+New/expanded files:
+- `tests/test_preprocessor.py` — 7 tests: forward refs, `$`/`;` comments, safe functions,
+  unresolvable-symbolic passthrough, param hoisting before .SUBCKT, original param case.
+- `tests/test_netlist.py` (new file, then merged into expanded parser tests) and
+  `tests/test_parser.py` — vendor-file parsing (both subckts present, 3-pin check),
+  PSpice PARAMS-header handling, plain-subckt regression.
+- `tests/test_gate_charge.py` (new) — 7 tests: three-segment structure & charge sum rule,
+  DataFrame format + monotonicity, ascending/descending Crss-axis equivalence,
+  Iload-out-of-range ValueError, plateau clamped to v_gs_max, Qgd calibration exactness.
+
+Three initial failures were bad test expectations (interpolation landing exactly on a
+knot point; symbolic-passthrough semantics), corrected in the tests — not code bugs.
+
+Final: `uv run pytest -q` → **34 passed**.
+
+---
+
 ## 2026-08-22 15:21 IST — Root cause analysis: Id = 1.5–1.7 kA vs datasheet ID = 246 A (new defect VM-04)
 
 ### Trigger

@@ -17,11 +17,11 @@ IDM 984 A pulsed, VGS ±20 V, PD 375 W @ TC=25 °C.
 
 | ID | Defect | Severity | Studies affected | Status |
 |---|---|---|---|---|
-| VM-01 | No subthreshold conduction (fake-high Vth) | High | Curve 2, 5, Vth extraction | Documented |
+| VM-01 | No subthreshold conduction (fake-high Vth) | High | Curve 2, 5, Vth extraction | Documented (unfixable without vendor mutation) |
 | VM-02 | Capacitance sense-and-mirror pathology under dynamic drain transitions | Critical | Curve 5 (transient) | Blocked → workaround shipped |
-| VM-03 | Charge-inaccurate Cgd (AC-calibrated only) | High | Curve 5 (reconstructed Qgd) | Documented |
-| VM-04 | Unclipped saturation current (kA-domain Id) | Medium | Curve 1 interpretation, all transients | Documented |
-| VM-05 | Corrupted initial DC operating point | Low | Transient studies | Documented |
+| VM-03 | Charge-inaccurate Cgd (AC-calibrated only) | High | Curve 5 (reconstructed Qgd) | **Fixed (2026-08-22)** — datasheet-Qgd calibration in `reconstruct_gate_charge` |
+| VM-04 | Unclipped saturation current (kA-domain Id) | Medium | Curve 1 interpretation, all transients | Documented (unfixable without vendor mutation) |
+| VM-05 | Corrupted initial DC operating point | Low | Transient studies | Documented (unfixable without vendor mutation) |
 
 ---
 

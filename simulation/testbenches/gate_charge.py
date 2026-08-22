@@ -54,6 +54,7 @@ def reconstruct_gate_charge(
     v_gs_max: float = 10.0,
     v_ds_on: float = 0.1,
     n_points: int = 200,
+    qgd_cal_nC: float | None = None,
 ) -> Tuple[pd.DataFrame, dict]:
     """Quasi-static gate-charge reconstruction (Curve 5, Option A).
 
@@ -77,11 +78,18 @@ def reconstruct_gate_charge(
         i_load:         Load current defining the plateau [A].
         v_gs_max:       Final gate voltage [V].
         v_ds_on:        Residual drain voltage after collapse [V].
+        qgd_cal_nC:     Optional datasheet Qgd target [nC] used to calibrate
+            segment 2. MODPEX-style sense-and-mirror vendor models match
+            small-signal Crss but under-integrate large-signal gate-drain
+            charge (see vendor_model_defects.md VM-03); passing the datasheet
+            Qgd rescales the Miller segment so the total charge is physically
+            meaningful. The scale factor is reported in the breakpoints dict
+            as 'qgd_cal_scale'.
 
     Returns:
         df: DataFrame with columns [Qg_nC, Vgs_V] in datasheet format.
         breakpoints: dict with keys 'v_plateau_V', 'q_gs_nC', 'q_gd_nC',
-                     'q_tail_nC', 'q_total_nC'.
+                     'q_tail_nC', 'q_total_nC', 'qgd_cal_scale'.
     """
     # --- Plateau voltage: Vgs where Id(Vgs) crosses Iload ---
     vgs_t = np.asarray(transfer_curve.x_data)
@@ -106,6 +114,13 @@ def reconstruct_gate_charge(
     # --- Segment 2: Qgd = int Crss(Vds) dVds, Vbus -> Vds_on (drain swing) ---
     qgd_total, vds_seg2, cum_qgd = _crss_integral(crss_curve, v_bus, v_ds_on,
                                                   n_points)
+    # VM-03 calibration: rescale the Miller segment to a datasheet Qgd target.
+    if qgd_cal_nC is not None and qgd_cal_nC > 0 and qgd_total > 0:
+        cal_scale = (qgd_cal_nC * 1e-9) / qgd_total
+        cum_qgd = cum_qgd * cal_scale
+        qgd_total = qgd_total * cal_scale
+    else:
+        cal_scale = 1.0
     q_seg2 = q_seg1[-1] + cum_qgd
 
     # --- Segment 3: tail = int Ciss(low-Vds) dVgs, Vgp -> Vgs_max ---
@@ -126,6 +141,7 @@ def reconstruct_gate_charge(
         "q_gd_nC": qgd_total * 1e9,
         "q_tail_nC": (q_seg3[-1] - q_seg2[-1]) * 1e9,
         "q_total_nC": q_seg3[-1] * 1e9,
+        "qgd_cal_scale": cal_scale,
     }
     return df, breakpoints
 
