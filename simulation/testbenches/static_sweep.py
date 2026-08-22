@@ -216,11 +216,19 @@ class StaticSweepTestbench:
         subcircuit_name: str,
         vsd_max: float = 1.0,
         points: int = 51,
+        sweep_step: float | None = None,
     ) -> CurveData:
         """Extract body-diode forward characteristic Isd vs Vsd (gate off).
 
         Voltage-driven with a conservative cap (~1 V): beyond that the diode
         exponential saturates Newton iterations and the DC sweep diverges.
+
+        Args:
+            sweep_step: Optional explicit DC-sweep step size. The ngspice DC
+                sweep is step-sensitive near the diode's high-conduction knee
+                (e.g. the TI CSD16412Q5A passes 1.0 V/39 pts but fails
+                1.0 V/41 pts); if the default step diverges, retry with a
+                coarser one.
         """
         temp_lib = _normalized_lib_file(lib_path)
 
@@ -235,8 +243,14 @@ class StaticSweepTestbench:
             # sees leakage paths and the OP diverges (10 MOhm shunt ~ 1e-7 A).
             circuit.R("bleed", "src", circuit.gnd, 10e6@u_Ohm)
 
-            step = vsd_max / max(1, points - 1)
-            analysis = self.engine.run_dc_sweep(circuit, "Vsd", 0, vsd_max, step)
+            step = sweep_step if sweep_step else vsd_max / max(1, points - 1)
+            try:
+                analysis = self.engine.run_dc_sweep(circuit, "Vsd", 0, vsd_max, step)
+            except Exception:
+                # Step-size-sensitive convergence: retry on a coarse 25-point grid.
+                coarse_step = vsd_max / 24
+                analysis = self.engine.run_dc_sweep(circuit, "Vsd", 0, vsd_max,
+                                                    coarse_step)
 
             vsd_arr = np.array(analysis.sweep)
             isd_arr = -np.array(analysis.Vsd)  # conduction current src->drain

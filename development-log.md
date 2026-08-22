@@ -5,6 +5,73 @@ All timestamps are IST (UTC+05:30).
 
 ---
 
+## 2026-08-22 20:43 IST — Second vendor onboarding: TI CSD16412Q5A (M1 + M2 characterization)
+
+### Goal
+
+Run the full M1/M2 device-characterization pipeline on a second vendor model,
+`SpiceModels/CSD16412Q5A.lib` (TI NexFET, PSpice dialect), without creating new
+modules — extend the existing machinery to support both vendors.
+
+### ngspice compatibility (no global edits)
+
+The TI file is PSpice dialect and crashes ngspice as-is:
+`Undefined number [ptrc1]` — the `.MODEL RTEMP RES (TC1={ptrc1} ...)` references
+subckt params that the raw file's single-pass parse cannot resolve, killing the shared
+library. Running the file through our existing `parser.preprocessor.normalize_pspice_netlist`
+resolves all params (`pWidth`, `perim`, `ptrc1/2`) to literals, after which the model
+reaches an operating point cleanly. Note: `LEVEL=7 Version=3.2` is PSpice-speak for
+BSIM3v3.2; ngspice maps LEVEL 7 to BSIM3 and simulates it correctly — no source-level
+model translation needed. All normalization flows through `_normalized_lib_file()` in
+the testbenches; no global ngspice config was touched.
+
+### Changes
+
+- `notebooks/01_datasheet_curves_extraction.ipynb`: setup cell now has a `DEVICES`
+  registry (IRFS7730PBF / CSD16412Q5A) with per-device config (`lib`, `subckt`,
+  `i_load`, `v_bus`, `qgd_typ`); all study cells parameterized off `DEVICE`. The TI
+  entry sets `qgd_typ=None` (VM-03 calibration is IR-specific — TI uses real terminal
+  capacitances, not a MODPEX mirror network). Capacitance sweep ceiling made
+  vendor-aware: TI's body diode (DBD, BV=27) avalanches near 27 V — beyond that the AC
+  probe collapses and Coss explodes to ~40 uF (physical breakdown, not a bug), so the
+  TI sweep caps at 25 V vs 60 V for IR.
+- `simulation/testbenches/static_sweep.py::run_body_diode`: ngspice DC sweeps are
+  step-size-sensitive near the diode high-conduction knee (TI passes 1.0 V / 39 pts
+  but fails 1.0 V / 41 pts). Added automatic coarse-step retry (25-point grid) +
+  optional explicit `sweep_step` argument.
+- `tests/test_vendor_ti.py` (new, 5 tests): subckt discovery, clean 3-pin parse,
+  param resolution in normalized output, OP under ngspice, plausible Rds(on).
+- Notebook summary cell fixed to report capacitances at a vendor-appropriate bias.
+
+### Full pipeline run (notebook 01, DEVICE = "CSD16412Q5A")
+
+9/9 cells executed, 7 figures at 300 dpi embedded, zero errors. Extracted figures:
+
+| Quantity | Extracted | Datasheet (SLPS207A) | Note |
+|---|---|---|---|
+| Rds(on) @ Vgs=10 V, Id=50 A | 8.60 mOhm | ~4.3 mOhm typ (Id=25 A rated) | measured at 2x rated current |
+| Vth @ Id=250 uA | 1.882 V | 1.35–2.35 V window | ✅ inside spec (real BSIM3 subthreshold) |
+| Ciss @ Vds=25 V | 405 pF | 780 pF @ 10 V | sensible trend |
+| Coss @ Vds=25 V | 262 pF | 220 pF @ 10 V | ✅ |
+| Crss @ Vds=25 V | 26 pF | 80 pF @ 10 V | decreasing trend consistent |
+| Body diode Vsd @ Isd=50 A | 997 mV | — | beyond rating; extrapolation |
+| Plateau voltage | 5.02 V | — | from transfer curve @ 100 A |
+
+Gate-charge quasi-static reconstruction: total Qg = 5.3 nC is **unphysically low** —
+the TI model's terminal CGS0/CGD0 (1–6 pF) plus BSIM3 oxide cap give a tiny gate
+charge because this "TRANSIENT" model was calibrated for switching waveforms rather
+than datasheet Qg curves (datasheet Qg ~ 18 nC typ). Recorded as a known limitation:
+the reconstruction is only as good as the model's capacitance data; for the TI part,
+Curve 5 targets should come from the datasheet, not this macromodel.
+
+Artifacts: `reports/nb01_ti_final/*.png` (7 figures).
+
+### Verification
+
+`uv run pytest -q`: **39 passed** (34 previous + 5 new TI tests). No regressions.
+
+---
+
 ## 2026-08-22 16:10 IST — M1/M2 implementation audit, test suite expansion (8 → 34), VM-03 fix shipped
 
 ### Audit scope
