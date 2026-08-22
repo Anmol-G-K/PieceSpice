@@ -1,0 +1,51 @@
+# PieceSpice simulation input: Infineon/IR IRFS7730PBF (MODPEX SPICE3 LEVEL=1)
+# Single source of truth for all testbench conditions used by this vendor model.
+# Values mirror the defaults in simulation/testbenches/* and notebook 01.
+
+device: irfs7730pbf
+vendor: infineon_ir
+library: SpiceModels/irfs7730pbf.spi
+subcircuit: irfb_s_sl7730pbf
+pins:
+  drain: "1"
+  gate: "2"
+  source: "3"
+
+conditions:
+  # --- static sweeps ---
+  Vgs_sweep: [3.0, 4.5, 6.0, 8.0, 10.0]     # output-characteristics family
+  Vds_sweep_max: 10.0                        # output char Vds ceiling [V]
+  Vds_points: 101
+  Vgs_fixed: 10.0                            # Rds(on) / transfer bias [V]
+  Vds_fixed: 40.0                            # transfer / capacitance reference [V]
+  Vgs_transfer_max: 15.0                     # transfer sweep ceiling [V]
+  Vgs_transfer_points: 151
+  Vds_rds_max: 2.5                           # ohmic-region sweep for Rds(on) [V]
+  Vds_rds_points: 51
+  Id_rds_min: 1.0                            # conduction mask for Rds(on) [A]
+
+  # --- threshold voltage (JEDEC constant-current method) ---
+  Id_th_target: 2.5e-4                       # 250 uA
+  Vgs_th_max: 6.0
+  Vgs_th_points: 3001
+
+  # --- body diode ---
+  Vsd_max: 1.0
+  Vsd_points: 51
+
+  # --- capacitances (small-signal AC @ 1 MHz) ---
+  Vds_cap_min: 0.1
+  Vds_cap_max: 60.0                          # model breakdown is 75 V
+  Cap_points: 25
+  F_meas: 1.0e+06                            # [Hz]
+
+  # --- gate charge (quasi-static reconstruction) ---
+  Id_load: 100.0                             # datasheet plateau current [A]
+  Vbus: 38.0                                 # bus voltage for Qg reconstruction [V]
+  Vgs_qg_max: 10.0
+  Vds_on: 0.05                               # residual drain voltage after collapse [V]
+  Qgd_typ_nC: 79.0                           # datasheet Qgd (VM-03 calibration)
+  Ig_drive: 0.005                            # nominal CC gate drive of the blocked transient [A]
+
+  # --- environment ---
+  temperature: 25.0                          # [degC]

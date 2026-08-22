@@ -5,6 +5,119 @@ All timestamps are IST (UTC+05:30).
 
 ---
 
+## 2026-08-22 21:49 IST — YAML-based config & outputs (config-driven pipeline)
+
+### Structure created
+
+```
+config/
+  inputs/
+    irfs7730pbf.yaml          # single source of truth for all sim conditions
+  outputs/
+    irfs7730pbf/
+      curve1_output_characteristics.yaml   (pass)
+      curve2_transfer_characteristic.yaml  (pass)
+      curve3_rds_on.yaml                   (pass)
+      curve4_capacitances.yaml             (pass)
+      curve5_gate_charge.yaml              (pass)
+      curve6_body_diode.yaml               (pass)
+      curve7_threshold_voltage.yaml        (partial - VM-01)
+      gate_charge_transient.yaml           (blocked - VM-02)
+```
+
+### New utility module
+
+**`config/yaml_io.py`** — the single interface between testbenches and the YAML tree:
+- `load_input(vendor_name)` — loads `config/inputs/<vendor>.yaml`; raises with a
+  helpful message listing available configs when missing.
+- `save_output(vendor_name, testbench_name, status, conditions_used, extracted, notes)`
+  — writes `config/outputs/<vendor>/<testbench>.yaml` with the standardized schema
+  (`device / testbench / status / conditions_used / extracted / notes`). Recursively
+  converts numpy scalars/arrays to plain Python before dumping.
+- `load_output(vendor, tb)` — read-back helper for verification.
+- `KEYS` dict — canonical extracted-key names (vth_v, rds_on_10v_mohm, gfs_s,
+  ciss_f/coss_f/crss_f, v_plateau_v, qgs_nc, qgd_nc, q_tail_nc, qg_total_nc,
+  curve_* arrays) so downstream milestones can consume outputs uniformly.
+
+### Input config populated with real values
+
+`irfs7730pbf.yaml` mirrors the actual values used by the testbenches and notebook 01:
+Vgs family [3, 4.5, 6, 8, 10], Vds sweep max 10 V/101 pts, transfer @ 10 V/15 V/151 pts,
+Rds(on) ohmic sweep 2.5 V/51 pts with Id>1 A mask, JEDEC Vth @ 250 µA/6 V/3001 pts,
+body diode 1 V/51 pts, capacitances 0.1–60 V/25 pts @ 1 MHz, Qg reconstruction
+Id_load=100 A/Vbus=38 V/Vgs→10 V/Qgd cal 79 nC, plus library path, subcircuit name and
+pin map.
+
+### Output generation
+
+`scripts/generate_outputs_irfs7730pbf.py` — runs every passing testbench using only
+values from the input config and writes all eight output files via `yaml_io`
+(zero inline YAML logic). Statuses reflect reality: six curves pass, Curve 7 is partial
+(VM-01 effective-VTO artifact), the raw gate-charge transient is blocked (VM-02).
+Example verified content: curve5 records plateau 5.067 V, Qgs 67.26 nC, Qgd 79.0 nC
+(calibrated), total 226.17 nC with full sampled curves.
+
+### Tests
+
+`tests/test_yaml_io.py` (7 tests): input load + numeric typing (caught and fixed a YAML
+1.1 quirk where `1.0e6` parsed as string — now written as `1.0e+06`), missing-vendor
+error, output roundtrip, numpy serialization, invalid-status rejection, canonical-key
+enforcement across all real output files, and coverage of all expected per-curve outputs.
+
+Suite: **46 passed**. No existing testbench logic touched — the generator script is
+the integration point until a CLI command supersedes it.
+
+---
+
+## 2026-08-22 21:07 IST — TI CSD16412Q5A refined to exact datasheet test conditions
+
+### Trigger
+
+User supplied the CSD16412Q5A datasheet tables (SLPS207A). The previous run used the
+IRFS7730PBF-style conditions (Id=100 A, Vbus=38 V) — far beyond this 25 V / ±10 A-class
+device's operating envelope. All studies re-run under the *exact* datasheet test
+conditions (Id=10 A, Vbus=Vds=12.5 V, gfs @ Vds=15 V, Qg window to Vgs=4.5 V).
+
+### Notebook changes
+
+- Per-device datasheet conditions in the `DEVICES` registry: `i_load`, `v_bus`,
+  `vgs_max`, `vds_cap`, `qgd_typ`.
+- Transfer curve now swept at Vds=15 V for TI (the gfs test condition) vs 10 V for IR.
+- Rds(on) extracted for both Vgs=10 V and Vgs=4.5 V (both are datasheet conditions).
+- Gate charge reconstructed to Vgs_max=4.5 V with Vbus=12.5 V, Id=10 A.
+
+### Validation vs datasheet (all under correct test conditions)
+
+| Quantity | Extracted | Datasheet | Verdict |
+|---|---|---|---|
+| Rds(on) @ Vgs=10 V, Id=10 A | **8.47 mΩ** | 9–11 mΩ | slightly below min — model optimistic |
+| Rds(on) @ Vgs=4.5 V, Id=10 A | **12.24 mΩ** | 13–16 mΩ | slightly below min |
+| VGS(th) @ 250 µA | **1.882 V** | 1.7–2.3 V (typ 2.0) | ✅ in spec |
+| Body diode Vsd @ Isd=10 A | **837.5 mV** | 850–1000 mV | just under min, ~1.5% off |
+| gfs @ Vds=15 V, Id=10 A | 41.0 S | typ 33 S | +24% |
+| Ciss @ 12.5 V | **412 pF** | 410–530 pF | ✅ at lower bound |
+| Coss @ 12.5 V | **347.5 pF** | 350–450 pF | −0.7% below bound |
+| Crss @ 12.5 V | **33.3 pF** | 32–42 pF | ✅ |
+| Plateau voltage | 2.81 V | — | consistent with Vth≈1.9 + margin |
+| Qgs | **1.16 nC** | typ 1.4 nC | −17% |
+| Qgd | **0.58 nC** | typ 0.7 nC | −17% |
+| Total Qg @ 4.5 V | **2.53 nC** | 2.9–3.8 nC | −13%, consistent bias |
+
+Overall: every quantity within ~25% of datasheet and most inside or grazing the spec
+band — dramatically better agreement than the IR MODPEX model (whose Vth missed the
+datasheet band entirely). The TI model is a physically faithful macromodel; residual
+biases (Rds(on)/Qg slightly low, gfs high) suggest the vendor fitted toward typical
+silicon at 27 °C TNOM.
+
+The earlier "unphysically low Qg = 5.3 nC" concern is resolved: that run integrated to
+Vgs=10 V at a 100 A plateau — outside this device's world. Under real conditions Qg =
+2.53 nC vs datasheet 2.9–3.8 nC is credible.
+
+Artifacts: `reports/nb01_ti_refined/*.png` (7 figures). Notebook re-executed 9/9 cells,
+zero errors. `uv run pytest -q`: 39 passed.
+
+---
+
 ## 2026-08-22 20:43 IST — Second vendor onboarding: TI CSD16412Q5A (M1 + M2 characterization)
 
 ### Goal
