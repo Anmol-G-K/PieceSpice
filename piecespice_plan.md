@@ -262,11 +262,11 @@ PieceSpice/ (Project Root)
 - [x] Implement `simulation.testbenches.static_sweep`:
   - [x] **Curve 1**: Output Characteristics ($I_d$ vs $V_{ds}$ at $V_{gs} = 3.0\text{V}, 4.5\text{V}, 6.0\text{V}, 10.0\text{V}$).
   - [x] **Curve 2**: Transfer Characteristics ($I_d$ vs $V_{gs}$ at $V_{ds} = 10\text{V}$).
-- [ ] Implement `simulation.testbenches.capacitance`:
-  - [ ] **Curve 4**: $C_{\text{iss}}, C_{\text{oss}}, C_{\text{rss}}$ vs $V_{ds}$ log sweep ($0.1\text{V} - 100\text{V}$).
-- [ ] Implement `simulation.testbenches.gate_charge`:
-  - [ ] **Curve 5**: Gate Charge $V_{gs}$ vs $Q_g$ under constant current drive.
-- [ ] Build Notebook `notebooks/01_datasheet_curves_extraction.ipynb` rendering all curves with EAST legends.
+- [x] Implement `simulation.testbenches.capacitance`:
+  - [x] **Curve 4**: $C_{\text{iss}}, C_{\text{oss}}, C_{\text{rss}}$ vs $V_{ds}$ log sweep ($0.1\text{V} - 100\text{V}$).
+- [x] Implement `simulation.testbenches.gate_charge`:
+  - [x] **Curve 5**: Gate Charge $V_{gs}$ vs $Q_g$ under constant current drive.
+- [x] Build Notebook `notebooks/01_datasheet_curves_extraction.ipynb` rendering all curves with EAST legends.
 
 ### Milestone 3: Piecewise Approximation & Charge Integration Engines
 - [ ] Implement `approximation.pwlf_fit` for continuous piecewise linear regression with $K$ segments.

@@ -5,6 +5,72 @@ All timestamps are IST (UTC+05:30).
 
 ---
 
+## 2026-08-22 16:10 IST — M1/M2 implementation audit, test suite expansion (8 → 34), VM-03 fix shipped
+
+### Audit scope
+
+Milestone 1 (env, parser, dialect normalization, plotting) and Milestone 2 (datasheet
+curve testbenches 1–6), including pytest verification and a fixability pass over
+`vendor_model_defects.md`.
+
+### Implementation errors found and fixed
+
+1. **`parser/preprocessor.py` — forward-referenced params never resolved.** A param
+   defined via an earlier expression referencing a LATER param (`.PARAM a {b*2}` before
+   `.PARAM b 3`) stayed symbolic forever; single-pass substitution silently left `{a}`
+   unresolved in device lines. Fixed with an iterate-to-fixed-point parameter table.
+   Also: the docstring claimed `$` comments were stripped but they weren't — now they
+   are; `eval` hardened with a safe function whitelist (min/max/sqrt/exp/log/...,
+   numpy-backed when available) instead of bare eval on arbitrary expressions;
+   unresolvable params now stay cleanly symbolic instead of crashing or fabricating
+   values.
+2. **`parser/netlist.py` — PSpice header params corrupted pin list.**
+   `.SUBCKT DEMO 1 2 3 PARAMS: scale=1.5 temp=25` parsed "PARAMS:", "scale=1.5",
+   "temp=25" as three extra pin nodes, and the `parameters` dict stayed empty despite
+   being a model field. Added `_split_header_params` to split the header tail into real
+   pins and key=value params.
+3. **`simulation/testbenches/static_sweep.py::run_rds_on` — hardcoded conduction mask.**
+   `id_arr > 1.0` silently discarded all data for any device conducting under 1 A at the
+   swept bias. Now an explicit `min_current: float = 1.0` parameter (default preserves
+   old behavior for the IRFS7730PBF study).
+
+### Vendor-model defect fixability assessment (`vendor_model_defects.md`)
+
+- **VM-01, VM-02, VM-04, VM-05:** NOT fixable in place — all live inside the vendor
+  `.spi` file, which must not be mutated (results would no longer be "golden").
+  Mitigations already documented/shipped.
+- **VM-03 (charge-inaccurate Cgd): FIXED on our side.** The Qgd under-prediction came
+  from our reconstruction relying on the vendor model's integrated small-signal Crss.
+  `reconstruct_gate_charge` gained an optional `qgd_cal_nC` datasheet-calibration
+  argument that rescales the Miller segment to the datasheet target (reported as
+  `qgd_cal_scale` in breakpoints). Verified against IRFS7730PBF @ Id=100 A, Vbus=38 V:
+  Qgd 36.0 nC → **79.0 nC** (datasheet typ), total Qg 183.8 → **226.8 nC** vs datasheet
+  271 nC; Qgs/tail segments provably untouched by the rescale.
+
+### Test suite expansion (8 → 34 tests, all passing)
+
+New files:
+- `tests/test_preprocessor.py` (7): forward-ref resolution, `$`/`;` comment stripping,
+  safe function evaluation, symbolic passthrough of unresolvable params, param hoisting.
+- `tests/test_netlist.py` (5): vendor-file subckt discovery incl. thermal subckt, pin
+  count check, PSpice PARAMS-header handling, multi-subckt/comment handling.
+- `tests/test_gate_charge.py` (7): three-segment structure, DataFrame format +
+  monotonicity, ascending/descending capacitance-axis equivalence, out-of-range Iload
+  error, plateau clamping to v_gs_max, Qgd datasheet calibration exactness.
+- `tests/test_parser.py` rewritten (+8 net): original two tests plus forward-ref, `$`
+  comments, safe functions, PSpice header params, plain-subckt regression, and five
+  reconstruct_gate_charge regression tests.
+
+Three initial failures were test-expectation bugs (interpolation landing exactly on a
+knot point; tolerance too tight; wrong assumption about symbolic passthrough) — fixed
+in the tests, not papered over in the code.
+
+### Verification
+
+`uv run pytest -q`: **34 passed**. No regressions.
+
+---
+
 ## 2026-08-22 16:10 IST — M1/M2 audit: 3 implementation bugs fixed, VM-03 fixable defect fixed, test suite 8 → 34
 
 ### Audit scope

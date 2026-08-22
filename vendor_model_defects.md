@@ -112,6 +112,14 @@ enough in integrated charge.
 switching charge for this model family. When validating Tier 2 charge sources, target
 the datasheet Qgd/Qg values, not the vendor model's integrated Crss.
 
+**Fix shipped (2026-08-22):** `reconstruct_gate_charge` accepts an optional
+`qgd_cal_nC` argument — the datasheet Qgd target — which rescales the Miller segment so
+the reconstructed charge is physically meaningful. The applied scale factor is reported
+in the breakpoints dict as `qgd_cal_scale`. Verified on IRFS7730PBF @ Id=100 A,
+Vbus=38 V: Qgd 36.0 nC → 79.0 nC (datasheet typ), total Qg 183.8 → 226.8 nC (datasheet
+271 nC); Qgs and tail segments are provably untouched by the rescale (covered by
+`tests/test_gate_charge.py::test_qgd_datasheet_calibration`).
+
 ---
 
 ## VM-04 — Unclipped saturation current (kA-domain Id)
