@@ -5,6 +5,56 @@ All timestamps are IST (UTC+05:30).
 
 ---
 
+## 2026-08-22 15:40 IST — Plotting overhaul + notebook 01 updated with gate-charge study
+
+### Motivation
+
+User review: existing plots were "not professional enough — bad layout and placement."
+All notebook figures flow through `common/plotting.py`, so the fix was made centrally.
+300 dpi resolution retained per project constraint (plan §4.3); everything else overhauled.
+
+### Changes
+
+**`common/plotting.py` (rewritten)**
+- Replaced the fragile two-pass `tight_layout` legend-width hack with
+  **constrained layout** (`layout="constrained"`) — matplotlib now reserves exactly the
+  space the EAST legend needs; no clipped legends, no dead whitespace, deterministic.
+- Added engineering-unit tick formatting: `EngFormatter` derived from each curve's
+  unit field (A -> kA on high-current plots, F -> pF/nF, V, mOhm...), so tick labels
+  read "250 A", "13 nF" instead of raw floats/scientific notation.
+- On log axes: minor formatter set to NullFormatter + LogLocator(subs='auto') to kill
+  duplicate minor labels.
+- Typography scale retuned (12/13/14 pt), title padding, thinner spines (0.9),
+  major/minor tick sizes, grid drawn below data (`axes.axisbelow`), minor grid off,
+  legend styling (square frame, edgecolor 0.75).
+- Default figure size 10.5 x 5.8 (16:9-ish, better for notebooks/reports than the old
+  12 x 6.75 that shrank the axes when a long legend was attached).
+- `plot_waveforms` updated to the same machinery.
+
+**`simulation/testbenches/gate_charge.py`**
+- `plot_gate_charge` migrated to constrained layout + EngFormatter("nC") x-axis;
+  removed `fig.tight_layout()`.
+
+**`notebooks/01_datasheet_curves_extraction.ipynb` (rebuilt and re-executed)**
+- Added **Study 5 - Gate Charge (quasi-static reconstruction)** using
+  `reconstruct_gate_charge` at datasheet conditions (Id = 100 A, Vbus = 38 V), with
+  printed breakpoint comparison vs datasheet typ values (Qgs 55 / Qgd 79 / Qg 271 nC)
+  and the annotated three-segment plot. The intro table's "gate charge excluded" note
+  replaced by an explanation of the quasi-static approach.
+- All cells re-executed via nbconvert (inline backend): 7 figures embedded at 300 dpi,
+  execution counts 1-9, no errors.
+- Fixed LIB path to be repo-root-relative-resolved instead of hardcoded absolute.
+
+### Verification
+
+- Visual QA of exported figures (output-characteristics family and gate-charge plot):
+  legend fully outside right with zero overlap, no clipped text, engineering-unit ticks
+  (kA / nC), annotations readable, Miller plateau line visible, no layout flaws.
+- Gate-charge numbers in-notebook: Vgp 5.07 V, Qgs 67.3 nC, Qgd 36.0 nC, Qg 183.2 nC.
+- Full pytest suite: **8 passed** — no regressions.
+
+---
+
 ## 2026-08-22 14:47 IST — Curve 5 (Gate Charge) delivered via quasi-static reconstruction (Option A); datasheet cross-validation analysis
 
 ### Context

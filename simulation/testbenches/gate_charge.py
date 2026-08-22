@@ -136,7 +136,7 @@ def plot_gate_charge(df: pd.DataFrame, breakpoints: dict, save_path=None):
     from common.plotting import setup_style
 
     setup_style()
-    fig, ax = plt.subplots(figsize=(12, 6.75))
+    fig, ax = plt.subplots(figsize=(10.5, 5.8), layout="constrained")
 
     vp = breakpoints["v_plateau_V"]
     q1, q2 = breakpoints["q_gs_nC"], breakpoints["q_gs_nC"] + breakpoints["q_gd_nC"]
@@ -159,9 +159,10 @@ def plot_gate_charge(df: pd.DataFrame, breakpoints: dict, save_path=None):
     ax.set_xlabel("Gate Charge Qg [nC]")
     ax.set_ylabel("Gate-Source Voltage Vgs [V]")
     ax.set_title("Reconstructed Gate Charge Curve (IRFS7730PBF)")
-    # STRICT RULE: legend at EAST outside plotting area.
+    # STRICT RULE: legend at EAST outside plotting area (constrained layout reserves room).
     ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5))
-    fig.tight_layout()
+    from matplotlib.ticker import EngFormatter
+    ax.xaxis.set_major_formatter(EngFormatter(unit="nC"))
     if save_path:
         fig.savefig(save_path, bbox_inches="tight", dpi=300)
     return fig, ax
