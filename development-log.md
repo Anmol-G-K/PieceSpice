@@ -37,6 +37,12 @@ All extracted figures match the previous hardcoded-condition run exactly
 (Rds(on) 8.47 / 12.24 mΩ, Vth 1.882 V, Ciss/Coss/Crss 412/348/33 pF,
 body-diode 837.5 mV, Qg 2.53 nC). `uv run pytest`: **46 passed**.
 
+Cross-checked with the IR vendor too: `VENDOR = "irfs7730pbf"` runs clean
+(18 cells, 0 errors, 7 figures) and reproduces the known IR results
+(plateau 4.90 V, Qgd 79 nC calibrated, Qg 226.65 nC, Vth 4.346 V VM-01 artifact).
+This required adding the missing `Vgs_alt: 4.5` key to `config/inputs/irfs7730pbf.yaml`
+(the notebook's dual Rds(on) study needs a second gate drive for both vendors).
+
 ---
 
 ## 2026-08-22 21:49 IST — YAML-based config & outputs (config-driven pipeline)

@@ -17,6 +17,7 @@ conditions:
   Vds_sweep_max: 10.0                        # output char Vds ceiling [V]
   Vds_points: 101
   Vgs_fixed: 10.0                            # Rds(on) / transfer bias [V]
+  Vgs_alt: 4.5                               # second Rds(on) gate drive (datasheet condition)
   Vds_fixed: 40.0                            # transfer / capacitance reference [V]
   Vgs_transfer_max: 15.0                     # transfer sweep ceiling [V]
   Vgs_transfer_points: 151
