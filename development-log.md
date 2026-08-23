@@ -5,6 +5,55 @@ All timestamps are IST (UTC+05:30).
 
 ---
 
+## 2026-08-23 16:57 IST — Temperature support analysis (TI vs IR) & deferred decisions
+
+### Question
+Can passing temperature as an input parameter make the massive Ids curves match the
+datasheet (Id @ Vgs=10 V, Vds=10 V ≈ 325 A on TI vs IDC = 52 A)?
+
+### Empirical finding: both models accept .TEMP, with very different fidelity
+
+Measured Id in the Rds(on) region (Vgs=10 V, Vds=0.1 V) at 25 °C vs 125 °C:
+
+- TI CSD16412Q5A: 11.79 → 8.93 A (**−24 %**, Rds +32 %) — matches the datasheet
+  normalized-Rds-vs-temperature curve. Mechanism: full BSIM3v3.2 thermal set
+  (`KT1/KT2/KT1L` Vth tempco, `UTE` mobility tempco) plus `RTEMP` resistors
+  (`TC1=3.1e-3`, `TC2=7.2e-6`) and body-diode `TRS1`.
+- IR IRFS7730PBF: 39.77 → 36.87 A (**−7 %**) — comes almost entirely from RS/RD
+  resistor drift; the LEVEL=1 core's VTO/KP/LAMBDA are single-temperature constants,
+  so channel response is essentially cosmetic. Real device Rds rises ~50–60 % over
+  the same range.
+
+Delivery mechanism is simulator-level `.TEMP` (vendor models take no temperature
+`.PARAM`); our `SpiceEngine(temperature=...)` already provides it, and the audit fix
+made the capacitance bench respect it.
+
+### Answer to the core question: No — temperature cannot fix the saturation magnitude
+
+To read 52 A at Vds = 10 V, effective Rds would need to be ~192 mΩ, a ~21× rise.
+Silicon MOSFET Rds rises only ~0.7–1 %/°C; even at Tj,max (~175 °C) that is a
+~1.5–2× increase → Id still ~160–200 A at Vds = 10 V. The datasheet IDC is a
+thermal-equilibrium rating (RθJC × PD limited), not a point on the I-V plane:
+at 325 A × 10 V = 3.3 kW into a 63 W package the real part is destroyed long before
+any electrical steady state that SPICE could solve for. No `.TEMP` value reconciles
+the two.
+
+### Options identified (for later)
+
+1. **Accept & document** (current state): trust ohmic region + datasheet-characterized
+   biases; treat saturation magnitude as unphysical (VM-04/VM-06).
+2. **Soft current clamp in Tier 2 synthesis**: PieceSpice's own PWL macromodel can
+   include a power/thermal-limit term vendor models lack — making our models more
+   datasheet-faithful than the sources (VM-04 implication #3).
+3. **Electro-thermal co-simulation** (M5+ stretch): RC thermal network driving a
+   scaling factor for genuine current fold-over.
+
+**Decision: deferred** until Tier 2 synthesis design (M3). Near-term action item if
+wanted: wire the config `temperature:` key through to testbench engine construction
+(plumbing exists; config key currently informational only).
+
+---
+
 ## 2026-08-23 00:55 IST — ngspice compatibility mode investigation & project .spiceinit
 
 ### Question
