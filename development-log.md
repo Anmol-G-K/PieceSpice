@@ -5,6 +5,61 @@ All timestamps are IST (UTC+05:30).
 
 ---
 
+## 2026-08-23 21:01 IST — EPC2216 saturation-current RCA: model vs datasheet mismatch
+
+### Observation
+
+With pin order corrected (VM-07), EPC2216 extracts sanely in most studies but the
+output characteristics conduct far more than the datasheet: transfer Id ≈ 26–27 A
+@ Vgs=5–6 V / Vds=10 V vs a datasheet Figure-1 maximum around 3.4 A (user reading).
+
+### In-depth verification performed
+
+| Quantity | Model | Datasheet | Verdict |
+|---|---|---|---|
+| Rds(on) ohmic @ Vgs=5 V | 22.7 mΩ | 20–26 mΩ (@1.5 A) | ✅ match |
+| Vth @ 11 mA (GaN convention) | 1.52 V | 0.7–2.5 V band | ✅ in band |
+| Ciss @ Vds=12 V | 93 pF | ~98 pF typ | ✅ −5 % |
+| Saturation Id @ Vgs=5/Vds=3 | ~26 A | ~3.4 A max per Fig. 1 | ❌ ~8× high |
+
+Both vendor file variants (PSPICE .net and LTspice .lib) behave identically → not a
+dialect issue. The gswitch equation itself:
+`Id = A1·log(1+exp(vov/k3))·Vds/(1+(x0_0+x0_1·Vgs)·Vds)`
+has no physical saturation mechanism — no velocity saturation or channel-pinchoff
+term. The apparent ~26 A ceiling is purely the denominator's Vds-compression, which
+grows with Vgs: the model even predicts Id *decreasing* from 27.6 A to 26.2 A as Vgs
+rises 4→6 V at Vds=10 — non-physical.
+
+### Root cause (condensed)
+
+The fitted parameters describe only the ohmic region and the specific curve family
+EPC extracted at; outside that window the behavioral expression extrapolates without
+a current-limiting term. Two possible contributors, in order of likelihood:
+1. **Parameter/datasheet scope mismatch**: `aWg=187 mm` gate width in the file may
+   correspond to a larger die than the datasheet being compared against, or EPC's
+   published .net expects per-die scale factors (`si/so/sr/aWg`) to be set by the
+   customer for the specific variant.
+2. **Isothermal extrapolation**: real GaN parts fold over hard with self-heating;
+   SPICE never heats.
+
+(A remote OCR ambiguity in Figure-1 axes cannot be fully excluded; worth confirming
+whether ID really tops at ~3.4 A.)
+
+### What matches, what doesn't — extraction guidance
+
+- ✅ Trust: Rds(on), Vth, capacitances, gate charge (all within/near spec bands)
+- ❌ Distrust: absolute saturation-region magnitude (VM-04 class, now also applies
+  to EPC); reference operating points via transfer-curve interpolation instead of
+  assuming Vgs→Id mapping.
+- 🎯 M3 Tier-2 fitting should target **datasheet** curves; this is precisely why
+  PieceSpice fits its own macromodels rather than trusting vendor files.
+
+No code changes needed — documented analysis only.
+
+---
+
+---
+
 ## 2026-08-23 20:24 IST — EPC2216 (eGaN) onboarding: VM-07 pin-order defect found & fixed
 
 ### New vendor
