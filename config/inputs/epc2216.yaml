@@ -1,0 +1,65 @@
+# PieceSpice simulation input: EPC2216 eGaN FET (EPC behavioral PSpice model)
+# Single source of truth for all testbench conditions used by this vendor model.
+#
+# PIN ORDER WARNING (VM-07): unlike Si MOSFET libs (1=D, 2=G, 3=S), the EPC
+# subckt port order is (gatein drainin sourcein) - GATE FIRST. The `pin_order`
+# key below declares the device-under-test order the testbenches must use;
+# pin_order_semantic maps each role to the subckt header token for validation.
+
+device: epc2216
+vendor: epc
+library: SpiceModels/EPC2216_V0_PSPICE.net
+subcircuit: EPC2216
+
+pins:
+  # Order in which testbenches connect nodes to the X-instance.
+  pin_order: [drain, gate, source]
+  # Semantic validation: which .subckt header token each role binds to.
+  pin_order_semantic:
+    drain: drainin
+    gate: gatein
+    source: sourcein
+
+conditions:
+  # Datasheet limits (EPC2216): Vds max 15 V (abs 100 V but curves to 15),
+  # Vgs range -4..+6 V, ID 25 A @ TC=25 C (thermal), Rds(on) typ 2.2 mOhm.
+  # --- static sweeps ---
+  Vgs_sweep: [2.5, 3.5, 4.0, 4.5, 5.0, 6.0]   # GaN needs less overdrive than Si
+  Vds_sweep_max: 15.0                         # per user instruction
+  Vds_points: 101
+  Vgs_fixed: 5.0                              # Rds(on) primary bias
+  Vgs_alt: 3.5                                # second Rds(on) gate drive
+  Vds_fixed: 10.0                             # transfer reference [V]
+  Vgs_transfer_max: 6.0                       # ABS MAX Vgs = 6 V - do not exceed!
+  Vgs_transfer_points: 121
+  Vds_rds_max: 2.5                            # ohmic-region sweep [V]
+  Vds_rds_points: 51
+  Id_rds_min: 2.0                             # conduction mask for Rds(on) [A]
+
+  # --- threshold voltage (JEDEC constant-current method; GaN has no true Vth,
+  #     datasheet quotes Vth @ Id=11 mA!) ---
+  Id_th_target: 1.1e-2                        # 11 mA per EPC2216 datasheet
+  Vgs_th_max: 3.0                             # well below the 6 V abs max
+  Vgs_th_points: 3001
+
+  # --- body diode: GaN has NO body diode - reverse conduction is via the
+  #     channel (Vsd ~ I*Rds*direction). Sweep a small reverse window. ---
+  Vsd_max: 1.0
+  Vsd_points: 51
+
+  # --- capacitances (small-signal AC @ 1 MHz) ---
+  Vds_cap_min: 0.1
+  Vds_cap_max: 15.0                           # stay within user's Vds limit
+  Cap_points: 25
+  F_meas: 1.0e+06                             # [Hz]
+
+  # --- gate charge (quasi-static reconstruction) ---
+  Id_load: 25.0                               # datasheet plateau current [A]
+  Vbus: 12.0                                  # typical EPC point-of-load bus
+  Vgs_qg_max: 5.0
+  Vds_on: 0.05                                # residual Vds after collapse
+  Qgd_typ_nC:                                 # EPC datasheet Qgd ~7.1 nC @ 12 V
+  Ig_drive: 0.005
+
+  # --- environment ---
+  temperature: 25.0                           # [degC]

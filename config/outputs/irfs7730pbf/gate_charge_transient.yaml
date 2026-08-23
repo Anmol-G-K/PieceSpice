@@ -1,0 +1,9 @@
+device: irfs7730pbf
+testbench: gate_charge_transient
+status: blocked
+conditions_used:
+  Ig_drive: 0.005
+  Vbus: 38.0
+  Id_load: 100.0
+extracted: {}
+notes: VM-02 MODPEX sense-and-mirror pathology; replaced by quasi-static Curve 5.

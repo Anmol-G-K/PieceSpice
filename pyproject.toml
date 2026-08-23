@@ -3,23 +3,60 @@ name = "piecespice"
 version = "0.1.0"
 requires-python = ">=3.10"
 dependencies = [
+    "jinja2>=3.1.6",
     "matplotlib>=3.10.9",
     "nbformat>=5.10.4",
     "numpy>=2.2.6",
     "pandas>=2.3.3",
+    "plotly>=6.9.0",
     "polars>=1.43.2",
+    "pwlf>=2.6.0",
+    "pydantic>=2.13.4",
     "pyspice>=1.5",
+    "pyyaml>=6.0.3",
     "rdp>=0.8",
+    "rich>=15.0.0",
     "scipy>=1.15.3",
     "seaborn>=0.13.2",
     "shapely>=2.1.2",
+    "tabulate>=0.10.0",
+    "typer>=0.27.1",
 ]
 
 [dependency-groups]
 dev = [
+    "hypothesis>=6.165.10",
     "ipykernel>=7.3.0",
     "ipywidgets>=8.1.8",
+    "jupyter>=1.1.1",
     "nbconvert>=7.17.1",
     "nbformat>=5.10.4",
     "notebook>=7.6.1",
+    "pytest>=9.1.1",
+    "pytest-benchmark>=5.2.3",
+    "pytest-cov>=7.1.0",
+    "pytest-html>=4.2.0",
+    "ruff>=0.16.4",
 ]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "common",
+    "parser",
+    "models",
+    "approximation",
+    "simulation",
+    "metrics",
+    "reporting",
+    "cli",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "--html=reports/pytest_report.html --self-contained-html"
+

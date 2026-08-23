@@ -1,0 +1,66 @@
+# PieceSpice simulation input: Wolfspeed CPM2-1200-0025B SiC MOSFET (bare die)
+# Single source of truth for all testbench conditions used by this vendor model.
+#
+# VM-08 WARNING: the Wolfspeed behavioral model's G1 switch source evaluates
+# INCORRECTLY under ngspice-34 at higher gate drives (see vendor_model_defects.md).
+# Extracted curves above Vgs ~13-15V are unreliable; ohmic-region and low-Vgs data
+# match the equation's ground truth. Prefer ngspice 39+ for this vendor.
+
+device: cpm2-1200
+vendor: wolfspeed
+library: SpiceModels/CPM2-1200-0025B-Bare-Die.lib
+subcircuit: CPM2-1200-0025B
+
+pins:
+  # Order in which testbenches connect nodes to the X-instance.
+  # NOTE: the subckt has a 4th port 'Tj' (junction temperature node, volts=°C)
+  # which the testbenches drive with a fixed V(temperature) source.
+  pin_order: [drain, gate, source]
+  pin_order_semantic:
+    drain: d
+    gate: g
+    source: s
+    tj: Tj
+
+conditions:
+  # Datasheet (CPM2-1200-0025B): 1200 V SiC, Rds(on) typ 25 mOhm,
+  # Vgs(th) ~2.4 V, recommended gate drive -4/+15..20 V (user: use 0..20).
+  # --- static sweeps ---
+  Vgs_sweep: [10.0, 12.0, 14.0, 16.0, 18.0, 20.0]
+  Vds_sweep_max: 20.0                        # keep extraction below BVDSS=1200
+  Vds_points: 101
+  Vgs_fixed: 18.0                            # Rds(on) primary drive
+  Vgs_alt: 14.0                              # second Rds(on) drive
+  Vds_fixed: 10.0                            # transfer reference [V]
+  Vgs_transfer_max: 19.5                     # VM-08: .dc diverges >19.9 V
+                                           # (E100 gate clamp boundary)
+  Vgs_transfer_points: 201
+  Vds_rds_max: 2.5                           # ohmic region
+  Vds_rds_points: 51
+  Id_rds_min: 1.0
+
+  # --- threshold voltage (SiC convention: 1 mA-ish; datasheet Vgs(th)~2.4 V) ---
+  Id_th_target: 5.0e-3                       # 5 mA
+  Vgs_th_max: 6.0
+  Vgs_th_points: 3001
+
+  # --- body diode (SiC body diode present in model, BV=1600) ---
+  Vsd_max: 1.0
+  Vsd_points: 51
+
+  # --- capacitances (small-signal AC @ 1 MHz) ---
+  Vds_cap_min: 0.1
+  Vds_cap_max: 50.0                          # VM-08: AC probe unreliable at high Vds
+  Cap_points: 25
+  Cap_ref_Vds: 7.5                           # datasheet Coss/Crss/RG test point
+  F_meas: 1.0e+06
+
+  # --- gate charge (quasi-static reconstruction) ---
+  Id_load: 10.0                              # ~ID-class current for this die
+  Vbus: 800.0                                # typical SiC bus
+  Vgs_qg_max: 18.0
+  Vds_on: 0.05
+  Qgd_typ_nC:
+
+  # --- environment ---
+  temperature: 25.0                          # [degC] also drives the Tj node
