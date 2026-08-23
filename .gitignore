@@ -217,3 +217,10 @@ SpiceModels/*
 .codegraph/
 
 *.lib
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.tgz
+*.tar.bz2
+*.tar.xz
