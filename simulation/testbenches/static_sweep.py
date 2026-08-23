@@ -9,6 +9,7 @@ from PySpice.Spice.Netlist import Circuit
 from PySpice.Unit import *
 from common.types import CurveData
 from simulation.engine import SpiceEngine
+from simulation.testbenches.xinst import attach_x_instance
 from parser.preprocessor import normalize_pspice_netlist
 
 
@@ -85,7 +86,7 @@ class StaticSweepTestbench:
         """Extract output characteristics family: Id vs Vds for each Vgs."""
         if vgs_list is None:
             vgs_list = [3.0, 4.5, 6.0, 10.0]
-        xconn = self._x_connections(pin_roles or ["drain", "gate", "source"])
+        roles = pin_roles or ["drain", "gate", "source"]
         curves: List[CurveData] = []
         temp_lib = normalized_lib_copy(lib_path)
 
@@ -93,7 +94,7 @@ class StaticSweepTestbench:
             for vgs in vgs_list:
                 circuit = Circuit(f"Output_Char_Vgs_{vgs}")
                 circuit.include(str(temp_lib.resolve()))
-                circuit.X("M1", subcircuit_name, *xconn)
+                attach_x_instance(circuit, "M1", subcircuit_name, roles, temperature=self.engine.temperature)
                 circuit.V("ds", "d", circuit.gnd, 0@u_V)
                 circuit.V("gs", "g", circuit.gnd, vgs@u_V)
 
@@ -132,13 +133,13 @@ class StaticSweepTestbench:
         pin_roles: Optional[List[str]] = None,
     ) -> CurveData:
         """Extract transfer characteristic: Id vs Vgs at fixed Vds."""
-        xconn = self._x_connections(pin_roles or ["drain", "gate", "source"])
+        roles = pin_roles or ["drain", "gate", "source"]
         temp_lib = normalized_lib_copy(lib_path)
 
         try:
             circuit = Circuit("Transfer_Characteristics")
             circuit.include(str(temp_lib.resolve()))
-            circuit.X("M1", subcircuit_name, *xconn)
+            attach_x_instance(circuit, "M1", subcircuit_name, roles, temperature=self.engine.temperature)
             circuit.V("ds", "d", circuit.gnd, vds_fixed@u_V)
             circuit.V("gs", "g", circuit.gnd, 0@u_V)
 
@@ -181,12 +182,12 @@ class StaticSweepTestbench:
                 leakage/numerical noise, not channel resistance.
         """
         temp_lib = normalized_lib_copy(lib_path)
-        xconn = self._x_connections(pin_roles or ["drain", "gate", "source"])
+        roles = pin_roles or ["drain", "gate", "source"]
 
         try:
             circuit = Circuit("Rds_on")
             circuit.include(str(temp_lib.resolve()))
-            circuit.X("M1", subcircuit_name, *xconn)
+            attach_x_instance(circuit, "M1", subcircuit_name, roles, temperature=self.engine.temperature)
             circuit.V("ds", "d", circuit.gnd, 0@u_V)
             circuit.V("gs", "g", circuit.gnd, vgs@u_V)
 
@@ -241,17 +242,18 @@ class StaticSweepTestbench:
         # Drain-gate-tied topology: build positional connections from roles,
         # tying the drain and gate role positions to the same node 'gd'.
         roles = pin_roles or ["drain", "gate", "source"]
-        xconn = self._x_connections(roles)
-        conn = dict(zip(roles, xconn))
-        # Every non-source position ties to 'gd'; source position to gnd.
-        xargs = ["gd" if r != "source" else "0" for r in roles]
-        xd = xg = "gd"
-        xs = "0"
+        core_roles = [r for r in roles if r.lower() != "tj"]
+        has_tj = len(core_roles) != len(roles)
+        xargs = ["gd" if r != "source" else "0" for r in core_roles]
 
         try:
             circuit = Circuit("Threshold_Voltage")
             circuit.include(str(temp_lib.resolve()))
             # Drain and gate tied together -> self-bias at Vds = Vgs
+            if has_tj:
+                circuit.V("tjsrc_M1", "tj_M1", circuit.gnd,
+                          float(self.engine.temperature)@u_V)
+                xargs = xargs + ["tj_M1"]
             circuit.X("M1", subcircuit_name, *xargs)
             circuit.V("sweep", "gd", circuit.gnd, 0@u_V)
 
@@ -327,13 +329,18 @@ class StaticSweepTestbench:
         # Connections are POSITIONAL (roles order = subckt port order): the
         # gate and source role positions both tie to node 'src'.
         roles = pin_roles or ["drain", "gate", "source"]
-        xargs = ["drn" if r == "drain" else "src" for r in roles]
-        xdrain, xsrc, xsource = "drn", "src", "src"
+        core_roles = [r for r in roles if r.lower() != "tj"]
+        has_tj = len(core_roles) != len(roles)
+        xargs = ["drn" if r == "drain" else "src" for r in core_roles]
         src_node = "src"
 
         try:
             circuit = Circuit("Body_Diode")
             circuit.include(str(temp_lib.resolve()))
+            if has_tj:
+                circuit.V("tjsrc_M1", "tj_M1", circuit.gnd,
+                          float(self.engine.temperature)@u_V)
+                xargs = xargs + ["tj_M1"]
             circuit.X("M1", subcircuit_name, *xargs)
             circuit.V("sd", src_node, xdrain, 0@u_V)
             # Absolute potential anchor: without it the terminal island only

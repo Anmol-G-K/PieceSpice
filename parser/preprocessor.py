@@ -3,6 +3,8 @@
 import re
 from typing import Dict, Any, List
 
+from parser.spice_literal import parse_spice_literal, translate_spice_literals
+
 # Safe functions available inside .PARAM expression evaluation.
 _SAFE_FUNCS: Dict[str, Any] = {}
 try:  # keep working even if numpy is unavailable in some embedding
@@ -45,10 +47,17 @@ def join_continuations(lines: List[str]) -> List[str]:
 
 
 def _evaluate(expr: str, params: Dict[str, Any]) -> Any:
-    """Evaluate a .PARAM expression string against known params (safe subset)."""
+    """Evaluate a .PARAM expression string against known params (safe subset).
+
+    Falls back to SPICE literal translation for expressions containing
+    spice-suffixed numbers (1702.69p, 100n, 1.5Meg...) which Python's eval
+    cannot parse natively.
+    """
     text = expr.strip().strip('{} ')
     for k, v in params.items():
         text = re.sub(rf'\b{k}\b', repr(v), text, flags=re.IGNORECASE)
+    # Translate spice suffixes so eval can handle them.
+    text = translate_spice_literals(text)
     try:
         value = eval(text, {'__builtins__': None}, dict(_SAFE_FUNCS))
     except Exception:
@@ -143,7 +152,34 @@ def normalize_pspice_netlist(raw_content: str) -> str:
             name = display.get(k, k)
             stripped = re.sub(rf'\{{\s*{name}\s*\}}', str(params[k]), stripped, flags=re.IGNORECASE)
 
+        # ngspice-34 (our pinned shared-lib build) lacks ddt() in B-source
+        # expressions ("no such function ddt"). Behavioral capacitors of the
+        # form I = C(v)*ddt(v) are charge sources: at DC/AC they contribute
+        # nothing (caps are open), and transients are M4 scope. Commenting the
+        # line out is exactly-correct for DC extraction and documented.
+        if _is_bsource(stripped) and re.search(r'\bddt\s*\(', stripped, re.IGNORECASE):
+            cleaned_lines.append(f"* [preprocessor] ddt()-based source disabled "
+                                 f"(ngspice-34 lacks ddt in B-expr): {stripped}")
+            continue
+
         cleaned_lines.append(stripped)
 
     global_params = [f".PARAM {display.get(k, k)}={v}" for k, v in params.items()]
     return '\n'.join(global_params + cleaned_lines)
+
+
+_BSOURCE_RE = re.compile(r'^[bB]\w', re.ASCII)
+
+
+def _is_bsource(line: str) -> bool:
+    """True when *line* is a behavioral source instance (B/G with Value=).
+
+    Matches 'Bxxx ...' and 'Gxxx/Exxx ... value={...}' / 'value {...}' forms
+    (both '=' and space separators; Wolfspeed uses 'value {').
+    Leading whitespace tolerated.
+    """
+    line = line.lstrip()
+    if _BSOURCE_RE.match(line):
+        return True
+    return bool(re.match(r'^[GGEF]\w+', line, re.ASCII)
+                and re.search(r'value\s*=?\s*\{', line, re.IGNORECASE))

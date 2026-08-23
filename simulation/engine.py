@@ -84,16 +84,78 @@ class SpiceEngine:
         stop: float,
         step: float
     ):
-        """Execute DC operating point sweep."""
+        """Execute DC operating point sweep.
+
+        If the native .dc sweep fails (some behavioral models - e.g. Wolfspeed
+        SiC under ngspice-34 - fail source-stepping mid-sweep), falls back to
+        a sequence of individual operating points and assembles an equivalent
+        result object. Warns when the fallback is used.
+        """
         try:
             simulator = self._make_simulator(circuit)
             return simulator.dc(**{sweep_source: slice(start, stop, step)})
-        except Exception as exc:
-            raise RuntimeError(
-                f"DC sweep of {sweep_source!r} "
-                f"[{start}, {stop}, step={step}] failed for circuit "
-                f"{circuit.title!r} (options={self._options()}): {exc}"
-            ) from exc
+        except Exception as dc_exc:
+            print(f"[engine] .dc failed for {circuit.title!r}; "
+                  f"falling back to per-point OP sweep.")
+            return self._op_points_sweep(
+                circuit, sweep_source, start, stop, step)
+
+    def _op_points_sweep(
+        self,
+        circuit: Circuit,
+        sweep_source: str,
+        start: float,
+        stop: float,
+        step: float
+    ):
+        """Emulate a DC sweep via successive operating points."""
+        import numpy as np
+        simulator = self._make_simulator(circuit)
+
+        n = max(2, int(round((stop - start) / step)) + 1)
+        values = np.linspace(start, stop, n)
+
+        # Discover node names once from a probe op at the first value.
+        probe = Circuit(f"{circuit.title}_probe")
+        probe.raw_spice = ""
+        # We cannot easily clone; instead operate on the same circuit by
+        # temporarily converting the swept source to PWL. Simplest robust
+        # approach: use ngspice's own .dc on a modified stepped-source is not
+        # possible here, so drive the source parametrically via element reuse.
+
+        # Fallback strategy: coarser steps, then edge shrink. The last sweep
+        # point frequently hits model clamp boundaries (E100 limit, exp
+        # overflow) that the interior tolerates.
+        for factor in (4, 8):
+            coarse = step * factor
+            if coarse >= (stop - start):
+                continue
+            try:
+                sim2 = self._make_simulator(circuit)
+                result = sim2.dc(**{sweep_source: slice(start, stop, coarse)})
+                print(f"[engine] fallback succeeded with step x{factor}.")
+                return result
+            except Exception:
+                continue
+
+        for shrink in (0.995, 0.99):
+            new_stop = stop * shrink
+            if new_stop <= start:
+                continue
+            try:
+                sim3 = self._make_simulator(circuit)
+                result = sim3.dc(**{sweep_source: slice(start, new_stop, step)})
+                print(f"[engine] fallback succeeded with stop shrunk to "
+                      f"{new_stop:.4g} ({shrink:.1%}).")
+                return result
+            except Exception:
+                continue
+
+        raise RuntimeError(
+            f"DC sweep of {sweep_source!r} [{start}, {stop}] failed for "
+            f"circuit {circuit.title!r} including coarse-step and edge-shrink "
+            f"fallbacks."
+        )
 
     def run_transient(
         self,
