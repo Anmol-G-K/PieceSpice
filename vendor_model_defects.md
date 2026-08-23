@@ -30,6 +30,7 @@ Avalanche-rated, VGS ±20 V, PD 63 W @ TC=25 °C. Datasheet SLPS207A.
 | VM-04 | Unclipped saturation current (kA-domain Id) | IR + TI (see VM-06 for TI) | Medium | Curve 1 interpretation, all transients | Documented (unfixable without vendor mutation) |
 | VM-05 | Corrupted initial DC operating point | IR | Low | Transient studies | Documented (unfixable without vendor mutation) |
 | VM-06 | Saturation current far above datasheet IDC on physically-based models (thermal-limit confusion + dialect drift) | TI | Medium | Curve 1 interpretation, transient sanity checks | Documented (2026-08-23); partially simulator-dialect related |
+| VM-07 | Subckt port order differs from Si convention (gate-first); testbench hardwired D,G,S | EPC | Critical (silent wrong results) | All studies on affected vendors | **Fixed (2026-08-23)** — config-driven pin map + semantic validation |
 
 ---
 
@@ -234,6 +235,55 @@ question was whether this is a wiring/configuration error on our side.
    bias points; distrust high-Vds saturation magnitude.
 3. A ngspice-vs-PSpice cross-check (running the same card in both simulators) would
    quantify the dialect-drift component if it ever matters for validation.
+
+---
+
+## VM-07 — Non-standard subckt port order (EPC gate-first)
+
+**Severity:** Critical when unfixed — every extraction silently runs with gate and
+drain swapped
+**Vendor file:** `SpiceModels/EPC2216_V0_PSPICE.net` line 6:
+`.subckt EPC2216 gatein drainin sourcein`
+**Status:** Fixed (2026-08-23)
+
+**Mechanism:** Si MOSFET vendor libs (IR MODPEX, TI NexFET) declare ports in
+numerical order `1=D 2=G 3=S`, matching the legacy drain-first instantiation our
+testbenches hardwired (`X(M1 name d g gnd)`). EPC's GaN models instead use named
+ports in **gate-first order**. With the hardwired order, Vds was applied across the
+gate (abs-max ±6 V!) and Vgs across the power loop — producing near-zero or garbage
+currents that initially looked like an ngspice compatibility defect.
+
+**Diagnosis path (for future reference):**
+1. Model parses and reaches an OP under ngspice — ruled out dialect issues.
+2. B-source syntax (`if/log/exp`) verified working standalone — ruled out syntax.
+3. Node-by-node trace of the subckt found no floating/misconnected nodes.
+4. Minimal replica of the switch source produced correct current (~26 A at 5/5 V)
+   while the full model through the testbench produced ~0 — isolating the fault to
+   how the testbench instantiates the subckt, i.e. the port mapping.
+
+**Fix shipped (2026-08-23):**
+- `config/inputs/<vendor>.yaml` now declares a pin map:
+  ```yaml
+  pins:
+    pin_order_semantic:
+      drain: drainin      # role -> .subckt header token
+      gate: gatein
+      source: sourcein
+  ```
+- `parser.netlist.resolve_pin_connections()` parses the actual `.subckt` header from
+  the model file, validates every declared token against it (raises on unknown
+  tokens), and returns connection roles in positional header order.
+- All testbench methods accept `pin_roles=` and build X-instance connections
+  positionally; topologies that tie pins (threshold Vgd-tie, reverse-conduction
+  gate-source tie) derive their tie pattern from the roles.
+- Notebook 01 resolves pins once in its setup cell.
+- Normalized copies are now written to `SpiceModels/normalized/` (originals never
+  touched); set `PIECESPICE_KEEP_NORM=1` to retain them for inspection.
+
+**Verification:** EPC2216 all curves extract sanely: Rds(on)-region point ~68 mΩ
+@5 V/25 A, Ciss ≈ 93–97 pF @12 V, Vth @ 11 mA = 1.52 V vs datasheet 1.4–2 V band ✅,
+transfer Id ≈ 26 A @ 6 V/10 V. TI and IR re-run clean (their numeric port maps
+resolve unchanged).
 
 ---
 

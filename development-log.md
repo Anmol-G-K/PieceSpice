@@ -5,6 +5,56 @@ All timestamps are IST (UTC+05:30).
 
 ---
 
+## 2026-08-23 20:24 IST — EPC2216 (eGaN) onboarding: VM-07 pin-order defect found & fixed
+
+### New vendor
+
+`SpiceModels/EPC2216_V0_PSPICE.net` — EPC2216 eGaN FET, fully behavioral PSpice
+model (gswitch B-source + capacitance emulators), ports `(gatein drainin sourcein)`.
+New input config `config/inputs/epc2216.yaml`: Vds ≤ 15 V, Vgs ≤ 6 V (abs max),
+GaN-appropriate conditions including Vth @ 11 mA (not the Si 250 uA convention),
+Id_load 25 A, no Qgd calibration.
+
+### Root cause of initial failure: VM-07 pin-order swap
+
+The model "simulated but produced zero/garbage currents." Systematic elimination
+(dialect syntax OK, Temp variable OK, all subckt nodes connected, minimal replica
+of the switch source worked standalone) isolated the fault to testbench
+instantiation: `.subckt EPC2216 gatein drainin sourcein` is GATE-FIRST while our
+benches hardwired the IR/TI drain-first order. We had been driving the gate with
+Vds and the drain with Vgs.
+
+### Fixes shipped
+
+1. **Config-driven pin map** (`config/inputs/*.yaml`): new `pins.pin_order_semantic`
+   key maps roles to actual .subckt header tokens.
+2. **Semantic validation** (`parser.netlist.resolve_pin_connections`): parses the
+   real `.subckt` header from the model file, validates every declared token
+   against it (raises on unknown tokens), returns connection roles in positional
+   header order. Dynamic - works for any vendor without code changes.
+3. **All testbenches pin-aware**: every method accepts `pin_roles=`; topologies
+   that tie pins (threshold Vgd-tie, reverse-conduction gate-source tie) derive
+   their tie pattern from the roles positionally.
+4. **Normalized copies relocated**: `normalized_lib_copy()` now writes to
+   `SpiceModels/normalized/<stem>_norm<suffix>` instead of temp files beside the
+   originals (vendor files never touched); `PIECESPICE_KEEP_NORM=1` retains them.
+5. **Capacitance bench robustness**: fresh normalized copy per bias point (ngspice
+   shared lib intermittently fails after many loads of one include path) plus
+   AC-probe retry (3 attempts).
+
+### Verification
+
+- EPC2216 notebook 01 end-to-end: 18 cells, 0 errors, 7 figures. Sane values:
+  transfer Id ≈ 26 A @ 6 V/10 V, Rds(on)-region ~68 mΩ @ 25 A, Ciss ≈ 93 pF,
+  Vth @ 11 mA = 1.52 V vs datasheet 1.4–2 V ✅.
+- Regression: TI and IR notebook runs both 0 errors (numeric port maps resolve
+  unchanged). pytest: 46 passed.
+- Documented as **VM-07** in `vendor_model_defects.md`.
+
+---
+
+---
+
 ## 2026-08-23 16:57 IST — Temperature support analysis (TI vs IR) & deferred decisions
 
 ### Question
