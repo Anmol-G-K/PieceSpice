@@ -244,6 +244,7 @@ def run_gate_charge(
     v_gs_max: float = 10.0,
     t_end: float = 120e-6,
     step_time: float = 20e-9,
+    pin_roles: list[str] | None = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Run the gate-charge transient under datasheet conditions.
 
@@ -264,11 +265,17 @@ def run_gate_charge(
         v_ds: Drain-source voltage array [V]
     """
     temp_lib = normalized_lib_copy(lib_path)
+    # Pin-role aware connections; source role ties to ground.
+    roles = pin_roles or ["drain", "gate", "source"]
+    conn = dict(zip(roles, [
+        {"drain": "d", "gate": "g", "source": "0"}.get(r, r) for r in roles
+    ]))
+    xd, xg = conn["drain"], conn["gate"]
 
     try:
         circuit = Circuit("Gate_Charge")
         circuit.include(str(temp_lib.resolve()))
-        circuit.X("M1", subcircuit_name, "d", "g", circuit.gnd)
+        circuit.X("M1", subcircuit_name, xd, xg, "0")
         # Drain rail + clamp: before turn-on the load current charges the
         # drain until the clamp returns it to the rail (~Vbus); after turn-on
         # it flows through the channel, holding Id = i_load during the Miller

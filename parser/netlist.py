@@ -22,6 +22,65 @@ class SubcircuitInfo(BaseModel):
     parameters: Dict[str, str] = {}
 
 
+def resolve_pin_connections(
+    lib_path: Path,
+    subcircuit_name: str,
+    pin_order_semantic: Optional[Dict[str, str]] = None,
+) -> List[str]:
+    """Resolve X-instance connection roles for a subcircuit, in header order.
+
+    Vendor subckts use different port orders (IR/TI: D,G,S; EPC: G,D,S), and a
+    swapped gate/drain silently destroys extraction accuracy or the model.
+
+    Args:
+        lib_path: Vendor model file.
+        subcircuit_name: Subcircuit to resolve.
+        pin_order_semantic: Map of role -> header port token, e.g.
+            ``{"drain": "drainin", "gate": "gatein", "source": "sourcein"}``.
+            Tokens are validated against the actual ``.subckt`` header
+            (semantic check). With ``None``, falls back to the legacy Si
+            convention (drain, gate, source) with a warning.
+
+    Returns:
+        Role names in the subckt's positional port order, e.g.
+        ``["gate", "drain", "source"]`` for EPC2216. The caller maps each role
+        to its external circuit node (d-node/g-node/gnd) positionally.
+    """
+    subs = NetlistParser.parse_subcircuits(lib_path)
+    info = next((s for s in subs if s.name.lower() == subcircuit_name.lower()), None)
+    if info is None:
+        raise ValueError(
+            f"Subcircuit {subcircuit_name!r} not found in {lib_path.name}; "
+            f"available: {[s.name for s in subs]}"
+        )
+    ports = [p.lower() for p in info.nodes]
+
+    if not pin_order_semantic:
+        print(f"[pins] WARNING: no pin map declared for {subcircuit_name!r}; "
+              f"assuming legacy (drain, gate, source) port order.")
+        return ports[:3] if len(ports) >= 3 else ["drain", "gate", "source"]
+
+    unknown = {str(t).lower() for t in pin_order_semantic.values()} - set(ports)
+    if unknown:
+        raise ValueError(
+            f"pin_order_semantic tokens {sorted(unknown)} not in "
+            f"{subcircuit_name!r} header ports {info.nodes}"
+        )
+    role_to_port = {r: str(t).lower() for r, t in pin_order_semantic.items()}
+    conn_by_port = {role_to_port[r]: r for r in role_to_port}
+
+    roles: List[str] = []
+    for port in ports:
+        if port in conn_by_port:
+            roles.append(conn_by_port[port])
+        else:
+            print(f"[pins] NOTE: port {port!r} of {subcircuit_name!r} has no "
+                  f"declared role; treating as an extra port named {port!r}.")
+            roles.append(port)
+    return roles
+
+
+
 def _split_header_params(rest: str) -> tuple[List[str], Dict[str, str]]:
     """Split a .SUBCKT header tail into pin nodes and PARAMS: key=value pairs.
 

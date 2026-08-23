@@ -1,49 +1,42 @@
-"""Probe 22: bisect the EPC file. Test A: params + rd/rs/rg + bswitch ONLY
-(no conv resistors, no diodes, no caps)."""
+"""Probe: AC works at gate drive; the failing case was drain-drive sim B
+(Ciss_Vds_1.51 = sim A actually). Try sim B topology (inductor feed):"""
 import sys
 sys.path.insert(0, '.')
 from pathlib import Path
-
-norm_lines = """\
-.PARAM si=0.1122
-.PARAM so=0.5517
-.PARAM sr=187.0
-.PARAM aWg=187
-.PARAM A1=12.40932
-.PARAM k2=1.983
-.PARAM k3=0.09
-.PARAM rpara=0.01752
-.PARAM rpara_s_factor=0.3671
-.PARAM aITc=0.0035
-.PARAM arTc=-0.0062
-.PARAM k2Tc=0.00068
-.PARAM x0_0=5.112
-.PARAM x0_0_TC=-0.001
-.PARAM x0_1=0.5175
-.PARAM x0_1_TC=0.0
-.subckt EPC2216 gatein drainin sourcein
-rd drainin drain {((1-rpara_s_factor)*rpara*(1-arTc*(Temp-25)))}
-rs sourcein source {(rpara_s_factor*rpara*(1-arTc*(Temp-25)))}
-rg gatein gate {(rg_value)}
-bswitch drain source I=if(v(drain,source)>0, (A1*(1-aITc*(Temp-25))*log(1.0+exp((v(gate,source)-(k2*(1-k2Tc*(Temp-25))))/k3))* v(drain,source)/(1 + (x0_0*(1-x0_0_TC*(Temp-25))+x0_1*(1-x0_1_TC*(Temp-25))*v(gate,source))*v(drain,source))), (-A1*(1-aITc*(Temp-25))*log(1.0+exp((v(gate,drain)-(k2*(1-k2Tc*(Temp-25))))/k3))* v(source,drain)/(1 + (x0_0*(1-x0_0_TC*(Temp-25))+x0_1*(1-x0_1_TC*(Temp-25))*v(gate,drain))*v(source,drain)) ))
-.ends
-"""
-
 from PySpice.Spice.Netlist import Circuit
-p = Path('SpiceModels/_bisect_a.net')
-p.write_text(norm_lines)
-try:
-    c = Circuit("bisect_a")
-    c.include(str(p.resolve()))
-    c.X("M1", "EPC2216", "d", "g", c.gnd)
-    c.V("ds", "d", c.gnd, 5@u_V if False else 5)
-    c.V("gs", "g", c.gnd, 5)
-    op = c.simulator(temperature=25, nominal_temperature=25).operating_point()
-    i = -float(op.Vds[0])
-    print(f"VAR bisect-A (switch only): Id={i:.4f} A")
-except Exception as e:
-    print("VAR bisect-A FAIL:", str(e)[:120])
-finally:
-    p.unlink(missing_ok=True)
+from simulation.testbenches.static_sweep import normalized_lib_copy
 
-import PySpice.Unit
+lib = normalized_lib_copy(Path('SpiceModels/EPC2216_V0_PSPICE.net'))
+try:
+    # Sim B: drain driven through 1H inductor
+    cb = Circuit("epc_simB")
+    cb.include(str(lib.resolve()))
+    cb.X("M1", "EPC2216", "g", "d", "0")
+    cb.V("bus", "vbus", cb.gnd, 1.51)
+    cb.L("bias", "vbus", "d", 1.0)
+    cb.R("bleed", "g", cb.gnd, 100e6)
+    cb.I("drive", "d", cb.gnd, "DC 0 AC 1")
+    try:
+        op = cb.simulator(temperature=25, nominal_temperature=25).ac(
+            start_frequency=1e6, stop_frequency=1e6, number_of_points=1,
+            variation='lin')
+        print("PROBE SimB AC: OK")
+    except Exception as e:
+        print("PROBE SimB AC: FAIL:", str(e)[:80])
+
+    # Sim A at the same bias but with drain DC-biased directly (no inductor)
+    ca = Circuit("epc_simA")
+    ca.include(str(lib.resolve()))
+    ca.X("M1", "EPC2216", "g", "d", "0")
+    ca.V("ds", "d", ca.gnd, 1.51)
+    ca.R("bleed", "g", ca.gnd, 100e6)
+    ca.I("drive", "g", ca.gnd, "DC 0 AC 1")
+    try:
+        op = ca.simulator(temperature=25, nominal_temperature=25).ac(
+            start_frequency=1e6, stop_frequency=1e6, number_of_points=1,
+            variation='lin')
+        print("PROBE SimA AC: OK")
+    except Exception as e:
+        print("PROBE SimA AC: FAIL:", str(e)[:80])
+finally:
+    lib.unlink()

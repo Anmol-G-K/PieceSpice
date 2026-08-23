@@ -13,18 +13,27 @@ from parser.preprocessor import normalize_pspice_netlist
 
 
 def normalized_lib_copy(lib_path: Path) -> Path:
-    """Write a dialect-normalized copy of the library to a unique temp file.
+    """Write a dialect-normalized copy of the library under SpiceModels/normalized/.
 
-    A process-unique name (PID + counter) prevents two concurrent runs on the
-    same vendor model from clobbering each other's file while ngspice has it
-    open. The caller owns cleanup via :func:`discard_normalized_lib`.
+    Copies are never made in-place: the original vendor file is untouched, and
+    the normalized copy lives in a ``normalized/`` subfolder next to it with a
+    stable name (``<stem>_norm<suffix>``) so runs are reproducible and
+    inspectable. A process-unique suffix prevents two concurrent runs from
+    clobbering each other while ngspice has the file open.
+
+    Returns:
+        Path to the normalized copy. The caller owns cleanup via
+        :func:`discard_normalized_lib`.
     """
     normalized = normalize_pspice_netlist(
         lib_path.read_text(encoding='utf-8', errors='ignore')
     )
+    out_dir = lib_path.parent / "normalized"
+    out_dir.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(
-        prefix=f"_norm_{os.getpid()}_", suffix=f"_{lib_path.name}",
-        dir=str(lib_path.parent),
+        prefix=f"{lib_path.stem}_norm{os.getpid()}_",
+        suffix=lib_path.suffix or ".net",
+        dir=str(out_dir),
     )
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         f.write(normalized)
@@ -32,7 +41,14 @@ def normalized_lib_copy(lib_path: Path) -> Path:
 
 
 def discard_normalized_lib(temp_lib: Path) -> None:
-    """Delete a temp lib if it still exists (idempotent)."""
+    """Delete a normalized copy if it still exists (idempotent).
+
+    Note: transient copies are removed after each run; set
+    ``PIECESPICE_KEEP_NORM=1`` to keep them for inspection.
+    """
+    if os.environ.get("PIECESPICE_KEEP_NORM") == "1":
+        print(f"[normalizer] keeping normalized copy: {temp_lib}")
+        return
     try:
         temp_lib.unlink()
     except FileNotFoundError:
@@ -46,6 +62,14 @@ _normalized_lib_file = normalized_lib_copy
 class StaticSweepTestbench:
     """Extracts output (Id-Vds), transfer (Id-Vgs), on-resistance and body-diode curves."""
 
+    #: External circuit nodes by role; 'source' always ties to ground here.
+    ROLE_NODES = {"drain": "d", "gate": "g", "source": "0"}
+
+    @staticmethod
+    def _x_connections(pin_roles: List[str]) -> List[str]:
+        """Map resolved pin roles to external node names, positionally."""
+        return [StaticSweepTestbench.ROLE_NODES.get(r, r) for r in pin_roles]
+
     def __init__(self, engine: Optional[SpiceEngine] = None):
         self.engine = engine or SpiceEngine()
 
@@ -56,10 +80,12 @@ class StaticSweepTestbench:
         vgs_list: Optional[List[float]] = None,
         vds_max: float = 10.0,
         vds_points: int = 101,
+        pin_roles: Optional[List[str]] = None,
     ) -> List[CurveData]:
         """Extract output characteristics family: Id vs Vds for each Vgs."""
         if vgs_list is None:
             vgs_list = [3.0, 4.5, 6.0, 10.0]
+        xd, xg, xs = self._x_connections(pin_roles or ["drain", "gate", "source"])
         curves: List[CurveData] = []
         temp_lib = normalized_lib_copy(lib_path)
 
@@ -67,8 +93,7 @@ class StaticSweepTestbench:
             for vgs in vgs_list:
                 circuit = Circuit(f"Output_Char_Vgs_{vgs}")
                 circuit.include(str(temp_lib.resolve()))
-                # Standard pin order: Drain=1, Gate=2, Source=3
-                circuit.X("M1", subcircuit_name, "d", "g", circuit.gnd)
+                circuit.X("M1", subcircuit_name, xd, xg, xs)
                 circuit.V("ds", "d", circuit.gnd, 0@u_V)
                 circuit.V("gs", "g", circuit.gnd, vgs@u_V)
 
@@ -104,14 +129,16 @@ class StaticSweepTestbench:
         vds_fixed: float = 10.0,
         vgs_max: float = 15.0,
         vgs_points: int = 151,
+        pin_roles: Optional[List[str]] = None,
     ) -> CurveData:
         """Extract transfer characteristic: Id vs Vgs at fixed Vds."""
+        xd, xg, xs = self._x_connections(pin_roles or ["drain", "gate", "source"])
         temp_lib = normalized_lib_copy(lib_path)
 
         try:
             circuit = Circuit("Transfer_Characteristics")
             circuit.include(str(temp_lib.resolve()))
-            circuit.X("M1", subcircuit_name, "d", "g", circuit.gnd)
+            circuit.X("M1", subcircuit_name, xd, xg, xs)
             circuit.V("ds", "d", circuit.gnd, vds_fixed@u_V)
             circuit.V("gs", "g", circuit.gnd, 0@u_V)
 
@@ -144,6 +171,7 @@ class StaticSweepTestbench:
         vds_max: float = 2.5,
         vds_points: int = 51,
         min_current: float = 1.0,
+        pin_roles: Optional[List[str]] = None,
     ) -> CurveData:
         """Extract Rds(on) = Vds/Id vs Id in the ohmic region at fixed Vgs.
 
@@ -153,11 +181,12 @@ class StaticSweepTestbench:
                 leakage/numerical noise, not channel resistance.
         """
         temp_lib = normalized_lib_copy(lib_path)
+        xd, xg, xs = self._x_connections(pin_roles or ["drain", "gate", "source"])
 
         try:
             circuit = Circuit("Rds_on")
             circuit.include(str(temp_lib.resolve()))
-            circuit.X("M1", subcircuit_name, "d", "g", circuit.gnd)
+            circuit.X("M1", subcircuit_name, xd, xg, xs)
             circuit.V("ds", "d", circuit.gnd, 0@u_V)
             circuit.V("gs", "g", circuit.gnd, vgs@u_V)
 
@@ -192,6 +221,7 @@ class StaticSweepTestbench:
         i_target: float = 250e-6,
         v_max: float = 6.0,
         points: int = 3001,
+        pin_roles: Optional[List[str]] = None,
     ) -> tuple[CurveData, float]:
         """Extract Vgs(th) per the datasheet/JEDEC constant-current method.
 
@@ -208,12 +238,18 @@ class StaticSweepTestbench:
             even when extraction succeeds.
         """
         temp_lib = normalized_lib_copy(lib_path)
+        # Drain-gate-tied topology: build connections from roles, tying the
+        # drain and gate role positions to the same node 'gd'.
+        roles = pin_roles or ["drain", "gate", "source"]
+        conn = dict(zip(roles, self._x_connections(roles)))
+        xd = xg = conn.get("drain", "gd")
+        xs = conn.get("source", "0")
 
         try:
             circuit = Circuit("Threshold_Voltage")
             circuit.include(str(temp_lib.resolve()))
             # Drain and gate tied together -> self-bias at Vds = Vgs
-            circuit.X("M1", subcircuit_name, "gd", "gd", circuit.gnd)
+            circuit.X("M1", subcircuit_name, xd, xg, xs)
             circuit.V("sweep", "gd", circuit.gnd, 0@u_V)
 
             step = v_max / max(1, points - 1)
@@ -259,9 +295,14 @@ class StaticSweepTestbench:
         vsd_max: float = 1.0,
         points: int = 51,
         sweep_step: float | None = None,
+        pin_roles: Optional[List[str]] = None,
     ) -> CurveData:
-        """Extract body-diode forward characteristic Isd vs Vsd (gate off).
+        """Extract body-diode / reverse-conduction characteristic Isd vs Vsd.
 
+        For Si MOSFETs this is the body-diode forward curve; for GaN FETs
+        (e.g. EPC2216, no body diode) the same topology measures reverse
+        channel conduction. Gate is tied to source (channel off for Si; for
+        GaN the device conducts in the third quadrant through the channel).
         Voltage-driven with a conservative cap (~1 V): beyond that the diode
         exponential saturates Newton iterations and the DC sweep diverges.
 
@@ -276,20 +317,27 @@ class StaticSweepTestbench:
                 (e.g. the TI CSD16412Q5A passes 1.0 V/39 pts but fails
                 1.0 V/41 pts); if the default step diverges, retry with a
                 coarser one.
+            pin_roles: Resolved pin roles (see resolve_pin_connections).
         """
         temp_lib = normalized_lib_copy(lib_path)
+        # Reverse-conduction topology: gate tied to source, drain node driven.
+        roles = pin_roles or ["drain", "gate", "source"]
+        conn = dict(zip(roles, self._x_connections(roles)))
+        xdrain = conn.get("drain", "drn")
+        # Gate role ties to the source node (channel-off / reverse conduction).
+        xsrc = conn.get("gate", "src")
+        xsource = conn.get("source", "src")
+        src_node = xsource  # external node name used for Vsd/bleed anchors
 
         try:
             circuit = Circuit("Body_Diode")
             circuit.include(str(temp_lib.resolve()))
-            # Gate tied to source (channel off); + terminal at source so the
-            # internal body diode (anode=source/body, cathode=drain) conducts.
-            circuit.X("M1", subcircuit_name, "drn", "src", "src")
-            circuit.V("sd", "src", "drn", 0@u_V)
+            circuit.X("M1", subcircuit_name, xdrain, xsrc, xsource)
+            circuit.V("sd", src_node, xdrain, 0@u_V)
             # Absolute potential anchor: without it the terminal island only
             # sees leakage paths and the OP diverges (10 MOhm shunt ~ 1e-7 A).
             bleed_ohm = 10e6
-            circuit.R("bleed", "src", circuit.gnd, bleed_ohm@u_Ohm)
+            circuit.R("bleed", src_node, circuit.gnd, bleed_ohm@u_Ohm)
 
             step = sweep_step if sweep_step else vsd_max / max(1, points - 1)
             try:

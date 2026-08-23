@@ -71,10 +71,17 @@ class CapacitanceTestbench:
 
     def run(self, lib_path, subcircuit_name: str = "",
             vds_min: float = 0.1, vds_max: float = 60.0,
-            points: int = 25) -> list[CurveData]:
+            points: int = 25,
+            pin_roles: list[str] | None = None) -> list[CurveData]:
         from pathlib import Path as _Path
         lib_path = _Path(lib_path)
         temp_lib = normalized_lib_copy(lib_path)
+        # Pin-role aware connections; source role ties to ground.
+        roles = pin_roles or ["drain", "gate", "source"]
+        conn = dict(zip(roles, [
+            {"drain": "d", "gate": "g", "source": "0"}.get(r, r) for r in roles
+        ]))
+        xd, xg, xs = conn["drain"], conn["gate"], conn["source"]
 
         vds_sweep = np.logspace(np.log10(vds_min), np.log10(vds_max), points)
         ciss = np.zeros(points)
@@ -86,23 +93,23 @@ class CapacitanceTestbench:
                 # --- Sim A: gate drive -> Ciss ---
                 ca = Circuit(f"Ciss_Vds_{vds:.3g}")
                 ca.include(str(temp_lib.resolve()))
-                ca.X("M1", subcircuit_name, "d", "g", ca.gnd)
-                ca.V("ds", "d", ca.gnd, float(vds)@u_V)   # DC bias + AC ground
-                ca.R("bleed", "g", ca.gnd, GATE_BLEED_OHM@u_Ohm)
-                ca.I("drive", "g", ca.gnd, "DC 0 AC 1")   # 1 A small-signal probe
-                vg = abs(self._ac_probe("g", ca))
+                ca.X("M1", subcircuit_name, xd, xg, xs)
+                ca.V("ds", xd, ca.gnd, float(vds)@u_V)   # DC bias + AC ground
+                ca.R("bleed", xg, ca.gnd, GATE_BLEED_OHM@u_Ohm)
+                ca.I("drive", xg, ca.gnd, "DC 0 AC 1")   # 1 A small-signal probe
+                vg = abs(self._ac_probe(xg, ca))
                 ciss[i] = 1.0 / (2 * np.pi * self.f_meas * max(vg, 1e-15))
 
                 # --- Sim B: drain drive -> Coss, Crss ---
                 cb = Circuit(f"Coss_Vds_{vds:.3g}")
                 cb.include(str(temp_lib.resolve()))
-                cb.X("M1", subcircuit_name, "d", "g", cb.gnd)
+                cb.X("M1", subcircuit_name, xd, xg, xs)
                 cb.V("bus", "vbus", cb.gnd, float(vds)@u_V)
-                cb.L("bias", "vbus", "d", BIAS_INDUCTOR_H@u_H)  # DC feed, AC open
-                cb.R("bleed", "g", cb.gnd, GATE_BLEED_OHM@u_Ohm)
-                cb.I("drive", "d", cb.gnd, "DC 0 AC 1")   # 1 A small-signal probe
-                vd = abs(self._ac_probe("d", cb))
-                vg_b = abs(self._ac_probe("g", cb))
+                cb.L("bias", "vbus", xd, BIAS_INDUCTOR_H@u_H)  # DC feed, AC open
+                cb.R("bleed", xg, cb.gnd, GATE_BLEED_OHM@u_Ohm)
+                cb.I("drive", xd, cb.gnd, "DC 0 AC 1")   # 1 A small-signal probe
+                vd = abs(self._ac_probe(xd, cb))
+                vg_b = abs(self._ac_probe(xg, cb))
                 coss[i] = 1.0 / (2 * np.pi * self.f_meas * max(vd, 1e-15))
                 crss[i] = (vg_b / max(vd, 1e-15)) * ciss[i]
 
