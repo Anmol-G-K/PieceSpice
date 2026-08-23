@@ -2,6 +2,56 @@
 
 Timestamped record of all development work. Newest entries at the top.
 All timestamps are IST (UTC+05:30).
+---
+
+## 2026-08-24 00:32 IST — Wolfspeed CPM2-1200 onboarding: Tj port wiring + capacitance net omission fixed
+
+**Model**: `SpiceModels/CPM2-1200-0025B-Bare-Die.lib` (Wolfspeed 1200 V SiC
+bare die; ports d g s Tj — 4th port is the junction-temperature node).
+
+**Root causes found & fixed (in order of discovery):**
+
+1. **Preprocessor dropped SPICE-suffixed .PARAM literals** (`1702.69p`):
+   our Python evaluator couldn't parse suffix notation and silently discarded
+   the line. Fix: new `parser/spice_literal.py` translates spice suffixes
+   (p/n/u/Meg etc.) before eval; unresolvable lines are now left in place for
+   ngspice's own parser.
+
+2. **ngspice-34 lacks `ddt()` in B-source expressions** ("no such function
+   ddt"). The model's Cgd charge source uses it. Preprocessor now comments out
+   B/G sources containing `ddt(` — exactly-correct for DC/AC extraction
+   (capacitors are open); transients (M4) will need ngspice >= 36.
+
+3. **Tj port omission in capacitance bench** (the big one): `conn` was built
+   from `core_roles` which filtered out 'tj', so `xtj=None` and the X-instance
+   received a literal None node — shorting the thermal node and leaving the
+   SOURCE port floating. With V(Tj)=0 instead of 25 C, NET1/NET2 collapse and
+   every AC probe degenerated (vd→0 ⇒ Coss = 1.59e8 F constant).
+   Fix: full positional connection list from ALL roles (source included),
+   xtj driven by V(engine.temperature) from the yaml. **No net omitted.**
+
+4. **Dead debug block removed** from `_ac_probe` (leftover `_plot_vectors`
+   probe that did nothing).
+
+5. Config: `config/inputs/cpm2-1200.yaml` created (Vgs 0–20 V per user limit,
+   Cap_ref_Vds=7.5 V datasheet point, Id_th_target=5 mA SiC convention).
+
+**Notebook result (18 cells, 0 errors, 7 figures):**
+- Vth @ 5 mA: **2.166 V** (datasheet typ ~2.4 V ✓)
+- Rds(on) @ 14 V: **35.4 mΩ** (spec class ~25 mΩ ✓ at lower drive)
+- Ciss @ 7.5 V: **2826 pF** (stable across sweep)
+- Coss @ 7.5 V: **1087 pF**, falls 2526→444 pF to 50 V (classic SiC shape ✓)
+- Qg @ 18 V: **51.7 nC**; Qgs 17.6 nC; plateau 6.22 V
+- Reverse Vsd @ 10 A: 1000 mV
+
+**Known residual defects (documented, not code bugs):**
+- VM-08: ngspice-34 mis-evaluates the G1 switch equation at high gate drive —
+  Rds(on) rises above Vgs≈15 V (107 mΩ @ 18 V is inverted vs physics).
+  Ground-truth Python evaluation confirms the equation itself is fine.
+- Crss ≈ 1 pF flat: consequence of disabling the ddt-based Cgd source;
+  only the fixed C_CGD remains until ngspice ≥ 36 or M3 charge-model replaces it.
+
+**Tests**: 46 passed.
 
 ---
 

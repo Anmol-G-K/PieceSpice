@@ -95,13 +95,22 @@ class CapacitanceTestbench:
         # vendor subckt declares its ports), mapping each role to the external
         # node. For EPC roles [gate,drain,source] -> ['g','d','0'].
         roles = pin_roles or ["drain", "gate", "source"]
-        core_roles = [r for r in roles if r.lower() != "tj"]
-        has_tj = len(core_roles) != len(roles)
         node_by_role = {"drain": "d", "gate": "g", "source": "0"}
-        conn = {r: node_by_role.get(r, f"tj_{r}") for r in core_roles}
+        # Tj role (if present) maps to its own driven node - the model's
+        # thermal port MUST be connected and held at the configured junction
+        # temperature; omitting it makes V(Tj) undefined and every equation
+        # referencing it garbage. No net omission.
+        conn = {r: node_by_role.get(r, f"tj_{r}") for r in roles}
         xd = conn["drain"]
         xg = conn["gate"]
-        xtj = conn.get("tj")
+        xtj = next((conn[r] for r in roles if r.lower() == "tj"), None)
+        has_tj = xtj is not None
+        # Full positional connection list: EVERY role in subckt port order,
+        # source included. Omitting any net (e.g. source) leaves it floating
+        # and corrupts the model's internal equations.
+        xargs = [conn[r] for r in roles if r.lower() != "tj"]
+        if has_tj:
+            xargs = xargs + [xtj]
 
         vds_sweep = np.logspace(np.log10(vds_min), np.log10(vds_max), points)
         ciss = np.zeros(points)
@@ -117,7 +126,7 @@ class CapacitanceTestbench:
             def mk_a(attempt):
                 ca = Circuit(f"Ciss_Vds_{vds:.3g}_{attempt}")
                 ca.include(str(temp_lib.resolve()))
-                ca.X("M1", subcircuit_name, *( [xg, xd] + ([xtj] if has_tj else []) ))
+                ca.X("M1", subcircuit_name, *xargs)
                 if has_tj:
                     ca.V(f"tjsrc_a_{attempt}", xtj, ca.gnd,
                          float(self.engine.temperature)@u_V)
@@ -132,9 +141,9 @@ class CapacitanceTestbench:
             def mk_b(attempt):
                 cb = Circuit(f"Coss_Vds_{vds:.3g}_{attempt}")
                 cb.include(str(temp_lib.resolve()))
-                cb.X("M1", subcircuit_name, *( [xg, xd] + ([f"tj_b_{attempt}"] if has_tj else []) ))
+                cb.X("M1", subcircuit_name, *xargs)
                 if has_tj:
-                    cb.V(f"tjsrc_b_{attempt}", f"tj_b_{attempt}", cb.gnd,
+                    cb.V(f"tjsrc_b_{attempt}", xtj, cb.gnd,
                          float(self.engine.temperature)@u_V)
                 cb.V("bus", "vbus", cb.gnd, float(vds)@u_V)
                 cb.L("bias", "vbus", xd,
