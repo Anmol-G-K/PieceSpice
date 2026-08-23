@@ -5,23 +5,31 @@ extraction work. Each defect is root-caused to specific lines of the vendor file
 impact on extraction studies is recorded, and its implication for PieceSpice's own
 Tier 2/3 model synthesis is noted.
 
-**Scope:** Currently covers `SpiceModels/irfs7730pbf.spi` (subcircuit `irfb_s_sl7730pbf`,
-MODPEX "Symmetry POWER MOS Model" v1.0, generated 2014-11-11, SPICE3 format).
+**Scope:** Currently covers two vendor model families:
 
-**Device reference:** IRFS7730PBF — 75 V, 2.2 mΩ typ, ID 246 A @ 25 °C (silicon limited),
+| Vendor | File | Subcircuit | Core | Dialect |
+|---|---|---|---|---|
+| Infineon/IR | `SpiceModels/irfs7730pbf.spi` | `irfb_s_sl7730pbf` | MODPEX "Symmetry POWER MOS Model" v1.0 (2014-11-11), SPICE3 LEVEL=1 | PSpice-compatible |
+| TI NexFET | `SpiceModels/CSD16412Q5A.lib` | `CSD16412Q5A` | TI Analog e-Lab Design Center (2018-02-10), BSIM3v3.2 | PSpice (`LEVEL=7 Version=3.2`) |
+
+**Device reference (IR):** IRFS7730PBF — 75 V, 2.2 mΩ typ, ID 246 A @ 25 °C (silicon limited),
 IDM 984 A pulsed, VGS ±20 V, PD 375 W @ TC=25 °C.
+
+**Device reference (TI):** CSD16412Q5A — 25 V, 9–11 mΩ @ 10 V, ID 52 A @ 25 °C (thermal),
+Avalanche-rated, VGS ±20 V, PD 63 W @ TC=25 °C. Datasheet SLPS207A.
 
 ---
 
 ## Defect Index
 
-| ID | Defect | Severity | Studies affected | Status |
-|---|---|---|---|---|
-| VM-01 | No subthreshold conduction (fake-high Vth) | High | Curve 2, 5, Vth extraction | Documented (unfixable without vendor mutation) |
-| VM-02 | Capacitance sense-and-mirror pathology under dynamic drain transitions | Critical | Curve 5 (transient) | Blocked → workaround shipped |
-| VM-03 | Charge-inaccurate Cgd (AC-calibrated only) | High | Curve 5 (reconstructed Qgd) | **Fixed (2026-08-22)** — datasheet-Qgd calibration in `reconstruct_gate_charge` |
-| VM-04 | Unclipped saturation current (kA-domain Id) | Medium | Curve 1 interpretation, all transients | Documented (unfixable without vendor mutation) |
-| VM-05 | Corrupted initial DC operating point | Low | Transient studies | Documented (unfixable without vendor mutation) |
+| ID | Defect | Vendor(s) | Severity | Studies affected | Status |
+|---|---|---|---|---|---|
+| VM-01 | No subthreshold conduction (fake-high Vth) | IR | High | Curve 2, 5, Vth extraction | Documented (unfixable without vendor mutation) |
+| VM-02 | Capacitance sense-and-mirror pathology under dynamic drain transitions | IR | Critical | Curve 5 (transient) | Blocked → workaround shipped |
+| VM-03 | Charge-inaccurate Cgd (AC-calibrated only) | IR | High | Curve 5 (reconstructed Qgd) | **Fixed (2026-08-22)** — datasheet-Qgd calibration in `reconstruct_gate_charge` |
+| VM-04 | Unclipped saturation current (kA-domain Id) | IR + TI (see VM-06 for TI) | Medium | Curve 1 interpretation, all transients | Documented (unfixable without vendor mutation) |
+| VM-05 | Corrupted initial DC operating point | IR | Low | Transient studies | Documented (unfixable without vendor mutation) |
+| VM-06 | Saturation current far above datasheet IDC on physically-based models (thermal-limit confusion + dialect drift) | TI | Medium | Curve 1 interpretation, transient sanity checks | Documented (2026-08-23); partially simulator-dialect related |
 
 ---
 
@@ -174,18 +182,84 @@ operating point against the expected bias before trusting the waveform.
 
 ---
 
+## VM-06 — TI BSIM3v3.2: saturation current far above datasheet IDC
+
+**Severity:** Medium (misleading at first glance; model is correct inside its envelope)
+**Vendor file:** `CSD16412Q5A.lib` lines 56–60 (M1/M2, W={pWidth}=0.6178 m, L=0.5 µm)
+**Status:** Documented (2026-08-23)
+
+**Observation:** At Vgs = 10 V, Vds = 10 V the TI model conducts **325 A**, while the
+datasheet lists ID = 52 A @ 25 °C. The same pattern appears on IR (VM-04), so the
+question was whether this is a wiring/configuration error on our side.
+
+**Circuit-construction audit (all clean):**
+- Node-by-node trace of the TI subckt (nodes 1–14): LDD→RDP→RDD→M1 drain;
+  source M1→RSB→RSS→RSP→LSS; gate LGG→RGG; body diode DBD 8↔7; Miller caps
+  CGD0/CGS0; clamp diodes DDG/DGD. No floating nodes, no misconnected pins.
+- Testbench X-instance maps d,g,gnd → pins 1,2,3 exactly per the file header
+  (`1=D 2=G 3=S`).
+- Ohmic region validates the model: Rds(on) @ Vgs=10 V = **8.48 mΩ** (spec 9–11),
+  @ Vgs=4.5 V = **12.15 mΩ** (spec 13–16). The model is calibrated correctly
+  where the datasheet actually characterizes it.
+
+**Root causes (in order of dominance):**
+
+1. **IDC is a thermal rating, not an electrical limit.** "Continuous drain current
+   @ 25 °C" is set by die/package heating (RθJC × PD). Nothing in the model's
+   electrical physics prevents more current; an isothermal die at Vgs=10 V
+   legitimately conducts hundreds of amps. Dissipation at the observed point:
+   325 A × 10 V ≈ **3.3 kW** vs 63 W rated — a real die would fail long before,
+   but SPICE never heats up.
+2. **Simulator dialect drift.** The card is PSpice BSIM3v3.2 (`LEVEL=7
+   Version=3.2`); ngspice maps LEVEL=7 → its BSIM3 core. Parameter semantics
+   differ subtly (e.g. PSpice treats W as total drawn periphery with its own
+   scaling conventions). With W/L ≈ 1.24×10⁶, small differences in
+   velocity-saturation / PSCBE channel-length-modulation handling produce very
+   large current differences at high Vds — the effective Rds at Vds=10 V reads
+   30.7 mΩ, i.e. the curve keeps climbing where the real die compresses.
+3. **No electro-thermal feedback.** Only a first-order RTEMP resistor tempco;
+   no die-temperature rise, no mobility droop at power.
+
+**Measured comparison points (ngspice via PySpice, ngbehavior=ltpsa):**
+
+| Vendor | Vgs | Vds | Id | Implied P | Datasheet IDC |
+|---|---|---|---|---|---|
+| TI | 10 V | 10 V | 325 A | ~3.3 kW | 52 A (thermal) |
+| IR | 10 V | 10 V | 1668 A | ~16.7 kW | 246 A (thermal) |
+
+**PieceSpice implication:**
+1. Same guidance as VM-04 — never assume Vgs = 10 V maps to a sane current on
+   either vendor family; reference operating points via transfer-curve interpolation.
+2. The TI model is trustworthy in the ohmic region and at datasheet-characterized
+   bias points; distrust high-Vds saturation magnitude.
+3. A ngspice-vs-PSpice cross-check (running the same card in both simulators) would
+   quantify the dialect-drift component if it ever matters for validation.
+
+---
+
 ## Summary: what this means for PieceSpice
 
-All five defects share one root cause: a **behavioral LEVEL=1 macromodel fitted to
-terminal DC/small-signal curves, with no physics-based clipping** (no subthreshold, no
-mobility degradation, no thermal feedback, capacitances emulated rather than physical).
+The catalog now spans two model generations with a shared failure signature:
+a **macromodel fitted to terminal DC/small-signal curves, with no physics-based
+clipping** (no subthreshold, no mobility degradation, no thermal feedback,
+capacitances emulated rather than physical). VM-01–05 are behavioral-fitting
+artifacts of the MODPEX LEVEL=1 flow; VM-06 shows even a physically-based BSIM3v3.2
+card exhibits the same "current >> IDC" symptom once die heating is ignored and the
+card runs outside its native simulator dialect.
 The vendor "golden" model is accurate only inside its calibrated envelope:
 
 - ✅ Trust: DC curves at moderate bias, Rds(on), small-signal capacitances at fixed Vds
-- ⚠️ Distrust: Vth as a physical value, anything involving large-signal gate charge,
-  currents above ~350 A, all dynamic drain transitions
+- ⚠️ Distrust: Vth as a physical value (IR), anything involving large-signal gate charge
+  (IR), currents above ~350 A (IR) / ~50 A continuous-equivalent (TI), all dynamic drain
+  transitions on the IR sense-and-mirror network
 - 🎯 Tier 2 targets should be the **datasheet** values (Qgs/Qgd/Qg, gfs), not the vendor
   model's, wherever the two disagree
+
+**Simulator configuration note (2026-08-23):** all extraction runs use ngspice via
+PySpice with the project-local `.spiceinit` set to `ngbehavior=ltpsa`. This mode is the
+only one that both (a) maps PSpice `LEVEL=7` to BSIM3v3.2 and (b) tolerates LTspice
+syntax — `all` breaks TI models entirely ("Device type MOS7 not available"). Full
+investigation in `development-log.md` (2026-08-23 00:55 entry).
 
 Cross-references: `gate_charge_error_analysis.md` (VM-02 deep dive),
 `development-log.md` (chronological record), `piecespice_plan.md` §2 (algorithms these
