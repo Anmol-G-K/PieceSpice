@@ -85,7 +85,7 @@ class StaticSweepTestbench:
         """Extract output characteristics family: Id vs Vds for each Vgs."""
         if vgs_list is None:
             vgs_list = [3.0, 4.5, 6.0, 10.0]
-        xd, xg, xs = self._x_connections(pin_roles or ["drain", "gate", "source"])
+        xconn = self._x_connections(pin_roles or ["drain", "gate", "source"])
         curves: List[CurveData] = []
         temp_lib = normalized_lib_copy(lib_path)
 
@@ -93,7 +93,7 @@ class StaticSweepTestbench:
             for vgs in vgs_list:
                 circuit = Circuit(f"Output_Char_Vgs_{vgs}")
                 circuit.include(str(temp_lib.resolve()))
-                circuit.X("M1", subcircuit_name, xd, xg, xs)
+                circuit.X("M1", subcircuit_name, *xconn)
                 circuit.V("ds", "d", circuit.gnd, 0@u_V)
                 circuit.V("gs", "g", circuit.gnd, vgs@u_V)
 
@@ -132,13 +132,13 @@ class StaticSweepTestbench:
         pin_roles: Optional[List[str]] = None,
     ) -> CurveData:
         """Extract transfer characteristic: Id vs Vgs at fixed Vds."""
-        xd, xg, xs = self._x_connections(pin_roles or ["drain", "gate", "source"])
+        xconn = self._x_connections(pin_roles or ["drain", "gate", "source"])
         temp_lib = normalized_lib_copy(lib_path)
 
         try:
             circuit = Circuit("Transfer_Characteristics")
             circuit.include(str(temp_lib.resolve()))
-            circuit.X("M1", subcircuit_name, xd, xg, xs)
+            circuit.X("M1", subcircuit_name, *xconn)
             circuit.V("ds", "d", circuit.gnd, vds_fixed@u_V)
             circuit.V("gs", "g", circuit.gnd, 0@u_V)
 
@@ -181,12 +181,12 @@ class StaticSweepTestbench:
                 leakage/numerical noise, not channel resistance.
         """
         temp_lib = normalized_lib_copy(lib_path)
-        xd, xg, xs = self._x_connections(pin_roles or ["drain", "gate", "source"])
+        xconn = self._x_connections(pin_roles or ["drain", "gate", "source"])
 
         try:
             circuit = Circuit("Rds_on")
             circuit.include(str(temp_lib.resolve()))
-            circuit.X("M1", subcircuit_name, xd, xg, xs)
+            circuit.X("M1", subcircuit_name, *xconn)
             circuit.V("ds", "d", circuit.gnd, 0@u_V)
             circuit.V("gs", "g", circuit.gnd, vgs@u_V)
 
@@ -238,18 +238,21 @@ class StaticSweepTestbench:
             even when extraction succeeds.
         """
         temp_lib = normalized_lib_copy(lib_path)
-        # Drain-gate-tied topology: build connections from roles, tying the
-        # drain and gate role positions to the same node 'gd'.
+        # Drain-gate-tied topology: build positional connections from roles,
+        # tying the drain and gate role positions to the same node 'gd'.
         roles = pin_roles or ["drain", "gate", "source"]
-        conn = dict(zip(roles, self._x_connections(roles)))
-        xd = xg = conn.get("drain", "gd")
-        xs = conn.get("source", "0")
+        xconn = self._x_connections(roles)
+        conn = dict(zip(roles, xconn))
+        # Every non-source position ties to 'gd'; source position to gnd.
+        xargs = ["gd" if r != "source" else "0" for r in roles]
+        xd = xg = "gd"
+        xs = "0"
 
         try:
             circuit = Circuit("Threshold_Voltage")
             circuit.include(str(temp_lib.resolve()))
             # Drain and gate tied together -> self-bias at Vds = Vgs
-            circuit.X("M1", subcircuit_name, xd, xg, xs)
+            circuit.X("M1", subcircuit_name, *xargs)
             circuit.V("sweep", "gd", circuit.gnd, 0@u_V)
 
             step = v_max / max(1, points - 1)
@@ -321,18 +324,17 @@ class StaticSweepTestbench:
         """
         temp_lib = normalized_lib_copy(lib_path)
         # Reverse-conduction topology: gate tied to source, drain node driven.
+        # Connections are POSITIONAL (roles order = subckt port order): the
+        # gate and source role positions both tie to node 'src'.
         roles = pin_roles or ["drain", "gate", "source"]
-        conn = dict(zip(roles, self._x_connections(roles)))
-        xdrain = conn.get("drain", "drn")
-        # Gate role ties to the source node (channel-off / reverse conduction).
-        xsrc = conn.get("gate", "src")
-        xsource = conn.get("source", "src")
-        src_node = xsource  # external node name used for Vsd/bleed anchors
+        xargs = ["drn" if r == "drain" else "src" for r in roles]
+        xdrain, xsrc, xsource = "drn", "src", "src"
+        src_node = "src"
 
         try:
             circuit = Circuit("Body_Diode")
             circuit.include(str(temp_lib.resolve()))
-            circuit.X("M1", subcircuit_name, xdrain, xsrc, xsource)
+            circuit.X("M1", subcircuit_name, *xargs)
             circuit.V("sd", src_node, xdrain, 0@u_V)
             # Absolute potential anchor: without it the terminal island only
             # sees leakage paths and the OP diverges (10 MOhm shunt ~ 1e-7 A).
