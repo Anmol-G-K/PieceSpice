@@ -101,83 +101,94 @@ class CapacitanceTestbench:
         conn = {r: node_by_role.get(r, f"tj_{r}") for r in core_roles}
         xd = conn["drain"]
         xg = conn["gate"]
+        xtj = conn.get("tj")
 
         vds_sweep = np.logspace(np.log10(vds_min), np.log10(vds_max), points)
         ciss = np.zeros(points)
         coss = np.zeros(points)
         crss = np.zeros(points)
 
-        try:
-            for i, vds in enumerate(vds_sweep):
-                # A FRESH normalized copy per bias point: after many successive
-                # ngspice loads of the same include path, the shared library
-                # intermittently fails runs; a new file path avoids it.
-                temp_lib = normalized_lib_copy(lib_path)
+        for i, vds in enumerate(vds_sweep):
+            # A FRESH normalized copy per bias point: after many successive
+            # ngspice loads of the same include path, the shared library
+            # intermittently fails runs; a new file path avoids it.
+            temp_lib = normalized_lib_copy(lib_path)
 
-                def mk_a(attempt):
-                    ca = Circuit(f"Ciss_Vds_{vds:.3g}_{attempt}")
-                    ca.include(str(temp_lib.resolve()))
-                    ca.X("M1", subcircuit_name, *( [xg, xd] + ([f"tj_a_{attempt}"] if has_tj else []) ))
-                    if has_tj:
-                        ca.V(f"tjsrc_a_{attempt}", f"tj_a_{attempt}", ca.gnd,
-                             float(self.engine.temperature)@u_V)
-                    ca.V("ds", xd, ca.gnd, float(vds)@u_V)  # DC bias + AC ground
-                    ca.R("bleed", xg, ca.gnd, GATE_BLEED_OHM@u_Ohm)
-                    ca.I("drive", xg, ca.gnd, "DC 0 AC 1")  # 1 A probe
-                    return ca
-                vg = abs(self._ac_probe(xg, mk_a))
-                ciss[i] = 1.0 / (2 * np.pi * self.f_meas * max(vg, 1e-15))
+            def mk_a(attempt):
+                ca = Circuit(f"Ciss_Vds_{vds:.3g}_{attempt}")
+                ca.include(str(temp_lib.resolve()))
+                ca.X("M1", subcircuit_name, *( [xg, xd] + ([xtj] if has_tj else []) ))
+                if has_tj:
+                    ca.V(f"tjsrc_a_{attempt}", xtj, ca.gnd,
+                         float(self.engine.temperature)@u_V)
+                ca.V("ds", xd, ca.gnd, float(vds)@u_V)  # DC bias + AC ground
+                ca.R("bleed", xg, ca.gnd, GATE_BLEED_OHM@u_Ohm)
+                ca.I("drive", xg, ca.gnd, "DC 0 AC 1")  # 1 A probe
+                return ca
+            vg = abs(self._ac_probe(xg, mk_a))
+            ciss[i] = 1.0 / (2 * np.pi * self.f_meas * max(vg, 1e-15))
 
-                # --- Sim B: drain drive -> Coss, Crss ---
-                def mk_b(attempt):
-                    cb = Circuit(f"Coss_Vds_{vds:.3g}_{attempt}")
-                    cb.include(str(temp_lib.resolve()))
-                    cb.X("M1", subcircuit_name, *( [xg, xd] + ([f"tj_b_{attempt}"] if has_tj else []) ))
-                    if has_tj:
-                        cb.V(f"tjsrc_b_{attempt}", f"tj_b_{attempt}", cb.gnd,
-                             float(self.engine.temperature)@u_V)
-                    cb.V("bus", "vbus", cb.gnd, float(vds)@u_V)
-                    cb.L("bias", "vbus", xd,
-                         BIAS_INDUCTOR_H@u_H)  # DC feed, AC open
-                    cb.R("bleed", xg, cb.gnd, GATE_BLEED_OHM@u_Ohm)
-                    cb.I("drive", xd, cb.gnd, "DC 0 AC 1")  # 1 A probe
-                    return cb
-                vd = abs(self._ac_probe(xd, mk_b))
-                vg_b = abs(self._ac_probe(xg, mk_b))
-                coss[i] = 1.0 / (2 * np.pi * self.f_meas * max(vd, 1e-15))
-                crss[i] = (vg_b / max(vd, 1e-15)) * ciss[i]
-                discard_normalized_lib(temp_lib)
+            # --- Sim B: drain drive -> Coss, Crss ---
+            def mk_b(attempt):
+                cb = Circuit(f"Coss_Vds_{vds:.3g}_{attempt}")
+                cb.include(str(temp_lib.resolve()))
+                cb.X("M1", subcircuit_name, *( [xg, xd] + ([f"tj_b_{attempt}"] if has_tj else []) ))
+                if has_tj:
+                    cb.V(f"tjsrc_b_{attempt}", f"tj_b_{attempt}", cb.gnd,
+                         float(self.engine.temperature)@u_V)
+                cb.V("bus", "vbus", cb.gnd, float(vds)@u_V)
+                cb.L("bias", "vbus", xd,
+                     BIAS_INDUCTOR_H@u_H)  # DC feed, AC open
+                cb.R("bleed", xg, cb.gnd, GATE_BLEED_OHM@u_Ohm)
+                cb.I("drive", xd, cb.gnd, "DC 0 AC 1")  # 1 A probe
+                return cb
+            vd = abs(self._ac_probe(xd, mk_b))
+            vg_b = abs(self._ac_probe(xg, mk_b))
+            coss[i] = 1.0 / (2 * np.pi * self.f_meas * max(vd, 1e-15))
+            crss[i] = (vg_b / max(vd, 1e-15)) * ciss[i]
 
-            # Sanity guard: avalanche/breakdown makes the AC probe collapse and
-            # capacitances explode past physical bounds near the sweep ceiling.
+            # Per-point physical sanity: a failed/degenerate AC probe yields
+            # absurd values (probe collapsing to ~0 -> capacitance exploding;
+            # or negative values from sign flips). Mask them as NaN.
             for name, arr in (("Ciss", ciss), ("Coss", coss), ("Crss", crss)):
-                if arr[-1] > 100 * max(arr[0], 1e-15):
-                    print(f"[capacitance] WARNING: {name} grows >100x across "
-                          f"the sweep (last point {arr[-1]:.3e} F) - probable "
-                          f"breakdown region included in Vds_cap_max; top-end "
-                          f"points are likely unphysical.")
-        except Exception:
+                v = arr[i]
+                if not np.isfinite(v) or v <= 0 or v > 1e-3:
+                    print(f"[capacitance] WARNING: {name} @ Vds={vds:.2f}V "
+                          f"= {v:.3e} F is non-physical (limit 1 mF); "
+                          f"masking this point as NaN.")
+                    arr[i] = np.nan
             discard_normalized_lib(temp_lib)
-            raise
+
+        # Trim trailing masked region so interpolators see a clean envelope.
+        def _trim(arr):
+            valid = np.where(np.isfinite(arr) & (arr > 0))[0]
+            return arr[:valid[-1] + 1] if len(valid) else arr
+        ciss_t, coss_t, crss_t = map(_trim, (ciss, coss, crss))
+        n_valid = min(len(ciss_t), len(coss_t), len(crss_t))
+        x_valid = vds_sweep[:n_valid]
+        ciss_t, coss_t, crss_t = ciss_t[:n_valid], coss_t[:n_valid], crss_t[:n_valid]
+        if n_valid < points:
+            print(f"[capacitance] NOTE: returning first {n_valid} of "
+                  f"{points} points (valid envelope); rest masked.")
 
         family_note = f"measured @ {self.f_meas:.1e} Hz"
         return [
             CurveData(
                 name="Ciss", x_name="Drain-Source Voltage (Vds)", x_unit="V",
                 y_name="Capacitance", y_unit="F",
-                x_data=vds_sweep.tolist(), y_data=ciss.tolist(),
+                x_data=x_valid.tolist(), y_data=ciss_t.tolist(),
                 metadata={"note": family_note},
             ),
             CurveData(
                 name="Coss", x_name="Drain-Source Voltage (Vds)", x_unit="V",
                 y_name="Capacitance", y_unit="F",
-                x_data=vds_sweep.tolist(), y_data=coss.tolist(),
+                x_data=x_valid.tolist(), y_data=coss_t.tolist(),
                 metadata={"note": family_note},
             ),
             CurveData(
                 name="Crss", x_name="Drain-Source Voltage (Vds)", x_unit="V",
                 y_name="Capacitance", y_unit="F",
-                x_data=vds_sweep.tolist(), y_data=crss.tolist(),
+                x_data=x_valid.tolist(), y_data=crss_t.tolist(),
                 metadata={"note": family_note},
             ),
         ]
