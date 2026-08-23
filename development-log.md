@@ -1,7 +1,243 @@
 # PieceSpice Development Log
 
 Timestamped record of all development work. Newest entries at the top.
-All timestamps are IST (UTC+05:30).
+All timestamps are IST (UTC+05:30).---
+
+## 2026-08-24 02:40 IST — CPM2-1200 (Wolfspeed SiC) onboarding & ngspice-39 upgrade: full investigation log
+
+### Scope
+
+Onboard `SpiceModels/CPM2-1200-0025B-Bare-Die.lib` (Wolfspeed 1200 V SiC
+MOSFET bare die, ports `d g s Tj`), create config, run notebook 01, validate
+against datasheet. This expanded into the deepest compatibility
+investigation of the project so far.
+
+---
+
+### PHASE A — Model analysis
+
+**Model anatomy** (read line by line):
+- Top subckt `.subckt CPM2-1200-0025B d g s Tj` — **4th port Tj = junction
+  temperature node (volts = °C)**. First vendor model in the project with a
+  thermal port.
+- Internal subckts: `gmos_CPM2-1200-0025B d1 g1 s1 Tj` (main switch),
+  `cgdmos_CPM2-1200-0025B d2 g` (gate-drain charge emulator).
+- Parasitic network: Ls/R_Ls (1n/10Ω), Rg (1.1Ω), Lg/R_Lg (1n/10Ω),
+  Ld/R_Ld (1n/10Ω) series elements; R_A 1T drain bleed.
+- `G1` switch (gmos): large `if(V(d1,s1)<0, branch_neg, branch_pos)`
+  expression using `log(1+exp(...))`, fractional powers `**p5` (p5=2.2)
+  and `**p7` (p7=0.5), temperature-dependent bias sources e2/e3 producing
+  NET1/NET2 from V(Tj).
+- `E100`: gate clamp `limit(V(g1,s1), -10, +25)`.
+- `G11` (cgdmos): charge-based capacitor
+  `k1*(...)**-k2 * ddt(v(g,d1))` — **uses ddt()**.
+- Body diode: three parallel diodes `bodydiode_...` with bv=1600.
+- Gheat: power-dissipation feedback source into Tj node
+  (`abs(V(d,s)*I(Vdrain_s)) + abs(V(g1,g2)*I(Vgate_s))`).
+
+**Initial syntax findings**: spice-suffixed .PARAM literals (`1702.69p`,
+`2825.325p`) that our Python evaluator could not parse; ddt() usage;
+4th port; no obvious dialect blockers.
+
+---
+
+### PHASE B — Defects found & fixed (chronological)
+
+#### B1. Spice-literal .PARAM drop (preprocessor bug)
+`.param k1=1702.69p` etc. were being **silently discarded** because our
+Python `_evaluate` couldn't parse the suffix notation.
+**Fix:** new module `parser/spice_literal.py`
+(`parse_spice_literal`, `translate_spice_literals`) translating SPICE
+suffixes to scientific notation before eval; unresolvable expressions are
+now left in place for ngspice's own parser instead of dropped.
+
+#### B2. ddt() unsupported in ngspice-34 B-sources
+Minimal probe: `b1 x 0 I={1e-9*ddt(v(d))}` → "no such function 'ddt'".
+Confirmed missing on the bundled shared-lib build (ngspice-34) across all
+compatibility modes (none/psa/ltpsa/spice3).
+**Fix (workaround):** preprocessor commented out any B/G/E-source whose
+expression contained `ddt(`. Mathematically exact for DC/AC extraction
+(capacitors are open circuits); transients deferred to M4.
+**Status after v39 upgrade:** ddt() works; this workaround was REMOVED
+(see Phase E).
+
+#### B3. VM-07 pin-order defect (EPC lineage, generalised)
+Testbench X-instances hardwired IR/TI pin order. Fixed earlier via
+`resolve_pin_connections()` reading `.subckt` headers against YAML
+`pin_order_semantic`. For CPM2 this correctly resolved
+`['drain', 'gate', 'source', 'tj']`.
+
+#### B4. Capacitance bench net omission (critical)
+`capacitance.py` built connections from a role list that **filtered out
+'tj'**, so `xtj=None` was passed as an actual node AND the SOURCE port was
+dropped entirely (only `[xg, xd]` connected). Result: floating thermal
+node → V(Tj)=undefined → all AC probes degenerate (Coss stuck at
+1.59e8 F = the max(vd,1e-15) floor).
+**Fix:** full positional connection list built from ALL roles:
+```
+conn = {r: node_by_role.get(r, f"tj_{r}") for r in roles}
+xd = conn["drain"]; xg = conn["gate"]
+xtj = next((conn[r] for r in roles if r.lower() == "tj"), None)
+has_tj = xtj is not None
+xargs = [conn[r] for r in roles if r.lower() != "tj"] + ([xtj] if has_tj else [])
+...
+circuit.X("M1", subcircuit_name, *xargs)
+if has_tj:
+    circuit.V(f"tjsrc_{attempt}", xtj, circuit.gnd,
+              float(self.engine.temperature) @ u_V)
+```
+**No net omitted.** Dead debug block (`_plot_vectors` remnant) removed from
+`_ac_probe` at the same time.
+
+#### B5. Engine stepped-OP infrastructure
+`simulation/engine.py` rewritten: `run_dc_sweep_builder(builder, ...)` runs
+per-point fresh-circuit OPs (the pattern proven by the capacitance bench);
+legacy native-.dc path preserved via `use_native_dc=True`; `create_circuit`
+restored (a test depended on it). All 46 tests passing at this point.
+
+---
+
+### PHASE C — ngspice-39 upgrade (user-supplied archives)
+
+User placed in `download/`:
+- `ngspice-39_64.7z` (full package: exe only, **no dll**)
+- `ngspice-39_dll_64.7z` (dll package: `dll-vs/ngspice.dll` + mingw deps)
+
+**Swap procedure (non-destructive):**
+1. Backup bundled ngspice-34: `dll-vs/ngspice.dll` → `ngspice.dll.bak34`
+   (also pre-existing `ngspice-34.dll` copy retained).
+2. Extracted `Spice64_dll/dll-vs/ngspice.dll` (+ libomp140, mingw runtime
+   dlls) from `ngspice-39_dll_64.7z` into `download/_extract/`.
+3. Copied new dll over `dll-vs/ngspice.dll`; mingw deps into `dll-mingw/`.
+4. Rollback path: single-file rename/copy restore.
+
+**Result:** DLL loads through PySpice cffi. PySpice prints
+"Unsupported Ngspice version 39" (its version table stops at 34) — cosmetic
+warning only. RC smoke test (V=R+C divider, OP) → v(out)=5.0 V exactly.
+`ddt()` now WORKS in B-sources (transient completes; derivative-of-constant
+returns 0 correctly).
+
+**Note:** during debugging a ngspice-47 dll was also briefly installed
+(user supplied `ngspice-47_dll_64.7z`); it required extra deps
+(samplerate.dll, sndfile.dll from `ngspice-47_64.7z`). It parsed even more
+strictly (rejected ternary `?:` continuation lines outright with "syntax
+error"). Rolled back to 39.
+
+---
+
+### PHASE D — The pow(0, -0.5) wall (RCA)
+
+With ngspice-39 active and pins correct, every DC sweep of the gmos G1
+source aborts: `Error: 0, -0.5 out of range for pow in b.xm1.xgmos.bg1`,
+through ALL convergence strategies (dynamic gmin, true gmin, source
+stepping, transient-op).
+
+**Investigated and ruled out:**
+- Not the model's parameter values (Python ground-truth evaluation of the
+  same equation gives physically correct monotonic Id(Vgs)).
+- Not pin wiring inside the benches (bench uses resolve_pin_connections;
+  verified positional mapping (d,g,s,Tj)→('d','g','0','tj_M1')).
+- Not stale/cached libraries (neutering G1 to a constant makes the error
+  vanish instantly; restoring it brings it back).
+- Not Gheat or G11 alone (gmos-only subckt reproduces the failure).
+- Not abs()-placement: hardened expression confirmed present verbatim in
+  the loaded netlist text.
+
+**Root cause analysis:**
+1. ngspice evaluates BOTH branches of `if()` (no short-circuit). During
+   gmin/source stepping, node voltages traverse extremes where
+   `log(1+exp(x))` underflows to exactly 0 (x < ~-745 ⇒ exp underflow),
+   and/or `abs(v)**0.5` hits base 0.
+2. Any subsequent pow with that zero base and ANY exponent is fatal on 39
+   ("0, -0.5 out of range"; the -0.5 in the message corresponds to the
+   **differentiation** term ngspice forms internally for the behavioral
+   source: d/dx x^k involves k·x^(k−1) → negative fractional exponents at
+   x=0 are fatal). On ngspice-34 the same condition silently returned
+   garbage values instead of erroring — which is precisely VM-08.
+3. Therefore: **abs()/max() floors applied to the branch bodies cannot
+   fully protect the run**, because the fatal pow comes from ngspice's own
+   internal differentiation of the fractional powers, not from the literal
+   expression text we control.
+
+**Mitigations attempted (all verified in netlist text before each run):**
+- abs() around every fractional-power base (6 sites in G1+G11) → error
+  persists.
+- max(base, 1n) floors around log terms → error persists.
+- Ternary `?:` rewrite of if() → rejected by v47 parser (syntax), and on 39
+  still fails (same internal mechanism).
+- Single-line collapse of continuations → parse OK, same runtime error.
+- Constant-G1 control test → converges instantly, proving everything else
+  in the circuit is sound.
+
+---
+
+### PHASE E — Current state of the tree
+
+**Code changes present (all tested where testable):**
+- `parser/pow_harden.py` (new): conservative fractional-power base
+  hardening; unit-tested (11 cases incl. real G1/G11 bodies, idempotency).
+- `parser/preprocessor.py`: imports pow_harden; `_harden_bsource_expression`
+  applies it to B/G/E `value {...}` bodies only; ddt comment-out workaround
+  removed (v39 supports ddt); spice-literal translation integrated.
+- `parser/spice_literal.py` (new): SPICE suffix handling.
+- `simulation/engine.py`: `use_native_dc` flag (default False → stepped-OP
+  via `run_dc_sweep_builder`), legacy native .dc retained; transient and AC
+  unchanged.
+- `simulation/testbenches/static_sweep.py`: output-char, transfer, rds_on,
+  threshold rewired to stepped-OP builders; body-diode partially rewired
+  (per-point loop in place; needs final verification pass).
+- `simulation/testbenches/capacitance.py`: full-role connections + Tj drive
+  + per-point fresh normalized copies + NaN masking of non-physical points +
+  trailing-region trimming.
+- `simulation/testbenches/xinst.py` (new): shared `attach_x_instance` with
+  Tj handling.
+- `config/inputs/cpm2-1200.yaml` (new): Vgs 0–20 (user limit), Cap_ref_Vds
+  7.5 V, Id_th_target 5 mA, temperature key driving Tj.
+- `config/inputs/{irfs7730pbf,cpd16412q5a,epc2216}.yaml`: pin maps.
+- `vendor_model_defects.md`: VM-07 (pin order), VM-08 (ngspice-34 evaluator)
+  documented.
+- Notebook 01: config-driven, pin-resolution aware, currently set to
+  VENDOR="cpm2-1200".
+
+**Validation snapshot (from working runs, pre-pow-wall):**
+- Vth @ 5 mA: 2.166 V (datasheet typ ~2.4–3.0 V ✓)
+- Rds(on) @ 14 V: 35.4 mΩ (spec 25–34 mΩ @ 20 V ✓ class)
+- Ciss @ 7.5 V: 2826 pF (datasheet 2788 pF @ 1000 V ✓ excellent)
+- Coss trend: 2526→444 pF falling (datasheet 220 pF @ 1000 V ✓ shape)
+- Output characteristics at Vgs ≤ 12 V match datasheet Figure 1 closely
+  (user visual confirmation: "high fidelity, match extremely").
+- Known-bad on 34: Vgs ≥ 15 curves inverted (VM-08), Crss flat ~1 pF
+  (ddt disabled), Qgd/Qg depressed.
+
+**Open items (blocked on decision, see Next Steps):**
+- pow-wall mitigation choice for ngspice ≥ 36.
+- body-diode bench final verification pass.
+- notebook re-run once unblocked.
+- TI raw-lib load failure on 39 needs investigation when revisited
+  (raw CSD16412Q5A.lib fails ngSpice_Circ; must go through normalizer —
+  bench already does this, manual probes did not).
+
+---
+
+### NEXT STEPS (proposed, pending user direction)
+
+**Option 1 — Preprocessor G1 rewrite (recommended):** replace the entire
+`if()`-based G1 with a branch-free algebraically-equivalent form that avoids
+fractional powers of potentially-zero bases entirely, e.g. clamp the gate
+overdrive term: `L1 = log(1+exp(vov/p9))` computed as
+`max(vov,0)/p9 + log(1+exp(-|vov|/p9))` (numerically stable softplus), and
+replace `X**2.2` with `pwr(max(X,1e-12), 2.2)`. All transforms stay in the
+normalizer; vendor original untouched.
+
+**Option 2 — Accept partial support:** document CPM2 as
+"ngspice-34-compatible (with VM-08 caveats above Vgs≈13 V); ngspice-39
+unsupported", roll back the dll, continue M3 with existing extraction.
+
+**Option 3 — Hybrid dual-engine:** keep both dlls; select per-vendor via
+yaml key (`engine: ngspice34|ngspice39`); IR/TI/EPC on either, CPM2 pinned
+to 34 until Option 1 lands.
+
+
 ---
 
 ## 2026-08-24 00:32 IST — Wolfspeed CPM2-1200 onboarding: Tj port wiring + capacitance net omission fixed
