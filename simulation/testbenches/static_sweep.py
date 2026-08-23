@@ -342,7 +342,7 @@ class StaticSweepTestbench:
                           float(self.engine.temperature)@u_V)
                 xargs = xargs + ["tj_M1"]
             circuit.X("M1", subcircuit_name, *xargs)
-            circuit.V("sd", src_node, xdrain, 0@u_V)
+            circuit.V("sd", src_node, "drn", 0@u_V)
             # Absolute potential anchor: without it the terminal island only
             # sees leakage paths and the OP diverges (10 MOhm shunt ~ 1e-7 A).
             bleed_ohm = 10e6

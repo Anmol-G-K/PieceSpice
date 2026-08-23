@@ -1,18 +1,12 @@
-"""Probe: options aren't it either. Remaining bench-vs-standalone difference:
-the notebook runs curves 1..N in the SAME kernel - earlier curves' state.
-But my earlier smoke script also ran curve1 first and failed at curve1 itself
-(Vgs=10 output char). And standalone passes. One more difference: the bench
-creates temp_lib via mkstemp in normalized/ dir; standalone probe did too...
-
-Actually wait: bench run_output_characteristics loops vgs_list [10,12,14,16,18,20]
-- Vgs=10 is FIRST. It failed. Standalone with same everything passed?! Retry
-the exact bench call in isolation:"""
+"""Probe: cap values per point for CPM2."""
 import sys
 sys.path.insert(0, '.')
 from pathlib import Path
+import numpy as np
+
 from config.yaml_io import load_input
 from parser.netlist import resolve_pin_connections
-from simulation.testbenches.static_sweep import StaticSweepTestbench
+from simulation.testbenches.capacitance import CapacitanceTestbench
 
 cfg = load_input('cpm2-1200')
 cond = cfg['conditions']
@@ -20,9 +14,11 @@ lib = Path(cfg['library']).resolve()
 sub = cfg['subcircuit']
 roles = resolve_pin_connections(lib, sub,
     pin_order_semantic=cfg['pins'].get('pin_order_semantic'))
-print("ROLES:", roles)
-static = StaticSweepTestbench()
-oc = static.run_output_characteristics(lib, sub,
-    vgs_list=cond['Vgs_sweep'], vds_max=cond['Vds_sweep_max'],
-    vds_points=cond['Vds_points'], pin_roles=roles)
-print("BENCH curve1 OK:", len(oc), "curves")
+
+cap = CapacitanceTestbench().run(lib, sub, vds_min=0.1, vds_max=50,
+    points=25, pin_roles=roles)
+for cc in cap:
+    print("CAP", cc.name)
+    for x, y in zip(cc.x_data[::4], cc.y_data[::4]):
+        flag = " <-- garbage" if y > 1e-3 else ""
+        print(f"   Vds={x:8.2f}  C={y:.4e}{flag}")

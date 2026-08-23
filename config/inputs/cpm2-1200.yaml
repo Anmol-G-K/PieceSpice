@@ -20,6 +20,7 @@ pins:
     drain: d
     gate: g
     source: s
+    tj: Tj
 
 conditions:
   # Datasheet (CPM2-1200-0025B): 1200 V SiC, Rds(on) typ 25 mOhm,
@@ -49,8 +50,9 @@ conditions:
 
   # --- capacitances (small-signal AC @ 1 MHz) ---
   Vds_cap_min: 0.1
-  Vds_cap_max: 100.0                         # well under 1200 V BVDSS
+  Vds_cap_max: 50.0                          # VM-08: AC probe unreliable at high Vds
   Cap_points: 25
+  Cap_ref_Vds: 7.5                           # datasheet Coss/Crss/RG test point
   F_meas: 1.0e+06
 
   # --- gate charge (quasi-static reconstruction) ---

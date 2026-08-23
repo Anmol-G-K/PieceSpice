@@ -26,14 +26,16 @@ def attach_x_instance(
 ) -> None:
     """Instantiate the DUT subcircuit with correct pin order and Tj drive.
 
-    Builds the X-instance connections positionally from *pin_roles* and, when
-    the model declares a 'tj' port, adds a V source holding it at
-    *temperature* volts (= degC).
+    Builds the X-instance connections positionally from *pin_roles*. A role
+    named 'tj' marks the model as having a thermal port: the port is driven
+    by a dedicated V source at *temperature* volts (= degC) and is excluded
+    from the role->node mapping (it must appear exactly once).
     """
-    conn = x_connections(pin_roles)
-    extra = []
-    if "tj" in [r.lower() for r in pin_roles]:
-        tj_node = f"tj_{ref}"
-        circuit.V(f"tjsrc_{ref}", tj_node, circuit.gnd, float(temperature)@u_V)
-        extra.append(tj_node)
-    circuit.X(ref, subcircuit_name, *(conn + extra))
+    tj_roles = [r for r in pin_roles if r.lower() == "tj"]
+    core_roles = [r for r in pin_roles if r.lower() != "tj"]
+    conn = x_connections(core_roles)
+    if len(tj_roles) == 1:
+        conn.append(f"tj_{ref}")
+        circuit.V(f"tjsrc_{ref}", f"tj_{ref}", circuit.gnd,
+                  float(temperature)@u_V)
+    circuit.X(ref, subcircuit_name, *conn)

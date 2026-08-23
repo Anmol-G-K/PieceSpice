@@ -95,8 +95,12 @@ class CapacitanceTestbench:
         # vendor subckt declares its ports), mapping each role to the external
         # node. For EPC roles [gate,drain,source] -> ['g','d','0'].
         roles = pin_roles or ["drain", "gate", "source"]
+        core_roles = [r for r in roles if r.lower() != "tj"]
+        has_tj = len(core_roles) != len(roles)
         node_by_role = {"drain": "d", "gate": "g", "source": "0"}
-        xconn = [node_by_role.get(r, r) for r in roles]
+        conn = {r: node_by_role.get(r, f"tj_{r}") for r in core_roles}
+        xd = conn["drain"]
+        xg = conn["gate"]
 
         vds_sweep = np.logspace(np.log10(vds_min), np.log10(vds_max), points)
         ciss = np.zeros(points)
@@ -113,27 +117,33 @@ class CapacitanceTestbench:
                 def mk_a(attempt):
                     ca = Circuit(f"Ciss_Vds_{vds:.3g}_{attempt}")
                     ca.include(str(temp_lib.resolve()))
-                    ca.X("M1", subcircuit_name, *xconn)
-                    ca.V("ds", xconn[1], ca.gnd, float(vds)@u_V)  # DC bias + AC ground
-                    ca.R("bleed", xconn[0], ca.gnd, GATE_BLEED_OHM@u_Ohm)
-                    ca.I("drive", xconn[0], ca.gnd, "DC 0 AC 1")  # 1 A probe
+                    ca.X("M1", subcircuit_name, *( [xg, xd] + ([f"tj_a_{attempt}"] if has_tj else []) ))
+                    if has_tj:
+                        ca.V(f"tjsrc_a_{attempt}", f"tj_a_{attempt}", ca.gnd,
+                             float(self.engine.temperature)@u_V)
+                    ca.V("ds", xd, ca.gnd, float(vds)@u_V)  # DC bias + AC ground
+                    ca.R("bleed", xg, ca.gnd, GATE_BLEED_OHM@u_Ohm)
+                    ca.I("drive", xg, ca.gnd, "DC 0 AC 1")  # 1 A probe
                     return ca
-                vg = abs(self._ac_probe(xconn[0], mk_a))
+                vg = abs(self._ac_probe(xg, mk_a))
                 ciss[i] = 1.0 / (2 * np.pi * self.f_meas * max(vg, 1e-15))
 
                 # --- Sim B: drain drive -> Coss, Crss ---
                 def mk_b(attempt):
                     cb = Circuit(f"Coss_Vds_{vds:.3g}_{attempt}")
                     cb.include(str(temp_lib.resolve()))
-                    cb.X("M1", subcircuit_name, *xconn)
+                    cb.X("M1", subcircuit_name, *( [xg, xd] + ([f"tj_b_{attempt}"] if has_tj else []) ))
+                    if has_tj:
+                        cb.V(f"tjsrc_b_{attempt}", f"tj_b_{attempt}", cb.gnd,
+                             float(self.engine.temperature)@u_V)
                     cb.V("bus", "vbus", cb.gnd, float(vds)@u_V)
-                    cb.L("bias", "vbus", xconn[1],
+                    cb.L("bias", "vbus", xd,
                          BIAS_INDUCTOR_H@u_H)  # DC feed, AC open
-                    cb.R("bleed", xconn[0], cb.gnd, GATE_BLEED_OHM@u_Ohm)
-                    cb.I("drive", xconn[1], cb.gnd, "DC 0 AC 1")  # 1 A probe
+                    cb.R("bleed", xg, cb.gnd, GATE_BLEED_OHM@u_Ohm)
+                    cb.I("drive", xd, cb.gnd, "DC 0 AC 1")  # 1 A probe
                     return cb
-                vd = abs(self._ac_probe(xconn[1], mk_b))
-                vg_b = abs(self._ac_probe(xconn[0], mk_b))
+                vd = abs(self._ac_probe(xd, mk_b))
+                vg_b = abs(self._ac_probe(xg, mk_b))
                 coss[i] = 1.0 / (2 * np.pi * self.f_meas * max(vd, 1e-15))
                 crss[i] = (vg_b / max(vd, 1e-15)) * ciss[i]
                 discard_normalized_lib(temp_lib)
