@@ -103,3 +103,45 @@ def test_adaptive_explores_past_first_improvement():
     # The old bug returned K=3 / rmse=1.68; correct behavior reaches deep K.
     assert r.n_segments >= 5
     assert r.rmse < 0.3
+
+
+def _worst_break_jump(res):
+    b = res.breakpoints_x
+    interior = b[1:-1]
+    if len(interior) == 0:
+        return 0.0
+    return max(
+        abs(res.slopes[i + 1] * bi + res.intercepts[i + 1]
+            - (res.slopes[i] * bi + res.intercepts[i]))
+        for i, bi in enumerate(interior))
+
+
+def test_starved_segment_merge_keeps_continuity():
+    """Bug #2 regression: a segment with <2 samples used to be filled with
+    a parallel line through the lone sample -> C0 discontinuity (45-unit
+    jump in the audit case). Merged/connector repair must keep the model
+    continuous to float precision."""
+    x = np.array([0., 1., 5.])
+    y = np.array([0., 1., 50.])
+    r = fit_piecewise_linear.__globals__['_result_from_breaks'](
+        x, y, np.array([0., 3., 6.]))
+    assert _worst_break_jump(r) < 1e-9
+
+
+def test_interior_starved_segment_merge_keeps_continuity():
+    x = np.array([0., 1., 2., 6., 7., 8.])
+    y = np.array([0., 1., 2., 30., 31., 32.])
+    r = fit_piecewise_linear.__globals__['_result_from_breaks'](
+        x, y, np.array([0., 4., 5., 9.]))
+    assert _worst_break_jump(r) < 1e-9
+
+
+def test_random_break_placements_stay_continuous():
+    rng = np.random.default_rng(42)
+    for _ in range(20):
+        xs = np.sort(rng.uniform(0, 10, 40))
+        ys = np.cumsum(rng.normal(0, 1, 40))
+        brk = np.concatenate([
+            [xs[0]], np.sort(rng.uniform(xs[2], xs[-2], 4)), [xs[-1]]])
+        r = fit_piecewise_linear.__globals__['_result_from_breaks'](xs, ys, brk)
+        assert _worst_break_jump(r) < 1e-9

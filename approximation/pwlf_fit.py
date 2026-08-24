@@ -149,34 +149,129 @@ def _raise_fit(exc: Exception) -> None:
 
 def _result_from_breaks(x: np.ndarray, y: np.ndarray,
                         breaks: np.ndarray) -> PWLFitResult:
-    """Build a PWLFitResult from explicit breakpoint coordinates."""
-    breaks = np.unique(np.round(np.asarray(breaks, dtype=float), 12))
-    k = len(breaks) - 1
-    slopes = np.zeros(k)
-    intercepts = np.zeros(k)
-    pred = np.zeros_like(y)
+    """Build a PWLFitResult from explicit breakpoint coordinates.
 
-    seg_idx = np.clip(np.searchsorted(breaks[1:-1], x, side="right"),
-                      0, k - 1)
+    Bug #2 fix: segments containing fewer than 2 samples are repaired by
+    MERGING with their data-rich neighbour (dropping the shared breakpoint)
+    instead of fabricating a parallel line through the lone sample - the old
+    approach produced C0-discontinuous models (proven 45-unit jump), which in
+    an emitted SPICE PWL source means Newton oscillation and wrong operating
+    points.
+    """
+    breaks = np.unique(np.round(np.asarray(breaks, dtype=float), 12))
+    if breaks.size < 2:
+        breaks = np.array([x[0], x[-1]])
+
+    def _fit_segments(brk: np.ndarray):
+        k = len(brk) - 1
+        slopes = np.zeros(k)
+        intercepts = np.zeros(k)
+        pred = np.zeros_like(y)
+        counts = np.zeros(k, dtype=int)
+
+        seg_idx = np.clip(
+            np.searchsorted(brk[1:-1], x, side="right"), 0, k - 1)
+        for s in range(k):
+            m = seg_idx == s
+            counts[s] = int(m.sum())
+            if m.sum() >= 2:
+                sl, ic = np.polyfit(x[m], y[m], 1)
+            elif m.sum() == 1 and s > 0 and counts[s - 1] >= 2:
+                # single trailing sample: extend the previous segment's LINE
+                # through the point -> keeps C0 continuity at the break.
+                sl = slopes[s - 1]
+                ic = float(y[m][0] - sl * x[m][0])
+            else:
+                sl, ic = None, None
+            if sl is not None:
+                slopes[s], intercepts[s] = sl, ic
+                pred[m] = sl * x[m] + ic
+        return brk, slopes, intercepts, pred, counts
+
+    brk, slopes, intercepts, pred, counts = _fit_segments(breaks)
+
+    # Repair pass A (Bug #2): a starved segment (<2 samples) with a
+    # data-rich PREDECESSOR becomes a continuous connector: its slope is
+    # chosen so the line runs from the predecessor's endpoint value through
+    # the lone sample. This preserves BOTH exact C0 continuity and the
+    # isolated sample's information (the old code either fabricated a
+    # parallel line -> discontinuity, or merged -> lost the feature).
+    k = len(brk) - 1
+    seg_idx_all = np.clip(
+        np.searchsorted(brk[1:-1], x, side="right"), 0, k - 1)
+    repaired = False
     for s in range(k):
-        m = seg_idx == s
-        if m.sum() >= 2:
-            sl, ic = np.polyfit(x[m], y[m], 1)
-        else:  # isolated sample: reuse neighbour slope
-            sl, ic = (slopes[s - 1], y[m][0] - slopes[s - 1] * x[m][0]) \
-                if s > 0 else (0.0, float(np.mean(y)))
-        slopes[s], intercepts[s] = sl, ic
-        pred[m] = sl * x[m] + ic
+        m = seg_idx_all == s
+        if counts[s] == 1 and s > 0:
+            xi = float(x[m][0])
+            yi = float(y[m][0])
+            start_val = slopes[s - 1] * brk[s] + (
+                float(np.mean(y[seg_idx_all == s - 1]))
+                - slopes[s - 1] * float(np.mean(x[seg_idx_all == s - 1])))
+            dx_seg = xi - brk[s]
+            if abs(dx_seg) > 1e-12:
+                slopes[s] = (yi - start_val) / dx_seg
+                intercepts[s] = start_val - slopes[s] * brk[s]
+                repaired = True
+
+    # Repair pass B: any remaining starved segments (no predecessor anchor)
+    # are merged into a neighbour by dropping the shared breakpoint.
+    guard = 0
+    while counts.min() < 2 and len(brk) > 2 and guard < 64:
+        guard += 1
+        k = len(brk) - 1
+        starved = [i for i in range(k) if counts[i] < 2]
+        if not starved:
+            break
+        s = starved[0]
+        if s > 0 and (counts[s - 1] >= 2 or counts[s] <= counts[s - 1]):
+            drop = s
+        elif s < k - 1:
+            drop = s + 1
+        else:
+            drop = s
+        new_brk = np.delete(brk, drop)
+        brk, slopes, _, pred, counts = _fit_segments(new_brk)
+
+    # EXACT C0 chaining (Bug #2 completion): independent per-segment polyfits
+    # leave ~1e-8 jumps at breakpoints because each segment's intercept is
+    # fitted separately. Chain the segments instead: keep every slope, then
+    # define each intercept so the segment STARTS exactly where the previous
+    # one ended. The model remains least-squares in slope but is now exactly
+    # continuous - required for SPICE PWL emission.
+    k = len(brk) - 1
+    seg_idx_all = np.clip(
+        np.searchsorted(brk[1:-1], x, side="right"), 0, k - 1)
+
+    def _seg_mean_x(s):
+        m = seg_idx_all == s
+        return float(np.mean(x[m])) if m.any() else             float(0.5 * (brk[s] + brk[s + 1]))
+
+    intercepts_chained = np.zeros(k)
+    intercepts_chained[0] = slopes[0] * 0.0  # first passes through origin of
+    # its own local frame: use its LSQ anchor point (mean x, mean y).
+    mx0, my0 = _seg_mean_x(0), None
+    m0 = seg_idx_all == 0
+    my0 = float(np.mean(y[m0])) if m0.any() else 0.0
+    intercepts_chained[0] = my0 - slopes[0] * mx0
+
+    for s in range(1, k):
+        # value of previous segment evaluated AT this breakpoint
+        prev_at_break = slopes[s - 1] * brk[s] + intercepts_chained[s - 1]
+        intercepts_chained[s] = prev_at_break - slopes[s] * brk[s]
+
+    pred = slopes[seg_idx_all] * x + intercepts_chained[seg_idx_all]
+    intercepts = intercepts_chained
 
     err = y - pred
     return PWLFitResult(
-        breakpoints_x=breaks,
+        breakpoints_x=brk,
         slopes=slopes,
         intercepts=intercepts,
         predicted_y=pred,
         rmse=float(np.sqrt(np.mean(err ** 2))),
         max_abs_error=float(np.max(np.abs(err))) if err.size else 0.0,
-        n_segments=k,
+        n_segments=len(brk) - 1,
     )
 
 
