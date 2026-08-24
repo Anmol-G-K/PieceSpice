@@ -113,11 +113,11 @@ def _rel_err_pct(a: float, b: float) -> float:
 
 
 def compare_switching_fitness(
-    vendor_lib: Path,
-    vendor_subckt: str,
-    vendor_pins: list[str],
-    tier2_lib: Path,
-    tier2_subckt: str,
+    vendor_lib: Path | None = None,
+    vendor_subckt: str = "",
+    vendor_pins: list[str] | None = None,
+    tier2_lib: Path | None = None,
+    tier2_subckt: str = "",
     *,
     vbus: float,
     vgs_on: float,
@@ -126,20 +126,33 @@ def compare_switching_fitness(
     timing_tol_pct: float = 20.0,
     energy_tol_pct: float = 15.0,
     waveform_tol_pct: float = 5.0,
+    golden_run: SwitchingRun | None = None,
+    tier2_run: SwitchingRun | None = None,
 ) -> SwitchFitness:
     """Run both models under identical conditions and score the Tier-2 one.
+
+    If `golden_run` / `tier2_run` (raw SwitchingRun from
+    simple_switching.run_simple_switching) are supplied, they are reused and
+    no simulation happens - callers that already ran both models pass them
+    here to avoid duplicate work.
 
     Tolerances per M4-subset plan: timing ±20%, energies ±15%,
     waveform rel-RMSE ±5%.
     """
-    common = dict(vbus=vbus, vgs_on=vgs_on, i_load_target=i_load_target,
-                  temperature=temperature)
-
-    run_g = steady_state_slice(run_simple_switching(
-        Path(vendor_lib), vendor_subckt, vendor_pins, **common))
-    run_t = steady_state_slice(run_simple_switching(
-        Path(tier2_lib), tier2_subckt, ["drain", "gate", "source"],
-        **common))
+    if golden_run is not None and tier2_run is not None:
+        run_g = steady_state_slice(golden_run)
+        run_t = steady_state_slice(tier2_run)
+    else:
+        if vendor_lib is None or tier2_lib is None:
+            raise ValueError(
+                "provide either both runs or both library paths")
+        common = dict(vbus=vbus, vgs_on=vgs_on, i_load_target=i_load_target,
+                      temperature=temperature)
+        run_g = steady_state_slice(run_simple_switching(
+            Path(vendor_lib), vendor_subckt, vendor_pins, **common))
+        run_t = steady_state_slice(run_simple_switching(
+            Path(tier2_lib), tier2_subckt, ["drain", "gate", "source"],
+            **common))
 
     mg = _metrics_from_run(run_g)
     mt = _metrics_from_run(run_t)

@@ -481,3 +481,36 @@ class ConsoleQuiet:
         os.close(self._saved[0])
         os.close(self._saved[1])
         return False
+
+
+def install_notebook_quiet_console() -> None:
+    """Suppress ALL ngspice console echo at the SendChar callback level.
+
+    Under Jupyter, stdout is a captured pipe and each of ngspice's ~90k
+    per-time-step messages pays a Python-callback + pipe-write cost; total
+    runtime balloons 10x+. This wrapper returns 1 (suppress) for EVERY
+    message - nothing reaches any pipe - while still feeding each line to
+    the NgspiceDiagnostics collector, so warnings/errors are classified and
+    deduplicated exactly as before. Real failures still surface through the
+    engine's exception path and diag.report().
+
+    Idempotent; safe to call at import time or before any simulation.
+    """
+    from PySpice.Spice.NgSpice import Shared as _shared
+
+    if getattr(_shared.NgSpiceShared.send_char,
+               "_piece_spice_full_quiet", False):
+        return
+
+    collector = get_diagnostics()
+
+    def send_char(self, message, ngspice_id, _collector=collector):
+        try:
+            _collector.ingest(message)
+        except Exception:
+            pass
+        return 1                      # never echo into captured pipes
+
+    send_char._piece_spice_suppressor = True   # implies earlier wrapper
+    send_char._piece_spice_full_quiet = True
+    _shared.NgSpiceShared.send_char = send_char

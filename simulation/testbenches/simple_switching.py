@@ -19,8 +19,12 @@ from pathlib import Path
 
 import numpy as np
 
-from common.types import WaveformData
+from common.diagnostics import install_notebook_quiet_console
 from simulation.engine import SpiceEngine
+
+# Notebook-safe: suppress ngspice console echo at the callback level
+# (under Jupyter each message costs a captured-pipe write -> 10x+ slowdown).
+install_notebook_quiet_console()
 
 _LOGGER = logging.getLogger(__name__)
 
