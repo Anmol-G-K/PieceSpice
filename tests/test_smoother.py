@@ -91,3 +91,12 @@ def test_pwl_smooth_derivative_continuous_near_break():
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q", "--no-header"]))
+
+
+def test_pwl_smooth_warns_when_eps_exceeds_segment(caplog):
+    import logging
+    b = np.array([0., 1., 2.])
+    vals = np.array([0., 1., 2.])
+    with caplog.at_level(logging.WARNING, logger="approximation.smoother"):
+        pwl_smooth(np.array([0.5]), b, vals, eps=2.0)
+    assert any("overshoot" in r.message for r in caplog.records)

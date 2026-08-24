@@ -87,9 +87,19 @@ def pwl_smooth(
         values: y at each breakpoint [K+1].
         eps: Half-width of the rounding region around each break (in x units).
     """
+    import logging
+    _logger = logging.getLogger(__name__)
+
     x_arr = np.atleast_1d(np.asarray(x, dtype=float))
     b = np.asarray(breaks, dtype=float)
     vals = np.asarray(values, dtype=float)
+
+    min_seg = float(np.min(np.diff(b))) if len(b) > 1 else 0.0
+    if eps > min_seg / 2:
+        _logger.warning(
+            "pwl_smooth: eps=%g exceeds half the smallest segment width "
+            "(%g); rounding regions overlap and values may overshoot the "
+            "table range.", eps, min_seg / 2)
 
     seg = np.clip(np.searchsorted(b[1:-1], x_arr, side="right"), 0, len(vals) - 2)
     x0, x1 = b[seg], b[seg + 1]

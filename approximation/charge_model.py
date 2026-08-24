@@ -110,9 +110,14 @@ def integrate_charge(
 
     if v_ref is None:
         v_ref = float(vv[-1])
+    if v_ref <= 0:
+        raise ValueError(
+            f"v_ref must be > 0 to compute equivalent capacitances "
+            f"(got {v_ref}); C_eq(charge)=Q(Vref)/Vref is undefined at zero")
     v_ref = float(min(max(v_ref, vv[0]), vv[-1]))  # clamp into range
 
-    c_eq_charge = _interp_scalar(q, vv, v_ref) / max(_interp_scalar(vv, vv, v_ref), 1e-30)
+    c_eq_charge = (_interp_scalar(q, vv, v_ref)
+                   / max(_interp_scalar(vv, vv, v_ref), 1e-30))
     e_at_ref = _interp_scalar(e, vv, v_ref)
     v_ref_sq = v_ref * v_ref
     c_eq_energy = 2.0 * e_at_ref / max(v_ref_sq, 1e-30)

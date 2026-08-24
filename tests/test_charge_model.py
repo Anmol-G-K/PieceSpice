@@ -82,3 +82,14 @@ def test_synthesize_source_contains_element_and_expression():
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q", "--no-header"]))
+
+
+
+
+def test_integrate_charge_rejects_v_ref_zero():
+    v = np.linspace(0, 50, 51)
+    c = np.full_like(v, 1e-9)
+    with pytest.raises(ValueError, match="v_ref must be > 0"):
+        integrate_charge(v, c, v_ref=0.0)
+    with pytest.raises(ValueError, match="v_ref must be > 0"):
+        integrate_charge(v, c, v_ref=-5.0)
