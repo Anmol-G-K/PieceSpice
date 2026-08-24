@@ -5,6 +5,58 @@ All timestamps are IST (UTC+05:30).
 
 ---
 
+## 2026-08-24 21:55 IST — Notebook 02 executed across all 4 vendors; full-sweep scorecard exposes single-knee fidelity limit
+
+### Run
+
+`notebooks/02_piecewise_approximation.ipynb` executed for all vendors in
+order (irfs7730pbf, csd16412q5a, epc2216, cpm2-1200) via nbconvert with
+allow_errors. All four PASS with 0 execution errors, 9 figures each.
+
+### Per-vendor outputs
+
+Transfer PWL fit:
+| Vendor | K | Breakpoints | Rel RMSE |
+|---|---|---|---|
+| IRFS7730PBF | 2 | 4.5, 7.34 V | 0.312% |
+| CSD16412Q5A | 1 | 2.45 V | 0.635% |
+| EPC2216 | 3 | 1.60, 1.98, 3.56 V | 0.930% |
+| CPM2-1200 | 5 | 3.32–15.74 V | 0.771% |
+
+RDP compression: IRFS 101->9, CSD 101->17, EPC 101->24, CPM2 101->8 points
+(all within their error budgets).
+
+Charge model: Qoss/Eoss and both equivalent capacitances computed per vendor
+at each config's Cap_ref_Vds (e.g. TI 0.010 uC / 0.400 nF charge-eq /
+0.326 nF energy-eq @25V; CPM2 0.038 uC / 1.509 nF / 1.335 nF @7.5V).
+
+Tier-2 endpoint errors vs golden at Vds=10V: IRFS worst-curve endpoints all
+<4% (e.g. 1668 -> 1611 A @10V); CPM2 3.88%; EPC 0.17%; TI 0.53%.
+
+### Full-sweep scorecard (metrics/compare.py, target <=5% rel-RMSE)
+
+| Vendor | Curves within target | Worst curve | Worst rel-RMSE |
+|---|---|---|---|
+| irfs7730pbf | 1/5 | Vgs=3V | 35.61% |
+| csd16412q5a | 0/5 | Vgs=4.5V | 14.30% |
+| epc2216 | 0/5 | Vgs=2V | 9.07% |
+| cpm2-1200 | 0/6 | Vgs=20V | 43.00% |
+
+### Interpretation (documented, not fixed - next-fidelity work)
+
+Endpoint fidelity is excellent on every vendor (<4%), confirming correct
+conduction modeling. The full-sweep metric exposes a known Tier-2
+architectural limitation: ONE shared tanh knee (single vds_sat derived from
+the top-Vgs plateau) cannot simultaneously reproduce per-Vgs knee shapes.
+Low-drive curves suffer most (near-threshold knee mismatch), plus VM-08 for
+CPM2 high-Vgs under ngspice-34. This is the documented next step: per-Vgs
+knees in the channel source would require per-curve vds_sat terms in G_CH.
+
+No code changed during this evaluation run.
+
+---
+
+
 ## 2026-08-24 20:35 IST — M3.8 complete: notebook 02 rebuilt on real data; Milestone 3 CLOSED (9/9)
 
 ### Delivered
