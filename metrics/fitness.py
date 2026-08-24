@@ -155,7 +155,12 @@ def compare_switching_fitness(
         "e_off": _rel_err_pct(mt.e_off_uj, mg.e_off_uj),
     }
 
-    err = compute_curve_error(run_g.v_ds, run_t.v_ds)
+    # align time grids before comparing waveforms
+    t_common = np.linspace(run_g.time[0], run_g.time[-1],
+                           min(len(run_g.time), len(run_t.time)))
+    t2_on_grid = np.interp(t_common, run_t.time, run_t.v_ds)
+    g_on_grid = np.interp(t_common, run_g.time, run_g.v_ds)
+    err = compute_curve_error(g_on_grid, t2_on_grid)
 
     ok_timing = all(abs(v) <= timing_tol_pct for v in timing_errs.values())
     ok_energy = all(abs(v) <= energy_tol_pct for v in energy_errs.values())

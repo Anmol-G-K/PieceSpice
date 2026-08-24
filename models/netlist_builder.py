@@ -88,6 +88,13 @@ def _channel_expression(spec: PWLModelSpec, vgs_term: str) -> str:
     id_pts = [float(row[-1]) for row in spec.breakpoints_id]
     vgs_pts = [float(v) for v in spec.vgs_values]
 
+    # Anchor the transfer at the origin so the model has a proper OFF state:
+    # without this, Id(Vgs<=first_point) = id_pts[0] (always-on). Every real
+    # device has Id=0 at Vgs=0, so prepending (0,0) is universal.
+    if min(vgs_pts, default=1.0) > 0.0:
+        vgs_pts = [0.0] + vgs_pts
+        id_pts = [0.0] + id_pts
+
     # Chained-ramp PWL through every (vgs_k, Id_k):
     #   Id(x) = id_0 + s_1*ramp(x-vgs_0)
     #           + (s_2-s_1)*ramp(x-vgs_1) + ...

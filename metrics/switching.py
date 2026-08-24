@@ -100,8 +100,8 @@ def extract_switching_times(
 
     t_gs_90_off = last_crossing(gs_hi, falling=True)
     t_gs_10_off = last_crossing(gs_lo, falling=True)
-    t_ds_10_off = last_crossing(ds_on_level, rising=True, sig=v_ds)
-    t_ds_90_off = last_crossing(ds_off_level, rising=True, sig=v_ds)
+    t_ds_10_off = last_crossing(ds_on_level, falling=False, sig=v_ds)
+    t_ds_90_off = last_crossing(ds_off_level, falling=False, sig=v_ds)
 
     td_off = (
         (t_ds_10_off - t_gs_90_off)

@@ -314,3 +314,29 @@ investigation in `development-log.md` (2026-08-23 00:55 entry).
 Cross-references: `gate_charge_error_analysis.md` (VM-02 deep dive),
 `development-log.md` (chronological record), `piecespice_plan.md` §2 (algorithms these
 findings motivate).
+
+
+## VM-09 — TI CSD16412Q5A (BSIM3v3 LEVEL=7): transient analysis fails under ngspice-34
+
+**Discovered:** 2026-08-24, during M4-subset simple-switching testbench work.
+
+**Symptom:** any `.tran` on the vendor subcircuit fails ("Command 'run'
+failed") regardless of topology: gate-only, resistive load, hard or soft
+gate edges (20 ns – 500 ns), with/without gate series R, step 1–10 ns,
+normalized or raw library. DC sweeps and AC small-signal analyses on the
+same model work fine (all M2 curves were extracted that way).
+
+**Isolation evidence:**
+- Tier-2 CPWL model of the SAME device runs the identical switching circuit
+  perfectly (60k points, Vds collapses 10 V → 10–30 mV).
+- Vendor model fails even with zero drain network (gate source + X only).
+
+**Root cause hypothesis:** BSIM3v3 LEVEL=7 transient initialization /
+time-step control incompatible with ngspice-34's integration defaults;
+likely fixed in newer ngspice (system install is v46). Not investigated
+further under the pinned 34 DLL.
+
+**Workaround for M4-subset:** fitness evaluation compares the Tier-2 model
+against ANALYTIC expectations (Rds(on) from Curve 3, Qg from charge tables)
+instead of a vendor golden transient; OR run vendor golden under the system
+ngspice-46 console binary. Chosen approach: analytic golden.

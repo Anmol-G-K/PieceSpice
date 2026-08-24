@@ -5,6 +5,71 @@ All timestamps are IST (UTC+05:30).
 
 ---
 
+## 2026-08-24 22:40 IST — M4-subset delivered: 50kHz/50% resistive switching fitness (EPC), two model bugs fixed
+
+### Delivered
+
+**simulation/testbenches/simple_switching.py** - minimal switching testbench
+per user spec: Vgs pulse 50kHz/50% duty, resistive load sized so on-state
+current = Id_switch_target = 1 A, all biases from config YAML, runs through
+SpiceEngine identically for vendor and Tier-2 models.
+
+**metrics/fitness.py** - compare_switching_fitness(): runs both models,
+extracts td_on/tr/td_off/tf (metrics.switching), Eon/Eoff (metrics.loss),
+conduction drop; scores timing ±20%, energy ±15%, waveform rel-RMSE ±5%;
+returns SwitchFitness verdict.
+
+**Notebook section pending**: plots only (Vds overlay + metrics table).
+
+### Bugs found & fixed during bring-up
+
+1. **Missing .include in simple_switching.py** (mine): the testbench never
+   included the library -> ngspice 'run failed' on EVERY vendor model.
+   Initially misdiagnosed as VM-09 (TI BSIM3v3 transient defect) because my
+   inline debug probes manually included the lib and passed while the
+   testbench failed. Root-caused by dumping the netlist from inside the
+   failing function: no .include line. Fixed with c.include(str(path)).
+   **VM-09 entry RETRACTED** - TI transient works fine once included.
+
+2. **EPC2216 pin order wrong in config** (pre-existing): subckt header is
+   (gatein drainin sourcein) = GATE FIRST, but yaml had
+   pin_order: [drain, gate, source] -> gate drive landed on drainin, device
+   never switched (Vds stuck at 10V). Fixed to [gate, drain, source].
+   Verified: full 10V swing, Id=0.998A on-state, Vds_on=22.4mV.
+
+3. **Tier-2 always-on defect (models/netlist_builder.py)** (real model bug,
+   affects all vendors whose first fitted Vgs > 0): chained-ramp transfer
+   anchored at id_pts[0] (current at first fitted Vgs) -> Id(Vgs<=first)=
+   const>0, no off-state. EPC Tier-2 conducted 9.74A at Vgs=0. Fix: prepend
+   virtual origin point (Vgs=0, Id=0) before building ramps - universal
+   since every device has Id(0)=0.
+
+4. **metrics/switching.py last_crossing kwarg bug**: called with rising=True
+   but signature is falling=...; TypeError on turn-off extraction. Fixed to
+   falling=False (rising edge).
+
+5. **fitness waveform compare shape mismatch**: golden/tier2 time grids
+   differ by a few points; now interpolated onto a common grid before
+   compute_curve_error.
+
+### Current EPC fitness result
+
+waveform rel-RMSE 2.36% (PASS <=5%) but timing/energy FAIL:
+golden td_on=4.7ns vs tier2 td_on=0.0ns (-100%); tr -37%; energies ~+110%.
+
+### Open analysis (next step)
+
+td_on=0 for Tier-2 suggests its gate node reaches threshold before the
+drain starts moving - plausible given C_ISS linear default and missing
+nonlinear Ciss/Crss charge sources (only Qoss emitted). The +110% energy
+error likely stems from the same: switching transition shapes differ. This
+is the documented M3 extension point (per-Vgs knees + nonlinear Ciss/Crss),
+not an M4 harness issue. Options: emit C_ISS/C_RSS charge tables too, or
+accept timing mismatch as known limitation and report both.
+
+---
+
+
 ## 2026-08-24 21:55 IST — Notebook 02 executed across all 4 vendors; full-sweep scorecard exposes single-knee fidelity limit
 
 ### Run
