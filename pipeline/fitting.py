@@ -212,3 +212,48 @@ def compare_tier2_vs_golden(vendor: str, lib_path: Path | None = None):
         worst = max(worst, rel)
         rows.append((vgs_val, golden, i_t2, rel))
     return rows, worst
+
+def compare_tier2_vs_golden_full(vendor: str, lib_path: Path | None = None,
+                                 n_points: int = 41):
+    """Full-sweep Tier-2 vs golden comparison across every Vgs curve.
+
+    Library-owned stepped-OP sweep (notebooks only plot the result).
+    Returns rows of (vgs_val, vds_array, golden_id_array, tier2_id_array).
+    """
+    from PySpice.Spice.Netlist import Circuit
+
+    cfg = load_input(vendor)
+    device = cfg["device"]
+    cond = cfg["conditions"]
+
+    if lib_path is None:
+        lib_path = Path("reports/models") / f"{device}_PIECESPICE_T2.lib"
+    lib_path = Path(lib_path)
+    name = lib_path.stem
+
+    c1 = load_output(vendor, "curve1_output_characteristics")["extracted"]
+    prefix = "curve_id_vgs_"
+    keys = sorted((float(k[len(prefix):-2]), k)
+                  for k in c1 if k.startswith(prefix))
+
+    vds_grid = np.linspace(0.0, float(cond["Vds_sweep_max"]), n_points)
+
+    rows = []
+    for vgs_val, key in keys:
+        y_golden = np.asarray(c1[key], dtype=float)
+        g_x = np.linspace(0.0, float(cond["Vds_sweep_max"]), len(y_golden))
+        y_golden_g = np.interp(vds_grid, g_x, y_golden)
+
+        i_t2 = np.zeros(n_points)
+        for j, vd in enumerate(vds_grid):
+            circuit = Circuit(f"t2_{vgs_val:g}_{vd:.3g}")
+            circuit.include(str(lib_path))
+            circuit.X("M1", name, "d", "g", "gnd")
+            circuit.V("ds", "d", "gnd", float(vd))
+            circuit.V("gs", "g", "gnd", vgs_val)
+            op = circuit.simulator(
+                temperature=25, nominal_temperature=25).operating_point()
+            i_t2[j] = abs(float(op.branches["vds"][0]))
+
+        rows.append((vgs_val, vds_grid.copy(), y_golden_g, i_t2))
+    return rows
