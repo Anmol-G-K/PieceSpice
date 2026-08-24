@@ -67,7 +67,7 @@ def run_all_curves(vendor: str, keep_notebook: bool = False) -> dict:
         device, "curve1_output_characteristics", "pass",
         {"Vgs_sweep": cond["Vgs_sweep"], "Vds_sweep_max": cond["Vds_sweep_max"],
          "Vds_points": cond["Vds_points"], "temperature": temperature},
-        {f"curve_id_vgs_{int(v)}_v": c.y_data
+        {vgs_key(float(v)): c.y_data
          for v, c in zip(cond["Vgs_sweep"], oc)},
         notes="Curve 1: Id-Vds family.")
 
@@ -163,3 +163,11 @@ def run_all_curves(vendor: str, keep_notebook: bool = False) -> dict:
     print(f"[pipeline] {vendor}: all 7 curves extracted -> "
           f"config/outputs/{device}/")
     return outputs
+
+
+def vgs_key(v: float) -> str:
+    """Canonical Curve-1 family key for a Vgs drive value.
+
+    Uses %g so 4.0->'4' but 4.5->'4.5' (int() truncation collided 4.0/4.5).
+    """
+    return f"curve_id_vgs_{v:g}_v"

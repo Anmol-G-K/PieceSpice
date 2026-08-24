@@ -65,14 +65,15 @@ def fit_pwl_model(
 
     # ---- Curve 1: output family -> shared Vds breakpoints + Id rows ------
     c1 = _curve(vendor, "curve1_output_characteristics")["extracted"]
+    prefix = "curve_id_vgs_"
     vgs_values = sorted(
-        float(k[len("curve_id_vgs_"):-2])       # strip prefix and '_v'
-        for k in c1 if k.startswith("curve_id_vgs_"))
+        float(k[len(prefix):-2])                # strip prefix and '_v'
+        for k in c1 if k.startswith(prefix))
     rows = []
     ref_len = None
     for v in vgs_values:
-        key = next(k for k in c1 if abs(float(
-            k.replace("curve_id_vgs_", "").replace("_v", "")) - v) < 1e-9)
+        key = next(k for k in c1 if k.startswith("curve_id_vgs_")
+                   and abs(float(k[len("curve_id_vgs_"):-2]) - v) < 1e-9)
         y = _arr(c1[key])
         xs = np.linspace(0.0, float(cond["Vds_sweep_max"]), len(y))
         xs, y = trim_trailing_invalid(xs, y)

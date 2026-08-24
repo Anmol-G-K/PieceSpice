@@ -147,15 +147,17 @@ def build_tier2_subcircuit(spec: PWLModelSpec) -> str:
     if len(qoss_v) >= 2:
         ap("* Output charge Qoss(Vds) as chained soft-abs ramps:")
         expr_qoss = f"{_fmt(qoss_q[0])}"
+        prev_slope = 0.0
         for i in range(1, len(qoss_v)):
             dv = qoss_v[i] - qoss_v[i - 1]
             dq = qoss_q[i] - qoss_q[i - 1]
             slope = dq / dv if dv else 0.0
-            dslope = slope
-            if abs(dslope) > 0:
+            delta = slope - prev_slope   # DELTA, not absolute (audit bug)
+            if abs(delta) > 0:
                 expr_qoss += (
-                    f" + {dslope:.6e}*((V(di,ss)-({_fmt(qoss_v[i - 1])}))"
+                    f" + {delta:.6e}*((V(di,ss)-({_fmt(qoss_v[i - 1])}))"
                     f"+abs((V(di,ss)-({_fmt(qoss_v[i - 1])}))))/2")
+            prev_slope = slope
         ap(f"C_QOSS di ss Q = {{{expr_qoss}}}")
     else:
         c_lin = float(meta.get("c_oss_lin", 500e-12))

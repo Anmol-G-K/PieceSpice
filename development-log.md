@@ -5,6 +5,91 @@ All timestamps are IST (UTC+05:30).
 
 ---
 
+## 2026-08-24 19:55 IST — M3.5/M3.6 complete (Tier-2 synthesis + fitting pipeline) with deep-audit fixes: Vgs-key truncation bug, C_QOSS slope accumulation
+
+### Delivered
+
+**M3.5 — models/netlist_builder.py rewritten**: emits a real, ngspice-parseable
+Tier-2 CPWL MOSFET subcircuit from a PWLModelSpec:
+- Parasitics RG/RD/RS from metadata defaults (device-agnostic).
+- `G_CH di ss VALUE={...}` behavioral channel source: chained soft-abs ramp
+  PWL transfer (Curves 1+2 endpoint currents per Vgs) × tanh saturation knee;
+  vds_sat derived from Rds(on) × top-curve plateau current so the ohmic slope
+  matches Curve 3. Ramps encode DELTA slopes.
+- `C_QOSS di ss Q={...}` charge-conserving output capacitance from the
+  Curve-4-derived Qoss table (plan §2.3); linear-C fallback when the table is
+  unavailable. C_ISS/C_RSS linear equivalents from metadata.
+- Body diode: IS/N/RS derived from Curve-6 samples (two-point exponential
+  fit, N clamped to [0.5, 4]); orientation anode=source, cathode=drain.
+- ASCII-only emission; NetlistBuilder class retained as thin wrapper.
+
+**M3.6 — pipeline/fitting.py::fit_pwl_model(vendor)**:
+consumes config/outputs/<vendor>/*.yaml (Curves 1/2/3/4/6/7), reconstructs
+shared Vds breakpoints + per-Vgs Id rows, Rds(on), Qoss charge table
+(re-runs the capacitance bench for full-resolution data), body-diode points,
+Vth; assembles PWLModelSpec -> build_tier2_subcircuit -> writes
+`reports/models/<device>_PIECESPACE_T2.lib` (name corrected to _T2).
+
+**common/types.py — PWLModelSpec extended**: q_iss/q_rss tables,
+body_diode_vsd/isd points, v_plateau, structural validators (row/count
+matching, ascending breakpoints); CurveData/WaveformData/SimulationResult
+accidentally dropped during the rewrite were restored immediately.
+
+### Deep audit of M3.5/M3.6/M3.7 — two critical bugs found & fixed
+
+**Bug A (critical): C_QOSS emission used absolute segment slopes.**
+Same accumulation class as the earlier charge_model finding: soft-abs ramps
+never turn off, so absolute slopes sum and Q diverges linearly. Proven:
+emitted Q at table breakpoints off by up to 1.9e-7 C. Fix: delta slopes
+(slope_k - slope_{k-1}). Post-fix worst error vs table: 1.3e-23 (exact).
+Found by evaluating the emitted expression at table breakpoints - the
+expression text was syntactically valid but semantically divergent.
+
+**Bug B (critical, data): Vgs key truncation corrupted the transfer axis.**
+curves.py wrote family keys with int(v): TI's 4.5 V curve stored as
+'curve_id_vgs_4_v'. The fitting stage therefore labeled that curve's
+breakpoint Vgs=4.0 instead of 4.5 - shifting the Tier-2 transfer axis. The
+earlier acceptance numbers (worst 0.53%) were internally consistent but
+built on the mislabeled key. Fixes: canonical `%g` formatter (`vgs_key()`)
+in pipeline/curves.py; YAML validator accepts `%g` family keys via regex;
+TI outputs regenerated (key now 'curve_id_vgs_4.5_v').
+
+Also fixed: fitting.py's vgs-key parser handles float keys; incomplete test
+removed before commit.
+
+### Final acceptance (post-fix, trustworthy)
+
+Simulated generated Tier-2 lib vs vendor golden at Vds=10 V, all TI curves:
+
+| Vgs | Golden Id | Tier-2 Id | Error |
+|---|---|---|---|
+| 4.5 V | 76.5 A | 76.5 A | 0.07% |
+| 5.0 V | 98.9 A | 98.4 A | 0.51% |
+| 6.0 V | 144.7 A | 144.0 A | 0.52% |
+| 8.0 V | 236.4 A | 235.1 A | 0.53% |
+| 10.0 V | 325.5 A | 323.8 A | 0.51% |
+
+WORST 0.53% - inside the <5% target, now on a provably correct Vgs axis.
+
+Verified additionally: ohmic region sane (Id=2.99 A @ Vgs=10/Vds=50 mV vs
+expected ~3 A); real lib parses and simulates cleanly through PySpice;
+SPICE line lengths within conservative limits.
+
+### Tests
+
+New tests/test_netlist_builder.py: spec structural validation, subckt
+structure (SUBCKT/ENDS/G_CH/tanh/C_QOSS/D_BODY), ascii-only emission,
+end-to-end simulation matching spec endpoints within 2%. Suite: **97/97**.
+
+### Remaining
+
+M3.8 only: rebuild notebook 02 on real vendor data (fit residuals, segment
+counts, golden-vs-Tier-2 overlay). scripts/ directory retained empty per
+user rule (never delete directories without confirmation).
+
+---
+
+
 ## 2026-08-24 17:28 IST — Milestone 3 started: PWL fitting (M3.1), RDP compression (M3.2), deep-audit bug fixes
 
 ### Context

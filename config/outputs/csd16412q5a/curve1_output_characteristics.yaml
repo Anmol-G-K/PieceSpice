@@ -12,7 +12,7 @@ conditions_used:
   Vds_points: 101
   temperature: 25.0
 extracted:
-  curve_id_vgs_4_v:
+  curve_id_vgs_4.5_v:
   - -3.5958104008413526e-12
   - 8.231404637120903
   - 15.928481905449132

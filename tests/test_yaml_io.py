@@ -79,10 +79,15 @@ def test_canonical_keys_present_for_all_written_outputs():
     known = set(KEYS) | {"notes_key"} | {
         f"curve_id_vgs_{v}_v" for v in range(0, 100)
     }
+    # %g-formatted Vgs family keys (e.g. curve_id_vgs_4.5_v) are canonical:
+    import re
+    vgs_family_re = re.compile(r"^curve_id_vgs_[\d.]+_v$")
     for path in OUTPUT_DIR.glob("*/*.yaml"):
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
         assert data["status"] in ("pass", "partial", "blocked")
         for key in data.get("extracted", {}):
+            if vgs_family_re.match(key):
+                continue
             assert key in known, f"{path.name}: non-canonical key '{key}'"
 
 
