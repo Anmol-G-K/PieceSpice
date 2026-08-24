@@ -91,3 +91,15 @@ def test_too_few_samples_raises():
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q", "--no-header"]))
+
+
+def test_adaptive_explores_past_first_improvement():
+    """Bug #1 regression: early-exit must fire on STAGNATION, not on
+    improvement. A sine signal keeps improving up to K~6; the old buggy
+    check exited at K=3 with 7x worse RMSE."""
+    x = np.linspace(0, 10, 200)
+    y = 8 + 3 * np.sin(1.7 * x) + 0.2 * x
+    r = fit_adaptive(x, y, rel_tolerance=1e-12, max_segments=10)
+    # The old bug returned K=3 / rmse=1.68; correct behavior reaches deep K.
+    assert r.n_segments >= 5
+    assert r.rmse < 0.3

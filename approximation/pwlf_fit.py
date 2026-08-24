@@ -208,6 +208,7 @@ def fit_adaptive(
         rel_tolerance * max(span, 1e-30)
 
     best: Optional[PWLFitResult] = None
+    prev_rmse: Optional[float] = None
     for k in range(max(min_segments, 1), max_segments + 1):
         result = fit_piecewise_linear(x, y, k)
         if best is None or result.rmse < best.rmse:
@@ -217,10 +218,16 @@ def fit_adaptive(
                 f"adaptive stop: K={k} reached RMSE {result.rmse:.4g} "
                 f"<= tolerance {tol_abs:.4g}")
             return result
-        # Early exit: adding complexity stopped helping.
-        if best is not None and k > min_segments + 1 and \
-                result.rmse > 0.999 * best.rmse:
+        # Early exit on STAGNATION: this K failed to improve on the previous
+        # K's RMSE by at least 0.1%. (Bug fix: the old check compared against
+        # `best`, which after an improvement IS `result`, so it always fired
+        # right after an improvement and exited far too early.)
+        if prev_rmse is not None and k > min_segments + 1 \
+                and result.rmse > 0.999 * prev_rmse:
+            if result.rmse < best.rmse:
+                best = result
             break
+        prev_rmse = result.rmse
 
     assert best is not None
     best.converged = False
