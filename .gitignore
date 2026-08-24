@@ -214,7 +214,11 @@ pyrightconfig.json
 MISC/*
 Spice-Library/*
 SpiceModels/*
-.codegraph/
+.codegraph/*
+.benchmarks/*
+download/
+downloads/
+
 
 *.lib
 *.zip
