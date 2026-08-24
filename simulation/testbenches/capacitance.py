@@ -97,11 +97,6 @@ class CapacitanceTestbench:
         from common.roles import x_connections
         roles = pin_roles or ["drain", "gate", "source"]
         conn = dict(zip(roles, x_connections(roles)))
-        # Tj role (if present) maps to its own driven node - the model's
-        # thermal port MUST be connected and held at the configured junction
-        # temperature; omitting it makes V(Tj) undefined and every equation
-        # referencing it garbage. No net omission.
-        conn = {r: node_by_role.get(r, f"tj_{r}") for r in roles}
         xd = conn["drain"]
         xg = conn["gate"]
         xtj = next((conn[r] for r in roles if r.lower() == "tj"), None)
@@ -118,12 +113,12 @@ class CapacitanceTestbench:
         coss = np.zeros(points)
         crss = np.zeros(points)
 
-        for i, vds in enumerate(vds_sweep):
-            # A FRESH normalized copy per bias point: after many successive
-            # ngspice loads of the same include path, the shared library
-            # intermittently fails runs; a new file path avoids it.
-            temp_lib = normalized_lib_copy(lib_path)
+        # One normalized copy per run (Major fix M6): the shared-lib state
+        # pollution workaround is now handled by the engine-level retry in
+        # _ac_probe; copying 25x per sweep was O(N) redundant I/O.
+        temp_lib = normalized_lib_copy(lib_path)
 
+        for i, vds in enumerate(vds_sweep):
             def mk_a(attempt):
                 ca = Circuit(f"Ciss_Vds_{vds:.3g}_{attempt}")
                 ca.include(str(temp_lib.resolve()))
@@ -167,7 +162,6 @@ class CapacitanceTestbench:
                           f"= {v:.3e} F is non-physical (limit 1 mF); "
                           f"masking this point as NaN.")
                     arr[i] = np.nan
-            discard_normalized_lib(temp_lib)
 
         # Trim trailing masked region so interpolators see a clean envelope.
         def _trim(arr):
@@ -181,6 +175,7 @@ class CapacitanceTestbench:
             print(f"[capacitance] NOTE: returning first {n_valid} of "
                   f"{points} points (valid envelope); rest masked.")
 
+        discard_normalized_lib(temp_lib)
         family_note = f"measured @ {self.f_meas:.1e} Hz"
         return [
             CurveData(

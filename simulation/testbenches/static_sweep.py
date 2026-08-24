@@ -14,24 +14,52 @@ from common.roles import x_connections as _shared_x_connections
 from parser.preprocessor import normalize_pspice_netlist
 
 
-def normalized_lib_copy(lib_path: Path) -> Path:
-    """Write a dialect-normalized copy of the library under SpiceModels/normalized/.
+# Normalized copies are runtime artifacts, not vendor inputs: they go under
+# reports/ (already git-ignored territory for generated output) so
+# SpiceModels/ stays a pristine read-only input tree (Major fix M5).
+NORMALIZED_DIR_NAME = "normalized"
 
-    Copies are never made in-place: the original vendor file is untouched, and
-    the normalized copy lives in a ``normalized/`` subfolder next to it with a
-    stable name (``<stem>_norm<suffix>``) so runs are reproducible and
-    inspectable. A process-unique suffix prevents two concurrent runs from
-    clobbering each other while ngspice has the file open.
+# Module-level per-process cache: one normalized copy per source lib per run
+# instead of one mkstemp per bias point (Major fix M6). Keyed by resolved
+# source path; cleared via discard_normalized_lib(path) or process exit.
+_COPY_CACHE: dict = {}
+
+
+def _normalized_out_dir(lib_path: Path) -> Path:
+    """reports/<vendor-or-model-stem>/normalized/ next to nothing vendor-side."""
+    repo_root = Path(__file__).resolve().parent.parent
+    out_dir = repo_root / "reports" / NORMALIZED_DIR_NAME
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return out_dir
+
+
+def normalized_lib_copy(lib_path: Path, *, fresh: bool = False) -> Path:
+    """Return a dialect-normalized copy of the library for simulation.
+
+    The original vendor file is never touched. Copies live under
+    ``reports/normalized/`` (runtime artifacts, not source inputs).
+
+    Args:
+        lib_path: Vendor model file.
+        fresh: Force a brand-new copy even when cached. Use this only when
+            ngspice's include-path caching interferes with successive loads
+            of the same path (observed on some builds after ~40 loads).
 
     Returns:
-        Path to the normalized copy. The caller owns cleanup via
-        :func:`discard_normalized_lib`.
+        Path to the normalized copy. Cleanup is optional; the cache holds one
+        copy per source per process, and :func:`discard_normalized_lib`
+        removes it explicitly when the caller wants deterministic cleanup.
     """
+    key = str(Path(lib_path).resolve())
+    if not fresh and key in _COPY_CACHE:
+        cached = _COPY_CACHE[key]
+        if cached.exists():
+            return cached
+
     normalized = normalize_pspice_netlist(
         lib_path.read_text(encoding='utf-8', errors='ignore')
     )
-    out_dir = lib_path.parent / "normalized"
-    out_dir.mkdir(parents=True, exist_ok=True)
+    out_dir = _normalized_out_dir(lib_path)
     fd, tmp_name = tempfile.mkstemp(
         prefix=f"{lib_path.stem}_norm{os.getpid()}_",
         suffix=lib_path.suffix or ".net",
@@ -39,7 +67,23 @@ def normalized_lib_copy(lib_path: Path) -> Path:
     )
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         f.write(normalized)
-    return Path(tmp_name)
+
+    path = Path(tmp_name)
+    if not fresh:
+        _COPY_CACHE[key] = path
+    return path
+
+
+def discard_normalized_lib(temp_lib: Path) -> None:
+    """Remove a normalized copy (idempotent) and drop its cache entry."""
+    if os.environ.get("PIECESPICE_KEEP_NORM") == "1":
+        print(f"[normalizer] keeping normalized copy: {temp_lib}")
+        return
+    try:
+        temp_lib.unlink()
+    except FileNotFoundError:
+        pass
+    _COPY_CACHE.pop(str(temp_lib.resolve()), None)
 
 
 def discard_normalized_lib(temp_lib: Path) -> None:
@@ -378,8 +422,7 @@ class StaticSweepTestbench:
                 y_unit="A",
                 x_data=vsd_arr.tolist(),
                 y_data=isd_arr.tolist(),
-                family_param="Vgs",
-                family_value=0.0,   # gate off
+                metadata={"condition": "gate_off (vgs=0)"},
             )
         finally:
             discard_normalized_lib(temp_lib)
