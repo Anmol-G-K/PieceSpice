@@ -50,13 +50,30 @@ def sweep(
         vds_max=vds_max
     )
     console.print(f"Generated {len(curves)} output curves.")
+    # Real metrics require golden reference data (M3 scope). Until then the
+    # report omits the summary cards instead of showing fabricated values.
     generate_html_report(
         device_name=subckt,
         output_path=report_html,
         curves=curves,
-        metrics={"static_rmse_pct": 0.8, "loss_error_pct": 3.2, "speedup_factor": 65.0}
+        metrics={}
     )
     console.print(f"[bold green]HTML report generated:[/bold green] {report_html.resolve()}")
+
+
+
+
+@app.command()
+def curves(
+    vendor: str = typer.Argument(..., help="Vendor config stem in config/inputs/ (e.g. irfs7730pbf)")
+):
+    """Run all seven datasheet curve extractions for a vendor."""
+    from pipeline.curves import run_all_curves
+    console.print(f"[bold green]Extracting all curves for {vendor}...[/bold green]")
+    outputs = run_all_curves(vendor)
+    for name, path in outputs.items():
+        console.print(f"  [cyan]{name}[/cyan] -> {path}")
+    console.print(f"[bold green]{len(outputs)} output files written.[/bold green]")
 
 
 if __name__ == "__main__":

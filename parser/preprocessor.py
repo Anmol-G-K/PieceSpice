@@ -4,6 +4,7 @@ import re
 from typing import Dict, Any, List
 
 from parser.spice_literal import parse_spice_literal, translate_spice_literals
+from parser.pow_harden import harden_fractional_powers
 
 # Safe functions available inside .PARAM expression evaluation.
 _SAFE_FUNCS: Dict[str, Any] = {}
@@ -69,7 +70,8 @@ def _evaluate(expr: str, params: Dict[str, Any]) -> Any:
     return value
 
 
-def normalize_pspice_netlist(raw_content: str) -> str:
+def normalize_pspice_netlist(raw_content: str, *,
+                             harden_powers: bool = False) -> str:
     """Normalize PSpice/LTspice vendor models for seamless simulation in NgSpice.
 
     - Joins continuation lines (leading ``+``) before any processing
@@ -81,6 +83,9 @@ def normalize_pspice_netlist(raw_content: str) -> str:
     - Replaces parameter references like ``{pWidth}`` with evaluated numbers;
       unresolvable parameters are left symbolic with a warning
     - Ensures .PARAM statements are placed before .SUBCKT statements
+    - When *harden_powers* is True, fractional-power bases inside behavioral
+      source expressions are wrapped in abs() (ngspice >= 36 raises fatal
+      domain errors on negative bases; ngspice-34 does not need this)
 
     Vendor files commonly define params in any order and across continuation
     lines; single-pass substitution silently leaves ``{a}`` unresolved when
@@ -151,6 +156,9 @@ def normalize_pspice_netlist(raw_content: str) -> str:
         for k in params:
             name = display.get(k, k)
             stripped = re.sub(rf'\{{\s*{name}\s*\}}', str(params[k]), stripped, flags=re.IGNORECASE)
+
+        if harden_powers and _is_bsource(stripped):
+            stripped = harden_fractional_powers(stripped)
 
         # ngspice-34 (our pinned shared-lib build) lacks ddt() in B-source
         # expressions ("no such function ddt"). Behavioral capacitors of the

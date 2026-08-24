@@ -109,8 +109,13 @@ KEYS = {
     "vth_v": "Gate threshold voltage @ Id=250uA [V]",
     "rds_on_10v_mohm": "On-resistance @ Vgs=10V, Id=10A [mOhm]",
     "rds_on_45v_mohm": "On-resistance @ Vgs=4.5V, Id=10A [mOhm]",
+    "rds_on_mohm_at_Id_load": "On-resistance interpolated at Id_load [mOhm]",
+    "cap_ref_vds": "Vds at which capacitances are reported [V]",
+    "Isd_ref": "Body-diode report reference current [A]",
     "gfs_s": "Transconductance @ Vds=15V, Id=10A [S]",
     "body_diode_vsd_10a_v": "Body-diode forward voltage @ Isd=10A [V]",
+    "body_diode_vsd_at_Isd_ref_v": "Body-diode forward voltage at per-vendor Isd_ref [V]",
+    "Id_th_target": "Threshold extraction target current [A]",
     # capacitances
     "ciss_f": "Input capacitance [F]",
     "coss_f": "Output capacitance [F]",
@@ -126,5 +131,7 @@ KEYS = {
     "curve_vds": "Swept drain-source voltage [V]",
     "curve_id": "Drain current [A]",
     "curve_isd": "Source (body-diode) current [A]",
+    "curve_vsd": "Swept source-drain voltage (body diode) [V]",
+    "curve_rds_mohm": "On-resistance vs Id [mOhm]",
     "curve_qg_nc": "Gate charge [nC]",
 }

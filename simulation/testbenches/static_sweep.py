@@ -195,7 +195,8 @@ class StaticSweepTestbench:
             analysis = self.engine.run_dc_sweep(circuit, "Vds", 0, vds_max, step)
 
             vds_arr = np.array(analysis.sweep)
-            id_arr = np.abs(np.array(analysis.Vds))
+            id_arr = -np.array(analysis.Vds)  # drain current into device
+            self._check_sign(vds_arr, id_arr, f"rds_on @Vgs={vgs}")
 
             # Only meaningful where the device actually conducts
             mask = id_arr > min_current
@@ -382,22 +383,33 @@ class StaticSweepTestbench:
             discard_normalized_lib(temp_lib)
 
     @staticmethod
-    def _check_sign(x_arr: np.ndarray, y_arr: np.ndarray, label: str) -> None:
-        """Warn when extracted currents do not follow the expected convention.
+    def _check_sign(x_arr: np.ndarray, y_arr: np.ndarray, label: str,
+                    expect_positive: bool = True) -> None:
+        """Assert extracted currents follow the expected polarity.
 
-        The testbenches negate ngspice source currents assuming positive
-        device conduction. A vendor model with different internal source
-        orientation would flip every curve's sign silently; this makes that
-        visible instead.
+        The testbenches negate ngspice source currents so positive values mean
+        device conduction. A vendor model with different internal orientation
+        flips every sample silently - that corrupts downstream fits, so this
+        check FAILS instead of warning.
+
+        Raises:
+            AssertionError: when conduction-current samples are predominantly
+                of the wrong sign over the upper half of the sweep.
         """
-        if len(y_arr) == 0 or np.all(np.isnan(y_arr)):
+        y = np.asarray(y_arr, dtype=float)
+        if len(y) == 0 or np.all(np.isnan(y)):
             return
-        # Expected: conduction grows monotonically-ish with drive; flag only
-        # when the trace trends clearly negative.
-        span = float(np.nanmax(y_arr) - np.nanmin(y_arr))
-        if span > 0 and np.nanmean(y_arr[-max(1, len(y_arr)//5):]) < 0 and np.nanmin(y_arr) < 0:
-            print(
-                f"[static_sweep] WARNING: {label} currents are predominantly "
-                f"negative - the sign convention (-V_source) may not match "
-                f"this vendor model's internal topology. Verify curve polarity."
-            )
+        upper = y[len(y)//2:]
+        frac_wrong = float(np.mean(upper < 0)) if expect_positive else \
+            float(np.mean(upper > 0))
+        assert frac_wrong < 0.5, (
+            f"{label}: {(frac_wrong*100):.0f}% of upper-sweep current samples "
+            f"have the wrong polarity (expected "
+            f"{'positive' if expect_positive else 'negative'}). The sign "
+            f"convention does not match this vendor model's topology - do not "
+            f"use these curves."
+        )
+        # Legacy soft warning for mildly negative tails (kept for diagnostics)
+        if expect_positive and np.nanmin(y) < 0:
+            print(f"[static_sweep] NOTE: {label} contains negative tail "
+                  f"samples (expected for leakage-limited sweeps).")
