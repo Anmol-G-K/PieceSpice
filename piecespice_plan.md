@@ -251,6 +251,21 @@ PieceSpice/ (Project Root)
 
 ## 6. In-Depth Milestone & Task Breakdown (TODO List)
 
+> **Current status snapshot (2026-08-24):**
+>
+> | Milestone | State |
+> |---|---|
+> | M1 Parser & normalization | ✅ Complete (+ pin-order semantic resolution VM-07, spice-literal translation) |
+> | M2 Datasheet curves | ✅ Complete — all 7 curves × 4 vendors via config-driven pipeline |
+> | M3 Piecewise approximation | ⏳ Skeletons only — modules exist as stubs; nothing exercised on real vendor data |
+> | M4 Switching dynamics / DPT | ⏳ Partial — metrics real; double-pulse testbench missing |
+> | M5 Converter benchmark | ❌ Not started — notebook 04 contains placeholder numbers only |
+> | M6 Reporting & CLI | ✅ Mostly complete — audit remediation done 2026-08-24 (41 findings fixed) |
+>
+> Simulator: ngspice-34 shared lib (ngspice-39 migration investigated and
+> rolled back — see development-log 2026-08-24 entries). Vendor-model defects
+> tracked in `vendor_model_defects.md` (VM-01…VM-08).
+
 ### Milestone 1: Environment, Parser & SPICE Dialect Normalization
 - [x] Configure strict `uv` environment with `pyspice`, `ngspice`, `pwlf`, `pydantic`, `typer`, `plotly`.
 - [x] Implement `parser.preprocessor` to flatten PSpice `.PARAM` scopes and evaluate curly-brace expressions `{...}`.
@@ -258,39 +273,61 @@ PieceSpice/ (Project Root)
 - [x] Implement `common.plotting` enforcing the EAST-aligned legend rule.
 - [x] Validate parsing against `irfs7730pbf.spi` and `csd18510kcs.lib`.
 
-### Milestone 2: Automated Datasheet Curves Simulation
+### Milestone 2: Automated Datasheet Curves Simulation — ✅ COMPLETE
 - [x] Implement `simulation.testbenches.static_sweep`:
-  - [x] **Curve 1**: Output Characteristics ($I_d$ vs $V_{ds}$ at $V_{gs} = 3.0\text{V}, 4.5\text{V}, 6.0\text{V}, 10.0\text{V}$).
-  - [x] **Curve 2**: Transfer Characteristics ($I_d$ vs $V_{gs}$ at $V_{ds} = 10\text{V}$).
+  - [x] **Curve 1**: Output Characteristics ($I_d$ vs $V_{ds}$ family at multiple $V_{gs}$).
+  - [x] **Curve 2**: Transfer Characteristics ($I_d$ vs $V_{gs}$ at fixed $V_{ds}$).
+  - [x] **Curve 3**: On-State Resistance $R_{ds(on)}$ vs $I_d$ in the ohmic region.
+  - [x] **Curve 6**: Body-Diode / Reverse Conduction ($I_{sd}$ vs $V_{sd}$).
+  - [x] **Curve 7**: Threshold Voltage via JEDEC constant-current method.
 - [x] Implement `simulation.testbenches.capacitance`:
-  - [x] **Curve 4**: $C_{\text{iss}}, C_{\text{oss}}, C_{\text{rss}}$ vs $V_{ds}$ log sweep ($0.1\text{V} - 100\text{V}$).
+  - [x] **Curve 4**: $C_{\text{iss}}, C_{\text{oss}}, C_{\text{rss}}$ vs $V_{ds}$ log sweep.
 - [x] Implement `simulation.testbenches.gate_charge`:
-  - [x] **Curve 5**: Gate Charge $V_{gs}$ vs $Q_g$ under constant current drive.
-- [x] Build Notebook `notebooks/01_datasheet_curves_extraction.ipynb` rendering all curves with EAST legends.
+  - [x] **Curve 5**: Gate Charge quasi-static reconstruction (raw transient blocked on MODPEX models — VM-02; see `vendor_model_defects.md`).
+- [x] Config-driven pipeline: `pipeline.curves.run_all_curves(vendor)` + YAML inputs per vendor (`config/inputs/<vendor>.yaml`) + canonical output keys (`config.yaml_io.KEYS`).
+- [x] Multi-vendor validation: Infineon IRFS7730PBF, TI CSD16412Q5A, EPC EPC2216, Wolfspeed CPM2-1200 — all 7 curves each.
+- [x] Build Notebook `notebooks/01_datasheet_curves_extraction.ipynb` rendering all curves with EAST legends (thin wrapper over the pipeline, one section per curve).
 
-### Milestone 3: Piecewise Approximation & Charge Integration Engines
-- [ ] Implement `approximation.pwlf_fit` for continuous piecewise linear regression with $K$ segments.
-- [ ] Implement `approximation.rdp_compress` with native Numpy 2.0 2D point pruning.
-- [ ] Implement `approximation.charge_model` calculating $Q_{\text{oss}}(V) = \int C_{\text{oss}}(v)\, dv$ and stored capacitive energy $E_{\text{oss}}$.
-- [ ] Implement `models.netlist_builder` synthesizing executable Tier 2 CPWL subcircuits with charge sources.
-- [ ] Build Notebook `notebooks/02_piecewise_approximation.ipynb` evaluating fit residuals and segment counts.
+> **Known limitation (VM-08):** CPM2-1200 curves above $V_{gs} \approx 13\text{–}15\text{V}$
+> are unreliable under the pinned ngspice-34 build (silent evaluator divergence;
+> ngspice >= 36 hard-fails instead — see development-log 2026-08-24 02:40 IST).
 
-### Milestone 4: Switching Dynamics & Double Pulse Testbench (DPT)
-- [ ] Implement `simulation.testbenches.double_pulse` for inductive clamped load switching.
-- [ ] Implement `metrics.switching` to extract $t_r, t_f, t_{d(on)}, t_{d(off)}, dv/dt, di/dt$.
-- [ ] Implement `metrics.loss` to compute $E_{\text{on}}$ and $E_{\text{off}}$ via $\int v_{ds}(t) \cdot i_d(t)\, dt$.
-- [ ] Build Notebook `notebooks/03_double_pulse_transients.ipynb` overlaying Golden SPICE vs PieceSpice Tier 2 switching waveforms.
+### Milestone 3: Piecewise Approximation & Charge Integration Engines — ⏳ SKELETONS ONLY, NOT COMPLETE
 
-### Milestone 5: Switched-Mode Converter Benchmark & Speedup Evaluation
-- [ ] Implement `simulation.testbenches.buck_converter` for closed-loop / open-loop multi-cycle operation.
-- [ ] Benchmark execution wall-clock time, iteration counts, and solver time step histories.
-- [ ] Build Notebook `notebooks/04_buck_converter_benchmark.ipynb` proving $>20\times$ speedup and zero convergence errors.
+> **Status note:** modules exist but are generic boilerplate/stubs, not the
+> production implementations this milestone requires. Nothing here has been
+> exercised against real extracted vendor data yet.
 
-### Milestone 6: Automated HTML Reporting & CLI Polish
-- [x] Implement `reporting.html_report` emitting interactive, publication-quality Plotly + Jinja2 HTML dashboards.
-- [x] Implement Typer CLI (`parse`, `sweep`, `report`).
-- [x] Build Notebook `notebooks/05_comprehensive_validation_report.ipynb` generating `validation_report.html`.
-- [x] Verify complete `pytest` test suite passing 100%.
+- [-] `approximation.pwlf_fit`: 25-line `pwlf.PiecewiseLinFit` wrapper only — no automatic K-selection, residual analysis, or monotonic-breakpoint enforcement.
+- [x] `approximation.rdp_compress`: RDP 2-D pruning implemented (this one is functional).
+- [-] `approximation.charge_model`: basic cumulative-trapezoid integration only; no per-segment charge fitting for the CPWL model.
+- [-] `models.netlist_builder`: emits a Tier-2 subcircuit but with LINEAR capacitors, not the required CPWL charge sources; metadata defaults are placeholders.
+- [ ] Notebook `notebooks/02_piecewise_approximation.ipynb`: exists as a synthetic-cosine demo stub — must be rewired to consume real Curve 1–4 outputs from `config/outputs/<vendor>/` and report fit residuals/segment counts.
+
+### Milestone 4: Switching Dynamics & Double Pulse Testbench (DPT) — ⏳ PARTIAL (metrics only)
+
+- [ ] Implement `simulation.testbenches.double_pulse` for inductive clamped load switching. *(missing entirely)*
+- [x] Implement `metrics.switching` to extract $t_r, t_f, t_{d(on)}, t_{d(off)}, dv/dt, di/dt$. *(real IEC 60747-8 level-crossing implementation as of 2026-08-24; previously returned fabricated constants)*
+- [x] Implement `metrics.loss` to compute $E_{\text{on}}$, $E_{\text{off}}$ via $\int v_{ds}(t) \cdot i_d(t)\, dt$ (trapezoid; `SwitchingLossMetrics` model present).
+- [ ] Notebook `notebooks/03_double_pulse_transients.ipynb`: currently plots synthetic logistic waveforms — needs the real DPT bench and a Golden-vs-Tier2 overlay.
+
+### Milestone 5: Switched-Mode Converter Benchmark & Speedup Evaluation — ❌ NOT STARTED
+
+> **Warning:** `notebooks/04_buck_converter_benchmark.ipynb` contains
+> HARDCODED placeholder benchmark numbers ("74.1×", "33.9×" etc.) presented
+> as measured results. These are fabricated until the buck testbench below
+> exists.
+
+- [ ] Implement `simulation.testbenches.buck_converter` for closed-loop / open-loop multi-cycle operation. *(missing entirely)*
+- [ ] Benchmark execution wall-clock time, iteration counts, and solver time-step histories.
+- [ ] Replace notebook 04's hardcoded table with measured benchmarks proving $>20\times$ speedup and zero convergence errors.
+
+### Milestone 6: Automated HTML Reporting & CLI Polish — ✅ MOSTLY COMPLETE
+- [x] Implement `reporting.html_report` emitting interactive Plotly + Jinja2 HTML dashboards.
+- [x] Implement Typer CLI: `parse`, `sweep`, plus new config-driven `curves <vendor>` (full pipeline entry point).
+- [x] Build comprehensive validation report notebook.
+- [x] Verify complete `pytest` test suite passing 100% (51 tests as of 2026-08-24, incl. diagnostics dedup suite).
+- [x] Code-quality audit remediation (2026-08-24): 41 findings fixed across parser/simulation/metrics/CLI layers; see `docs/code_quality_report.md`.
 
 ---
 

@@ -1,7 +1,147 @@
 # PieceSpice Development Log
 
 Timestamped record of all development work. Newest entries at the top.
-All timestamps are IST (UTC+05:30).---
+All timestamps are IST (UTC+05:30).
+
+---
+
+## 2026-08-24 13:21 IST — ngspice rollback to 34 + full code-quality audit remediation (41 findings)
+
+### Rollback to ngspice-34 (user decision)
+
+After the pow-wall RCA concluded that CPM2's G1 cannot run on ngspice >= 36
+(internal differentiation creates fatal negative-exponent pows regardless of
+abs() hardening), the user chose to return to the known-good state:
+
+- All ngspice-39-era working-tree changes stashed via
+  `git stash push -m "ngspice39-work-WIP-pow-hardening"` (recoverable, not
+  deleted). Git used ONLY for this stash per user instruction.
+- DLL restored: `dll-vs/ngspice.dll.bak34` -> `ngspice.dll`
+  (`.bak39` retained on disk).
+- Verification: pytest 46/46; notebook 01 (cpm2-1200) 18 cells / 0 errors /
+  7 figures; all four vendors re-run clean end-to-end.
+
+The development-log entry of 02:40 IST (phases A-E, NEXT STEPS options)
+remains as the permanent record of the migration attempt.
+
+---
+
+### Code-quality audit (strict, all .py files)
+
+Report: `docs/code_quality_report.md` — 7 Critical, 14 Major, 20 Minor
+findings. All remediated in batches with pytest green after each batch and a
+full 4-vendor regression at the end.
+
+#### Critical fixes
+
+1. **C1 — single pipeline**: new `pipeline/curves.py::run_all_curves(vendor)`
+   replaces the IR-hardcoded script AND the copy-pasted notebook logic.
+   Config-driven throughout: per-vendor `Cap_ref_Vds`, `Isd_ref`,
+   `Id_th_target`, pin map, temperature.
+2. **C2 — rds_on sign convention**: `np.abs()` removed, negation +
+   `_check_sign` like every other bench.
+3. **C4 companion** — canonical output keys extended in `config/yaml_io.py`
+   (`rds_on_mohm_at_Id_load`, `curve_rds_mohm`, `curve_vsd`, `cap_ref_vds`,
+   `Isd_ref`, `body_diode_vsd_at_Isd_ref_v`, `Id_th_target`) so per-vendor
+   conventions are recorded, comparable across vendors.
+4. **C5 — switching metrics real**: `metrics/switching.py` now extracts
+   td(on)/tr/td(off)/tf via IEC 60747-8 level crossings on vgs/v_ds
+   (interpolated); fabricated constants removed.
+5. **C6 — CLI fake metrics removed**; report omits summary cards until M3
+   golden data exists. New CLI command: `piecespice curves <vendor>`.
+6. **C7 — pow_harden wired**: preprocessor Pass 3 applies abs()-hardening to
+   behavioral-source bodies behind opt-in flag
+   `normalize_pspice_netlist(..., harden_powers=True)`.
+
+#### Major fixes
+
+- **M1**: `common/roles.py` = single ROLE_NODES registry; static_sweep,
+  capacitance, gate_charge all delegate (was four drifting copies).
+- **M2**: Tj handling unified; gate_charge gained Tj drive (previously
+  floated the net on Wolfspeed models).
+- **M3**: dead `run_gate_charge` transient (VM-02-broken, zero call sites)
+  deleted with pointer note.
+- **M4**: dead probe block + misleading narration removed from engine
+  fallback ladder.
+- **M5/M6**: normalized copies moved to `reports/normalized/`
+  (SpiceModels read-only); per-run cache (`_COPY_CACHE`) replaces O(N)
+  mkstemp-per-bias-point churn. Verified live: SpiceModels/normalized empty
+  after runs; cap values unchanged (2825.8 pF @ 7.5 V).
+- **M8**: `_check_sign` upgraded warn-only -> hard AssertionError when >50%
+  of upper-sweep samples have wrong polarity.
+- **M9/M10**: stable curve ids (`output_characteristic`, `rds_on_vgs_<v>V`,
+  ...); rds axis inversion declared via `metadata.axis_convention="current_x"`;
+  body-diode condition moved to metadata.
+- **M11**: notebook 01 rebuilt as thin pipeline wrapper with one markdown
+  section + plot cell per curve (17 cells, 0 errors, 7 figures).
+- **M12**: module-level logging (`_LOGGER`) in engine/preprocessor/
+  capacitance/static_sweep/netlist_builder; print() removed from library
+  paths.
+- **M13/M14**: spice_literal suffix lookup simplified to exact dict access;
+  `_KV_RE` split into `PARAM_KV_RE` (preprocessor) vs `HEADER_PARAM_RE`
+  (netlist).
+
+#### Minor fixes (m1-m20)
+
+Scratch scripts deleted; unused `lookup()`/alias/dead helpers pruned;
+wildcard PySpice imports made explicit; local imports hoisted; PEP 604
+typing standardized; conftest owns path bootstrap; CLI docstring points to
+`curves`; docstrings corrected (engine fallback behavior, Tier-2-only
+builder); shared `trim_trailing_invalid()` sanitizer in common.types;
+PWLModelSpec canonical charge names (`q_oss_vs_v`, `q_oss_charge_c`) with
+legacy fold; m20 vendor script deleted (pipeline supersedes).
+
+---
+
+### ngspice diagnostics deduplication (user request)
+
+Problem: Wolfspeed body-diode model emits
+`Warning: bodydiode_...: junction potential VJ too large, limited to 2.0`
+hundreds of times per sweep, flooding console and notebook output.
+
+New module `common/diagnostics.py`:
+
+1. **Registry**: every known ngspice message pattern classified by severity
+   (error/warning/info), stable name, and human explanation - VJ clamps,
+   param clamps, floating nodes, singular matrices, convergence ladder
+   progress, timestep-too-small, aborted runs, pow domain errors, parse
+   errors, PySpice version-table notice.
+2. **SHA-256 dedup**: messages normalized first (instance names -> `<dev>`,
+   floats -> `<f>`, ints -> `<n>`) then hashed; repeats collapse into one
+   aggregate record with count + up to 3 raw samples.
+3. **Suppression layers**:
+   - `NgspiceLogDedupFilter` attached DIRECTLY to the emitting PySpice
+     loggers (logging filters do not inherit from parent loggers - attaching
+     to 'PySpice' alone did not work);
+   - `ConsoleQuiet`: OS fd-level (dup2 to devnull) redirect around ngspice
+     calls, because the C library printf bypasses Python entirely. The quiet
+     window must cover circuit LOAD (include/parse), not just the analysis
+     call - that was the second miss.
+4. **Engine integration**: dc/transient/ac calls drain the shared-lib console
+   buffer into the collector after every run and wrap load+analysis in
+   ConsoleQuiet. Callers get one summary block per sweep:
+   `[WARNING] diode_vj_clamp x255` + explanation + single sample.
+
+Verified live: raw VJ warnings on console 255 -> 1 (first occurrence only);
+fresh-kernel notebook shows exactly one line. NOTE: an already-running
+kernel keeps stale modules - Restart Kernel & Run All Cells required to pick
+up the change.
+
+Tests: new `tests/test_diagnostics.py` (5 tests: dedup counts, severity
+classification, numeric-variation hashing, singleton reset, normalization).
+Suite now 51/51.
+
+### Final state
+
+- Simulator: ngspice-34 (bundled), `.bak39`/`.bak34` retained for any future
+  revisit.
+- Regression: pytest 51/51; all 4 vendors x 7 curves PASS through
+  `run_all_curves`; notebook clean.
+- Uncommitted per standing rule; git touched only for the stash noted above.
+
+---
+
+---
 
 ## 2026-08-24 02:40 IST — CPM2-1200 (Wolfspeed SiC) onboarding & ngspice-39 upgrade: full investigation log
 
