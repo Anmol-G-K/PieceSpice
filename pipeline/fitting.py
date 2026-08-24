@@ -173,3 +173,42 @@ def fit_pwl_model(
     lib_out.write_text(netlist, encoding="ascii")
     _LOGGER.info("%s: Tier-2 model written to %s", vendor, lib_out)
     return lib_out
+
+
+def compare_tier2_vs_golden(vendor: str, lib_path: Path | None = None):
+    """Simulate the Tier-2 model at Vds=10V vs golden endpoint currents.
+
+    Library-owned validation so notebooks only plot the returned rows.
+    Returns (rows, worst_rel_pct) where rows are
+    (vgs, golden_id_a, tier2_id_a, rel_err_pct) tuples.
+    """
+    from PySpice.Spice.Netlist import Circuit
+
+    if lib_path is None:
+        cfg = load_input(vendor)
+        device = cfg["device"]
+        lib_path = Path("reports/models") / f"{device}_PIECESPICE_T2.lib"
+    lib_path = Path(lib_path)
+    name = lib_path.stem
+
+    c1 = load_output(vendor, "curve1_output_characteristics")["extracted"]
+    prefix = "curve_id_vgs_"
+    pairs = sorted((float(k[len(prefix):-2]), k)
+                   for k in c1 if k.startswith(prefix))
+
+    rows = []
+    worst = 0.0
+    for vgs_val, key in pairs:
+        golden = abs(float(c1[key][-1]))
+        circuit = Circuit(f"cmp_{vgs_val}")
+        circuit.include(str(lib_path))
+        circuit.X("M1", name, "d", "g", "gnd")
+        circuit.V("ds", "d", "gnd", 10)
+        circuit.V("gs", "g", "gnd", vgs_val)
+        op = circuit.simulator(temperature=25,
+                               nominal_temperature=25).operating_point()
+        i_t2 = abs(float(op.branches["vds"][0]))
+        rel = abs(i_t2 - golden) / max(golden, 1e-9) * 100
+        worst = max(worst, rel)
+        rows.append((vgs_val, golden, i_t2, rel))
+    return rows, worst

@@ -16,6 +16,8 @@ and d/dx is bounded and continuous everywhere. Device-agnostic.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 
 __all__ = [
@@ -23,6 +25,8 @@ __all__ = [
     "sigmoid",
     "tanh_saturation",
     "pwl_smooth",
+    "fit_tanh_knee",
+    "TanhKneeFit",
 ]
 
 
@@ -128,3 +132,56 @@ def pwl_smooth(
     if np.ndim(x) == 0:
         return float(result[0])
     return result
+
+
+# ---------------------------------------------------------------------------
+# Library-level tanh knee fitting (notebooks call this; no inline math there)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class TanhKneeFit:
+    """Result of fitting a tanh saturation knee to a device curve."""
+
+    id_sat: float          # plateau current [A]
+    v_ds_sat: float        # voltage where Id reaches tanh(1) ~ 76% [V]
+    gm: float              # transconductance scale = id_sat / v_ds_sat [A/V]
+    max_abs_deviation_a: float   # worst |tanh - source curve| [A]
+
+
+def fit_tanh_knee(v_pwl: np.ndarray, i_pwl: np.ndarray) -> TanhKneeFit:
+    """Fit a tanh saturation knee to a PWL/compressed output curve.
+
+    Derivation (library-owned so notebooks don't reimplement it):
+      * Id_sat  = final plateau current of the PWL
+      * Vds_sat = Vds where the PWL reaches tanh(1)=0.7616 of Id_sat,
+                  i.e. the measured knee location
+      * gm      = Id_sat / Vds_sat
+
+    The fitted model coincides with the source curve along both tails;
+    deviation concentrates at the knee.
+    """
+    v = np.asarray(v_pwl, dtype=float).ravel()
+    i = np.asarray(i_pwl, dtype=float).ravel()
+    if v.size != i.size or v.size < 2:
+        raise ValueError("need matching v/i arrays with >= 2 samples")
+
+    order = np.argsort(v)
+    v, i = v[order], i[order]
+    i = np.abs(i)
+
+    id_sat = float(i[-1])
+    if id_sat <= 0:
+        raise ValueError("curve must reach positive current to fit a knee")
+
+    knee_frac = float(np.tanh(1.0))
+    v_ds_sat = float(np.interp(knee_frac * id_sat, i, v))
+    v_ds_sat = max(v_ds_sat, 1e-3)
+    gm = id_sat / v_ds_sat
+
+    dense_v = np.linspace(v[0], v[-1], 400)
+    dense_fit = np.asarray(tanh_saturation(dense_v, v_ds_sat=v_ds_sat, gm=gm))
+    dev = float(np.max(np.abs(
+        dense_fit - np.interp(dense_v, v, i))))
+
+    return TanhKneeFit(id_sat=id_sat, v_ds_sat=v_ds_sat, gm=gm,
+                       max_abs_deviation_a=dev)
