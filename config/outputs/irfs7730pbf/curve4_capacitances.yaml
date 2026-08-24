@@ -7,7 +7,8 @@ conditions_used:
   Cap_points: 25
   F_meas: 1000000.0
 extracted:
-  ciss_f: 1.3383899654566093e-08
-  coss_f: 1.1126110282374615e-09
-  crss_f: 6.877420880748887e-10
-notes: Small-signal AC @ 1e+06 Hz; values reported at Vds=25V.
+  ciss_f: 1.3544799710809347e-08
+  coss_f: 1.4123582594823075e-09
+  crss_f: 8.56880447060701e-10
+  cap_ref_vds: 15.075
+notes: Small-signal AC @ 1e+06 Hz; reported at Vds=15.075 V.

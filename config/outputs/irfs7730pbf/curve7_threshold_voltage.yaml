@@ -1,11 +1,12 @@
 device: irfs7730pbf
 testbench: curve7_threshold_voltage
-status: partial
+status: pass
 conditions_used:
   Id_th_target: 0.00025
   Vgs_th_max: 6.0
 extracted:
   vth_v: 4.346333589805675
+  Id_th_target: 0.00025
   curve_vgs:
   - 0.0
   - 0.002
@@ -6010,4 +6011,4 @@ extracted:
   - 314.9485119561796
   - 315.50412251015223
   - 316.05995498415723
-notes: 'VM-01: fitted effective VTO, not physical JEDEC Vth (datasheet 2.1-3.7 V).'
+notes: JEDEC constant-current method at per-vendor Id_th_target.

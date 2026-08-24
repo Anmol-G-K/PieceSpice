@@ -6,7 +6,7 @@ conditions_used:
   Vds_rds_max: 2.5
   Id_rds_min: 1.0
 extracted:
-  rds_on_10v_mohm: 2.5158936969597705
+  rds_on_mohm_at_Id_load: 2.5233488439505276
   curve_id:
   - 19.90806070147778
   - 39.77092564182783
@@ -58,7 +58,7 @@ extracted:
   - 886.4245120467021
   - 902.8499609269529
   - 919.1621126235441
-  curve_vds:
+  curve_rds_mohm:
   - 2.511545486511827
   - 2.5143996119322933
   - 2.5172941147388217
@@ -109,4 +109,4 @@ extracted:
   - 2.707506355457771
   - 2.7136291809600266
   - 2.7198684167521923
-notes: Interpolated at Id=50A per reference table.
+notes: 'Curve 3: Rds(on) vs Id in ohmic region (Id-x axis by design).'
