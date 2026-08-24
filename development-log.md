@@ -5,6 +5,112 @@ All timestamps are IST (UTC+05:30).
 
 ---
 
+## 2026-08-24 17:28 IST — Milestone 3 started: PWL fitting (M3.1), RDP compression (M3.2), deep-audit bug fixes
+
+### Context
+
+With M1/M2 closed and the code-quality audit remediated, Milestone 3
+(Piecewise Approximation & Charge Integration Engines) began. Core project
+idea re-confirmed from `piecespice_plan.md` §1: PLECS-class simulation speed
+with SPICE-class resolution — CPWL models, charge-conserving Q(V)
+capacitances, C1-smooth knees, standard SPICE netlist output, <5% RMSE vs
+vendor golden.
+
+The end artifact of M3 is a **Tier-2 MOSFET subcircuit**, not curve fits;
+fitting/compression utilities are the parameter-extraction stage that model
+synthesis consumes (tasks M3.3–M3.8 remain).
+
+### M3.1 — approximation/pwlf_fit.py rewritten (plan §2.1)
+
+- `PWLFitResult` dataclass: breakpoints, per-segment slopes/intercepts,
+  predicted_y, RMSE + L-inf max-abs error, K used, converged flag,
+  stop_reason, notes; `evaluate(x)` for arbitrary-point evaluation.
+- `fit_piecewise_linear(x, y, K)`: input sanitization (NaN/inf mask, sort,
+  duplicate-x averaging); K=1 degenerates to plain least squares; pwlf
+  failure falls back to K-1 instead of killing the pipeline.
+- `fit_adaptive(...)`: plan §2.1 step 4 — increments K until RMSE meets an
+  absolute or relative tolerance (default 1% of y-span), with max_segments
+  cap and stagnation early-exit.
+- Legacy tuple API retained (`fit_piecewise_linear_tuple`).
+
+**Real-data validation**: TI CSD16412Q5A transfer characteristic
+(conducting region) — adaptive fit found K=2, breakpoint at Vgs=2.63 V
+(the threshold knee), second-segment slope 51.8 S (= gfs), relative RMSE
+0.594% of span. Well inside the plan's <5% fidelity target.
+
+Tests: `tests/test_pwlf_fit.py` (12 tests incl. exact-K recovery within
+0.2 V of true knees, adaptive minimal-K selection, stagnation reporting,
+NaN/unsorted sanitization, legacy API).
+
+### M3.2 — approximation/rdp_compress.py hardened + extended (plan §2.2)
+
+- Iterative explicit-stack RDP core replaces recursion (old code would hit
+  Python's recursion limit on dense sweeps; verified at 120k samples).
+- NaN/inf dropped, unsorted input sorted, output x strictly ascending,
+  endpoints always retained.
+- NEW `relative=True` epsilon mode: tolerance as fraction of bounding-box
+  diagonal -> one setting transfers across curves of different units
+  (verified: uniform unit rescale gives identical compression).
+- NEW `rdp_epsilon_for_max_error()`: binary-searches the largest epsilon
+  whose RECONSTRUCTED curve stays within an absolute fidelity budget.
+  "Tell me the tolerance for <10 mA deviation" instead of guessing.
+
+**Real-data validation**: TI body-diode curve 13 -> 7 points (54%) at
+0.6 mA max deviation; budget search found epsilon=1.3e-2 for a 10 mA
+budget with actual deviation 6x under it.
+
+Tests: `tests/test_rdp_compress.py` (11 tests incl. large-array core,
+relative-scale invariance, knee retention, budget-search accuracy).
+
+### Deep audit of M3.1/M3.2 — two real bugs found and fixed
+
+**Bug #1 (critical, fixed)**: `fit_adaptive` early-exit compared
+`result.rmse > 0.999 * best.rmse`, but after an improvement result IS best,
+so the check was trivially true and the loop exited right after its first
+improvement past min_segments+1. Proven impact: sine probe returned K=3 /
+RMSE 1.68 when K=10 / RMSE 0.137 exists — a 12x worse fit silently
+returned. Fix tracks prev_rmse separately and exits only on STAGNATION.
+Regression test added.
+
+**Bug #2 (major for SPICE use, fixed)**: `_result_from_breaks` filled a
+sample-starved segment (<2 samples) with a parallel line through the lone
+sample -> C0-DISCONTINUOUS model (proven 45-unit jump at a breakpoint). In
+an emitted SPICE PWL source this means Newton oscillation and wrong
+operating points. Fix: trailing isolated samples become continuous
+connectors (slope derived from predecessor endpoint value through the
+point); interior starved segments merge into a neighbor by dropping the
+shared breakpoint; final pass chains all intercepts so every segment starts
+exactly where the previous ended (exact C0 to float precision - worst jump
+over 50 randomized trials: 1.3e-14). Three regression tests added.
+
+**Followup fixes from audit observations**:
+- RDP epsilon guard: negative/NaN epsilon now raises ValueError (previously
+  silently disabled pruning).
+- `PWLFitResult.stop_reason` field ('tolerance_met' | 'stagnated' |
+  'cap_reached') disambiguates what converged=False used to conflate -
+  documented that converged=False does NOT mean invalid; RMSE always
+  quantifies actual quality.
+- Dead `repaired` flag removed; line-formatting artifact cleaned.
+
+### Housekeeping
+
+- scripts/ directory cleaned of all one-off probe/fix/verify scripts
+  (kept empty per user instruction - directory itself retained).
+- Plan TODO list updated to reflect true milestone state (M2 includes
+  curves 3/6/7; M3 marked skeletons-only; M5 notebook 04 flagged as
+  hardcoded placeholder numbers).
+- Suite: 71/71 passing (was 46 before M3).
+
+### Next in M3
+
+M3.3 charge_model (Q(V)/E(V) integration, equivalent capacitances, PWL
+charge-table synthesis) -> M3.4 smoother.py (softplus/tanh C1 kernels) ->
+M3.5 netlist_builder Tier-2 subcircuit synthesis -> M3.6 pipeline fitting
+stage -> M3.7 golden-vs-Tier2 validation -> M3.8 notebook 02 rebuild.
+
+---
+
+
 ## 2026-08-24 13:21 IST — ngspice rollback to 34 + full code-quality audit remediation (41 findings)
 
 ### Rollback to ngspice-34 (user decision)

@@ -47,6 +47,11 @@ class PWLFitResult:
     max_abs_error: float             # L-inf maximum absolute error
     n_segments: int                  # K actually used
     converged: bool = True
+    # Why the adaptive loop stopped: 'tolerance_met' | 'stagnated' |
+    # 'cap_reached'. NOTE: converged=False does NOT mean the result is bad -
+    # it only means the requested fidelity target was not met within
+    # max_segments; RMSE/max_abs_error always describe actual quality.
+    stop_reason: str = "tolerance_met"
     notes: List[str] = field(default_factory=list)
 
     def evaluate(self, x: np.ndarray) -> np.ndarray:
@@ -199,7 +204,6 @@ def _result_from_breaks(x: np.ndarray, y: np.ndarray,
     k = len(brk) - 1
     seg_idx_all = np.clip(
         np.searchsorted(brk[1:-1], x, side="right"), 0, k - 1)
-    repaired = False
     for s in range(k):
         m = seg_idx_all == s
         if counts[s] == 1 and s > 0:
@@ -212,7 +216,6 @@ def _result_from_breaks(x: np.ndarray, y: np.ndarray,
             if abs(dx_seg) > 1e-12:
                 slopes[s] = (yi - start_val) / dx_seg
                 intercepts[s] = start_val - slopes[s] * brk[s]
-                repaired = True
 
     # Repair pass B: any remaining starved segments (no predecessor anchor)
     # are merged into a neighbour by dropping the shared breakpoint.
@@ -245,7 +248,9 @@ def _result_from_breaks(x: np.ndarray, y: np.ndarray,
 
     def _seg_mean_x(s):
         m = seg_idx_all == s
-        return float(np.mean(x[m])) if m.any() else             float(0.5 * (brk[s] + brk[s + 1]))
+        if m.any():
+            return float(np.mean(x[m]))
+        return float(0.5 * (brk[s] + brk[s + 1]))
 
     intercepts_chained = np.zeros(k)
     intercepts_chained[0] = slopes[0] * 0.0  # first passes through origin of
@@ -309,6 +314,7 @@ def fit_adaptive(
         if best is None or result.rmse < best.rmse:
             best = result
         if result.rmse <= tol_abs:
+            result.stop_reason = "tolerance_met"
             result.notes.append(
                 f"adaptive stop: K={k} reached RMSE {result.rmse:.4g} "
                 f"<= tolerance {tol_abs:.4g}")
@@ -321,11 +327,17 @@ def fit_adaptive(
                 and result.rmse > 0.999 * prev_rmse:
             if result.rmse < best.rmse:
                 best = result
-            break
+            best.stop_reason = "stagnated"
+            best.notes.append(
+                f"adaptive stop: K={k} stagnated "
+                f"(RMSE {result.rmse:.4g} vs previous {prev_rmse:.4g}); "
+                f"returning best K={best.n_segments}")
+            return best
         prev_rmse = result.rmse
 
     assert best is not None
     best.converged = False
+    best.stop_reason = "cap_reached"
     best.notes.append(
         f"tolerance {tol_abs:.4g} not reachable within "
         f"max_segments={max_segments}; returning best K="

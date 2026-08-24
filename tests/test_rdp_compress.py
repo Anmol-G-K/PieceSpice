@@ -89,3 +89,14 @@ def test_length_mismatch_raises():
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q", "--no-header"]))
+
+
+def test_rdp_rejects_negative_epsilon():
+    with pytest.raises(ValueError):
+        compress_rdp(np.linspace(0, 1, 50), np.linspace(0, 1, 50),
+                     epsilon=-1e-3)
+
+
+def test_rdp_rejects_nan_epsilon():
+    with pytest.raises(ValueError):
+        compress_rdp(np.arange(10.0), np.arange(10.0), epsilon=float("nan"))

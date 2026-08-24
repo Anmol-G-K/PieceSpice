@@ -83,6 +83,10 @@ def compress_rdp(
         (x_compressed, y_compressed) with the first and last points always
         retained and x strictly ascending.
     """
+    if not np.isfinite(epsilon) or epsilon < 0:
+        raise ValueError(
+            f"epsilon must be a finite value > 0 (got {epsilon!r}); "
+            f"negative/NaN tolerance would silently disable pruning")
     x = np.asarray(x_data, dtype=float).ravel()
     y = np.asarray(y_data, dtype=float).ravel()
     if x.size != y.size:
