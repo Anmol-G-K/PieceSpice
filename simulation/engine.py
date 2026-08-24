@@ -12,6 +12,9 @@ import logging
 from typing import Optional
 from PySpice.Spice.Netlist import Circuit
 
+from common.diagnostics import (ConsoleQuiet,
+                                get_diagnostics)
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -77,6 +80,16 @@ class SpiceEngine:
                   f"continuing with ngspice defaults.")
         return simulator
 
+    def _collect_diagnostics(self) -> None:
+        """Drain ngspice console output into the diagnostics collector."""
+        try:
+            from PySpice.Spice.NgSpice.Shared import NgSpiceShared
+            ngs = NgSpiceShared._instances.get(0)
+            if ngs is not None:
+                get_diagnostics().drain_shared_buffer(ngs)
+        except Exception:  # pragma: no cover - diagnostics must never break runs
+            pass
+
     def create_circuit(self, title: str) -> Circuit:
         return Circuit(title)
 
@@ -96,8 +109,13 @@ class SpiceEngine:
         raises RuntimeError. Each fallback is logged.
         """
         try:
-            simulator = self._make_simulator(circuit)
-            return simulator.dc(**{sweep_source: slice(start, stop, step)})
+            with ConsoleQuiet():
+                simulator = self._make_simulator(circuit)
+                self._last_simulator = simulator
+                result = simulator.dc(
+                    **{sweep_source: slice(start, stop, step)})
+            self._collect_diagnostics()
+            return result
         except Exception as dc_exc:
             print(f"[engine] .dc failed for {circuit.title!r}; "
                   f"falling back to per-point OP sweep.")
@@ -158,10 +176,14 @@ class SpiceEngine:
     ):
         """Execute time-domain transient analysis."""
         try:
-            simulator = self._make_simulator(circuit)
-            return simulator.transient(
-                step_time=step_time, end_time=end_time, start_time=start_time
-            )
+            with ConsoleQuiet():
+                simulator = self._make_simulator(circuit)
+                self._last_simulator = simulator
+                result = simulator.transient(
+                    step_time=step_time, end_time=end_time,
+                    start_time=start_time)
+            self._collect_diagnostics()
+            return result
         except Exception as exc:
             raise RuntimeError(
                 f"Transient [{start_time}, {end_time}], step={step_time} failed "
@@ -172,13 +194,16 @@ class SpiceEngine:
                      number_of_points: int, variation: str = 'lin'):
         """Execute small-signal AC analysis."""
         try:
-            simulator = self._make_simulator(circuit)
-            return simulator.ac(
-                start_frequency=start_frequency,
-                stop_frequency=stop_frequency,
-                number_of_points=number_of_points,
-                variation=variation,
-            )
+            with ConsoleQuiet():
+                simulator = self._make_simulator(circuit)
+                self._last_simulator = simulator
+                result = simulator.ac(
+                    start_frequency=start_frequency,
+                    stop_frequency=stop_frequency,
+                    number_of_points=number_of_points,
+                    variation=variation)
+            self._collect_diagnostics()
+            return result
         except Exception as exc:
             raise RuntimeError(
                 f"AC sweep [{start_frequency}, {stop_frequency}] failed for "
