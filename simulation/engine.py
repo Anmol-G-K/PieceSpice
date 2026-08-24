@@ -108,24 +108,12 @@ class SpiceEngine:
         stop: float,
         step: float
     ):
-        """Emulate a DC sweep via successive operating points."""
-        import numpy as np
-        simulator = self._make_simulator(circuit)
+        """Fallback ladder for native .dc: coarser steps, then edge shrink.
 
-        n = max(2, int(round((stop - start) / step)) + 1)
-        values = np.linspace(start, stop, n)
-
-        # Discover node names once from a probe op at the first value.
-        probe = Circuit(f"{circuit.title}_probe")
-        probe.raw_spice = ""
-        # We cannot easily clone; instead operate on the same circuit by
-        # temporarily converting the swept source to PWL. Simplest robust
-        # approach: use ngspice's own .dc on a modified stepped-source is not
-        # possible here, so drive the source parametrically via element reuse.
-
-        # Fallback strategy: coarser steps, then edge shrink. The last sweep
-        # point frequently hits model clamp boundaries (E100 limit, exp
-        # overflow) that the interior tolerates.
+        The last sweep point frequently hits model clamp boundaries (E100
+        limit, exp underflow) that the interior tolerates.
+        """
+        # Fallback strategy: coarser steps, then edge shrink.
         for factor in (4, 8):
             coarse = step * factor
             if coarse >= (stop - start):

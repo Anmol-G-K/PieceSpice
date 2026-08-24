@@ -24,6 +24,8 @@ from simulation.engine import SpiceEngine
 from simulation.testbenches.static_sweep import (
     normalized_lib_copy, discard_normalized_lib,
 )
+from simulation.testbenches.xinst import attach_x_instance
+from common.roles import ROLE_NODES
 
 
 def _interp_curve(curve: CurveData, x: np.ndarray) -> np.ndarray:
@@ -235,86 +237,8 @@ def plot_gate_charge(df: pd.DataFrame, breakpoints: dict, save_path=None,
     return fig, ax
 
 
-def run_gate_charge(
-    lib_path: Path,
-    subcircuit_name: str,
-    v_bus: float = 40.0,
-    i_load: float = 50.0,
-    i_gate: float = 5e-3,
-    v_gs_max: float = 10.0,
-    t_end: float = 120e-6,
-    step_time: float = 20e-9,
-    pin_roles: list[str] | None = None,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Run the gate-charge transient under datasheet conditions.
-
-    A constant-current load (i_load into the drain) plus a rail-clamp diode
-    hold the device at its rated load current: an ideal voltage source on the
-    drain would let the macromodel conduct thousands of amps, driving its
-    internal capacitance-sense network unstable.
-
-    WARNING (VM-02): on MODPEX sense-and-mirror vendor models (e.g.
-    IRFS7730PBF) this transient is structurally broken - the EV16/CAP/FI1/FI2
-    network pumps junk current into the gate and Vgs collapses. Prefer
-    `reconstruct_gate_charge` (quasi-static) for those devices.
-
-    Returns:
-        q_g: Gate charge array [C] (i_gate * t; the 1 ns PWL ramp is treated
-            as instantaneous - negligible vs typical 100 us windows).
-        v_gs: Gate-source voltage array [V]
-        v_ds: Drain-source voltage array [V]
-    """
-    temp_lib = normalized_lib_copy(lib_path)
-    # Pin-role aware connections; source role ties to ground.
-    roles = pin_roles or ["drain", "gate", "source"]
-    conn = dict(zip(roles, [
-        {"drain": "d", "gate": "g", "source": "0"}.get(r, r) for r in roles
-    ]))
-    xd, xg = conn["drain"], conn["gate"]
-
-    try:
-        circuit = Circuit("Gate_Charge")
-        circuit.include(str(temp_lib.resolve()))
-        circuit.X("M1", subcircuit_name, xd, xg, "0")
-        # Drain rail + clamp: before turn-on the load current charges the
-        # drain until the clamp returns it to the rail (~Vbus); after turn-on
-        # it flows through the channel, holding Id = i_load during the Miller
-        # plateau.
-        from PySpice.Unit import u_V as _u_V, u_A as _u_A, u_s as _u_s
-        circuit.V("bus", "vbus", circuit.gnd, float(v_bus)@u_V)
-        circuit.model('DCLAMP', 'D', IS=1e-10)
-        circuit.D("clamp", "d", "vbus", model='DCLAMP')
-        circuit.I("load", circuit.gnd, "d", float(i_load)@u_A)
-        circuit.PieceWiseLinearCurrentSource(
-            "drive", "g", circuit.gnd,
-            values=[
-                (0.0@u_s, 0.0@u_A),
-                (1e-9@u_s, float(i_gate)@u_A),
-                (float(t_end)@u_s, float(i_gate)@u_A),
-            ],
-        )
-
-        engine = SpiceEngine()
-        analysis = engine.run_transient(circuit, step_time=step_time, end_time=t_end)
-
-        time = np.array(analysis.time)
-        v_gs = np.array(analysis.nodes['g'])
-        v_ds = np.array(analysis.nodes['d'])
-        q_g = i_gate * time
-
-        # Truncate at first crossing of v_gs_max
-        idx = np.argmax(v_gs >= v_gs_max)
-        if v_gs[idx] >= v_gs_max and idx > 0:
-            # Linear interpolation onto the exact crossing
-            t0, t1 = time[idx - 1], time[idx]
-            v0, v1 = v_gs[idx - 1], v_gs[idx]
-            frac = (v_gs_max - v0) / max(v1 - v0, 1e-15)
-            t_cross = t0 + frac * (t1 - t0)
-            keep = idx + 1
-            time, v_gs, v_ds, q_g = time[:keep], v_gs[:keep], v_ds[:keep], q_g[:keep]
-            q_g[-1] = i_gate * t_cross
-            v_gs[-1] = v_gs_max
-
-        return q_g, v_gs, v_ds
-    finally:
-        discard_normalized_lib(temp_lib)
+# NOTE: `run_gate_charge` (raw constant-current transient) was removed.
+# It is structurally broken on MODPEX sense-and-mirror vendor models (VM-02):
+# the EV16/CAP/FI1/FI2 network pumps amp-level junk current into the gate and
+# Vgs collapses, making Qg unrecoverable. Use `reconstruct_gate_charge`
+# (quasi-static reconstruction) instead.

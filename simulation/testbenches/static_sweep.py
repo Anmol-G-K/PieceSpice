@@ -10,6 +10,7 @@ from PySpice.Unit import *
 from common.types import CurveData
 from simulation.engine import SpiceEngine
 from simulation.testbenches.xinst import attach_x_instance
+from common.roles import x_connections as _shared_x_connections
 from parser.preprocessor import normalize_pspice_netlist
 
 
@@ -63,13 +64,14 @@ _normalized_lib_file = normalized_lib_copy
 class StaticSweepTestbench:
     """Extracts output (Id-Vds), transfer (Id-Vgs), on-resistance and body-diode curves."""
 
-    #: External circuit nodes by role; 'source' always ties to ground here.
-    ROLE_NODES = {"drain": "d", "gate": "g", "source": "0"}
-
     @staticmethod
     def _x_connections(pin_roles: List[str]) -> List[str]:
-        """Map resolved pin roles to external node names, positionally."""
-        return [StaticSweepTestbench.ROLE_NODES.get(r, r) for r in pin_roles]
+        """Map resolved pin roles to external node names, positionally.
+
+        Delegates to the shared registry in common.roles (single source of
+        truth for role->node mapping across all testbenches).
+        """
+        return _shared_x_connections(pin_roles)
 
     def __init__(self, engine: Optional[SpiceEngine] = None):
         self.engine = engine or SpiceEngine()

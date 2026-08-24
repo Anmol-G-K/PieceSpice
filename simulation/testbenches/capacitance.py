@@ -94,8 +94,9 @@ class CapacitanceTestbench:
         # Connections must be built in POSITIONAL role order (the order the
         # vendor subckt declares its ports), mapping each role to the external
         # node. For EPC roles [gate,drain,source] -> ['g','d','0'].
+        from common.roles import x_connections
         roles = pin_roles or ["drain", "gate", "source"]
-        node_by_role = {"drain": "d", "gate": "g", "source": "0"}
+        conn = dict(zip(roles, x_connections(roles)))
         # Tj role (if present) maps to its own driven node - the model's
         # thermal port MUST be connected and held at the configured junction
         # temperature; omitting it makes V(Tj) undefined and every equation
