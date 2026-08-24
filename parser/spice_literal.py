@@ -32,14 +32,9 @@ def parse_spice_literal(text: str):
         pass
     m = _SUFFIX_RE.match(t)
     if m:
-        # Suffix case: match against the table preserving meaning.
-        suf = m.group(2)
-        for key, mult in _SPICE_SUFFIXES.items():
-            if suf.lower() == key:
-                return float(m.group(1)) * mult
-            if suf == 'MEG' or (suf.lower() == 'meg' and key == 'meg'):
-                return float(m.group(1)) * mult
-        return None
+        # Regex matched case-insensitively against the table keys; a single
+        # lowercased lookup is exact and total here.
+        return float(m.group(1)) * _SPICE_SUFFIXES[m.group(2).lower()]
     return None
 
 

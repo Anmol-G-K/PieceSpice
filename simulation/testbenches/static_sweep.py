@@ -1,12 +1,16 @@
 """Static DC sweep testbench for extracting standard datasheet curves."""
 
+import logging
+
 import os
 import tempfile
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 import numpy as np
 from PySpice.Spice.Netlist import Circuit
-from PySpice.Unit import *
+from PySpice.Unit import u_V, u_Ohm
+_LOGGER = logging.getLogger(__name__)
+
 from common.types import CurveData
 from simulation.engine import SpiceEngine
 from simulation.testbenches.xinst import attach_x_instance
@@ -77,7 +81,7 @@ def normalized_lib_copy(lib_path: Path, *, fresh: bool = False) -> Path:
 def discard_normalized_lib(temp_lib: Path) -> None:
     """Remove a normalized copy (idempotent) and drop its cache entry."""
     if os.environ.get("PIECESPICE_KEEP_NORM") == "1":
-        print(f"[normalizer] keeping normalized copy: {temp_lib}")
+        _LOGGER.info("keeping normalized copy: %s", temp_lib)
         return
     try:
         temp_lib.unlink()
@@ -93,16 +97,13 @@ def discard_normalized_lib(temp_lib: Path) -> None:
     ``PIECESPICE_KEEP_NORM=1`` to keep them for inspection.
     """
     if os.environ.get("PIECESPICE_KEEP_NORM") == "1":
-        print(f"[normalizer] keeping normalized copy: {temp_lib}")
+        _LOGGER.info("keeping normalized copy: %s", temp_lib)
         return
     try:
         temp_lib.unlink()
     except FileNotFoundError:
         pass
 
-
-# Backwards-compatible alias (older call sites imported the private name).
-_normalized_lib_file = normalized_lib_copy
 
 
 class StaticSweepTestbench:
@@ -117,17 +118,17 @@ class StaticSweepTestbench:
         """
         return _shared_x_connections(pin_roles)
 
-    def __init__(self, engine: Optional[SpiceEngine] = None):
+    def __init__(self, engine: SpiceEngine | None = None):
         self.engine = engine or SpiceEngine()
 
     def run_output_characteristics(
         self,
         lib_path: Path,
         subcircuit_name: str,
-        vgs_list: Optional[List[float]] = None,
+        vgs_list: List[float] | None = None,
         vds_max: float = 10.0,
         vds_points: int = 101,
-        pin_roles: Optional[List[str]] = None,
+        pin_roles: List[str] | None = None,
     ) -> List[CurveData]:
         """Extract output characteristics family: Id vs Vds for each Vgs."""
         if vgs_list is None:
@@ -176,7 +177,7 @@ class StaticSweepTestbench:
         vds_fixed: float = 10.0,
         vgs_max: float = 15.0,
         vgs_points: int = 151,
-        pin_roles: Optional[List[str]] = None,
+        pin_roles: List[str] | None = None,
     ) -> CurveData:
         """Extract transfer characteristic: Id vs Vgs at fixed Vds."""
         roles = pin_roles or ["drain", "gate", "source"]
@@ -218,7 +219,7 @@ class StaticSweepTestbench:
         vds_max: float = 2.5,
         vds_points: int = 51,
         min_current: float = 1.0,
-        pin_roles: Optional[List[str]] = None,
+        pin_roles: List[str] | None = None,
     ) -> CurveData:
         """Extract Rds(on) = Vds/Id vs Id in the ohmic region at fixed Vgs.
 
@@ -269,7 +270,7 @@ class StaticSweepTestbench:
         i_target: float = 250e-6,
         v_max: float = 6.0,
         points: int = 3001,
-        pin_roles: Optional[List[str]] = None,
+        pin_roles: List[str] | None = None,
     ) -> tuple[CurveData, float]:
         """Extract Vgs(th) per the datasheet/JEDEC constant-current method.
 
@@ -347,7 +348,7 @@ class StaticSweepTestbench:
         vsd_max: float = 1.0,
         points: int = 51,
         sweep_step: float | None = None,
-        pin_roles: Optional[List[str]] = None,
+        pin_roles: List[str] | None = None,
     ) -> CurveData:
         """Extract body-diode / reverse-conduction characteristic Isd vs Vsd.
 
@@ -402,8 +403,9 @@ class StaticSweepTestbench:
                 # Step-size-sensitive convergence near the diode knee: retry on
                 # a coarse 25-point grid before giving up.
                 coarse_step = vsd_max / 24
-                print(f"[body_diode] default step diverged ({exc}); "
-                      f"retrying with coarse step {coarse_step:.4g} V")
+                _LOGGER.warning("body_diode default step diverged (%s); "
+                                "retrying with coarse step %.4g V",
+                                exc, coarse_step)
                 analysis = self.engine.run_dc_sweep(circuit, "Vsd", 0, vsd_max,
                                                     coarse_step)
 
@@ -456,5 +458,5 @@ class StaticSweepTestbench:
         )
         # Legacy soft warning for mildly negative tails (kept for diagnostics)
         if expect_positive and np.nanmin(y) < 0:
-            print(f"[static_sweep] NOTE: {label} contains negative tail "
-                  f"samples (expected for leakage-limited sweeps).")
+            _LOGGER.info("%s contains negative tail samples "
+                         "(expected for leakage-limited sweeps).", label)

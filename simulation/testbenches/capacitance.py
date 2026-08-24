@@ -9,9 +9,14 @@ Method (per Vds bias point, f = 1 MHz):
          voltage ratio r = |Vg|/|Vd| = Cgd/(Cgd + Cgs) yields Crss = r*Ciss.
 """
 
+import logging
+from pathlib import Path
+
 import numpy as np
 from PySpice.Spice.Netlist import Circuit
-from PySpice.Unit import *
+from PySpice.Unit import u_V, u_Ohm, u_H, u_Hz
+
+_LOGGER = logging.getLogger(__name__)
 
 from common.types import CurveData
 from parser.preprocessor import normalize_pspice_netlist
@@ -42,14 +47,15 @@ class CapacitanceTestbench:
         self.engine = engine or SpiceEngine()
         if f_meas is None or f_meas <= 0:
             if f_meas is not None:  # explicitly bad value in config
-                print(f"[capacitance] WARNING: invalid f_meas={f_meas!r}; "
-                      f"falling back to {F_MEAS_DEFAULT:.1e} Hz.")
+                _LOGGER.warning("invalid f_meas=%r; falling back to %.1e Hz",
+                                f_meas, F_MEAS_DEFAULT)
             f_meas = F_MEAS_DEFAULT
         elif not (1e5 <= f_meas <= 1e8):
-            print(f"[capacitance] WARNING: f_meas={f_meas:.1e} Hz is outside "
-                  f"the band vendor macromodels are typically calibrated for "
-                  f"(100 kHz - 100 MHz); results may not match datasheet "
-                  f"capacitances. Continuing anyway.")
+            _LOGGER.warning(
+                "f_meas=%.1e Hz is outside the band vendor macromodels are "
+                "typically calibrated for (100 kHz - 100 MHz); results may "
+                "not match datasheet capacitances. Continuing anyway.",
+                f_meas)
         self.f_meas = float(f_meas)
         self._ac_retries = ac_retries
 
@@ -89,8 +95,7 @@ class CapacitanceTestbench:
             vds_min: float = 0.1, vds_max: float = 60.0,
             points: int = 25,
             pin_roles: list[str] | None = None) -> list[CurveData]:
-        from pathlib import Path as _Path
-        lib_path = _Path(lib_path)
+        lib_path = Path(lib_path)
         # Connections must be built in POSITIONAL role order (the order the
         # vendor subckt declares its ports), mapping each role to the external
         # node. For EPC roles [gate,drain,source] -> ['g','d','0'].
@@ -158,9 +163,10 @@ class CapacitanceTestbench:
             for name, arr in (("Ciss", ciss), ("Coss", coss), ("Crss", crss)):
                 v = arr[i]
                 if not np.isfinite(v) or v <= 0 or v > 1e-3:
-                    print(f"[capacitance] WARNING: {name} @ Vds={vds:.2f}V "
-                          f"= {v:.3e} F is non-physical (limit 1 mF); "
-                          f"masking this point as NaN.")
+                    _LOGGER.warning(
+                        "%s @ Vds=%.2fV = %.3e F is non-physical "
+                        "(limit 1 mF); masking this point as NaN.",
+                        name, vds, v)
                     arr[i] = np.nan
 
         # Trim trailing masked region so interpolators see a clean envelope.
@@ -172,8 +178,7 @@ class CapacitanceTestbench:
         x_valid = vds_sweep[:n_valid]
         ciss_t, coss_t, crss_t = ciss_t[:n_valid], coss_t[:n_valid], crss_t[:n_valid]
         if n_valid < points:
-            print(f"[capacitance] NOTE: returning first {n_valid} of "
-                  f"{points} points (valid envelope); rest masked.")
+            _LOGGER.info("Returning first %d of %d points (valid envelope); rest masked.", n_valid, points)
 
         discard_normalized_lib(temp_lib)
         family_note = f"measured @ {self.f_meas:.1e} Hz"

@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Tuple
 
 import numpy as np
+from PySpice.Unit import u_A, u_s, u_V
 import pandas as pd
 
 from common.types import CurveData

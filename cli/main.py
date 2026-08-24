@@ -41,7 +41,11 @@ def sweep(
     vds_max: float = typer.Option(10.0, "--vds-max", help="Max Vds for sweep"),
     report_html: Path = typer.Option(Path("report.html"), "--report", "-r", help="HTML report output path")
 ):
-    """Run DC characteristics sweep and output interactive HTML report."""
+    """Run DC output-characteristics sweep and generate an HTML report.
+
+    For the full seven-curve datasheet extraction use the
+    ``curves`` command (config-driven pipeline).
+    """
     console.print(f"[bold green]Running DC output characteristics sweep on {subckt}...[/bold green]")
     bench = StaticSweepTestbench()
     curves = bench.run_output_characteristics(

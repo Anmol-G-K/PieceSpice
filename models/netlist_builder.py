@@ -1,6 +1,10 @@
 """Generates executable SPICE subcircuits from PieceSpice piecewise specifications."""
 
+import logging
+
 from common.types import PWLModelSpec, PWL_META_KEYS
+
+_LOGGER = logging.getLogger(__name__)
 
 # Documented fallbacks for optional metadata keys the producer has not yet
 # populated. Missing keys never crash the builder; unknown keys are reported.
@@ -21,21 +25,22 @@ def _resolve_metadata(spec: PWLModelSpec) -> dict:
         if k in _META_DEFAULTS:
             meta[k] = v
         else:
-            print(
-                f"[netlist_builder] WARNING: unknown metadata key {k!r} for "
-                f"{spec.device_name} (known keys: {sorted(_META_DEFAULTS)}); ignored."
-            )
+            _LOGGER.warning(
+                "unknown metadata key %r for %s (known keys: %s); ignored.",
+                k, spec.device_name, sorted(_META_DEFAULTS))
     missing = [k for k in _META_DEFAULTS if k not in spec.metadata]
     if missing:
-        print(
-            f"[netlist_builder] NOTE: {spec.device_name} metadata missing "
-            f"{missing}; using defaults {({k: _META_DEFAULTS[k] for k in missing})}."
-        )
+        _LOGGER.info(
+            "%s metadata missing %s; using documented defaults.",
+            spec.device_name, missing)
     return meta
 
 
 class NetlistBuilder:
-    """Emits SPICE subcircuit code for Tier 1, 2, or 3 models."""
+    """Emits SPICE subcircuit code.
+
+    Currently implements Tier 2 (CPWL); Tier 1/3 are future scope.
+    """
 
     @staticmethod
     def build_tier2_subcircuit(spec: PWLModelSpec) -> str:

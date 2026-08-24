@@ -1,7 +1,10 @@
 """PSpice and LTspice dialect normalizer for NgSpice compatibility."""
 
+import logging
 import re
 from typing import Dict, Any, List
+
+_LOGGER = logging.getLogger(__name__)
 
 from parser.spice_literal import parse_spice_literal, translate_spice_literals
 from parser.pow_harden import harden_fractional_powers
@@ -25,7 +28,7 @@ except ImportError:  # pragma: no cover
 
 # A logical line may carry multiple assignments: `.PARAM a=1 b={2*a}`.
 # The bare `.PARAM name expr` form (no '=') is also legal PSpice.
-_KV_RE = re.compile(
+PARAM_KV_RE = re.compile(
     r'([A-Za-z][A-Za-z0-9_]*)\s*(?:=\s*)?([^\s=]+)'
 )
 
@@ -107,7 +110,7 @@ def normalize_pspice_netlist(raw_content: str, *,
 
         if re.match(r'^\.PARAM', stripped, re.IGNORECASE):
             tail = re.sub(r'^\.PARAM\s*', '', stripped, flags=re.IGNORECASE)
-            pairs = _KV_RE.findall(tail)
+            pairs = PARAM_KV_RE.findall(tail)
             if not pairs:
                 warnings.append(f"unparseable .PARAM line skipped: {stripped!r}")
                 continue
@@ -115,10 +118,6 @@ def normalize_pspice_netlist(raw_content: str, *,
                 key = name.lower()  # SPICE params are case-insensitive; last wins
                 pending[key] = expr.strip()
                 display.setdefault(key, name)
-
-    def lookup(name: str) -> Any:
-        """Case-insensitive param lookup."""
-        return params.get(name.lower())
 
     # Pass 2: iterate param evaluation until fixed point (handles forward refs).
     for _ in range(len(pending) + 1):
@@ -138,7 +137,7 @@ def normalize_pspice_netlist(raw_content: str, *,
             f"{pending[name]!r}; left symbolic (downstream ngspice parse may fail)"
         )
     for w in warnings:
-        print(f"[preprocessor] WARNING: {w}")
+        _LOGGER.warning("%s", w)
 
     # Pass 3: substitute params and clean lines
     for line in lines:

@@ -8,7 +8,7 @@ from pydantic import BaseModel
 _HEADER_PARAMS_RE = re.compile(
     r'\bPARAMS\s*:\s*(.+)$', re.IGNORECASE
 )
-_KV_RE = re.compile(
+HEADER_PARAM_RE = re.compile(
     r'([A-Za-z][A-Za-z0-9_]*)\s*=\s*([^\s=]+)'
 )
 _SUBCKT_RE = re.compile(r'^\.SUBCKT\s+(\S+)\s+(.+)', re.IGNORECASE)
@@ -91,7 +91,7 @@ def _split_header_params(rest: str) -> tuple[List[str], Dict[str, str]]:
     if not m:
         return rest.split(), {}
     nodes = rest[: m.start()].split()
-    params = {k: v for k, v in _KV_RE.findall(m.group(1))}
+    params = {k: v for k, v in HEADER_PARAM_RE.findall(m.group(1))}
     return nodes, params
 
 

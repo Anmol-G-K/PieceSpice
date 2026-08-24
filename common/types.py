@@ -58,8 +58,20 @@ class PWLModelSpec(BaseModel):
     breakpoints_vds: List[float]
     breakpoints_id: List[List[float]]
     vgs_values: List[float]
-    charge_qoss_v: List[float]
-    charge_qoss_q: List[float]
+    # Canonical names (M17); 'charge_qoss_v/q' remain accepted aliases.
+    q_oss_vs_v: List[float] = Field(default_factory=list)
+    q_oss_charge_c: List[float] = Field(default_factory=list)
+    charge_qoss_v: List[float] = Field(default_factory=list)
+    charge_qoss_q: List[float] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _merge_legacy_charge_names(self) -> "PWLModelSpec":
+        """Fold legacy field names into the canonical ones."""
+        if not self.q_oss_vs_v and self.charge_qoss_v:
+            self.q_oss_vs_v = self.charge_qoss_v
+        if not self.q_oss_charge_c and self.charge_qoss_q:
+            self.q_oss_charge_c = self.charge_qoss_q
+        return self
     rds_on: float
     v_th: float
     metadata: Dict[str, Any] = Field(default_factory=dict)
@@ -87,3 +99,20 @@ class SimulationResult(BaseModel):
     waveforms: Dict[str, WaveformData] = Field(default_factory=dict)
     curves: Dict[str, CurveData] = Field(default_factory=dict)
     error_message: Optional[str] = None
+
+
+def trim_trailing_invalid(x_arr, y_arr):
+    """Trim trailing non-finite/non-positive samples from a curve.
+
+    Shared post-processing (Minor m15): capacitance-style benches mask
+    degenerate points as NaN; this trims the masked tail so interpolators
+    see a clean envelope. Returns (x, y) numpy arrays.
+    """
+    import numpy as np
+    x = np.asarray(x_arr, dtype=float)
+    y = np.asarray(y_arr, dtype=float)
+    valid = np.where(np.isfinite(y) & (y > 0))[0]
+    if len(valid) == 0:
+        return x, y
+    k = valid[-1] + 1
+    return x[:k], y[:k]

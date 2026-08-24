@@ -17,15 +17,8 @@ Safety rules:
 - Only called on behavioral-source expression bodies, never .PARAM.
 - Unparseable expressions pass through unchanged - never corrupt.
 """
-
 import re
-
-# matches an operand that is already protected by abs(), optionally with
-# outer parentheses around it: 'abs(...)' or '(abs(...))' or '((abs(...)))'
-_ABS_WRAPPED_RE = re.compile(
-    r'^\(*\s*[Aa][Bb][Ss]\s*\([^()]*\)\s*\)*$'
-)
-
+_ABS_WRAPPED_RE = re.compile('^\\(*\\s*[Aa][Bb][Ss]\\s*\\([^()]*\\)\\s*\\)*$')
 
 def _find_base_start(expr: str, op_start: int) -> int:
     """Return index where the operand ending just before op_start begins."""
@@ -47,7 +40,6 @@ def _find_base_start(expr: str, op_start: int) -> int:
                     j -= 1
                     break
             j -= 1
-        # include preceding identifier (function call name, e.g. exp/log)
         k = j
         while k > 0 and (expr[k - 1].isalnum() or expr[k - 1] == '_'):
             k -= 1
@@ -58,14 +50,11 @@ def _find_base_start(expr: str, op_start: int) -> int:
         return j
     return j
 
-
 def _is_abs_wrapped(base: str) -> bool:
     """True if base is 'abs(...)' possibly wrapped in redundant parens."""
     s = base.strip()
-    # strip layers of outer parens
     while True:
         if s.startswith('(') and s.endswith(')'):
-            # verify these parens actually wrap the whole string
             depth = 0
             wraps = True
             for idx, ch in enumerate(s):
@@ -78,28 +67,27 @@ def _is_abs_wrapped(base: str) -> bool:
                         break
             if wraps and depth == 0:
                 inner = s[1:-1].strip()
-                if re.fullmatch(r'[Aa][Bb][Ss]\s*\(.*\)', inner, re.DOTALL):
+                if re.fullmatch('[Aa][Bb][Ss]\\s*\\(.*\\)', inner, re.DOTALL):
                     return True
                 s = inner
                 continue
         break
-    return bool(re.fullmatch(r'[Aa][Bb][Ss]\s*\(.*\)', s.strip(), re.DOTALL))
-
+    return bool(re.fullmatch('[Aa][Bb][Ss]\\s*\\(.*\\)', s.strip(), re.DOTALL))
 
 def harden_fractional_powers(expr: str) -> str:
     """Wrap fractional-power bases in abs(). Idempotent; conservative."""
     guard = 0
     while guard < 100:
         edited = False
-        for m in re.finditer(r'\*\*', expr):
+        for m in re.finditer('\\*\\*', expr):
             i = m.start()
             rest = expr[i + 2:].lstrip()
-            em = re.match(r'[A-Za-z][A-Za-z0-9_]*|\d+\.?\d*|\.\d+', rest)
+            em = re.match('[A-Za-z][A-Za-z0-9_]*|\\d+\\.?\\d*|\\.\\d+', rest)
             if not em:
                 continue
             expo = em.group(0)
-            if re.fullmatch(r'\d+', expo):
-                continue  # integer literal exponent: safe
+            if re.fullmatch('\\d+', expo):
+                continue
             bstart = _find_base_start(expr, i)
             base = expr[bstart:i].strip()
             if not base:

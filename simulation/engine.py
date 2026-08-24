@@ -7,8 +7,12 @@ still terminates the host process (PySpice limitation) — that cannot be caught
 at this layer; long unattended runs should use process-level isolation.
 """
 
+import logging
+
 from typing import Optional
 from PySpice.Spice.Netlist import Circuit
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class SpiceEngine:
@@ -69,7 +73,7 @@ class SpiceEngine:
             for key, value in self._options().items():
                 simulator.options(**{key: value})
         except Exception as exc:  # pragma: no cover - backend-dependent
-            print(f"[engine] WARNING: solver options rejected ({exc}); "
+            _LOGGER.warning(f"WARNING: solver options rejected ({exc}); "
                   f"continuing with ngspice defaults.")
         return simulator
 
@@ -84,12 +88,12 @@ class SpiceEngine:
         stop: float,
         step: float
     ):
-        """Execute DC operating point sweep.
+        """Execute a DC operating point sweep.
 
-        If the native .dc sweep fails (some behavioral models - e.g. Wolfspeed
-        SiC under ngspice-34 - fail source-stepping mid-sweep), falls back to
-        a sequence of individual operating points and assembles an equivalent
-        result object. Warns when the fallback is used.
+        Runs the native ngspice ``.dc`` first; on failure retries with
+        coarser steps, then a slightly shrunk stop value (model clamp
+        boundaries at the sweep edge are the usual culprit), and finally
+        raises RuntimeError. Each fallback is logged.
         """
         try:
             simulator = self._make_simulator(circuit)
@@ -121,7 +125,7 @@ class SpiceEngine:
             try:
                 sim2 = self._make_simulator(circuit)
                 result = sim2.dc(**{sweep_source: slice(start, stop, coarse)})
-                print(f"[engine] fallback succeeded with step x{factor}.")
+                _LOGGER.warning(f"fallback succeeded with step x{factor}.")
                 return result
             except Exception:
                 continue
