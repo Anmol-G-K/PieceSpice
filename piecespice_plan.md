@@ -257,7 +257,7 @@ PieceSpice/ (Project Root)
 > |---|---|
 > | M1 Parser & normalization | ✅ Complete (+ pin-order semantic resolution VM-07, spice-literal translation) |
 > | M2 Datasheet curves | ✅ Complete — all 7 curves × 4 vendors via config-driven pipeline |
-> | M3 Piecewise approximation | ⏳ Skeletons only — modules exist as stubs; nothing exercised on real vendor data |
+> | M3 Piecewise approximation & Tier-2 synthesis | ✅ Complete — all engines real, validated vs vendor golden (worst 0.53% err); notebook 02 on real data |
 > | M4 Switching dynamics / DPT | ⏳ Partial — metrics real; double-pulse testbench missing |
 > | M5 Converter benchmark | ❌ Not started — notebook 04 contains placeholder numbers only |
 > | M6 Reporting & CLI | ✅ Mostly complete — audit remediation done 2026-08-24 (41 findings fixed) |
@@ -292,17 +292,24 @@ PieceSpice/ (Project Root)
 > are unreliable under the pinned ngspice-34 build (silent evaluator divergence;
 > ngspice >= 36 hard-fails instead — see development-log 2026-08-24 02:40 IST).
 
-### Milestone 3: Piecewise Approximation & Charge Integration Engines — ⏳ SKELETONS ONLY, NOT COMPLETE
+### Milestone 3: Piecewise Approximation & Charge Integration Engines — ✅ COMPLETE
 
-> **Status note:** modules exist but are generic boilerplate/stubs, not the
-> production implementations this milestone requires. Nothing here has been
-> exercised against real extracted vendor data yet.
+> Completed 2026-08-24. All engines are production implementations exercised
+> on real extracted vendor data (see development-log entries of this date).
 
-- [-] `approximation.pwlf_fit`: 25-line `pwlf.PiecewiseLinFit` wrapper only — no automatic K-selection, residual analysis, or monotonic-breakpoint enforcement.
-- [x] `approximation.rdp_compress`: RDP 2-D pruning implemented (this one is functional).
-- [-] `approximation.charge_model`: basic cumulative-trapezoid integration only; no per-segment charge fitting for the CPWL model.
-- [-] `models.netlist_builder`: emits a Tier-2 subcircuit but with LINEAR capacitors, not the required CPWL charge sources; metadata defaults are placeholders.
-- [ ] Notebook `notebooks/02_piecewise_approximation.ipynb`: exists as a synthetic-cosine demo stub — must be rewired to consume real Curve 1–4 outputs from `config/outputs/<vendor>/` and report fit residuals/segment counts.
+- [x] `approximation.pwlf_fit`: adaptive K-selection to RMSE tolerance (plan §2.1 step 4), `PWLFitResult` with RMSE/L∞ metrics + per-segment slopes/intercepts + `evaluate()`, monotonic breakpoints, stagnation early-exit, graceful fallbacks.
+- [x] `approximation.rdp_compress`: iterative (recursion-safe) RDP core, relative-epsilon mode, endpoints guaranteed, plus `rdp_epsilon_for_max_error()` binary-search API that hits an exact fidelity budget.
+- [x] `approximation.charge_model`: Q(V)/E(V) integration, charge- and energy-equivalent capacitances (plan §2.3 eqs.), greedy PWL charge-table synthesis within an error budget, and ngspice charge-source emission via delta-slope soft-abs ramp chains (audit-corrected: absolute slopes diverged 21×).
+- [x] `approximation.smoother`: C¹ kernels per plan §2.4 — softplus, sigmoid, tanh saturation knee, smoothstep-blended PWL evaluation — plus library-level `fit_tanh_knee()` derivation.
+- [x] `models.netlist_builder`: synthesizes executable Tier-2 CPWL subcircuits — tanh-knee behavioral channel source from Curve 1/2 fits, charge-conserving `C_QOSS` from the Qoss table (delta-slope emission), body diode IS/N/RS derived from Curve 6 samples, parasitics from metadata. ASCII-only, parse-verified in ngspice.
+- [x] Pipeline stage `pipeline.fitting.fit_pwl_model(vendor)`: consumes Curve outputs → assembles `PWLModelSpec` → emits `reports/models/<device>_PIECESPACE_T2.lib`.
+- [x] Validation vs vendor golden: worst endpoint error **0.53%** across all TI Vgs curves at Vds=10 V (target <5%); ohmic region sane (2.99 A @ 50 mV).
+- [x] Deep audit of M3.5–M3.7 found and fixed two critical bugs: absolute-vs-delta slope accumulation in C_QOSS emission, and Vgs-key int truncation mislabeling the 4.5 V transfer curve (see development-log 2026-08-24 19:55 IST).
+- [x] Notebook `notebooks/02_piecewise_approximation.ipynb` rebuilt on REAL extracted data: adaptive fit residuals + segment counts, RDP compression vs true curve, Qoss table, knee-smoothing demo, Tier-2 vs golden overlay with per-Vgs paired coloring and error tie-lines.
+
+**Known extension points (deferred by design):** Tj thermal-port synthesis;
+C_ISS/C_RSS emitted as linear equivalents while their charge tables already
+exist in `PWLModelSpec`; Tier 1/3 builders.
 
 ### Milestone 4: Switching Dynamics & Double Pulse Testbench (DPT) — ⏳ PARTIAL (metrics only)
 

@@ -5,6 +5,94 @@ All timestamps are IST (UTC+05:30).
 
 ---
 
+## 2026-08-24 20:35 IST — M3.8 complete: notebook 02 rebuilt on real data; Milestone 3 CLOSED (9/9)
+
+### Delivered
+
+**notebooks/02_piecewise_approximation.ipynb rebuilt from scratch** (the old
+version was a synthetic-cosine demo stub flagged in the code-quality audit).
+
+Structure (12 cells, sectioned like notebook 01):
+
+1. Setup: vendor selector (VENDOR = "csd16412q5a"), config load.
+2. §1 Transfer Characteristic - Adaptive PWL Fit: calls
+   `fit_adaptive()` on the REAL extracted Curve-2 samples; plots extracted
+   points, the fitted model via `PWLFitResult.evaluate()`, and breakpoint
+   markers. Prints fit.summary(), stop_reason, relative RMSE.
+3. §2 Output Family - RDP Compression: calls
+   `rdp_epsilon_for_max_error()` + `compress_rdp()` on the actual top-Vgs
+   output curve; plots the TRUE full curve (solid blue, on top), retained
+   RDP points (open red circles), and the chord reconstruction SPICE would
+   interpolate. Prints epsilon, compression ratio, max deviation vs budget.
+4. §3 Charge Integration: re-runs the capacitance bench live at full
+   resolution, then `integrate_charge()` + `pwl_charge_segments()`;
+   plots Qoss(V) with table breakpoints and Coss(V) semilog. Prints
+   Qoss/Eoss/equivalent caps/table error.
+5. §4 Knee Smoothing - Hard PWL vs fitted tanh: calls the library
+   `fit_tanh_knee()` and `tanh_saturation()`; plots both curves. Prints max
+   deviation (% of Id_sat).
+6. §5 Tier-2 Synthesis & Validation: calls `fit_pwl_model(VENDOR)` then
+   `compare_tier2_vs_golden(VENDOR, lib)`; plots per-Vgs paired
+   Tier-2/golden endpoints with error tie-lines. Prints the comparison table
+   and worst endpoint error.
+
+### Notebook honesty audit (user-directed)
+
+User required that the notebook "actually uses the actual parameters and
+values given out by the algorithms and doesn't just bluff". Cell-by-cell
+trace performed:
+
+- Every plotted quantity traces to a real algorithm call on real data
+  (M2 outputs or freshly re-run benches). No hardcoded currents, no
+  fabricated gm/vds_sat, no placeholder numbers anywhere.
+- Two issues found during the trace were fixed:
+  a) Section 4 originally called tanh_saturation with FABRICATED parameters
+     (gm_est*3, vds_sat=0.1 V) unrelated to the device -> tanh curve rose to
+     ~1730 A vs hard PWL ~240 A (7x divergence presented as "smoothing").
+     Fixed by adding library `smoother.fit_tanh_knee(v_pwl, i_pwl)` which
+     derives Id_sat/Vds_sat/gm FROM the curve itself (Id_sat = plateau,
+     Vds_sat = 76% knee location since tanh(1)=0.7616, gm = Id_sat/Vds_sat).
+     Post-fix deviation is bounded (~15.8% of Id_sat) and localized AT the
+     knee only; tails coincide by construction.
+  b) Dead code in cell 5 (name construction immediately overwritten;
+     pointless in-loop import) removed.
+
+Refactor for separation of concerns (user-directed): notebooks must only
+call + plot; derivation/computation logic lives in the library.
+
+- NEW `approximation/smoother.py::fit_tanh_knee(v_pwl, i_pwl)` +
+  `TanhKneeFit` dataclass (id_sat, v_ds_sat, gm, max_abs_deviation_a).
+  Missing `dataclass` import caught by tests and fixed.
+- NEW `pipeline/fitting.py::compare_tier2_vs_golden(vendor, lib_path=None)`
+  -> (rows, worst_rel_pct): simulates the generated Tier-2 lib across all
+  Vgs curves vs golden endpoint currents.
+
+Final plot style (user-approved recommendation): per-Vgs paired coloring -
+each drive level gets its own viridis color shared by its Tier-2 (o) and
+golden (x) markers, plus a thin tie-line whose length IS the model error.
+Marker shape encodes model type; color encodes drive level.
+
+### Verification
+
+Notebook executed fresh: 12 cells, 0 errors, 5 figures. Suite: **97/97**
+passing.
+
+### MILESTONE 3 STATUS: COMPLETE (9/9 tasks)
+
+Full working chain now exists end-to-end:
+vendor .lib -> extraction (7 curves x 4 vendors validated) -> adaptive PWL
+fits + RDP compression + charge integration + C1 smoothing kernels ->
+PWLModelSpec -> synthesized Tier-2 subcircuit .lib -> ngspice validation
+vs vendor golden (worst 0.53% error, target <5%).
+
+Remaining known limitations documented elsewhere: VM-08 (CPM2 high-Vgs under
+ngspice-34); Tj thermal port synthesis deferred to a later milestone;
+C_ISS/C_RSS still linear equivalents (charge tables exist in spec but only
+Qoss is emitted as nonlinear - extension point noted in netlist_builder).
+
+---
+
+
 ## 2026-08-24 19:55 IST — M3.5/M3.6 complete (Tier-2 synthesis + fitting pipeline) with deep-audit fixes: Vgs-key truncation bug, C_QOSS slope accumulation
 
 ### Delivered
