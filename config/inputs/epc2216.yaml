@@ -13,7 +13,8 @@ subcircuit: EPC2216
 
 pins:
   # Order in which testbenches connect nodes to the X-instance.
-  pin_order: [drain, gate, source]
+  # EPC2216 subckt header is (gatein drainin sourcein) = GATE FIRST.
+  pin_order: [gate, drain, source]
   # Semantic validation: which .subckt header token each role binds to.
   pin_order_semantic:
     drain: drainin

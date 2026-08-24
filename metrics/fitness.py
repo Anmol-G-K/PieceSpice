@@ -1,0 +1,188 @@
+"""M4-subset fitness evaluation: golden vs Tier-2 switching comparison.
+
+Library-level so notebooks only plot. Reuses metrics/switching.py +
+metrics/compare.py - no new metric math here.
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+from pathlib import Path
+
+import numpy as np
+
+from approximation.charge_model import integrate_charge  # noqa: F401
+from metrics.loss import SwitchingLossMetrics, compute_switching_energy
+from metrics.static import compute_curve_error
+from metrics.switching import extract_switching_times
+from simulation.testbenches.simple_switching import (
+    SwitchingRun, run_simple_switching, steady_state_slice)
+
+_LOGGER = logging.getLogger(__name__)
+
+
+@dataclass
+class RunMetrics:
+    """All fitness-relevant numbers for ONE switching run."""
+
+    td_on_ns: float
+    tr_ns: float
+    td_off_ns: float
+    tf_ns: float
+    e_on_uj: float
+    e_off_uj: float
+    vds_on_mean_v: float       # conduction drop during on-window
+    i_peak_a: float            # turn-on current overshoot
+
+
+@dataclass
+class SwitchFitness:
+    """Golden-vs-Tier-2 comparison result."""
+
+    golden: RunMetrics
+    tier2: RunMetrics
+    timing_rel_err_pct: dict      # per-timing-metric relative error
+    energy_rel_err_pct: dict
+    waveform_rel_rmse_pct: float  # Vds(t) full-cycle relative RMSE
+    passed: bool                  # all gates within tolerance
+    verdict: str
+
+    def summary(self) -> str:
+        lines = [
+            "=== M4-subset Switching Fitness ===",
+            f"waveform rel-RMSE (Vds, steady cycle): "
+            f"{self.waveform_rel_rmse_pct:.2f}%",
+        ]
+        for k, v in self.timing_rel_err_pct.items():
+            lines.append(f"{k:>8}: {v:+7.2f}%")
+        for k, v in self.energy_rel_err_pct.items():
+            lines.append(f"{k:>8}: {v:+7.2f}%")
+        lines.append(f"VERDICT: {self.verdict}")
+        return "\n".join(lines)
+
+
+def _metrics_from_run(run: SwitchingRun) -> RunMetrics:
+    """Extract timing + loss + conduction metrics from one run."""
+    sw = extract_switching_times(
+        time=run.time, v_ds=run.v_ds, i_d=run.i_d, v_gs=run.v_gs,
+        v_bus=run.v_bus, i_load=run.i_load)
+
+    # switching-energy windows: around the drain edges of the LAST cycle.
+    # Use the crossing times the extractor found via its returned values by
+    # re-deriving windows locally from the waveform.
+    period = 2 * (run.time[-1] - run.time[0]) if False else None
+    # Simpler robust approach: on/off windows bracket each gate edge.
+    plateau = np.median(run.v_gs[len(run.v_gs) // 4:])
+    rising = np.where((run.v_gs[:-1] < 0.5 * plateau)
+                      & (run.v_gs[1:] >= 0.5 * plateau))[0]
+    falling = np.where((run.v_gs[:-1] > 0.5 * plateau)
+                       & (run.v_gs[1:] <= 0.5 * plateau))[0]
+
+    def _energy_around(idx_arr):
+        if len(idx_arr) == 0:
+            return 0.0
+        i = int(idx_arr[-1])
+        lo = max(0, i - 200)
+        hi = min(len(run.time) - 1, i + 200)
+        return compute_switching_energy(run.time, run.v_ds, run.i_d,
+                                        float(run.time[lo]),
+                                        float(run.time[hi]))
+
+    e_on = _energy_around(rising)
+    e_off = _energy_around(falling)
+
+    on_mask = run.v_gs > 0.9 * plateau
+    vds_on_mean = float(np.mean(run.v_ds[on_mask])) if on_mask.any() else 0.0
+
+    return RunMetrics(
+        td_on_ns=float(sw.delay_on_ns),
+        tr_ns=float(sw.rise_time_ns),
+        td_off_ns=float(sw.delay_off_ns),
+        tf_ns=float(sw.fall_time_ns),
+        e_on_uj=e_on,
+        e_off_uj=e_off,
+        vds_on_mean_v=vds_on_mean,
+        i_peak_a=float(np.max(run.i_d)),
+    )
+
+
+def _rel_err_pct(a: float, b: float) -> float:
+    denom = max(abs(b), 1e-12)
+    return (a - b) / abs(denom) * 100.0
+
+
+def compare_switching_fitness(
+    vendor_lib: Path,
+    vendor_subckt: str,
+    vendor_pins: list[str],
+    tier2_lib: Path,
+    tier2_subckt: str,
+    *,
+    vbus: float,
+    vgs_on: float,
+    i_load_target: float = 1.0,
+    temperature: float = 25.0,
+    timing_tol_pct: float = 20.0,
+    energy_tol_pct: float = 15.0,
+    waveform_tol_pct: float = 5.0,
+) -> SwitchFitness:
+    """Run both models under identical conditions and score the Tier-2 one.
+
+    Tolerances per M4-subset plan: timing ±20%, energies ±15%,
+    waveform rel-RMSE ±5%.
+    """
+    common = dict(vbus=vbus, vgs_on=vgs_on, i_load_target=i_load_target,
+                  temperature=temperature)
+
+    run_g = steady_state_slice(run_simple_switching(
+        Path(vendor_lib), vendor_subckt, vendor_pins, **common))
+    run_t = steady_state_slice(run_simple_switching(
+        Path(tier2_lib), tier2_subckt, ["drain", "gate", "source"],
+        **common))
+
+    mg = _metrics_from_run(run_g)
+    mt = _metrics_from_run(run_t)
+
+    timing_errs = {
+        "td_on": _rel_err_pct(mt.td_on_ns, mg.td_on_ns),
+        "tr": _rel_err_pct(mt.tr_ns, mg.tr_ns),
+        "td_off": _rel_err_pct(mt.td_off_ns, mg.td_off_ns),
+        "tf": _rel_err_pct(mt.tf_ns, mg.tf_ns),
+    }
+    energy_errs = {
+        "e_on": _rel_err_pct(mt.e_on_uj, mg.e_on_uj),
+        "e_off": _rel_err_pct(mt.e_off_uj, mg.e_off_uj),
+    }
+
+    err = compute_curve_error(run_g.v_ds, run_t.v_ds)
+
+    ok_timing = all(abs(v) <= timing_tol_pct for v in timing_errs.values())
+    ok_energy = all(abs(v) <= energy_tol_pct for v in energy_errs.values())
+    ok_wave = err.relative_rmse_pct <= waveform_tol_pct
+    passed = ok_timing and ok_energy and ok_wave
+
+    if passed:
+        verdict = "PASS - Tier-2 switches like the vendor model"
+    else:
+        fails = []
+        if not ok_wave:
+            fails.append(f"waveform {err.relative_rmse_pct:.1f}%")
+        if not ok_timing:
+            bad = [k for k, v in timing_errs.items()
+                   if abs(v) > timing_tol_pct]
+            fails.append("timing " + ",".join(bad))
+        if not ok_energy:
+            bad = [k for k, v in energy_errs.items()
+                   if abs(v) > energy_tol_pct]
+            fails.append("energy " + ",".join(bad))
+        verdict = "FAIL - " + "; ".join(fails)
+
+    return SwitchFitness(
+        golden=mg, tier2=mt,
+        timing_rel_err_pct=timing_errs,
+        energy_rel_err_pct=energy_errs,
+        waveform_rel_rmse_pct=err.relative_rmse_pct,
+        passed=passed,
+        verdict=verdict,
+    )
