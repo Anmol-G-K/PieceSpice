@@ -164,9 +164,14 @@ class PWLChargeTable:
     max_abs_error_c: float      # worst deviation vs original Q(V) [C]
     n_points: int               # number of table entries
 
-    def spice_pairs(self, precision: int = 9) -> List[Tuple[float, float]]:
-        """(v, q) pairs formatted for netlist emission."""
-        return [(float(v), round(float(q), precision))
+    def spice_pairs(self) -> List[Tuple[float, float]]:
+        """(v, q) pairs for netlist emission.
+
+        No rounding here: charges are ~1e-9..1e-6 C and decimal-place
+        rounding would destroy their precision (audit finding). Emission
+        formats with %.6e (16-bit-significant) at print time instead.
+        """
+        return [(float(v), float(q))
                 for v, q in zip(self.v_breaks, self.q_values)]
 
 
@@ -257,30 +262,40 @@ def synthesize_charge_source(
         f"{table.n_points} pts, max err {table.max_abs_error_c:.3e} C)",
         f"C{name} {node_pos} {node_neg} Q={{"
     ]
-    # Build the piecewise charge expression:
-    #   Q(v) = q0 + sum_k s_k*(v - v_{k-1} + |v - v_{k-1}|)/2  for v > vk
-    # i.e. chained soft-abs ramps - continuous, monotonic, no discontinuity.
-    terms = []
+    # Piecewise charge via chained soft-abs ramps with DELTA slopes:
+    #   Q(x) = q0 + s1*ramp(x-v0) + (s2-s1)*ramp(x-v1) + ...
+    # where ramp(d) = (d + |d|)/2 activates above each breakpoint and s_k is
+    # the segment slope. Using DELTA slopes (s_k - s_{k-1}) is essential:
+    # softplus ramps never turn off, so absolute slopes would accumulate and
+    # diverge (audit finding: 21x error at Vbus; delta form < 1.2e-10 C).
     pairs = table.spice_pairs()
-    for i in range(1, len(pairs)):
-        v_prev, q_prev = pairs[i - 1]
-        v_i, q_i = pairs[i]
-        seg_slope = ((q_i - q_prev) / (v_i - v_prev)) if v_i != v_prev else 0.0
-        delta = seg_slope * (v_i - v_prev) / 2.0 if False else 0.0
-        # ramp contribution centered so it activates above v_prev
-        terms.append((v_prev, seg_slope))
+    if not pairs:
+        raise ValueError("empty PWL charge table")
 
-    expr_parts = []
+    def ramp(term_x: str, v_prev: float, dslope: float) -> str:
+        return (
+            f" {dslope:+.6e}*(({term_x})-({v_prev:.6e})"
+            f"+abs(({term_x})-({v_prev:.6e})))/2")
+
     q0 = pairs[0][1]
+    x_term = f"v({node_pos},{node_neg})"
     expr = f"{q0:.6e}"
-    for v_prev, slope in terms:
-        if slope == 0.0:
-            continue
-        # softplus-style ramp: slope*( (x-vprev) + |x-vprev| )/2
-        expr += (
-            f" + {slope:.6e}*(((v({node_pos},{node_neg}))-({v_prev:.6e}))"
-            f"+abs((v({node_pos},{node_neg}))-({v_prev:.6e})))/2"
-        )
+    prev_slope = 0.0
+    for i in range(1, len(pairs)):
+        v_prev = pairs[i - 1][0]
+        v_i, q_i = pairs[i]
+        seg_slope = ((q_i - q_prev_of(pairs, i)) / (v_i - v_prev)
+                     if v_i != v_prev else 0.0)
+        delta = seg_slope - prev_slope
+        if abs(delta) > 0.0:
+            expr += ramp(x_term, v_prev, delta)
+        prev_slope = seg_slope
+
     lines[-1] = f"C{name} {node_pos} {node_neg} Q={{{expr}}}"
     lines.append(f"* IC hint: simulate from V={initial_condition_v:g}")
     return "\n".join(lines)
+
+
+def q_prev_of(pairs, i):
+    """Charge of the previous table entry."""
+    return pairs[i - 1][1]
