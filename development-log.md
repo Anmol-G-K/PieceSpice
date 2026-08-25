@@ -1,3 +1,79 @@
+## 2026-08-26 (5) IST — Migration todo refreshed: T1.1 closed, T1.3 mostly-done, T1.2 decomposed
+
+- docs/migration_todo.md updated: T1.1 marked DONE with delivery summary
+  (registry validated against a real failing LTspice log; import-safe
+  common/__init__; masking fix; rename). T1.3 marked MOSTLY DONE - CLI
+  invocation proven de-facto via direct exe runs in T0.1/T1.1; remaining
+  sliver (one SimRunner-based invocation) folds into T1.2's vendor-native
+  test. T1.2 decomposed into 5 steps with the native-handling verification
+  of all 4 vendor libs as the deletion gate.
+
+## 2026-08-26 (4) IST — T1.1 hardening: import-safe common/__init__, real-log validation, API rename
+
+1. common/__init__.py: all three ngspice suppressor installs now wrapped in
+   try/except - package import survives pyspice uninstall (was a time bomb:
+   install_console_suppressor imported PySpice unguarded).
+2. Real failing-run validation (fix 3): deliberately produced a floating-node
+   circuit in LTspice 26.0.2; actual log phrasing "WARNING: Node X is
+   floating." was MISSING from the new registry. Added floating_node warning
+   rule + op_iteration_banner info rule, both validated against the real log.
+   Note: LTspice gmin-stepped through a topology that ngspice calls singular -
+   no singular-matrix message appeared; the practical signal is the floating-
+   node warning.
+3. report_and_reset_ltspice renamed to report_and_reset (identical name to the
+   legacy helper so callers change only the import); old name kept as alias.
+4. Engine wiring of parse_log_file deferred to T2.1 by design.
+5. tests/test_diagnostics_ltspice.py extended: 6 tests total, 11/11 across
+   both diagnostics modules.
+
+## 2026-08-26 (3) IST — T1.1 done: LTspice .log diagnostics layer added alongside legacy ngspice collector
+
+- common/diagnostics_ltspice.py: new module with LTSPICE_DIAGNOSTICS
+  registry (singular_matrix, timestep_too_small, simulation_aborted,
+  parse_error, netlist_line_error, param_clamp, power_warning + info
+  banners), LTSpiceLogDiagnostics collector with the same ingest/report/
+  reset contract as the ngspice one, plus parse_log_file/parse_log_text
+  entry points for out-of-process log capture. SHA-256 masking/dedup
+  scheme retained; one fix over the legacy mask: letter+digit tokens
+  (NODEx17) now collapse via an explicit <tok> pattern (the old \b\d+\b
+  rule could not see digits inside words).
+- Removed-by-migration items (ConsoleQuiet, send_char suppressors,
+  drain_shared_buffer, PySpice logging filter) remain in
+  common/diagnostics.py marked LEGACY - deleted at T6.3 once no importer
+  remains.
+- tests/test_diagnostics_ltspice.py: 4 tests, all passing. Full suite:
+  100 passed + 1 flaky (test_pwlf_fit::test_exact_k_recovers_truth fails
+  in full-suite run, passes in isolation - pwlf differential-evolution
+  nondeterminism, pre-existing and unrelated to this change).
+
+## 2026-08-26 (2) IST — T0.3: spicelib/LTspice engine interface contract drafted
+
+- simulation/engine_ltspice_proposal.py added (PROPOSAL ONLY, not wired in):
+  SimResult container (traces dict keyed by raw-file names, sweep_var, log
+  text, classified warnings), structured directive objects
+  (TranDirective/DCDirective/ACDirective/OPDirective), LTSpiceEngine target
+  API mirroring today's per-analysis method shape, LTSpiceError exception.
+- Contract decisions embedded for review: netlist-text input (engine never
+  parses circuits), one method per analysis type, exceptions not exit codes,
+  mandatory timeouts (EPC-01 class hang protection), .temp card emission,
+  per-run temp workdir hygiene, diagnostics carried on the result.
+- Open review point flagged: complex AC reconstruction from RawRead
+  magnitude+phase - highest-risk item for Curve-4 parity (T2.4).
+
+## 2026-08-26 IST — Migration started: LTspice 26.0.2 verified headless; spicelib added (T0.1/T0.2)
+
+- LTspice located at %LOCALAPPDATA%\Programs\ADI\LTspice\LTspice.exe, version 26.0.2.
+- Headless batch verified: `LTspice.exe -b -ascii <net>` on an RC .tran netlist
+  exits 0, writes ASCII .raw (3,020 pts), .log, and an .op.raw sidecar.
+- Gotchas recorded in docs/migration_todo.md: MSYS-style paths rejected
+  ("No schematic nor netlist specified") - native Windows paths required;
+  .op.raw sidecar must be ignored by parsers; `-version` flag usable for
+  discovery helpers.
+- spicelib>=1.6.3 added by user and importable; pyspice still listed pending
+  code migration (final removal at cleanup).
+- docs/migration_todo.md updated: T0.1 done (with findings), T0.2 marked
+  partial-done.
+
 # PieceSpice Development Log
 
 Timestamped record of all development work. Newest entries at the top.
