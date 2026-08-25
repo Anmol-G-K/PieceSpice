@@ -218,6 +218,7 @@ SpiceModels/*
 .benchmarks/*
 download/
 downloads/
+data/
 
 
 *.lib

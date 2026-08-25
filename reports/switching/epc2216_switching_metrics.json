@@ -1,0 +1,50 @@
+{
+  "schema": "piecespice.switching.fitness/1.0",
+  "backend": "golden=inline ngspice-46 CSV; tier2=shared-lib transient",
+  "vendor": "epc2216",
+  "device": "epc2216",
+  "conditions": {
+    "f_sw_hz": 50000.0,
+    "duty": 0.5,
+    "vbus_v": 12.0,
+    "vgs_on_v": 5.0,
+    "i_load_a": 1.0,
+    "temperature_c": 25.0
+  },
+  "golden": {
+    "td_on_ns": 4.54171,
+    "tr_ns": 2.09955,
+    "td_off_ns": 9.48381,
+    "tf_ns": 3.49612,
+    "e_on_uj": 0.01215,
+    "e_off_uj": 0.01608,
+    "vds_on_mv": 22.64038,
+    "i_peak_a": 0.99797
+  },
+  "tier2": {
+    "td_on_ns": 0.0,
+    "tr_ns": 1.54563,
+    "td_off_ns": 17.1792,
+    "tf_ns": 4.84235,
+    "e_on_uj": 0.02504,
+    "e_off_uj": 0.03494,
+    "vds_on_mv": 51.30795,
+    "i_peak_a": 0.99578
+  },
+  "errors_pct": {
+    "td_on": -100.0,
+    "tr": -26.38,
+    "td_off": 81.14,
+    "tf": 38.51,
+    "e_on": 106.15,
+    "e_off": 117.23
+  },
+  "waveform_rel_rmse_pct": 7.08,
+  "tolerances_pct": {
+    "timing": 20.0,
+    "energy": 15.0,
+    "waveform": 5.0
+  },
+  "passed": false,
+  "verdict": "FAIL - see errors_pct"
+}
