@@ -5,6 +5,64 @@ All timestamps are IST (UTC+05:30).
 
 ---
 
+## 2026-08-25 14:45 IST — Switching-plot harness hardened: permanent home, dynamic edge zooms, clean naming
+
+### Delivered
+
+**notebooks/simple_plotting.py** (permanent, moved out of scripts/):
+standalone switching-comparison runner — simulates vendor golden + Tier-2
+live via the venv-bundled ngspice shared library (no external ngspice, no
+CSV dependency), and emits:
+
+  - Images/<vendor>_switching_3cycle.png      (300 dpi full-run overlay)
+  - Images/<vendor>_switching_edge_zoom.png   (300 dpi, dynamic zooms)
+  - reporting -> reports/switching/<vendor>_switching_metrics.json
+
+File naming: <vendor>_switching_* everywhere (m4_subset prefix dropped;
+old m4_subset images removed). scripts/ remains scratch-only.
+
+### Dynamic edge zooms (user-directed redo)
+
+The previous zooms windowed by gate timing (+/-8% of the 20us period =
++/-2.5us) while EPC edges transition in ~2-6ns — the edge was an invisible
+sliver. New `edge_window(t, vd, kind)`:
+
+1. Off/on levels derived per-waveform from percentiles (98th pct off-level,
+   median of sub-50% samples as on-level) — no hardcoded voltages.
+2. Detects where vd LEAVES the start level (crossing out of the 90%/10%
+   band), then walks forward until it SETTLES at the target level,
+   capturing true transition duration at any speed.
+3. Zoom = transition span padded 50% each side; x-axis is "time from edge
+   start [ns]" so golden and Tier-2 are edge-aligned even if their absolute
+   cycle positions differ.
+
+Verified on EPC: turn-on transition 2.4 ns (window ~±1 ns), turn-off 6.0 ns
+(~±3 ns) — transitions fill their plots sample-by-sample. Vendor-agnostic:
+slow Si IGBT-style edges get proportionally wider windows automatically.
+
+Also fixed: missing `import json` in the script (would NameError on metrics
+save); headless Agg backend set before pyplot import.
+
+### ngspice-46 vs bundled v34 comparison (user-requested check)
+
+EPC vendor switching run through both backends: on-state Vds 22.38 mV (v34)
+vs 22.64 mV (v46), off-state identical at 10.000 V. Max pointwise diff
+1.29 V occurs only during the ~2ns turn-on edge (sub-us adaptive-step
+alignment artifact between two steep-edge captures) — steady state agrees
+to ~1%. Conclusion: either backend gives equivalent physics; the venv-
+bundled DLL is sufficient and keeps version consistency.
+
+### EPC model limitation found (candidate VM defect)
+
+EPC2216 behavioral model HANGS (>90 s without progress) in ngspice-46 batch
+mode at Vbus=12 V with a resistive 1 A load, while 10 V and 11 V complete in
+~1.3 s. Bisected: not options-related (gear/gmin tried); it's a bus-voltage
+threshold between 11 and 12 V inside the model's behavioral network.
+M4-subset uses Vbus=11 V for EPC until characterized.
+
+---
+
+
 ## 2026-08-24 23:55 IST — M4-subset harness working: CSV-backed golden waveform + fixed metric extraction; parquet deferred
 
 ### Done this round

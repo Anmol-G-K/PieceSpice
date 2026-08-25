@@ -35,7 +35,7 @@ from simulation.testbenches.simple_switching import (
     run_simple_switching)
 
 IMG_DIR = REPO_ROOT / "Images"
-REPORT_DIR = REPO_ROOT / "reporting"
+REPORT_DIR = REPO_ROOT / "reports" / "switching"
 DATA_DIR = REPO_ROOT / "data"
 F_SW = 50_000.0
 
@@ -157,67 +157,89 @@ def main(vendor: str) -> int:
     plt.close(fig)
     print(f"[plot] saved {p1.name}")
 
-    # ---- plot 2: zoomed turn-on and turn-off edges of Vds ----
-    # use the union span of both runs for edge search; last cycle each
-    g_last_lo = g["time"][-1] - 1.0 / F_SW
-    gm = g["time"] >= g_last_lo
-    vd_bus_g = float(g["v_ds"].max())
-    t_rise_g, t_fall_g = find_vds_edges(
-        g["time"][gm], g["v_ds"][gm], vd_bus_g)
+    # ---- plot 2: zoomed turn-on and turn-off edges of Vds (dynamic) ----
+    def edge_window(t, vd, kind):
+        """Find [lo, hi] time window tightly around a Vds transition.
 
-    period = 1.0 / F_SW
-    win = 0.15 * period                     # zoom half-window
+        Detects where vd crosses from the 90% level toward the 10% level
+        (fall: turn-on) or reverse (rise: turn-off), scanning through
+        intermediate samples. Window = crossing span padded, so the edge
+        fills the zoom for any vendor/edge speed.
+        """
+        v_hi = float(np.percentile(vd, 98))
+        below = vd < 0.5 * abs(v_hi)
+        v_lo = float(np.percentile(vd[below], 50)) if below.any() else 0.0
+        span = max(v_hi - v_lo, 1e-9)
+        hi_lvl = v_lo + 0.9 * span
+        lo_lvl = v_lo + 0.1 * span
+
+        mid = len(vd) // 3
+
+        if kind == "fall":
+            leave = np.where((vd[:-1] > hi_lvl) & (vd[1:] < hi_lvl))[0]
+            settle = lo_lvl
+            start_lvl_test = vd >= hi_lvl
+        else:
+            leave = np.where((vd[:-1] < lo_lvl) & (vd[1:] > lo_lvl))[0]
+            settle = hi_lvl
+            start_lvl_test = vd <= lo_lvl
+        leave = leave[leave >= mid]
+        if len(leave) == 0:
+            return None
+        i = int(leave[-1])
+
+        # walk forward until settled at target level (or limit)
+        limit = min(len(vd) - 1, i + len(vd) // 10)
+        k = i + 1
+        while k < limit:
+            if kind == "fall" and vd[k] <= settle:
+                break
+            if kind == "rise" and vd[k] >= settle:
+                break
+            k += 1
+        # walk backward to where it left the start level
+        j = i
+        while j > 0:
+            if kind == "fall" and vd[j] >= hi_lvl:
+                break
+            if kind == "rise" and vd[j] <= lo_lvl:
+                break
+            j -= 1
+        t0, t1 = float(t[j]), float(t[min(k + 2, len(vd) - 1)])
+        dur = max(t1 - t0, 8 * float(np.mean(np.diff(t))))
+        pad = 0.5 * dur
+        return t0 - pad, t1 + pad
+
 
     fig, axs = plt.subplots(2, 1, figsize=(11.5, 8.0), layout="constrained")
 
-    def _zoom(axp, center, title):
-        lo, hi = center - win, center + win
-        gw = (g["time"] >= lo) & (g["time"] <= hi)
-        tw = (t["time"] >= lo) & (t["time"] <= hi)
-        if gw.any():
-            axp.plot(g["time"][gw] * 1e6, g["v_ds"][gw], lw=1.8,
-                     color="tab:blue", label="Vendor golden")
-        if tw.any():
-            axp.plot(t["time"][tw] * 1e6, t["v_ds"][tw], lw=1.5, ls="--",
-                     color="tab:red", label="Tier-2 CPWL")
-        axp.set_xlim(lo * 1e6, hi * 1e6)
-        axp.set_ylabel("Vds [V]")
+    for axp, kind, title in ((axs[0], "fall",
+                              "Zoom: Turn-On Edge (Vds falling)"),
+                             (axs[1], "rise",
+                              "Zoom: Turn-Off Edge (Vds rising)")):
+        wg = edge_window(g["time"], g["v_ds"], kind)
+        wt = edge_window(t["time"], t["v_ds"], kind)
+        drew = []
+        if wg:
+            lo_g, hi_g = wg
+            mgw = (g["time"] >= lo_g) & (g["time"] <= hi_g)
+            if mgw.any():
+                axp.plot((g["time"][mgw] - wg[0]) * 1e9, g["v_ds"][mgw],
+                         lw=1.8, color="tab:blue", label="Vendor golden")
+                drew.append(True)
+        if wt:
+            lo_t, hi_t = wt
+            mtw = (t["time"] >= lo_t) & (t["time"] <= hi_t)
+            if mtw.any():
+                axp.plot((t["time"][mtw] - wt[0]) * 1e9, t["v_ds"][mtw],
+                         lw=1.6, ls="--", color="tab:red",
+                         label="Tier-2 CPWL")
+                drew.append(True)
+        if not drew:
+            axp.text(0.5, 0.5, "no edge detected", ha="center")
+        axp.set_xlabel("Time from edge start [ns]")
         axp.set_title(title)
         _legend_east(axp)
-
-    # Tier-2 edges on its own last cycle
-    t2_last_lo = t["time"][-1] - period
-    tm = t["time"] >= t2_last_lo
-    vd_bus_t = float(t["v_ds"].max())
-    t_rise_t, t_fall_t = find_vds_edges(t["time"][tm], t["v_ds"][tm],
-                                        vd_bus_t)
-
-    # Turn-on zoom (golden's falling-vds edge center)
-    on_c = t_fall_g if t_fall_g is not None else g_last_lo + 0.1 * period
-    _zoom(axs[0], on_c, "Zoom: Turn-On Edge (Vds falling)")
-    # Turn-off zoom centers
-    off_c_g = t_rise_g if t_rise_g is not None else g["time"][gm][-1]
-    off_c_t = t_rise_t if t_rise_t is not None else t["time"][tm][-1]
-
-    lo_g, hi_g = off_c_g - win, off_c_g + win
-    gw = (g["time"] >= lo_g) & (g["time"] <= hi_g)
-    tw_all = (t["time"] >= lo_g) & (t["time"] <= hi_g + (period * 0))
-    # tier-2 may sit at a slightly different absolute time; shift by its own
-    # edge center
-    lo_t, hi_t = off_c_t - win, off_c_t + win
-    tw = (t["time"] >= lo_t) & (t["time"] <= hi_t)
-
-    if gw.any():
-        axs[1].plot((g["time"][gw] - off_c_g) * 1e6, g["v_ds"][gw], lw=1.8,
-                    color="tab:blue", label="Vendor golden")
-    if tw.any():
-        axs[1].plot((t["time"][tw] - off_c_t) * 1e6, t["v_ds"][tw],
-                    lw=1.5, ls="--", color="tab:red", label="Tier-2 CPWL")
-    axs[1].set_xlim(-win * 1e6, win * 1e6)
-    axs[1].set_xlabel("Time relative to edge [µs]")
-    axs[1].set_ylabel("Vds [V]")
-    axs[1].set_title("Zoom: Turn-Off Edge (Vds rising)")
-    _legend_east(axs[1])
 
     p2 = IMG_DIR / f"{vendor}_switching_edge_zoom.png"
     fig.savefig(p2, dpi=300)
