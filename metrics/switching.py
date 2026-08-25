@@ -63,7 +63,9 @@ def extract_switching_times(
         tail = i_d[len(i_d)//4:]
         i_load = float(np.median(tail))
 
-    v_gs_plateau = float(np.median(v_gs[len(v_gs)//4:]))
+    # 50% duty => half the samples sit at 0 V; a high percentile gives
+    # the true on-state gate level for any duty cycle.
+    v_gs_plateau = float(np.percentile(v_gs, 95))
     gs_lo = 0.1 * v_gs_plateau
     gs_hi = 0.9 * v_gs_plateau
 

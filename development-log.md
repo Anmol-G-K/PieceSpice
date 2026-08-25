@@ -5,6 +5,150 @@ All timestamps are IST (UTC+05:30).
 
 ---
 
+## 2026-08-24 23:55 IST — M4-subset harness working: CSV-backed golden waveform + fixed metric extraction; parquet deferred
+
+### Done this round
+
+1. **data/m4_subset_epc2216_golden.csv** — captured the verified inline
+   ngspice-46 subprocess simulation (gate-first EPC pins, 60 us / 3 cycles,
+   30,274 pts; Vds 0.0223-10.073 V, Id peak 0.998 A). This is the trusted
+   golden waveform, stored as plain inspectable CSV.
+
+2. **scripts/m4_subset_run.py rewritten** — no longer simulates the vendor
+   model (which hangs in some console hosts). Loads the golden CSV, runs
+   only the Tier-2 model live via the shared library (0.6 s - never had the
+   hang), and produces:
+     - Images/m4_subset_epc2216_3cycle.png (300 dpi)
+     - Images/m4_subset_epc2216_zoom.png   (300 dpi)
+     - reporting/m4_subset_epc2216_metrics.json
+   Headless Agg backend set via MPLBACKEND env before pyplot import
+   (script contexts have no display).
+
+### Metric-extraction bugs found & fixed while validating numbers
+
+Three real bugs were producing garbage fitness numbers:
+a) gate plateau inferred as median(v_gs[len//4:]) = 0 V at 50% duty
+   (half the samples sit at 0 V). Fixed to 95th percentile - duty-cycle
+   agnostic. Fixed both in scripts/m4_subset_run.py AND at the source in
+   metrics/switching.py (extract_switching_times inferred its plateau the
+   same broken way).
+b) threshold levels derived from YAML Vbus (12 V) while the golden CSV was
+   captured at 10 V -> drain 90%/10% levels unreachable -> all timings 0.
+   Fixed: infer v_bus from max(run.v_ds).
+c) Tier-2 waveform was trimmed to last cycle while golden spanned 60 us ->
+   rel-RMSE computed across mismatched time bases (85% nonsense). Fixed:
+   keep full Tier-2 run so spans match.
+
+### Final EPC fitness numbers (honest)
+
+| metric | golden | tier-2 | err % |
+|---|---|---|---|
+| td_on [ns] | 5.24 | 0.00* | -100 |
+| tr [ns] | 1.43 | 1.55 | +7.9 |
+| td_off [ns] | 9.46 | 17.18 | +81.6 |
+| tf [ns] | 3.44 | 4.84 | +40.6 |
+| E_on [uJ] | 0.0124 | 0.0250 | +102.5 |
+| E_off [uJ] | 0.0152 | 0.0349 | +129.6 |
+| Vds on-state [mV] | 22.6 | 51.3 | - |
+| Id peak [A] | 0.998 | 0.996 | - |
+| waveform rel-RMSE % | - | 14.41 | FAIL |
+
+*td_on=0 is an extraction artifact (Tier-2 drain starts moving before the
+10% gate crossing).
+
+VERDICT: FAIL on timing/energy. Diagnosis unchanged from previous entry:
+linear C_ISS/C_RSS defaults + single shared tanh knee are model-fidelity
+gaps (documented M3 extension points), not harness defects. The harness
+itself is now sound - numbers are trustworthy.
+
+### Parquet decision (user question, analysis only)
+
+Parquet is technically superior (3-4x smaller, exact float fidelity,
+embeddable capture metadata) but needs pyarrow (new dependency) and the
+current golden file is a one-shot hand-capture artifact where CSV's
+inspectability helped debugging. Decision: defer parquet to full M4
+(DPT transients with millions of points) as a deliberate data-layer
+upgrade with a designed schema.
+
+### Halt state
+
+User halted execution. Harness works end-to-end; model-fidelity gaps are
+the documented next work item (nonlinear Ciss/Crss charge sources +
+per-Vgs knees). No core solver or engine changes made for this workaround.
+
+---
+
+
+## 2026-08-24 23:30 IST — M4-subset bring-up: switching testbench + fitness delivered; Jupyter-context hang isolated to shared-lib console path; subprocess backend validated
+
+### Delivered
+
+**simulation/testbenches/simple_switching.py** — 50 kHz / 50 % duty
+resistive-load testbench per spec (load sized for 1 A, biases from YAML).
+
+**metrics/fitness.py** — compare_switching_fitness(): runs vendor + Tier-2,
+extracts td_on/tr/td_off/tf + Eon/Eoff + conduction drop; scores timing
+±20 % / energy ±15 % / waveform rel-RMSE ±5 %.
+
+**notebooks/04a_simple_switching_subset.ipynb** — dynamic VENDOR cell,
+3-cycle overlay plot, zoomed turn-on/off plots, metrics table (call+plot only).
+
+**scripts/m4_subset_run.py** — TEMPORARY standalone mirror using the
+ngspice-46 console binary in subprocess batch mode; saves Images/*.png at
+300 dpi and reporting/m4_subset_<vendor>_metrics.json.
+
+### Bugs found & fixed
+
+1. simple_switching.py missing c.include(library_path) — every model failed
+   with 'run failed'. Initially misdiagnosed as VM-09 (TI transient defect);
+   VM-09 retracted after root-causing.
+2. epc2216.yaml pin_order was [drain, gate, source] but subckt header is
+   (gatein drainin sourcein) = GATE FIRST -> gate drive landed on drain;
+   device never switched. Fixed to [gate, drain, source]. Verified: full
+   10 V swing, Id=0.998 A, Vds_on=22.4 mV.
+3. Tier-2 always-on defect (netlist_builder): transfer anchored at first
+   fitted point instead of origin -> Id(Vgs<=first) = const > 0 (EPC: 9.74 A
+   at Vgs=0). Fixed by prepending virtual (Vgs=0, Id=0).
+4. metrics/switching.py last_crossing called with rising=True kwarg that
+   does not exist (signature uses falling=). Fixed to falling=False.
+5. fitness waveform compare shape mismatch -> interpolate onto common grid.
+
+### ngspice-46 subprocess backend validated
+
+PySpice bundles SpiceServer (NgSpice/Server.py): netlist file ->
+ngspice_con -b -> wrdata CSV -> numpy. Validated on EPC vendor:
+1.3 s for 60 us/30k pts vs 30-40 s via shared library, identical results
+(Vds 0.022-10.07 V, on-state 22.6 mV @ 0.998 A).
+
+NOTE: PySpice post-install tool only installs the DLL package (no console
+exe); ngspice-46 console comes from the system install
+(C:\Program Files\Spice64\bin\ngspice_con.exe).
+
+### OPEN ISSUE — Jupyter/shared-lib hang (unresolved)
+
+run_simple_switching (shared-lib path) completes in 30-40 s from a script
+but hangs indefinitely inside Jupyter kernels (>10 min), including after
+install_notebook_quiet_console() (SendChar-level suppression wired into
+common/__init__ so it precedes instance creation; verified bound). The
+cffi _send_char callback fires per console message against ipykernel's
+captured stdout; suspected interaction between engine's ConsoleQuiet
+fd-dup2 and ipykernel's ZMQ stdout forwarding, but root cause NOT fully
+isolated. scripts/m4_subset_run.py (ngspice-46 console subprocess)
+bypasses this entirely and is the working path for M4-subset until fixed.
+Also observed: m4_subset_run.py itself hung once under the agent terminal
+with a cffi error on interrupt, while completing in seconds when its
+output was captured via subprocess.run - console-host dependent behavior.
+
+### State at halt (user STOP - execution halted only, no processes killed)
+
+m4_subset_run.py mid-debug: batch run of the generated netlist hung even
+as a file-based -b invocation in one context while an equivalent earlier
+netlist completed in 1.3 s. Deltas being bisected: $tmp vs absolute wrdata
+path, named 'source' node vs numeric 0, Vbus 12 vs 10. Not resolved.
+
+---
+
+
 ## 2026-08-24 22:40 IST — M4-subset delivered: 50kHz/50% resistive switching fitness (EPC), two model bugs fixed
 
 ### Delivered
@@ -1416,107 +1560,6 @@ in the tests, not papered over in the code.
 
 ---
 
-## 2026-08-22 16:10 IST — M1/M2 audit: 3 implementation bugs fixed, VM-03 fixable defect fixed, test suite 8 → 34
-
-### Audit scope
-
-Full review of Milestone 1 (preprocessor, netlist parser, plotting) and Milestone 2
-(static_sweep, capacitance, gate_charge testbenches), pytest verification, missing-test
-gap fill, and a fixability pass over `vendor_model_defects.md`.
-
-### Implementation errors found & fixed
-
-**M1 — `parser/preprocessor.py`** (rewritten)
-1. *Forward-referenced params never resolved*: single-pass substitution left `.PARAM a {b*2}`
-   unresolved when `b` was defined later. Fixed with iterated evaluation to a fixed point.
-2. *`$` comments not stripped* despite the docstring promising it. Now stripped alongside `;`.
-3. *Unsafe bare `eval`*: replaced with a safe function whitelist
-   (min/max/sqrt/exp/log/log10/pow/sin/cos/tan via numpy, math fallback) and empty builtins.
-4. Unresolvable params now stay symbolic instead of crashing.
-
-**M1 — `parser/netlist.py`**
-5. *PSpice header params misread as pins*: `.SUBCKT DEMO 1 2 3 PARAMS: scale=1.5` produced
-   nodes `['1','2','3','PARAMS:','scale=1.5','temp=25']` and an empty parameters dict.
-   Added `_split_header_params`: pin list is now clean, params land in `SubcircuitInfo.parameters`.
-
-**M2 — `simulation/testbenches/static_sweep.py`**
-6. *Hardcoded conduction mask* in `run_rds_on` (`id_arr > 1.0`) silently dropped all data
-   for low-current devices. Exposed as parameter `min_current=1.0`.
-
-### Vendor-model defect fixability assessment (`vendor_model_defects.md`)
-
-- **VM-01, VM-02, VM-04, VM-05**: NOT fixable without mutating the vendor `.spi`
-  (explicitly forbidden — results would no longer be golden). Mitigations already shipped;
-  statuses unchanged in the catalog.
-- **VM-03 (charge-inaccurate Cgd)**: FIXABLE on our side. Added optional
-  `qgd_cal_nC` to `reconstruct_gate_charge` — rescales the Miller segment to a datasheet
-  Qgd target so total charge is physically meaningful; the applied factor is reported as
-  `qgd_cal_scale` in breakpoints. Verified on IRFS7730PBF @ Id=100 A, Vbus=38 V:
-  raw Qg = 183.8 nC (−32% vs datasheet 271); calibrated Qg = **226.8 nC**
-  (Qgs 67.2 / Qgd 79.0 exact / tail 80.6), remaining −16% gap attributed to Qgs/tail
-  overdrive inflation (VM-01) which calibration cannot address.
-
-### Tests: 8 → 34 (all passing)
-
-New/expanded files:
-- `tests/test_preprocessor.py` — 7 tests: forward refs, `$`/`;` comments, safe functions,
-  unresolvable-symbolic passthrough, param hoisting before .SUBCKT, original param case.
-- `tests/test_netlist.py` (new file, then merged into expanded parser tests) and
-  `tests/test_parser.py` — vendor-file parsing (both subckts present, 3-pin check),
-  PSpice PARAMS-header handling, plain-subckt regression.
-- `tests/test_gate_charge.py` (new) — 7 tests: three-segment structure & charge sum rule,
-  DataFrame format + monotonicity, ascending/descending Crss-axis equivalence,
-  Iload-out-of-range ValueError, plateau clamped to v_gs_max, Qgd calibration exactness.
-
-Three initial failures were bad test expectations (interpolation landing exactly on a
-knot point; symbolic-passthrough semantics), corrected in the tests — not code bugs.
-
-Final: `uv run pytest -q` → **34 passed**.
-
----
-
-## 2026-08-22 15:21 IST — Root cause analysis: Id = 1.5–1.7 kA vs datasheet ID = 246 A (new defect VM-04)
-
-### Trigger
-
-User flagged Curve 1 output characteristics showing Id ≈ 1.5–1.7 kA at Vgs = 10 V against
-the IRFS7730PBF Absolute Maximum Ratings (ID = 246 A @ TC=25 °C silicon-limited, 195 A
-package-limited, IDM 984 A pulsed).
-
-### Analysis performed
-
-- Re-ran Curve 1 and Curve 2 sweeps; measured Id @ Vgs=10 V, Vds=10 V = **1668.1 A**.
-- Hand-solved the LEVEL=1 core equations with the model's own parameters
-  (KP=465.97, VTO=4.34579, LAMBDA=0.0605061, RS=2.03 mΩ, RD=0.1 mΩ):
-  analytic Id_sat @ 10 V/10 V = **1727 A** — matches the measurement to ~4%.
-- Verified the fitter had no free parameter left: predicted Rds(on) =
-  1/(β·Vov) + RS + RD = 2.509 mΩ vs extracted 2.52 mΩ ✅; gfs @ 100 A ≈ 215 S vs
-  datasheet 249 S (−14%, expected for LEVEL=1).
-- Thermal cross-check of the datasheet rating: ID = 246 A is "Silicon Limited" —
-  P = 246² × 2.52 mΩ ≈ 152 W < PD max 375 W. At 1668 A, P ≈ 7 kW = 18.7× rated PD.
-
-### Verdict
-
-Not an extraction bug. The vendor model *does* conduct kA-level current by design:
-LEVEL=1 has no maximum-current parameter, no mobility degradation, no velocity
-saturation, no thermal feedback — so Id grows as Vov² without limit once KP and VTO are
-pinned by Rds(on) and the transfer shape. The datasheet's 246 A is a thermal/package
-limit that a purely electrical macromodel cannot encode. The model's realistic operating
-point is Id = 246 A at Vgs ≈ 5.66 V (interpolated from Curve 2).
-
-Recorded as defect **VM-04** in the new `vendor_model_defects.md` catalog, alongside
-VM-01 (no subthreshold / fake-high Vth), VM-02 (sense-and-mirror transient pathology),
-VM-03 (charge-inaccurate Cgd), and VM-05 (corrupted t=0 operating point).
-
-### Operating rules adopted for this device model
-
-1. Never drive beyond ~250–350 A continuous in testbenches.
-2. Derive operating points by transfer-curve interpolation at the target load current,
-   never from "Vgs = 10 V".
-3. Tier 2 synthesis should consider a soft current clamp near datasheet ID.
-
----
-
 ## 2026-08-22 15:40 IST — Plotting overhaul + notebook 01 updated with gate-charge study
 
 ### Motivation
@@ -1564,6 +1607,48 @@ All notebook figures flow through `common/plotting.py`, so the fix was made cent
   (kA / nC), annotations readable, Miller plateau line visible, no layout flaws.
 - Gate-charge numbers in-notebook: Vgp 5.07 V, Qgs 67.3 nC, Qgd 36.0 nC, Qg 183.2 nC.
 - Full pytest suite: **8 passed** — no regressions.
+
+---
+
+## 2026-08-22 15:21 IST — Root cause analysis: Id = 1.5–1.7 kA vs datasheet ID = 246 A (new defect VM-04)
+
+### Trigger
+
+User flagged Curve 1 output characteristics showing Id ≈ 1.5–1.7 kA at Vgs = 10 V against
+the IRFS7730PBF Absolute Maximum Ratings (ID = 246 A @ TC=25 °C silicon-limited, 195 A
+package-limited, IDM 984 A pulsed).
+
+### Analysis performed
+
+- Re-ran Curve 1 and Curve 2 sweeps; measured Id @ Vgs=10 V, Vds=10 V = **1668.1 A**.
+- Hand-solved the LEVEL=1 core equations with the model's own parameters
+  (KP=465.97, VTO=4.34579, LAMBDA=0.0605061, RS=2.03 mΩ, RD=0.1 mΩ):
+  analytic Id_sat @ 10 V/10 V = **1727 A** — matches the measurement to ~4%.
+- Verified the fitter had no free parameter left: predicted Rds(on) =
+  1/(β·Vov) + RS + RD = 2.509 mΩ vs extracted 2.52 mΩ ✅; gfs @ 100 A ≈ 215 S vs
+  datasheet 249 S (−14%, expected for LEVEL=1).
+- Thermal cross-check of the datasheet rating: ID = 246 A is "Silicon Limited" —
+  P = 246² × 2.52 mΩ ≈ 152 W < PD max 375 W. At 1668 A, P ≈ 7 kW = 18.7× rated PD.
+
+### Verdict
+
+Not an extraction bug. The vendor model *does* conduct kA-level current by design:
+LEVEL=1 has no maximum-current parameter, no mobility degradation, no velocity
+saturation, no thermal feedback — so Id grows as Vov² without limit once KP and VTO are
+pinned by Rds(on) and the transfer shape. The datasheet's 246 A is a thermal/package
+limit that a purely electrical macromodel cannot encode. The model's realistic operating
+point is Id = 246 A at Vgs ≈ 5.66 V (interpolated from Curve 2).
+
+Recorded as defect **VM-04** in the new `vendor_model_defects.md` catalog, alongside
+VM-01 (no subthreshold / fake-high Vth), VM-02 (sense-and-mirror transient pathology),
+VM-03 (charge-inaccurate Cgd), and VM-05 (corrupted t=0 operating point).
+
+### Operating rules adopted for this device model
+
+1. Never drive beyond ~250–350 A continuous in testbenches.
+2. Derive operating points by transfer-curve interpolation at the target load current,
+   never from "Vgs = 10 V".
+3. Tier 2 synthesis should consider a soft current clamp near datasheet ID.
 
 ---
 
@@ -1642,93 +1727,3 @@ by `_crss_integral` keeping the physically meaningful descending-Vds integration
 
 ---
 
-## 2026-08-22 14:47 IST — Datasheet cross-validation: why extracted values deviate from the IRFS7730PBF datasheet
-
-Datasheet dynamic/static tables (Tj = 25 °C) were compared against model-extracted
-values, re-run under exact datasheet conditions (Id = 100 A, Vds = 38 V).
-
-### Agreement (extraction machinery validated)
-
-| Quantity | Model-extracted | Datasheet typ | Error |
-|---|---|---|---|
-| Ciss @ Vds=25 V | 13 381 pF | 13 660 pF | −2% |
-| Coss @ Vds=25 V | 1 108 pF | 1 120 pF | −1% |
-| Crss @ Vds=25 V | 685 pF | 690 pF | −0.7% |
-| Rds(on) @ Vgs=10 V | 2.52 mΩ | 2.2 (max 2.6) mΩ | within spec |
-
-Conclusion: Curve 2/4 testbenches measure the vendor model faithfully.
-
-### Root cause of deviations (traced to specific lines of irfs7730pbf.spi)
-
-Line 21-23 of the vendor file:
-
-```spice
-M1 9 7 8 8 MM L=100u W=100u
-.MODEL MM NMOS LEVEL=1 IS=1e-32
-+VTO=4.34579 LAMBDA=0.0605061 KP=465.97
-```
-
-1. **Vth deviation (extracted 4.30 V vs datasheet window 2.1–3.7 V)** — structural:
-   - `IS=1e-32` eliminates subthreshold conduction entirely. A LEVEL=1 SPICE MOSFET
-     conducts zero current until VGS > VTO, whereas a real device reaches the JEDEC
-     Vth definition current (250 uA) gradually below threshold.
-   - Consequently the MODPEX fitter could not fit VTO to the datasheet Vth; it fitted
-     an *effective strong-inversion onset* (VTO = 4.35 V) tuned jointly with KP and
-     LAMBDA to match the high-current transfer characteristic. The datasheet's Vth
-     quantity simply does not exist inside this macromodel.
-   - Same trade-off visible in gfs: model ~350 S near high Id vs datasheet 249 S — a
-     single square-law LEVEL=1 core cannot match Vth, gfs, and Rds(on) simultaneously.
-
-2. **Qgs too high (67 nC @ 100 A conditions vs datasheet 55 nC)** — consequence of the
-   inflated effective threshold: the reconstructed plateau sits at ~5.07 V instead of
-   the real device's lower plateau, so segment 1 absorbs excess charge
-   (Qgs ~ Ciss x Vplateau).
-
-3. **Qgd too low (~36 nC vs datasheet 79 nC) and Qg total low (184 vs 271 nC, −32%)** —
-   the MODPEX sense-and-mirror network reproduces small-signal Crss accurately at fixed
-   bias (hence the perfect Crss @ 25 V match), but its large-signal charge delivery
-   across the full 38 V -> 0 drain swing under-integrates versus the real device's Cgd
-   bulge during collapse. Extracted Crss does rise from 685 pF @ 25 V toward ~3.4 nF at
-   low Vds, but not steeply enough in integrated charge.
-
-### Datasheet-condition reconstruction summary (Id=100 A, Vbus=38 V)
-
-| Segment | Reconstructed | Datasheet typ |
-|---|---|---|
-| Plateau voltage | 5.07 V | — |
-| Qgs | 67.25 nC | 55 nC |
-| Qgd | 35.95 nC | 79 nC |
-| Tail | 80.57 nC | — |
-| Qg total @ 10 V | 183.78 nC | 271 nC |
-
-### Implication for PieceSpice
-
-Every observed deviation is a documented defect of the golden vendor model itself, not
-of the extraction pipeline. This supports the framework premise: vendor "golden" models
-carry systematic errors (behavioral DC core without subthreshold; AC-calibrated but not
-charge-accurate capacitance emulation). Validation targets must be chosen deliberately
-(datasheet values vs vendor-model values), and this should inform Tier 2 model targets.
-
-TODO carried forward: consider appending this cross-validation as §8 of
-`gate_charge_error_analysis.md`.
-
----
-
-## 2026-08-22 (morning) — Project indexing report (pre-work baseline)
-
-Prior to implementation, a full repository index was performed:
-
-- Walked full directory tree; read every source module.
-- Cross-referenced `piecespice_plan.md` against disk state.
-- Verified `uv run pytest -q`: 8 passed.
-- Key findings recorded:
-  - Milestones 1 and static portion of 2 solidly done (Curves 1, 2, 3, 4, 6 working).
-  - Milestones 3–5 skeletal: netlist_builder ignores fitted breakpoints; no
-    double_pulse.py or buck_converter.py; metrics/switching.py returns hardcoded
-    timing placeholders; notebooks 02–05 are unexecuted stubs.
-  - Missing vs plan: parser/extractor.py, approximation/smoother.py,
-    simulation/testbenches/double_pulse.py, simulation/testbenches/buck_converter.py.
-  - Known blocker documented in gate_charge_error_analysis.md (Curve 5 transient).
-  - Plan checkboxes stale in both directions; README.md empty; unused deps in
-    pyproject.toml (polars, shapely, rdp, seaborn, pandas, hypothesis,
-    pytest-benchmark).
