@@ -5,6 +5,115 @@ All timestamps are IST (UTC+05:30).
 
 ---
 
+## 2026-08-25 15:10 IST — M4-subset executed across all 4 vendors; CPM2 vendor turn-off abort discovered (VM-10); plotting core hardened & moved to notebooks/
+
+### Delivered
+
+**notebooks/simple_plotting.py** (permanent home; removed from scripts/):
+vendor-agnostic switching-comparison runner. Simulates BOTH models live via
+the venv-bundled ngspice shared library (no external ngspice, no stored CSV
+dependency), then emits:
+  - Images/<vendor>_switching_3cycle.png       (300 dpi full-run overlay)
+  - Images/<vendor>_switching_edge_zoom.png    (300 dpi dynamic edge zooms)
+  - reports/switching/<vendor>_switching_metrics.json
+
+File naming: <vendor>_switching_* everywhere. Old m4_subset_* artifacts
+removed. scripts/ remains empty scratch.
+
+### Dynamic edge zooms (redo per user — previous zooms didn't show edges)
+
+The old zooms windowed by gate timing (+/-8% of the 20us period = +/-2.5us)
+while EPC edges transition in ~2-6ns: the edge was an invisible sliver.
+New `edge_window(t, vd, kind)` in simple_plotting.py:
+
+1. Off/on levels derived per-waveform from percentiles (98th pct = off
+   level; median of sub-50% samples = on level) — no hardcoded voltages.
+2. Detects where vd LEAVES the start level (crossing out of the 90%/10%
+   band), walks forward until it SETTLES at the target level, capturing the
+   true transition duration at any speed.
+3. Zoom window = transition span padded 50% each side; x-axis is "time from
+   edge start [ns]" so golden and Tier-2 are edge-aligned even if their
+   absolute cycle positions differ.
+
+Verified on EPC: turn-on transition 2.4 ns (window ~±1 ns), turn-off 6.0 ns
+(~±3 ns) — transitions fill their plots sample-by-sample. Vendor-agnostic:
+slow Si edges get proportionally wider windows automatically.
+
+### Multi-vendor execution (sequential, all 4)
+
+Golden capture method per vendor: inline ngspice-46 subprocess with
+correct pin connections and model-specific handling:
+
+| Vendor | Golden capture | Notes |
+|---|---|---|
+| irfs7730pbf | 0.8s, 30067 pts, Vds −0.005..39.9 V | direct include works |
+| csd16412q5a | normalize_pspice_netlist() first — raw lib fails ('Undefined parameter [ptrc1]') | normalized copy required |
+| epc2216 | captured at **Vbus=11 V** — hangs at YAML's 12 V (see VM-11 candidate) | bisected: ≤11 V fine, ≥12 V hangs in ngspice-46 |
+| cpm2-1200 | truncated to **14 us** — vendor model ABORTS at its first turn-off (~15 us) in BOTH backends (**VM-10**) | Tj driven as voltage = temperature in °C |
+
+Tier-2 runs live via shared library each time (0.6-0.8 s).
+
+### Pin assignment audit (all 4 OK, EPC fix regression-checked)
+
+Automated cross-check comparing each .subckt header's positional ports
+against the yaml pin_order mapping (semantic map applied):
+
+| Vendor | Header | yaml pin_order | Verdict |
+|---|---|---|---|
+| irfs7730pbf | 1,2,3 (D,G,S semantic) | drain,gate,source | OK |
+| csd16412q5a | 1,2,3 | drain,gate,source | OK |
+| epc2216 | gatein,drainin,sourcein (GATE FIRST) | gate,drain,source | OK (fixed earlier) |
+| cpm2-1200 | d,g,s,Tj | drain,gate,source | OK (Tj handled separately) |
+
+EPC yaml change regression-checked: run_all_curves('epc2216') re-extracted
+all 7 curves in 1.3 s — notebooks 01/02 unaffected.
+
+### Fitness results across vendors (honest)
+
+| Vendor | Waveform rel-RMSE | Timing/energy verdict |
+|---|---|---|
+| irfs7730pbf | 4.92% (just under target) | td_on/tr/td_off/tf +E gaps — known Tier-2 fidelity limits |
+| csd16412q5a | 17.6% | same class of gaps, larger at this operating point |
+| epc2216 | 7.08% | same |
+| cpm2-1200 | 1.26% over shared stable window | full-cycle not evaluable (VM-10) |
+
+Waveform fidelity ranges from excellent (CPM2 1.26%, IRFS 4.92%) to weak
+(TI 17.6%); timing/energy mismatches persist everywhere and trace to the
+documented Tier-2 modeling gaps (linear Ciss/Crss defaults; single shared
+tanh knee). These are model-fidelity extension points, not harness bugs.
+
+### VM-10 (new): CPM2-1200 vendor model aborts at first turn-off
+
+In both ngspice-34 shared-lib and ngspice-46 batch mode, the CPM2-1200
+vendor subcircuit dies at exactly its first gate falling edge (~15.02 us)
+with a numerical blow-up to −7.3 V, regardless of transient end time
+(20 us end still stops writing at 15.02 us). Control tests: constant
+gate-ON for 60 us completes fine (Vds steady 37 mV); tran ending before
+the edge completes fine. Root cause is inside the vendor behavioral
+network at turn-off. Consequence for M4-subset: CPM2 fitness evaluated
+over the stable turn-on window only; golden CSV truncated to 14 us.
+Full-cycle comparison impossible until the defect is understood/worked
+around (candidate: different Tj drive, or a newer vendor model revision).
+
+### Also fixed
+
+- notebooks/simple_plotting.py missing `import json` (NameError on metrics
+  save) — caught on first run after rewrite.
+- metrics/switching.py plateau inference: median(v_gs[len//4:]) returns 0 V
+  at 50% duty (half samples low). Fixed to 95th percentile — duty-cycle
+  agnostic. This fixed all-zero timing extractions for every vendor.
+
+### Parquet evaluation (user question — deferred)
+
+Parquet analyzed vs CSV for waveform storage: technically superior (3-4x
+smaller, exact float round-trip, embeddable metadata) but requires pyarrow
+(new dependency) and current artifact sizes don't justify it. Deferred to
+full M4 (DPT transients, millions of points) as a designed data-layer
+upgrade.
+
+---
+
+
 ## 2026-08-25 14:45 IST — Switching-plot harness hardened: permanent home, dynamic edge zooms, clean naming
 
 ### Delivered

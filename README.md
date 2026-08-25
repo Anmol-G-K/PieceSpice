@@ -79,6 +79,47 @@ flow and simulate 10–100× faster with <5% error against the golden model.
 
 ---
 
+## 🧠 Modelling Approach — Behavioral Reduced-Order Modelling
+
+PieceSpice is a **behavioral reduced-order modelling** framework: instead
+of projecting the vendor model's internal state equations (POD/Krylov-style
+MOR), it fits compact *behavioral* elements to the device's own extracted
+response. The reduction target is structural — hundreds of internal nodes
+and stiff nonlinear devices become a ~10-element subcircuit — while the
+input-output behavior at the terminals is preserved against a fidelity
+target measured directly on waveforms and curves.
+
+Each macromodel is built from the device's own extracted behavior, using
+the simplest formulation that preserves the physics that matter:
+
+**Channel conduction.** The drain current is fitted as a continuous
+piecewise-linear function of Vgs — anchored at the origin, with segment
+count selected adaptively until an RMSE tolerance is met — multiplied by a
+`tanh` saturation knee in Vds. The breakpoints carry the physical meaning:
+threshold sits at the knee, transconductance is the post-knee slope, so the
+reduced parameters remain interpretable.
+
+**Charge behavior.** Nonlinear capacitances are integrated into stored
+charge Q(V) rather than used as C(v)·dv/dt — charge-conserving formulation,
+so switching-loss and dv/dt predictions stay physical even under large
+signal swings. The output charge Qoss is emitted as a PWL charge source;
+gate capacitances are currently linear equivalents at the operating point
+(a documented extension point).
+
+**Saturation smoothing.** A `tanh` knee bounds the channel current in
+saturation, keeping derivatives continuous through the transition — this is
+what buys Newton robustness without sacrificing the ohmic region.
+
+**Off-state & body diode.** The origin anchor guarantees a true blocking
+state below threshold; the body diode is synthesized directly from extracted
+reverse-conduction data (IS/N/RS).
+
+The result: PLECS-class evaluation speed inside a plain SPICE subcircuit,
+with error measured and bounded against the vendor golden model rather than
+assumed.
+
+---
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -140,6 +181,17 @@ automatically from the YAML pin map.
 | Texas Instruments | CSD16412Q5A | Si PSpice LEVEL=7 | ✅ 7/7 curves |
 | EPC | EPC2216 | GaN eGaN (behavioral) | ✅ 7/7 curves |
 | Wolfspeed | CPM2-1200-0025B | SiC bare die (Tj port) | ✅ 7/7 curves |
+
+### Switching Transient Validation — 50 kHz / 50 % duty / 1 A resistive load
+
+Vendor golden vs Tier-2 CPWL over three full switching cycles for each
+supported device:
+
+| Infineon IRFS7730PBF | TI CSD16412Q5A |
+|:---:|:---:|
+| ![IRFS7730PBF](Images/irfs7730pbf_switching_3cycle.png) | ![CSD16412Q5A](Images/csd16412q5a_switching_3cycle.png) |
+| **EPC EPC2216** | **Wolfspeed CPM2-1200** |
+| ![EPC2216](Images/epc2216_switching_3cycle.png) | ![CPM2-1200](Images/cpm2-1200_switching_3cycle.png) |
 
 **Golden-vs-Tier-2 validation** (TI CSD16412Q5A, Vds = 10 V):
 
