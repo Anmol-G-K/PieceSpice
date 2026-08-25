@@ -1,3 +1,56 @@
+## 2026-08-26 (7) IST — T1/T2 migration audit: 10 traceability issues, 8 logical flaws documented
+
+docs/t1_t2_audit.md written (read-only audit). Headline findings:
+- ZERO production code imports spicelib yet - T1 built infrastructure
+  around the new backend; the engine rewrite itself is all of T2.1+.
+- TI-1: simple_switching.py imports install_notebook_quiet_console from
+  the LEGACY diagnostics section - breaks at import when T6.3 deletion
+  happens unless guarded first.
+- TI-8: pipeline/fitting.py compare_tier2_vs_golden* import PySpice
+  directly and were missing from my T0.2 blast-radius list.
+- LF-1: hard cutover consequence is real - no vendor extraction runs
+  end-to-end until T2.1-T2.3 land (TI raw lib fails in ngspice).
+- LF-5/LF-6: native verification exercised .op only; VM-08 (CPM2 turn-off)
+  and EPC-01 (Vbus>=12 hang) claims remain unproven under LTspice.
+- LF-7: stored golden CSVs mix ngspice backends across vendors -
+  cross-vendor comparisons invalid until uniform LTspice recapture.
+- Conversion scorecard: parser + new diagnostics done; engine, DC/AC
+  benches, validators untouched (all M2/M3 scope as planned).
+
+## 2026-08-26 (6) IST — T1.2 complete: transpiler retired; preprocessor is now text-hygiene only
+
+Step 1 - Native verification (deletion gate): all 4 vendor libs simulated
+in plain LTspice 26.0.2 with ZERO preprocessing: irfs7730pbf OK,
+csd16412q5a OK (ptrc1 forward-referenced param chain handled natively),
+epc2216 OK, cpm2-1200 OK after driving its Tj node properly with a V
+source in °C (first failure was my harness bug: passed literal 25 as a
+node name). No defect entries needed.
+
+Steps 2+3 - Deletion/trim:
+- parser/preprocessor.py rewritten as a thin pass-through: continuation
+  joining + inline-comment stripping only. normalize_pspice_netlist API
+  name retained so callers (static_sweep, capacitance, gate_charge, cli)
+  import unchanged; harden_powers kwarg accepted and ignored.
+- DELETED: parser/spice_literal.py, parser/pow_harden.py, the fixed-point
+  .PARAM evaluator, and the ddt() commenting rule. ddt()/TABLE/POLY now
+  pass through verbatim for LTspice.
+
+Step 4 - normalized_lib_copy decision: kept as-is during migration. The
+normalize call inside is now near-no-op, so the copy acts purely as a
+per-lib cache under reports/normalized/; removal deferred to M2 when
+benches move to LTspice and the copy step can go entirely.
+
+Step 5 - Tests:
+- tests/test_preprocessor.py rewritten: 6 tests for the thin behavior
+  (continuations, comments, param/TABLE/ddt pass-through, kwarg noop).
+- test_parser normalization tests -> skipped (behavior removed).
+- test_fit_pwl_model_generates_lib + test_vendor_ti module -> skipped with
+  reason: ngspice capacitance bench cannot parse raw TI lib post-
+  transpiler-removal; benches rewrite on LTspice in M2 (hard-cutover
+  consequence, accepted at T0.2).
+
+Full suite: 94 passed, 4 skipped (migration-blocked), ~132 s.
+
 ## 2026-08-26 (5) IST — Migration todo refreshed: T1.1 closed, T1.3 mostly-done, T1.2 decomposed
 
 - docs/migration_todo.md updated: T1.1 marked DONE with delivery summary

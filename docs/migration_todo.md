@@ -59,7 +59,10 @@ Key discovery: LTspice gmin-stepped through a topology ngspice calls singular �
 
 </details>
 
-### T1.2 — Simplify `parser/preprocessor.py`
+### T1.2 — ✅ DONE — Simplify `parser/preprocessor.py`
+**Delivered:** native verification passed 4/4 (TI ptrc1 chain handled natively by LTspice; CPM2 needed correct Tj-node driving in my harness — a test bug, not a vendor issue). `parser/spice_literal.py` and `parser/pow_harden.py` **deleted**; `parser/preprocessor.py` rewritten as thin text-hygiene pass-through (continuations + comment stripping; API name and `harden_powers` kwarg retained as no-op so callers unchanged); ddt()/TABLE/POLY pass through verbatim. `normalized_lib_copy()` kept as cache layer during migration, removal deferred to M2. Tests: preprocessor suite rewritten (6 tests), ngspice-dependent pipeline/vendor-TI tests skipped with explicit migration reason. Suite: 94 passed / 4 skipped.
+
+<details><summary>Original task description</summary>
 **Status:** NOT STARTED. Decomposition:
 1. *Native-handling verification first (gate for deletion):* run all 4 vendor libs through plain LTspice `.op`/`.tran` with zero preprocessing — confirm native handling of TI ptrc1 param chain, EPC dialect, CPM2 behavioral network, IRFS MODPEX constructs. Any failure → new defect entry, not transpiler resurrection.
 2. Delete: fixed-point param evaluator, `spice_literal.py`, `pow_harden.py`, ddt()-commenting rule.
@@ -75,6 +78,8 @@ Key discovery: LTspice gmin-stepped through a topology ngspice calls singular �
   - **DECIDED: full deletion** of the param evaluator, spice_literal translation, pow_harden, and the ddt() commenting rule — the PySpice-era implementation is archived externally, so nothing needs flagging. Before deleting, run the four vendor libs through plain LTspice once (T1.3 smoke test extended) to confirm native handling of the quirks the preprocessor used to mask (e.g., TI ptrc1 forward-referenced param chain); if any lib fails natively, record it as a new defect entry rather than resurrecting transpiler code.
   - `normalized_lib_copy()` in `static_sweep.py` writes normalized copies under `reports/normalized/`; if normalization becomes a no-op, decide whether the copy step disappears entirely or remains as a cache layer.
   - Tests `test_preprocessor.py` / `test_vendor_ti.py` encode current normalization behavior; expect significant rewrite here.
+
+</details>
 
 ### T1.3 — 🔶 MOSTLY DONE — Smoke-test LTspice CLI invocation
 **Status:** proven de-facto during T0.1/T1.1 (direct `LTspice.exe -b -ascii` runs: clean RC `.tran` → valid ASCII .raw/.log; failing floating-node netlist → log captured & classified). Remaining sliver: one invocation through spicelib's SimRunner itself (we drove the exe directly so far) — folds into T1.2's vendor-native test rather than standing alone.

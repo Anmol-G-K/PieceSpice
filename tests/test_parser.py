@@ -13,16 +13,9 @@ from parser.preprocessor import normalize_pspice_netlist
 # ---------- preprocessor ----------
 
 def test_normalize_forward_referenced_params():
-    """A param defined in terms of a LATER param must still resolve."""
-    raw = """.PARAM a {b*2}
-.PARAM b 3
-R1 1 0 {a}"""
-    out = normalize_pspice_netlist(raw)
-    assert ".PARAM b=3" in out
-    assert ".PARAM a=6" in out
-    assert "R1 1 0 6" in out
-    assert "{" not in out.split("R1")[1]
-
+    """Obsolete after T1.2: LTspice resolves params natively; preprocessor is a text-hygiene pass-through."""
+    import pytest
+    pytest.skip('removed with ngspice transpiler (T1.2); LTspice handles params natively')
 
 def test_normalize_strips_dollar_comments():
     raw = "R1 1 0 1k $ trailing comment"
@@ -33,12 +26,9 @@ def test_normalize_strips_dollar_comments():
 
 
 def test_normalize_safe_functions():
-    raw = ".PARAM x {min(2,5)}\nR1 1 0 {x}"
-    out = normalize_pspice_netlist(raw)
-    assert ".PARAM x=2" in out
-
-
-# ---------- netlist parser ----------
+    """Obsolete after T1.2: LTspice resolves params natively; preprocessor is a text-hygiene pass-through."""
+    import pytest
+    pytest.skip('removed with ngspice transpiler (T1.2); LTspice handles params natively')
 
 def test_parse_subckt_with_params_header(tmp_path):
     """PSpice .SUBCKT ... PARAMS: k=v tokens must go to parameters, not nodes."""

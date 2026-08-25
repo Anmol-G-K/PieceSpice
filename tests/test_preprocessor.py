@@ -1,61 +1,49 @@
-"""Unit tests for the PSpice/LTspice dialect normalizer (Milestone 1)."""
+"""Unit tests for the T1.2 thin preprocessor (LTspice migration)."""
 
-from parser.preprocessor import normalize_pspice_netlist
+import sys
+sys.path.insert(0, ".")
 
-
-def test_normalize_pspice_param():
-    raw = """.SUBCKT TEST 1 2 3
-.PARAM pWidth 0.5
-.PARAM perim {2*pWidth}
-M1 1 2 3 3 NMOS W={pWidth}
-.ENDS"""
-    normalized = normalize_pspice_netlist(raw)
-    assert ".PARAM pWidth=0.5" in normalized
-    assert "W=0.5" in normalized
+from parser.preprocessor import (
+    join_continuations, normalize_pspice_netlist, _strip_comment,
+)
 
 
-def test_forward_referenced_params_resolve():
-    """A param defined in terms of a LATER param must still resolve (fixed point)."""
-    raw = ".PARAM a {b*2}\n.PARAM b 3\nR1 1 0 {a}"
-    out = normalize_pspice_netlist(raw)
-    assert ".PARAM a=6" in out
-    assert ".PARAM b=3" in out
-    assert "R1 1 0 6" in out
+def test_continuations_joined():
+    src = "* c\nM1 d g s s MOD\n+ W=2u L=0.5u\nR1 a b 1k"
+    out = normalize_pspice_netlist(src)
+    assert "M1 d g s s MOD W=2u L=0.5u" in out
+    assert "\n+" not in out
 
 
-def test_dollar_comments_stripped():
-    """The docstring promises $ comment stripping; it must actually happen."""
-    raw = "R1 1 0 1k $ bias network\nC1 1 0 1n"
-    out = normalize_pspice_netlist(raw)
-    assert "$" not in out
-    assert "R1 1 0 1k" in out
+def test_comments_stripped():
+    src = "R1 a b 1k ; load\nC1 b 0 1n $ decoupling"
+    out = normalize_pspice_netlist(src)
+    assert ";" not in out and "$" not in out
+    assert "R1 a b 1k" in out
 
 
-def test_semicolon_comments_stripped():
-    raw = "R1 1 0 1k ; feedback\nC1 1 0 1n"
-    out = normalize_pspice_netlist(raw)
-    assert ";" not in out
+def test_param_syntax_passes_through_untouched():
+    """LTspice evaluates .PARAM natively - we must NOT flatten."""
+    src = ".PARAM pwidth={2*len}\nM1 d g s s MOD W={pwidth}"
+    out = normalize_pspice_netlist(src)
+    assert "{pwidth}" in out and "{2*len}" in out
+    assert ".PARAM" in out
 
 
-def test_param_expression_functions():
-    """Safe function whitelist (min/max/sqrt/...) must evaluate, not pass through."""
-    raw = ".PARAM x {sqrt(4)}\nR1 1 0 {x}"
-    out = normalize_pspice_netlist(raw)
-    assert ".PARAM x=2" in out
+def test_table_poly_ddt_pass_through():
+    """ddt()/TABLE constructs stay verbatim (LTspice supports them)."""
+    src = "B1 out 0 V = ddt(V(in))\nE1 a 0 TABLE {V(x)} = (0,0) (1,1)"
+    out = normalize_pspice_netlist(src)
+    assert "ddt(V(in))" in out and "TABLE" in out
 
 
-def test_unresolvable_param_stays_symbolic():
-    """A param referencing an undefined name must not crash or fabricate a value."""
-    raw = ".PARAM x {undefined_name}\nR1 1 0 {x}"
-    out = normalize_pspice_netlist(raw)
-    assert "undefined_name" not in out  # never evaluated into a number
-    assert "{x}" in out  # device line passes the reference through untouched
-    assert "R1 1 0 {x}" in out
+def test_harden_powers_kwarg_accepted_noop():
+    src = "B1 out 0 V = (V(in))**0.5"
+    out = normalize_pspice_netlist(src, harden_powers=True)
+    assert "**0.5" in out  # untouched
 
 
-def test_params_hoisted_before_subckt():
-    raw = ".SUBCKT T 1 2 3\n.PARAM pA 0.5\nR1 1 2 {pA}\n.ENDS"
-    out = normalize_pspice_netlist(raw)
-    lines = out.splitlines()
-    assert lines[0].startswith(".PARAM pA=0.5")
-    assert ".SUBCKT T 1 2 3" in lines[1]
+def test_blank_and_star_lines_preserved():
+    src = "* header\n\nR1 a b 1k\n* tail"
+    out = normalize_pspice_netlist(src)
+    assert "* header" in out and "* tail" in out
