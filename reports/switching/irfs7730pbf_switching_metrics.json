@@ -1,0 +1,50 @@
+{
+  "schema": "piecespice.switching.fitness/1.0",
+  "backend": "golden=inline ngspice-46 CSV; tier2=shared-lib transient",
+  "vendor": "irfs7730pbf",
+  "device": "irfs7730pbf",
+  "conditions": {
+    "f_sw_hz": 50000.0,
+    "duty": 0.5,
+    "vbus_v": 38.0,
+    "vgs_on_v": 10.0,
+    "i_load_a": 1.0,
+    "temperature_c": 25.0
+  },
+  "golden": {
+    "td_on_ns": 29.63153,
+    "tr_ns": 16.65316,
+    "td_off_ns": 114.56353,
+    "tf_ns": 141.46032,
+    "e_on_uj": 0.12748,
+    "e_off_uj": 1.03023,
+    "vds_on_mv": 2.50953,
+    "i_peak_a": 1.00012
+  },
+  "tier2": {
+    "td_on_ns": 13.56493,
+    "tr_ns": 4.08154,
+    "td_off_ns": 37.06398,
+    "tf_ns": 132.03708,
+    "e_on_uj": 0.02702,
+    "e_off_uj": 1.05771,
+    "vds_on_mv": 1.70304,
+    "i_peak_a": 1.00009
+  },
+  "errors_pct": {
+    "td_on": -54.22,
+    "tr": -75.49,
+    "td_off": -67.65,
+    "tf": -6.66,
+    "e_on": -78.81,
+    "e_off": 2.67
+  },
+  "waveform_rel_rmse_pct": 4.923,
+  "tolerances_pct": {
+    "timing": 20.0,
+    "energy": 15.0,
+    "waveform": 5.0
+  },
+  "passed": false,
+  "verdict": "FAIL - see errors_pct"
+}
