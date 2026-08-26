@@ -278,6 +278,19 @@ Bugs found during live testing: Path import NameError; X-instance positional rol
   - Decide mock-vs-live-LTspice strategy: live-LTspice tests are slow (~seconds each) and need the exe present in CI/dev; mocks are fast but won't catch syntax regressions. **Recommendation:** unit tests mocked, one marked slow end-to-end test per milestone gated behind an env flag.
   - `conftest.py` may seed ngspice-specific fixtures.
 
+### T6.2a — Fix skipped/flaky tests (post-spicelib-transfer)
+**Depends on:** M2/M3 bench rewrites complete.
+1. Re-enable the 4 skipped tests: `test_vendor_ti` (module-level skip),
+   `test_netlist_builder::test_fit_pwl_model_generates_lib`, and the two
+   parser normalization skips (`test_normalize_forward_referenced_params`,
+   `test_normalize_safe_functions`) - rewrite them against the LTspice
+   backend per their skip reasons.
+2. Fix the flaky `test_pwlf_fit::test_exact_k_recovers_truth`: asserts
+   exact breakpoint recovery from pwlf's stochastic differential-evolution
+   search; passes in isolation but fails under full-suite load. Relax to
+   tolerance-based assertions (RMSE/max-error) or seed the optimizer.
+
+
 ### T6.3 — Final purge & documentation
 - **Where:** `pyproject.toml`, README badges (ngspice badge), `docs/*`, memory of `.spiceinit`.
 - **Depends on:** everything above.

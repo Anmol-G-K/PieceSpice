@@ -189,6 +189,11 @@ class SpiceEngine:
     def run_transient(self, netlist_text: str, d: TranDirective, *,
                       timeout_s: float | None = None) -> SimResult:
         card = render_directive(d)
+        if self._has_directive(netlist_text, "tran"):
+            import logging
+            logging.getLogger(__name__).warning(
+                "netlist already contains a .%s card; the supplied "
+                "%s directive object is ignored", "tran", "tran")
         if not self._has_directive(netlist_text, "tran"):
             netlist_text = self._append_card(netlist_text, card, "tran")
         return self._execute(netlist_text, "tran", timeout_s)
@@ -196,6 +201,11 @@ class SpiceEngine:
     def run_dc_sweep(self, netlist_text: str, d: DCDirective, *,
                      timeout_s: float | None = None) -> SimResult:
         card = render_directive(d)
+        if self._has_directive(netlist_text, "dc"):
+            import logging
+            logging.getLogger(__name__).warning(
+                "netlist already contains a .%s card; the supplied "
+                "%s directive object is ignored", "dc", "dc")
         if not self._has_directive(netlist_text, "dc"):
             netlist_text = self._append_card(netlist_text, card, "dc")
         return self._execute(netlist_text, "dc", timeout_s)
@@ -203,12 +213,22 @@ class SpiceEngine:
     def run_ac_sweep(self, netlist_text: str, d: ACDirective, *,
                      timeout_s: float | None = None) -> SimResult:
         card = render_directive(d)
+        if self._has_directive(netlist_text, "ac"):
+            import logging
+            logging.getLogger(__name__).warning(
+                "netlist already contains a .%s card; the supplied "
+                "%s directive object is ignored", "ac", "ac")
         if not self._has_directive(netlist_text, "ac"):
             netlist_text = self._append_card(netlist_text, card, "ac")
         return self._execute(netlist_text, "ac", timeout_s)
 
     def run_op(self, netlist_text: str, *,
                timeout_s: float | None = None) -> SimResult:
+        if self._has_directive(netlist_text, "op"):
+            import logging
+            logging.getLogger(__name__).warning(
+                "netlist already contains a .%s card; the supplied "
+                "%s directive object is ignored", "op", "op")
         if not self._has_directive(netlist_text, "op"):
             netlist_text = self._append_card(netlist_text, ".op", "op")
         return self._execute(netlist_text, "op", timeout_s)
@@ -217,15 +237,19 @@ class SpiceEngine:
 
     @staticmethod
     def _has_directive(netlist_text: str, kind: str) -> bool:
-        """True when a line STARTS with the dot-card kind (word boundary).
-
-        Substring matching would false-positive on comments or titles
-        mentioning e.g. '.dc' mid-line; anchors to line start instead.
-        """
+        """True when a line starts with the dot-card kind followed by a
+        word boundary (space/tab/end), so '.acplot' cannot match '.ac'.
+        Comment lines ('*') are ignored."""
         prefix = f".{kind.lower()}"
         for ln in netlist_text.splitlines():
-            if ln.strip().lower().startswith(prefix):
-                return True
+            s = ln.strip()
+            if s.startswith("*"):
+                continue
+            low = s.lower()
+            if low.startswith(prefix):
+                rest = low[len(prefix):]
+                if rest == "" or not (rest[0].isalnum() or rest[0] == "_"):
+                    return True
         return False
 
     def _append_card(self, netlist_text: str, card_line: str,

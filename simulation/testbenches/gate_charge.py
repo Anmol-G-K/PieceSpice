@@ -69,6 +69,16 @@ def reconstruct_gate_charge(
     vgs_t = np.asarray(transfer_curve.x_data, dtype=float)
     id_t = np.abs(np.asarray(transfer_curve.y_data, dtype=float))
 
+    # F3 fix: sort by Id (stable) so np.interp sees a monotonic axis.
+    # Non-monotonic samples (VM-04 fold-over, solver noise) previously
+    # produced a silent wrong plateau; now ordered and reported.
+    order = np.argsort(id_t, kind="stable")
+    if not np.array_equal(order, np.arange(len(order))):
+        print("[gate_charge] NOTE: transfer-curve Id axis was not "
+              "ascending; sorted by Id before plateau interpolation.")
+        id_t = id_t[order]
+        vgs_t = vgs_t[order]
+
     if not (id_t.min() <= i_load <= id_t.max()):
         raise ValueError(
             f"Iload={i_load} A outside transfer-curve range "
@@ -86,9 +96,11 @@ def reconstruct_gate_charge(
     ciss_high = _interp_curve(ciss_curve, np.array([v_bus]))[0]
     ciss_low = _interp_curve(ciss_curve, np.array([v_ds_on]))[0]
 
-    # Segment 1: Qgs
+    # Segment 1: Qgs - cumulative trapezoid so partial windows integrate
+    # exactly (F4); identical to the old rectangle form on a uniform grid.
     vgs_seg1 = np.linspace(0.0, v_plateau, n_points)
-    q_seg1 = ciss_high * vgs_seg1
+    dq1 = ciss_high * np.diff(vgs_seg1, prepend=vgs_seg1[0])
+    q_seg1 = np.cumsum(dq1)
 
     # Segment 2: Qgd (Miller), with optional datasheet calibration
     qgd_total, _vds_seg2, cum_qgd = _crss_integral(
@@ -113,7 +125,8 @@ def reconstruct_gate_charge(
         q_tail = 0.0
     else:
         vgs_seg3 = np.linspace(v_plateau, v_gs_max, n_points)
-        q_seg3 = q_seg2[-1] + ciss_low * (vgs_seg3 - v_plateau)
+        dq3 = ciss_low * np.diff(vgs_seg3, prepend=vgs_seg3[0])
+        q_seg3 = q_seg2[-1] + np.cumsum(dq3)
         qg_c = np.concatenate([q_seg1, q_seg2[1:], q_seg3[1:]])
         vgs_full = np.concatenate([vgs_seg1, vgs_seg2_v[1:], vgs_seg3[1:]])
         q_tail = q_seg3[-1] - q_seg2[-1]

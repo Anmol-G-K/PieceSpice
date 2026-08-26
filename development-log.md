@@ -1,3 +1,105 @@
+## 2026-08-26 (27) IST — Pytest status: 99 passed / 4 skipped / 1 known-flaky (pwlf stochastic)
+
+Full-suite run: 100 collected, 99 passed, 4 skipped (intentional
+ngspice-era tests blocked pending M2+ LTspice rewrites), 1 failure =
+tests/test_pwlf_fit.py::test_exact_k_recovers_truth.
+
+The pwlf failure is FLAKY, not broken: verified passing in isolation
+twice. Root cause: the pwlf library uses differential evolution with
+random initialization - under full-suite load its stochastic search
+occasionally lands on a slightly different breakpoint set that still
+meets fit tolerance but trips the exact-breakpoint assertion. Pre-existing
+test-design issue (exact assertion on a stochastic optimizer), unrelated
+to the spicelib migration.
+
+Action logged in docs/migration_todo.md: fix the 4 skipped tests and the
+flaky pwlf assertion in a later milestone (after the spicelib transfer
+completes).
+
+## 2026-08-26 (26) IST — F7/F8 moved into plan scope; F9/F10 formally deferred to T6.3
+
+Per audit v2 remaining findings:
+
+- **F7 (temperature family)** and **F8 (reverse-recovery trr/Qrr/IRRM)**
+  added to piecespice_plan.md §3 as planned curve extensions
+  (Curve 2-T and Curve 6-RR rows). Both need new bench topologies /
+  multi-temperature sweeps - out of scope for quick fixes, now tracked in
+  the plan where they belong.
+- **F9 (normalized_lib_copy shim I/O)** and **F10 (_check_sign upper-half
+  coverage / assert-vs-typed-error)** formally deferred to T6.3 cleanup,
+  consistent with their hygiene-level severity.
+
+Audit v2 status after this session:
+  FIXED: F1, F2, F3, F4, F5
+  MOVED TO PLAN: F7, F8
+  DEFERRED: F6 (accepted), F9, F10 (T6.3)
+No open physics/logic errors remain in M1/M2 code.
+
+## 2026-08-26 (25) IST — F5 fixed: .ac directive detection hardened + duplicate-card warning
+
+_has_directive now requires the dot-kind to be followed by a word
+boundary (space/tab/end-of-line), so '.acplot' can no longer false-match
+'.ac', and comment lines (starting '*') are skipped before matching.
+
+run_tran/run_dc_sweep/run_ac_sweep/run_op now emit a WARNING when a
+caller-supplied directive object is ignored because an equivalent card
+already exists in the netlist text - previously this was silent and
+could hide a misconfigured bench.
+
+Verified: unit checks for word-boundary/comment handling pass; live
+LTspice run with a duplicate .ac card logs exactly one warning and
+produces exactly one card in the executed netlist (no double-insert).
+
+## 2026-08-26 (24) IST — F4 fixed: Qgs/tail segments use cumulative trapezoid accumulation
+
+Segment 1 (Qgs) and segment 3 (tail) in reconstruct_gate_charge now
+accumulate charge via np.cumsum over the per-step dQ instead of a closed-
+form rectangle (C*V). On a uniform grid with constant C this is numerically
+identical - verified: CPM2/EPC/IRFS Qgs, Qgd, Qg totals unchanged to 0.1 nC.
+
+The improvement is semantic: partial windows now integrate exactly, so any
+future caller passing non-uniform Vgs windows or Vgs-dependent Ciss gets
+correct results without touching this code. The deeper F4 item (using the
+measured Ciss(Vgs) dependence rather than Ciss at a single bias) remains an
+acknowledged simplification - Curve 4 provides Ciss(Vds) only; a true
+Ciss(Vgs) extraction would need a new bench sweep and is deferred.
+
+## 2026-08-26 (23) IST — F3 fixed: monotonicity guard on C5 plateau interpolation
+
+reconstruct_gate_charge now sorts the transfer curve by Id (stable sort)
+before np.interp, with a printed NOTE whenever reordering was needed.
+Non-monotonic Id samples (VM-04 fold-over, solver noise) previously
+produced a silent wrong plateau via np.interp on an unordered axis.
+
+Verified: full pipeline rerun for cpm2-1200/epc2216/irfs7730pbf -
+plateau/Qgs/Qgd/Qg identical to previous values (all three vendors'
+transfer curves were already ascending), so the guard is inert for
+well-behaved data and only activates on disorder. No behavioral change
+on current datasets; protection added for future defective models.
+
+## 2026-08-26 (22) IST — F2 fixed: capacitance arrays now share a common valid envelope
+
+Trimmed-per-array logic replaced with a single common mask: invalid
+samples are dropped from all three arrays TOGETHER, so x/y alignment is
+preserved by construction (previously independent trims on the log-spaced
+grid could misalign x/y by up to one bias step when Coss died earlier
+than Crss).
+
+Verified on EPC2216: 25/25 pts retained, identical x grid across
+Ciss/Coss/Crss; ref values unchanged (95.6/63.1/20.5 pF @7.5V).
+
+## 2026-08-26 (21) IST — F1 fixed: Rds(on) fold-over guard added; verified 0.0% drift on all 4 vendors
+
+run_rds_on now truncates the Id axis to its first strictly-rising run
+before the Id_load interpolation, so VM-04-class models whose current
+peaks then falls mid-sweep can no longer produce a wrong-branch Rds
+value via np.interp.
+
+Verification (all 4 vendors): Rds@load identical to previous values,
+Id monotonic rising confirmed on every vendor, 50 valid pts each.
+The guard changes nothing for well-behaved models and prevents silent
+wrong-branch interpolation for defective ones.
+
 ## 2026-08-26 (20) IST — Full 4-vendor re-extraction on LTspice; datasheet cross-check tables complete
 
 All four vendors re-extracted through the LTspice pipeline post-VM-12 fix

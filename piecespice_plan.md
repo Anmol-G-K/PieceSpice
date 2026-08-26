@@ -154,7 +154,9 @@ PieceSpice automates extraction, piecewise fitting, and golden SPICE verificatio
 | **Curve 4** | **Capacitances vs $V_{ds}$** | $C_{\text{iss}}, C_{\text{oss}}, C_{\text{rss}}$ vs $V_{ds}$ (Log Scale: $0.1\text{V} - V_{\text{breakdown}}$) | Non-linear junction capacitances controlling switching speed, ringing, and charge loss. |
 | **Curve 5** | **Gate Charge Curve** | $V_{gs}$ vs $Q_g = \int I_g\, dt$ at constant $I_g, I_d, V_{\text{bus}}$ | Identifies $Q_{\text{gs}}$, Miller plateau charge $Q_{\text{gd}}$, and total gate charge $Q_g$. |
 | **Curve 6** | **Body Diode Forward Characteristic** | $I_{\text{sd}}$ vs $V_{\text{sd}}$ (3rd Quadrant) across temperatures | Evaluates dead-time conduction voltage drop and body diode losses. |
-| **Curve 7** | **Double Pulse Test (DPT) Transients** | $v_{ds}(t), i_d(t), v_{gs}(t), P_{\text{inst}}(t)$ during turn-on/turn-off | Yields $t_r, t_f, t_{d(on)}, t_{d(off)}, E_{\text{on}}, E_{\text{off}}, E_{\text{oss}}, dv/dt, di/dt$. |
+| **Curve 7** | **Double Pulse Test (DPT) Transients** | $v_{ds}(t), i_d(t), v_{gs}(t), P_{\text{inst}}(t)$ during turn-on/turn-off | Yields $t_r, t_f, t_{d(on)}, t_{d(off)}, E_{\text{on}}, E_{\text{off}}, E_{\text{oss}}, dv/dt, di/dt$. || **Curve 7** | **Double Pulse Test (DPT) Transients** | $v_{ds}(t), i_d(t), v_{gs}(t), P_{\text{inst}}(t)$ during turn-on/turn-off | Yields $t_r, t_f, t_{d(on)}, t_{d(off)}, E_{\text{on}}, E_{\text{off}}, E_{\text{oss}}, dv/dt, di/dt$. |
+| **Curve 2-T** | *Planned extension*: temperature-family transfer sweeps at $T_j \in \{25, 125, 175\}^\circ\text{C}$ via the Tj port (audit finding F7 — single-temperature extraction only today). |
+| **Curve 6-RR** | *Planned extension*: reverse-recovery bench for $t_{rr}, Q_{rr}, I_{RRM}$ (audit finding F8 — requires a dI/dt-controlled inductive switching rig; deferred to the M4-DPT milestone). |
 
 ---
 

@@ -174,17 +174,16 @@ class CapacitanceTestbench:
                                     "(limit 1 mF); masked.", name, vds, v)
                     arr[i] = np.nan
 
-        def _trim(arr):
-            valid = np.where(np.isfinite(arr) & (arr > 0))[0]
-            return arr[:valid[-1] + 1] if len(valid) else arr
-
-        ciss_t, coss_t, crss_t = map(_trim, (ciss, coss, crss))
-        n_valid = min(len(ciss_t), len(coss_t), len(crss_t))
-        x_valid = vds_sweep[:n_valid]
-        ciss_t, coss_t, crss_t = (ciss_t[:n_valid], coss_t[:n_valid],
-                                  crss_t[:n_valid])
+        # F2 fix: keep the full sweep grid and drop invalid samples from all
+        # three arrays TOGETHER (independent per-array trims on a log-spaced
+        # grid misaligned x/y by up to one bias step).
+        finite = (np.isfinite(ciss) & np.isfinite(coss) & np.isfinite(crss)
+                  & (ciss > 0) & (coss > 0) & (crss > 0))
+        x_valid = vds_sweep[finite]
+        ciss_t, coss_t, crss_t = ciss[finite], coss[finite], crss[finite]
+        n_valid = len(x_valid)
         if n_valid < points:
-            _LOGGER.info("returning first %d of %d points (valid envelope)",
+            _LOGGER.info("returning %d of %d points (common valid envelope)",
                          n_valid, points)
 
         note = f"measured @ {self.f_meas:.1e} Hz"

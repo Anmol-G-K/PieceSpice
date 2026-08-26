@@ -172,6 +172,15 @@ class StaticSweepTestbench:
         v_dev = np.asarray(result.get(result.sweep_var), dtype=float)
         i_arr = np.abs(np.asarray(result.get("I(Vds)"), dtype=float))
 
+        # F1 fix: VM-04-class models can fold Id over mid-sweep (current
+        # peaks then falls as Vds rises into saturation). Interpolating
+        # Rds at Id_load on a non-monotonic Id axis silently returns the
+        # wrong branch, so keep only the FIRST strictly-rising run.
+        rise = np.where(np.diff(i_arr) <= 0)[0]
+        if len(rise):
+            cut = int(rise[0]) + 1          # first non-increasing step
+            i_arr, v_dev = i_arr[:cut], v_dev[:cut]
+
         mask = i_arr > float(min_current)
         rds_mohm = v_dev[mask] / np.maximum(i_arr[mask], 1e-12) * 1e3
         return CurveData(
