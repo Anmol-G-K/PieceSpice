@@ -1,3 +1,94 @@
+## 2026-08-26 (18) IST — vendor_model_defects.md reconciled against spicelib/LTspice migration
+
+Cross-checked every catalog entry against verified migration evidence:
+
+SOLVED:
+- VM-09 (TI BSIM3 .tran fails under ngspice-34): LTspice 26.0.2 runs the
+  full switching transient cleanly. Analytic-golden workaround retired.
+- EPC-01/VM-11 (EPC hang at Vbus >=12 V): no hang under LTspice at any
+  tested bus voltage.
+
+PARTIALLY SOLVED:
+- VM-08 (CPM2): high-Vgs AC/divergence and native parsing with Tj in degC
+  resolved; but the turn-off transient abort persists under LTspice too -
+  reclassified as engine-independent vendor defect (VM-10).
+
+OBSOLETE (harness architecture, moot out-of-process):
+- HOST-01 (in-process segfault risk), HOST-02 (shared-lib state pollution).
+
+OPEN / NEW:
+- VM-10 added to index: CPM2 turn-off abort, engine-independent.
+- VM-12 candidate added: EPC2216 drain-side capacitances engine-dependent
+  (LTspice Coss/Crss 3-5x above ngspice at same bias; Ciss exact) -
+  escalated for user decision on M3 fitting impact.
+
+Unchanged/unfixable vendor-topology defects (VM-01..06, VM-07 already
+fixed) remain documented as-is. Simulator configuration note updated to
+reflect the spicelib/LTspice backend replacing ngspice-via-PySpice.
+
+## 2026-08-26 (17) IST — Datasheet comparison for IRFS/TI/EPC; EPC yaml aligned to datasheet test points; EPC Coss/Crss divergence confirmed as engine-physics
+
+### Datasheet cross-check (LTspice extraction vs ground truth)
+- irfs7730pbf: Rds 2.52 mR (ds 2.2-2.6) IN BAND | gfs 262 S (ds 249) +5% |
+  Ciss 13544 pF (ds 13660) <1% | Qgd 79.0 nC (ds 79) EXACT |
+  Vth 4.348 V (ds 2.1-3.7) OUT - VM-01 LEVEL=1 hard threshold, known
+  vendor defect. Overall: excellent.
+- csd16412q5a: Rds 10.44 mR (ds 9-11) IN BAND | Vth 1.882 V (ds 1.7-2.3)
+  in band | Ciss 422 pF (ds 410-530) in band | Coss/Crss at max edge
+  (report point 6.3V vs ds 12.5V) | gfs 39.2 S vs 33 (+19%) |
+  Qgs/Qgd/Qg near band. Overall: strongest parity of the four.
+- epc2216: Rds 22.44 mR (ds 20-26) in band | Ciss exact.
+
+### EPC2216 yaml alignment
+config/inputs/epc2216.yaml: Cap_ref_Vds added at **7.5 V** (datasheet cap
+quote point; previously reported at sweep midpoint 3.83 V) and
+Id_th_target 11 mA -> **1.0 mA** (datasheet VGS(th) condition).
+Re-extraction: Ciss **96 pF** (ds 98 min - EXACT), Vth **1.304 V** @1 mA
+(in band).
+
+### Escalation: EPC Coss/Crss confirmed engine-physics divergence
+With the report point now correctly at 7.5 V:
+  LTspice: Coss 295 pF / Crss 96 pF
+  ngspice archived: Coss 66 pF / Crss 23 pF   (both match ds 66-99 / ~20)
+Ciss agrees exactly across engines AND datasheet; only the drain-side
+caps differ 3-5x between engines. The EPC PSPICE model implements drain
+capacitance via TABLE-based behavioral sources that LTspice and ngspice
+interpret differently at AC. This is not fixable in our harness - it is
+a vendor-model/engine interaction. Flagged as VM-12 candidate: EPC2216
+drain-side capacitances are engine-dependent; LTspice values run 3-5x
+above ngspice/datasheet. Impact: M3 fitting for epc2216 will consume the
+higher Coss numbers unless the user directs otherwise.
+
+## 2026-08-26 (16) IST — CPM2 yaml aligned to datasheet conditions; extraction re-run; ground-truth comparison
+
+config/inputs/cpm2-1200.yaml updated to datasheet test conditions:
+- Id_th_target 5 mA -> **12.5 mA** (JEDEC Vgs(th) condition)
+- Vgs_fixed 18 -> **20 V** (Rds(on) primary drive)
+- Vsd_max 1 -> **4 V**, Isd_ref added at **25 A** (VSD spec point; old sweep
+  saturated at the 1 V cap before reaching the diode knee)
+- Qgd_typ_nC null -> **50.0** (datasheet Qgd calibration target)
+- VM-08 ngspice warning comment updated: constraint is ngspice-only,
+  LTspice backend handles the model's full gate-drive range.
+
+Extraction re-run through notebook-01 flow (all 7 curves, LTspice).
+Comparison vs datasheet ground truth:
+
+| Parameter | Datasheet | Extracted | Assessment |
+|---|---|---|---|
+| Vgs(th) | 2.4-3.0 V @12.5mA | **2.467 V** @12.5 mA | in band - condition alignment fixed the 2.17 V offset |
+| Rds(on) | 25-34 mR @20V/50A | **27.6 mR** @20V/10A | in band |
+| VSD | 3.3 V @25A | **3.154 V** @25A gate-off | ~4.4% off |
+| Qgd | 50 nC | **50.0 nC** | exact (calibrated) |
+| gfs | 23.6 S @20V/50A | 7.84 S @10A | condition mismatch |
+| Ciss/Coss/Crss | 2788/220/15 pF @1000V | 3358/1858/534 pF @7.5V | SiC caps rise steeply at low Vds - physically expected |
+
+Takeaways:
+1. Condition alignment immediately brought Vth into the datasheet band -
+   the earlier low reading was a test-condition artifact.
+2. Capacitances remain non-comparable by design (datasheet quotes at
+   VDS=1000 V); low-Vds values are correct SiC physics.
+3. Qg total 120 nC vs 161 nC tracks the lower 10 A load consistently.
+
 ## 2026-08-26 (15) IST — M1 + M2 CLOSED; migration todo fully reconciled
 
 docs/migration_todo.md: all T0/T1/T2 tasks marked DONE with delivery

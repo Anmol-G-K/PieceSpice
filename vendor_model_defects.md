@@ -31,6 +31,13 @@ Avalanche-rated, VGS ±20 V, PD 63 W @ TC=25 °C. Datasheet SLPS207A.
 | VM-05 | Corrupted initial DC operating point | IR | Low | Transient studies | Documented (unfixable without vendor mutation) |
 | VM-06 | Saturation current far above datasheet IDC on physically-based models (thermal-limit confusion + dialect drift) | TI | Medium | Curve 1 interpretation, transient sanity checks | Documented (2026-08-23); partially simulator-dialect related |
 | VM-07 | Subckt port order differs from Si convention (gate-first); testbench hardwired D,G,S | EPC | Critical (silent wrong results) | All studies on affected vendors | **Fixed (2026-08-23)** — config-driven pin map + semantic validation |
+| VM-08 | CPM2 high-Vgs divergence + gate-falling-edge abort; Tj port handling | Wolfspeed SiC | Critical | Transient studies on CPM2 | **PARTIALLY SOLVED (2026-08-26)** — LTspice backend resolves high-Vgs AC/divergence and parses natively with Tj driven in °C; turn-off transient abort persists under LTspice too (engine-independent vendor defect) |
+| VM-09 | TI BSIM3v3 LEVEL=7 .tran fails under ngspice-34 | TI | Critical | Transient studies | **SOLVED (2026-08-26)** — LTspice runs BSIM3 transients cleanly |
+| VM-10 | CPM2 vendor model aborts at first gate falling edge (~15 µs), both backends | Wolfspeed SiC | Critical | Full-cycle switching fitness | Open — engine-independent vendor defect; golden truncated pre-turn-off |
+| EPC-01 / VM-11 | EPC2216 simulation hang at Vbus ≥ 12 V (ngspice time-step lockup) | EPC GaN | High | Transient studies | **SOLVED (2026-08-26)** — no hang observed under LTspice at any tested Vbus |
+| VM-12 *(candidate)* | EPC2216 drain-side capacitances engine-dependent: LTspice Coss/Crss run 3–5× above ngspice at same bias (Ciss exact across engines) | EPC GaN | Medium | M3 fitting consumes higher Coss unless directed | Open — escalated for user decision (2026-08-26) |
+| HOST-01 | Python process crash on SPICE fatal error (in-process CFFI binding) | Harness | Critical | All simulations | **OBSOLETE (2026-08-26)** — spicelib/LTspice runs out-of-process; crashes are subprocess failures |
+| HOST-02 | Shared-library state pollution across sequential AC sweeps (retry machinery) | Harness | Medium | Capacitance bench | **OBSOLETE (2026-08-26)** — stateless out-of-process execution; retry machinery removed |
 
 ---
 
@@ -340,3 +347,11 @@ further under the pinned 34 DLL.
 against ANALYTIC expectations (Rds(on) from Curve 3, Qg from charge tables)
 instead of a vendor golden transient; OR run vendor golden under the system
 ngspice-46 console binary. Chosen approach: analytic golden.
+
+**RESOLVED (2026-08-26, spicelib/LTspice migration):** TI BSIM3v3 LEVEL=7
+transient analysis runs cleanly under LTspice 26.0.2 — full switching
+transient extracted without error (see docs/m2_full_parity_report.md and
+the 2026-08-26 dev-log entries). The ngspice-34-specific failure mode is
+moot now that the project simulates via out-of-process LTspice exclusively.
+The earlier "analytic golden" workaround is retired: real vendor golden
+transients are used for fitness.

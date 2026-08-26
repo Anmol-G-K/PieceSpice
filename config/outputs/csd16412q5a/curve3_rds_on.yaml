@@ -109,4 +109,4 @@ extracted:
   - 11.555841729614592
   - 11.597306439135942
   - 11.640255019913262
-notes: Curve 3 (LTspice backend, direct-drain sweep).
+notes: 'Curve 3: Rds(on) vs Id in ohmic region (Id-x axis by design).'

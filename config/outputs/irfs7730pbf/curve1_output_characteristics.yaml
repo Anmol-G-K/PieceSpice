@@ -10,6 +10,7 @@ conditions_used:
   - 10.0
   Vds_sweep_max: 10.0
   Vds_points: 101
+  temperature: 25.0
 extracted:
   curve_id_vgs_3_v:
   - 2.5493534150031194e-13
@@ -521,4 +522,4 @@ extracted:
   - 1667.8876953125
   - 1669.65185546875
   - 1671.4073486328125
-notes: Curve 1 (LTspice backend, direct-drain sweep).
+notes: 'Curve 1: Id-Vds family.'

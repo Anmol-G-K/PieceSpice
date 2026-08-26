@@ -2,11 +2,11 @@ device: epc2216
 testbench: curve7_threshold_voltage
 status: pass
 conditions_used:
-  Id_th_target: 0.011
+  Id_th_target: 0.001
   Vgs_th_max: 3.0
 extracted:
-  vth_v: 1.520025837997593
-  Id_th_target: 0.011
+  vth_v: 1.3038702077826494
+  Id_th_target: 0.001
   curve_vgs:
   - 0.0
   - 0.001
