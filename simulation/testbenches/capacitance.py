@@ -67,7 +67,10 @@ class CapacitanceTestbench:
                 has_tj = False
         else:
             has_tj = True
-        conn = {r: n for r, n in zip(roles, ["drain", "gate", "0"])}
+        # Role-name based mapping (NOT positional): gate-first vendors
+        # like EPC would otherwise swap drain/gate nodes silently.
+        canonical = {"drain": "drain", "gate": "gate", "source": "0"}
+        conn = {r: canonical.get(r.lower(), r) for r in roles}
         xargs = [conn.get(r, r) for r in roles]
         if has_tj:
             xargs.append("tj_dut")
@@ -198,7 +201,18 @@ class CapacitanceTestbench:
 
 
 def sub_gate(pin_roles) -> str:
-    """External node name bound to the gate role."""
-    roles = [r for r in pin_roles if r.lower() != "tj"]
-    conn = {r: n for r, n in zip(roles, ["drain", "gate", "0"])}
-    return conn["gate"]
+    """External node name bound to the gate role.
+
+    Resolved BY ROLE NAME (not position) so gate-first vendor headers
+    like EPC2216 bind correctly. Raises when no gate role exists.
+    """
+    canonical = {"drain": "drain", "gate": "gate", "source": "0"}
+    for r in pin_roles or []:
+        rl = r.lower()
+        if rl == "tj":
+            continue
+        if rl == "gate":
+            return canonical[rl]
+    raise ValueError(
+        f"no 'gate' role in pin_roles={pin_roles!r}; cannot place the "
+        f"gate-side AC probe.")

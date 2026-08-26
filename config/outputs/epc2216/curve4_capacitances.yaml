@@ -8,7 +8,7 @@ conditions_used:
   F_meas: 1000000.0
 extracted:
   ciss_f: 9.561171647064932e-11
-  coss_f: 2.950709888954804e-10
-  crss_f: 9.561171647064932e-11
+  coss_f: 6.312804283666123e-11
+  crss_f: 2.046231271197846e-11
   cap_ref_vds: 7.5
 notes: Small-signal AC @ 1e+06 Hz; reported at Vds=7.5 V.

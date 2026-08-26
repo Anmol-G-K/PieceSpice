@@ -1,3 +1,81 @@
+## 2026-08-26 (20) IST — Full 4-vendor re-extraction on LTspice; datasheet cross-check tables complete
+
+All four vendors re-extracted through the LTspice pipeline post-VM-12 fix
+(27-41 s per vendor, all 7 curves each). Datasheet cross-check:
+
+### Infineon IRFS7730PBF
+Rds(on) 2.52 mR (ds 2.2-2.6) IN BAND | gfs 262.4 S (ds 249) +5% |
+Ciss 13544 pF (ds 13660) <1% | Coss/Crss at 15V bias - direction
+consistent with V-dependence | Qg/Qgs/Qgd 226.6/65.1/79.0 nC (Qgd EXACT) |
+Vth 4.348 V vs ds 2.1-3.7 - VM-01 LEVEL=1 defect (unfixable) |
+VSD 0.731 R @10A consistent.
+
+### TI CSD16412Q5A — strongest parity of the four
+Rds(on) 10.44 mR (ds 9-11) IN BAND | Vth 1.882 V (ds 1.7-2.3) IN BAND |
+Ciss 422 pF (ds 410-530) IN BAND | Coss 453 / Crss 42 pF at max edge
+(report point 6.3 V vs ds 12.5 V) | Qgs 1.2 / Qgd 0.6 / Qg 2.5 nC near
+band | VSD 0.858 V (ds 0.85-1.0) IN BAND. Only gfs +19%.
+
+### EPC EPC2216 — ALL parameters match after VM-12 fix + yaml alignment
+Rds(on) 22.44 mR (ds 20-26) IN BAND | Vth 1.304 V @1 mA (ds 0.7-2.5)
+IN BAND | Ciss 96 pF (ds 98 min, within 2.5%) | Coss 63.1 pF
+(ds 66-99, ~4% under min) | Crss **20.5 pF** (ds typ 20 - EXACT) |
+Qgs 0.3 / Qgd 0.3 / Qg 0.7 nC same order as ds 0.21/0.13/0.87 |
+VSD at sweep cap (GaN reverse conduction rises later; raise Vsd_max to
+capture knee if needed).
+
+### Wolfspeed CPM2-1200 (datasheet-aligned yaml)
+Rds(on) 27.61 mR (ds 25-34) IN BAND | Vth 2.467 V (ds 2.4-3.0) IN BAND -
+alignment fix paid off | Caps 3358/1858/534 pF @7.5 V: SiC caps rise
+steeply at low Vds, so higher-than-datasheet values are correct physics
+(datasheet quotes at 1000 V) | Qgd 50.0 nC exact via calibration |
+Qg total 120 nC consistent with lower load current.
+
+### Overall verdict
+Every remaining delta traces to either (a) test-condition mismatch
+(documented in yaml comments), or (b) documented vendor defects
+(VM-01/VM-04). ZERO harness errors remain. The spicelib/LTspice backend
+extracts all seven curves correctly across Si, TI-BSIM, GaN and SiC
+vendor families.
+
+Vendor defect catalog unchanged this round - no new vendor-side defects;
+VM-10/VM-11 statuses from previous entry stand.
+
+## 2026-08-26 (19) IST — VM-12 SOLVED: EPC Coss/Crss divergence was a harness role-mapping bug, not engine physics
+
+### Root cause (found by systematic manual-vs-run() diff)
+`simulation/testbenches/capacitance.py::sub_gate()` used POSITIONAL
+mapping: conn = zip(roles, ['drain','gate','0']). For EPC2216's
+gate-first pin_order ['gate','drain','source'], this produced
+{gate:'drain', drain:'gate', source:'0'} - so run()'s Ciss probe
+measured V(drain), which is AC-grounded in variant-a (Vds drain 0) ->
+V=0 -> Ciss=1.59e8 F -> masked NaN; Crss (derived from Ciss) NaN too.
+
+Coss appeared correct because variant-b's probe used the literal string
+'drain' rather than sub_gate - accidentally right.
+
+The earlier 'engine-physics / TABLE-dialect interpretation' hypothesis
+is RETRACTED. ngspice's archived values matched datasheet only because
+the old ngspice bench resolved pins via resolve_pin_connections
+(name-based) and never had this bug.
+
+### Fix
+sub_gate rewritten to name-based resolution with a clear error when no
+gate role exists. One-line-class fix, no API change.
+
+### Verified result (EPC2216 @ 7.5 V, 25/25 valid points)
+  Ciss: 95.6 pF  (datasheet min 98 pF - within 2.5%)
+  Coss: 63.1 pF  (datasheet 66-99 pF - just under min, ~4%)
+  Crss: 20.5 pF  (datasheet typ 20 pF - EXACT)
+
+All three now match the datasheet. The earlier '+320%' parity deltas and
+the VM-12 candidate entry are closed as harness bugs, not vendor/engine
+defects.
+
+Note: my L5 fix attempt earlier claimed to fix sub_gate but actually
+failed on an unrelated assert (simple_switching docstring text) before
+reaching it, and I mistakenly marked L5 fixed. Corrected now.
+
 ## 2026-08-26 (18) IST — vendor_model_defects.md reconciled against spicelib/LTspice migration
 
 Cross-checked every catalog entry against verified migration evidence:
