@@ -16,6 +16,7 @@ for transient, DC, AC and OP runs.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import tempfile
 from dataclasses import dataclass, field
@@ -136,6 +137,41 @@ class LTSpiceError(RuntimeError):
 # ---------------------------------------------------------------------------
 # Engine
 # ---------------------------------------------------------------------------
+
+def _inline_includes(netlist_text: str, _depth: int = 0) -> str:
+    """Replace every .include/.lib directive with the referenced file's
+    contents, in place.
+
+    LTspice 26's -b (batch) mode silently ignores external file loading,
+    so a netlist relying on .include simulates without its subcircuits.
+    Inlining makes the netlist self-contained. Nested includes are
+    followed up to a small depth limit; comment lines in the included
+    file are preserved (harmless).
+    """
+    if _depth > 4:
+        raise LTSpiceError(".include nesting too deep (limit 4)")
+    out = []
+    for line in netlist_text.splitlines():
+        s = line.strip()
+        low = s.lower()
+        m = re.match(r"\.(include|lib)\s+(.+)$", low)
+        if not m:
+            out.append(line)
+            continue
+        raw_path = s[len(m.group(1)) + 1:].strip().strip('"')
+        f = Path(raw_path)
+        if not f.is_absolute():
+            # resolve relative to the repo root first, then CWD
+            cand = Path(__file__).resolve().parent.parent / f
+            f = cand if cand.exists() else f
+        if not f.exists():
+            raise LTSpiceError(f".include target not found: {raw_path!r}")
+        body = _inline_includes(
+            f.read_text(encoding="utf-8", errors="replace"), _depth + 1)
+        out.append(f"* ---- inlined from {f.name} ----")
+        out.append(body)
+    return "\n".join(out)
+
 
 class SpiceEngine:
     """Out-of-process LTspice execution via spicelib.
@@ -274,6 +310,9 @@ class SpiceEngine:
     def _prepare_workdir(self, netlist_text: str, tag: str) -> tuple[Path, Path]:
         workdir = Path(tempfile.mkdtemp(prefix=f"piecespice_{tag}_"))
         netlist_path = workdir / f"{tag}.net"
+        # F-T32 fix: LTspice 26 -b ignores .include/.lib file loads; inline
+        # everything so the written netlist is self-contained.
+        netlist_text = _inline_includes(netlist_text)
         body = netlist_text.rstrip()
         cards = "\n".join(self._temperature_cards())
         if cards:

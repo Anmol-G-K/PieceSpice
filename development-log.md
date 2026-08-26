@@ -1,3 +1,29 @@
+## 2026-08-26 (28) IST — T3.1/T3.2: include-inlining fix landed; node-name mismatch found and fixed; stepped-OP validation now LIVE
+
+### Root causes found & fixed
+1. **LTspice 26 -b ignores .include/.lib entirely** (proven by 4-case
+   batched diagnostic: relative, absolute, quoted, .lib stmt all fail;
+   inline .SUBCKT works). Fix: `_inline_includes()` in simulation/engine.py
+   recursively inlines included file contents at netlist-write time.
+2. **Node-name mismatch in compare_tier2_vs_golden**: sources drove nodes
+   'd'/'g' while the X-instance used 'drain'/'gate'/'source' - two
+   disjoint node sets, subckt floated, Tier-2 current read 0 A.
+   Fixed: sources now drive drain/gate consistently.
+
+### Stepped-OP validation results (Tier-2 vs vendor golden, Vds=10V)
+- irfs7730pbf: excellent at Vgs>=6 (1.9-3.6%); Vgs=4.5 outlier +1140%
+  (golden 7.16 A vs tier2 88.7 A) - PWL knee region misfit near threshold
+- csd16412q5a: uniformly good, 4.7-6.1% (slightly over the 5% band)
+- epc2216: matches at Vgs<=3.5 (0.7%) but SATURATES at ~27 A for
+  Vgs>=4 - the tanh-knee Vds scaling clips; emitter issue
+- cpm2-1200: good up to Vgs=12 (2.4-2.6%) then rolls off to -71% by
+  Vgs=20 - same saturation-clipping signature
+
+M3 exit criterion (<1% all vendors) NOT yet met. Two distinct issues:
+(a) IR threshold-region PWL fit quality, (b) high-Vgs saturation
+clipping on EPC/CPM2 emitters. Next: investigate the tanh-knee Vds
+scaling in models/netlist_builder.py.
+
 ## 2026-08-26 (27) IST — Pytest status: 99 passed / 4 skipped / 1 known-flaky (pwlf stochastic)
 
 Full-suite run: 100 collected, 99 passed, 4 skipped (intentional
