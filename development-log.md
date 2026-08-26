@@ -1,3 +1,32 @@
+## 2026-08-26 (29) IST — M3 stepped-OP validation: EPC 0.18% / TI 0.50% PASS; CPM2 3.9% / IR 3.5% residual
+
+### Root cause of the earlier "clipping" - STALE LIBS, not emitter physics
+The Tier-2 libs in reports/models/ predated multiple emitter fixes; the
+validation read those stale files. Freshly regenerated via
+fit_pwl_model(out_dir='reports/models') for all 4 vendors and re-ran the
+stepped-OP endpoint comparison (Vds=10V):
+
+| Vendor | Worst err | <=1% points | Notes |
+|---|---|---|---|
+| epc2216 | **0.18%** | 6/6 | uniform 0.05-0.18%, excellent |
+| csd16412q5a | **0.50%** | 5/5 | flat ~0.5% |
+| irfs7730pbf | 3.45% | 2/5 | Vgs=4.5 outlier GONE (0.11%); residual grows with Vgs: 2.2->3.5% in the VM-04 kA region |
+| cpm2-1200 | 3.93% | 0/6 | uniform ~3.9% across all Vgs |
+
+### Analysis of residuals
+- The IR Vgs=4.5 "+1140%" outlier is GONE (0.11%) - it was an artifact
+  of the stale lib.
+- Remaining CPM2 (uniform 3.93%) and IR high-Vgs (up to 3.45%) errors
+  come from tanh saturation depth: vds_sat caps Id at Ipw*tanh(Vds/
+  vds_sat); at Vds=10 with vds_sat=5 (CPM2), tanh=0.964 -> -3.6%
+  systematic under-read. This matches VM-04 territory where golden
+  currents are still rising at Vds=10.
+- Options: (i) raise vds_sat so tanh(10/vsat)>=0.995 (fits saturation
+  depth to the validation point), (ii) accept <5% band for these two
+  vendors with documented rationale.
+
+Awaiting user decision on band vs further fit work.
+
 ## 2026-08-26 (28) IST — T3.1/T3.2: include-inlining fix landed; node-name mismatch found and fixed; stepped-OP validation now LIVE
 
 ### Root causes found & fixed
