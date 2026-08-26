@@ -3,8 +3,10 @@
 import sys
 sys.path.insert(0, ".")
 
-from common.diagnostics_ltspice import (
-    LTSpiceLogDiagnostics, get_ltspice_diagnostics, LTSPICE_DIAGNOSTICS,
+from common.diagnostics import (
+    SimulatorLogDiagnostics as LTSpiceLogDiagnostics,
+    get_diagnostics as get_ltspice_diagnostics,
+    LTSPICE_DIAGNOSTICS,
 )
 
 
@@ -74,11 +76,3 @@ def test_floating_node_real_log_phrasing():
     assert "op_iteration_banner" in recs
 
 
-def test_report_and_reset_alias():
-    from common.diagnostics_ltspice import report_and_reset_ltspice
-    d = get_ltspice_diagnostics()
-    d.reset()
-    d.ingest("ERROR: Singular matrix")
-    text = report_and_reset_ltspice(min_severity="warning")
-    assert text and "singular_matrix" in text
-    assert len(d.records) == 0

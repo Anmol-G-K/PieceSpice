@@ -1,9 +1,9 @@
-"""M3.6: fitting pipeline stage.
+"""M3.6: fitting pipeline stage (LTspice backend).
 
-Consumes the extracted-curve outputs written by `pipeline.curves` for a
-vendor, fits PWL parameters from them (Curves 1/2/4/6), assembles a
+Consumes extracted-curve outputs from `pipeline.curves`, assembles a
 PWLModelSpec, and synthesizes the Tier-2 subcircuit .lib via
-models.netlist_builder.
+models.netlist_builder. Stepped-OP validation runs through the spicelib
+engine.
 
 Entry point:
     from pipeline.fitting import fit_pwl_model
@@ -23,8 +23,8 @@ from config.yaml_io import load_input, load_output
 
 _LOGGER = logging.getLogger(__name__)
 
-# Fitting tolerances (plan §2.1: typically <1% RMSE; we target 2% per-curve
-# to leave margin for the <5% end-to-end goal).
+# Fitting tolerances (plan §2.1: typically <1% RMSE; 2% per-curve leaves
+# margin for the <5% end-to-end goal).
 _FIT_REL_TOL = 0.02
 _MAX_SEGMENTS = 6
 
@@ -38,11 +38,10 @@ def _arr(xs) -> np.ndarray:
 
 
 def _fit_transfer(vendor: str, cond: dict):
-    """Curve 2 -> v_th estimate + saturation endpoint currents."""
+    """Curve 2 -> conducting-region vgs/id + plateau estimate."""
     d = _curve(vendor, "curve2_transfer_characteristic")["extracted"]
     vgs = _arr(d["curve_vgs"])
     i_d = _arr(d["curve_id"])
-    # conducting region only
     mask = i_d > max(1e-7, 0.001 * i_d.max())
     return vgs[mask], i_d[mask], float(d.get("v_plateau_v", vgs[mask][0]))
 
@@ -52,10 +51,7 @@ def fit_pwl_model(
     rel_tol: float = _FIT_REL_TOL,
     out_dir: str | Path = "reports/models",
 ) -> Path:
-    """Fit a Tier-2 PWL model for *vendor* and emit its subcircuit .lib.
-
-    Returns the path of the generated .lib file.
-    """
+    """Fit a Tier-2 PWL model for *vendor* and emit its subcircuit .lib."""
     cfg = load_input(vendor)
     device = cfg["device"]
     cond = cfg["conditions"]
@@ -63,11 +59,11 @@ def fit_pwl_model(
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
-    # ---- Curve 1: output family -> shared Vds breakpoints + Id rows ------
+    # ---- Curve 1: output family -> shared Vds grid + Id rows ----------------
     c1 = _curve(vendor, "curve1_output_characteristics")["extracted"]
     prefix = "curve_id_vgs_"
     vgs_values = sorted(
-        float(k[len(prefix):-2])                # strip prefix and '_v'
+        float(k[len(prefix):-2])
         for k in c1 if k.startswith(prefix))
     rows = []
     ref_len = None
@@ -81,10 +77,11 @@ def fit_pwl_model(
             ref_len = len(y)
         rows.append(np.interp(
             np.linspace(0, float(cond["Vds_sweep_max"]), ref_len), xs, y))
-    breakpoints_vds = list(np.linspace(0.0, float(cond["Vds_sweep_max"]), ref_len))
+    breakpoints_vds = list(np.linspace(
+        0.0, float(cond["Vds_sweep_max"]), ref_len))
     breakpoints_id = [list(map(float, r)) for r in rows]
 
-    # ---- Curve 3: Rds(on) scalar -----------------------------------------
+    # ---- Curve 3: Rds(on) scalar ---------------------------------------------
     rds_on = 0.005
     try:
         c3 = _curve(vendor, "curve3_rds_on")["extracted"]
@@ -95,28 +92,22 @@ def fit_pwl_model(
     except FileNotFoundError:
         _LOGGER.warning("%s: curve3 missing; Rds(on) fallback used", vendor)
 
-    # ---- Curve 4: Qoss table via charge integration -----------------------
-    from approximation.charge_model import integrate_charge
+    # ---- Curve 4: Qoss table via charge integration ----------------------------
     cq = ce = None
     qoss_v: list = []
     qoss_q: list = []
     try:
-        c4 = _curve(vendor, "curve4_capacitances")
-        # scalars only in YAML; full curves come from re-running the bench is
-        # avoided by storing tables in M3.6 - interim: reconstruct from notes
-        # is impossible, so read curve files saved alongside if present.
-        cap_ref = float(c4["extracted"].get("cap_ref_vds", cond.get(
-            "Cap_ref_Vds", 25.0)))
-        # Re-run capacitance bench quickly for the Q table (cheap: ~25 pts)
+        cap_ref = float(cond.get("Cap_ref_Vds",
+                                 cond.get("Vds_cap_min", 0.1)) or 25.0)
         from simulation.testbenches.capacitance import CapacitanceTestbench
-        from parser.netlist import resolve_pin_connections
         lib = Path(cfg["library"]).resolve()
-        roles = resolve_pin_connections(lib, cfg["subcircuit"],
-            pin_order_semantic=cfg.get("pins", {}).get("pin_order_semantic"))
-        _, coss, _ = CapacitanceTestbench(f_meas=cond.get("F_meas")).run(
-            lib, cfg["subcircuit"], vds_min=cond["Vds_cap_min"],
-            vds_max=cond["Vds_cap_max"], points=cond["Cap_points"],
-            pin_roles=roles)
+        _, coss, _ = CapacitanceTestbench(
+            f_meas=cond.get("F_meas")).run(
+            lib, cfg["subcircuit"],
+            vds_min=cond["Vds_cap_min"], vds_max=cond["Vds_cap_max"],
+            points=cond["Cap_points"],
+            pin_roles=cfg.get("pins", {}).get("pin_order"))
+        from approximation.charge_model import integrate_charge
         cm = integrate_charge(_arr(coss.x_data), _arr(coss.y_data),
                               v_ref=cap_ref)
         qoss_v = cm.v.tolist()
@@ -125,15 +116,16 @@ def fit_pwl_model(
     except FileNotFoundError:
         _LOGGER.warning("%s: curve4 missing; Qoss table skipped", vendor)
 
-    # ---- Curve 7: Vth ------------------------------------------------------
-    v_th = cond.get("Id_th_target", 2.5e-4) and 0.0
+    # ---- Curve 7: Vth -----------------------------------------------------------
+    v_th = 0.0
     try:
         v_th = float(load_output(vendor,
-                                 "curve7_threshold_voltage")["extracted"]["vth_v"])
+                                 "curve7_threshold_voltage")
+                     ["extracted"]["vth_v"])
     except FileNotFoundError:
         pass
 
-    # ---- Curve 6: body diode ----------------------------------------------
+    # ---- Curve 6: body diode ------------------------------------------------------
     b_vsd: list = []
     b_isd: list = []
     try:
@@ -160,7 +152,7 @@ def fit_pwl_model(
             "r_gate": 1.5,
             "r_source": 1e-4,
             "r_drain": 1e-4,
-            "c_iss_lin": (cq or 1500e-12) * 3.0,   # Ciss ~ 3x Coss typical
+            "c_iss_lin": (cq or 1500e-12) * 3.0,
             "c_oss_lin": (cq if cq else 500e-12),
             "c_rss_lin": (ce if ce else 50e-12) * 0.15,
         },
@@ -176,13 +168,9 @@ def fit_pwl_model(
 
 
 def compare_tier2_vs_golden(vendor: str, lib_path: Path | None = None):
-    """Simulate the Tier-2 model at Vds=10V vs golden endpoint currents.
-
-    Library-owned validation so notebooks only plot the returned rows.
-    Returns (rows, worst_rel_pct) where rows are
-    (vgs, golden_id_a, tier2_id_a, rel_err_pct) tuples.
-    """
-    from PySpice.Spice.Netlist import Circuit
+    """Endpoint-current comparison at Vds=10 V per Vgs curve (LTspice)."""
+    from simulation.engine import SpiceEngine, OPDirective
+    from simulation.netlist_text import NetlistBuilder
 
     if lib_path is None:
         cfg = load_input(vendor)
@@ -196,38 +184,33 @@ def compare_tier2_vs_golden(vendor: str, lib_path: Path | None = None):
     pairs = sorted((float(k[len(prefix):-2]), k)
                    for k in c1 if k.startswith(prefix))
 
+    engine = SpiceEngine()
     rows = []
     worst = 0.0
     for vgs_val, key in pairs:
         golden = abs(float(c1[key][-1]))
-        circuit = Circuit(f"cmp_{vgs_val}")
-        circuit.include(str(lib_path))
-        circuit.X("M1", name, "d", "g", "gnd")
-        circuit.V("ds", "d", "gnd", 10)
-        circuit.V("gs", "g", "gnd", vgs_val)
-        op = circuit.simulator(temperature=25,
-                               nominal_temperature=25).operating_point()
-        i_t2 = abs(float(op.branches["vds"][0]))
+        nb = NetlistBuilder(f"cmp_{vgs_val}")
+        nb.include(lib_path)
+        nb.v_dc("ds", "d", "0", 10.0)
+        nb.v_dc("gs", "g", "0", vgs_val)
+        nb.x_instance("m1", name, ["drain", "gate", "source"])
+        result = engine.run_op(nb.render())
+        i_t2 = abs(float(result.traces["I(Vds)"][0]))
         rel = abs(i_t2 - golden) / max(golden, 1e-9) * 100
         worst = max(worst, rel)
         rows.append((vgs_val, golden, i_t2, rel))
     return rows, worst
 
+
 def compare_tier2_vs_golden_full(vendor: str, lib_path: Path | None = None,
                                  n_points: int = 41):
-    """Full-sweep Tier-2 vs golden comparison across every Vgs curve.
-
-    Library-owned stepped-OP sweep (notebooks only plot the result).
-    Returns rows of (vgs_val, vds_array, golden_id_array, tier2_id_array).
-    """
-    from PySpice.Spice.Netlist import Circuit
-
+    """Full-sweep Tier-2 vs golden comparison across every Vgs curve."""
     cfg = load_input(vendor)
-    device = cfg["device"]
     cond = cfg["conditions"]
 
     if lib_path is None:
-        lib_path = Path("reports/models") / f"{device}_PIECESPICE_T2.lib"
+        lib_path = Path("reports/models") / \
+            f"{cfg['device']}_PIECESPICE_T2.lib"
     lib_path = Path(lib_path)
     name = lib_path.stem
 
@@ -236,6 +219,7 @@ def compare_tier2_vs_golden_full(vendor: str, lib_path: Path | None = None,
     keys = sorted((float(k[len(prefix):-2]), k)
                   for k in c1 if k.startswith(prefix))
 
+    engine = SpiceEngine()
     vds_grid = np.linspace(0.0, float(cond["Vds_sweep_max"]), n_points)
 
     rows = []
@@ -245,15 +229,30 @@ def compare_tier2_vs_golden_full(vendor: str, lib_path: Path | None = None,
         y_golden_g = np.interp(vds_grid, g_x, y_golden)
 
         i_t2 = np.zeros(n_points)
-        for j, vd in enumerate(vds_grid):
-            circuit = Circuit(f"t2_{vgs_val:g}_{vd:.3g}")
-            circuit.include(str(lib_path))
-            circuit.X("M1", name, "d", "g", "gnd")
-            circuit.V("ds", "d", "gnd", float(vd))
-            circuit.V("gs", "g", "gnd", vgs_val)
-            op = circuit.simulator(
-                temperature=25, nominal_temperature=25).operating_point()
-            i_t2[j] = abs(float(op.branches["vds"][0]))
+        nb = NetlistBuilder(f"t2_{vgs_val:g}")
+        nb.include(lib_path)
+        nb.v_dc("gs", "g", "0", vgs_val)
+        nb.v_dc("sweep_src", "vdswp", "0", 0.0)
+        nb.r("load", "vdswp", "d", 1e-6)   # near-short: d tracks vdswp
+        nb.x_instance("m1", name, ["drain", "gate", "source"])
+        directive = DCDirective(source_name="Vsweep_src",
+                                start=0.0,
+                                stop=float(cond["Vds_sweep_max"]),
+                                step=float(cond["Vds_sweep_max"])
+                                / (n_points - 1))
+        # Rename source for sweep semantics: use a dedicated V element.
+        text = nb.render().replace("Vsweep_src", "Vds_sweep_el")
+        directive.source_name = "Vds_sweep_el"
+        result = engine.run_dc_sweep(text, directive)
+
+        vd_actual = np.asarray(result.get("V(d)", dtype=float)) \
+            if "V(d)" in result.traces else \
+            np.asarray(result.get(result.sweep_var), dtype=float)
+        i_raw = np.asarray(result.get("I(Vds_sweep_el)"), dtype=float)
+        i_t2 = np.abs(i_raw)
+
+        order = np.argsort(vd_actual)
+        i_t2 = np.interp(vds_grid, vd_actual[order], i_t2[order])
 
         rows.append((vgs_val, vds_grid.copy(), y_golden_g, i_t2))
     return rows

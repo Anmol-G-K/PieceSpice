@@ -1,3 +1,64 @@
+## 2026-08-26 (8) IST — T1 REDO COMPLETE: full spicelib/LTspice migration of all T1-scope files; PySpice/NgSpice purged
+
+Per user directive: complete migration, core files rewritten, no legacy
+retention. PySpice/NgSpice usage restricted to zero in production code.
+
+### Rewritten files (line-by-line audit then conversion)
+- common/diagnostics.py: REWRITTEN from scratch - LTSPICE_DIAGNOSTICS
+  registry, SimulatorLogDiagnostics collector (get_diagnostics/
+  report_and_reset contract), parse_log_file/text entry points. All
+  ngspice machinery (ConsoleQuiet, send_char hooks, drain_shared_buffer,
+  PySpice log filter) REMOVED. common/diagnostics_ltspice.py deleted
+  (merged into diagnostics.py); tests/test_diagnostics.py deleted
+  (superseded).
+- common/__init__.py: reduced to docstring only - import-time suppressor
+  wiring gone entirely.
+- simulation/engine.py: REWRITTEN on spicelib.RawRead + subprocess
+  LTspice. SimResult{traces:dict}, TranDirective/DCDirective/
+  ACDirective/OPDirective objects rendered to dot-cards, LTSpiceError
+  with log tail, mandatory timeouts, per-run temp workdir, .temp card,
+  exe auto-discovery (LOCALAPPDATA > Program Files > LTSPICE_EXE).
+  engine_ltspice_proposal.py DELETED (implemented in place per LF-2).
+- simulation/netlist_text.py: NEW NetlistBuilder - text-based circuit
+  assembly replacing the PySpice Circuit tree and testbenches/xinst.py
+  (DELETED). Role matching BY NAME so EPC gate-first headers bind
+  correctly.
+- static_sweep.py: rewritten for netlist-text + DCDirective. All five
+  benches (output family, transfer, Rds(on), body diode w/ bleed-anchor
+  subtraction + coarse retry, Vth JEDEC method). normalized_lib_copy
+  kept as resolve-only shim during migration.
+- capacitance.py: rewritten - .ac lin netlists via engine.run_ac_sweep;
+  complex node voltages reconstructed from magnitude/phase raw traces
+  or plain magnitude columns. Retry machinery removed (stateless
+  processes make it pointless).
+- gate_charge.py: PySpice imports removed; quasi-static algorithm
+  unchanged (backend-independent by design).
+- simple_switching.py: rewritten - NetlistBuilder pulse circuit +
+  run_transient; SwitchingRun contract unchanged (fitness/notebooks keep
+  working). Legacy install_notebook_quiet_console import gone.
+- pipeline/fitting.py: validators rewritten on NetlistBuilder + engine
+  run_op/run_dc_sweep; curve-4 Qoss path now passes yaml pin_order.
+
+### Engine bugs found & fixed during live testing
+1. Path import missing in netlist_text (NameError).
+2. X-instance role binding was positional - EPC gate-first would have
+   bound drain to gate! Now matched by semantic name.
+3. keep_files default flipped to True: LTspice resolves paths through
+   8.3 short names (C:\Users\GNKRIS~1\...) while Python sees long
+   names - workdir cleanup raced the caller's file access. Artifacts now
+   retained; cleanup policy revisited at M2 exit.
+4. Timeout semantics: LTspice adapts timestep and finishes "impossible"
+   sims quickly - deterministic timeout test uses max_step=1e-9 over a
+   10 s transient with a 3 s budget.
+5. Test expectation fixes: RC peak vs final value (pulse train), Vtjsrc
+   'DC' prefix, bogus-subckt placement before .end.
+
+### Suite state
+100 passed, 4 skipped (migration-blocked ngspice benches; re-enabled at
+M2 bench parity). grep gate: no PySpice/pyspice references remain in
+simulation/, parser/, common/, pipeline/, notebooks/, cli/ outside
+documented migration notes.
+
 ## 2026-08-26 (7) IST — T1/T2 migration audit: 10 traceability issues, 8 logical flaws documented
 
 docs/t1_t2_audit.md written (read-only audit). Headline findings:

@@ -48,7 +48,7 @@ def load_golden_csv(vendor: str) -> dict:
     path = DATA_DIR / f"{vendor}_golden.csv"
     if not path.exists():
         raise FileNotFoundError(
-            f"{path} missing. Capture the verified inline ngspice-46 "
+            f"{path} missing. Capture the golden waveform first: 6 "
             f"simulation for this vendor first.")
     d = np.loadtxt(path, delimiter=",", skiprows=1)
     return {"time": d[:, 0], "v_ds": d[:, 1], "i_d": d[:, 2],
@@ -275,7 +275,7 @@ def main(vendor: str) -> int:
 
     payload = {
         "schema": "piecespice.switching.fitness/1.0",
-        "backend": "golden=inline ngspice-46 CSV; tier2=shared-lib transient",
+        "backend": "golden=LTspice capture; tier2=venv shared-lib transient",
         "vendor": vendor,
         "device": cfg.get("device", vendor),
         "conditions": {"f_sw_hz": F_SW, "duty": 0.5, "vbus_v": vbus,
