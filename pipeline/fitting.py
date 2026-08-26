@@ -20,6 +20,9 @@ import numpy as np
 
 from common.types import PWLModelSpec, trim_trailing_invalid
 from config.yaml_io import load_input, load_output
+from simulation.engine import SpiceEngine, DCDirective
+from simulation.netlist_text import NetlistBuilder
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -169,8 +172,6 @@ def fit_pwl_model(
 
 def compare_tier2_vs_golden(vendor: str, lib_path: Path | None = None):
     """Endpoint-current comparison at Vds=10 V per Vgs curve (LTspice)."""
-    from simulation.engine import SpiceEngine, OPDirective
-    from simulation.netlist_text import NetlistBuilder
 
     if lib_path is None:
         cfg = load_input(vendor)
@@ -185,6 +186,7 @@ def compare_tier2_vs_golden(vendor: str, lib_path: Path | None = None):
                    for k in c1 if k.startswith(prefix))
 
     engine = SpiceEngine()
+    from simulation.netlist_text import NetlistBuilder
     rows = []
     worst = 0.0
     for vgs_val, key in pairs:
@@ -193,7 +195,7 @@ def compare_tier2_vs_golden(vendor: str, lib_path: Path | None = None):
         nb.include(lib_path)
         nb.v_dc("ds", "drain", "0", 10.0)
         nb.v_dc("gs", "gate", "0", vgs_val)
-        nb.x_instance("m1", name, ["drain", "gate", "source"])
+        nb.x_instance("m1", name, ["drain", "gate", "0"])
         result = engine.run_op(nb.render())
         i_t2 = abs(float(result.traces["I(Vds)"][0]))
         rel = abs(i_t2 - golden) / max(golden, 1e-9) * 100
@@ -220,6 +222,7 @@ def compare_tier2_vs_golden_full(vendor: str, lib_path: Path | None = None,
                   for k in c1 if k.startswith(prefix))
 
     engine = SpiceEngine()
+    from simulation.netlist_text import NetlistBuilder
     vds_grid = np.linspace(0.0, float(cond["Vds_sweep_max"]), n_points)
 
     rows = []
@@ -234,7 +237,8 @@ def compare_tier2_vs_golden_full(vendor: str, lib_path: Path | None = None,
         nb.v_dc("gs", "gate", "0", vgs_val)
         nb.v_dc("sweep_src", "vdswp", "0", 0.0)
         nb.r("load", "vdswp", "d", 1e-6)   # near-short: d tracks vdswp
-        nb.x_instance("m1", name, ["drain", "gate", "source"])
+        nb.r("rsense", "s", "0", 1e-6)    # give source a DC return path
+        nb.x_instance("m1", name, ["d", "gate", "s"])
         directive = DCDirective(source_name="Vsweep_src",
                                 start=0.0,
                                 stop=float(cond["Vds_sweep_max"]),
@@ -245,10 +249,10 @@ def compare_tier2_vs_golden_full(vendor: str, lib_path: Path | None = None,
         directive.source_name = "Vds_sweep_el"
         result = engine.run_dc_sweep(text, directive)
 
-        vd_actual = np.asarray(result.get("V(d)", dtype=float)) \
+        vd_actual = np.asarray(result.get("V(d)")) \
             if "V(d)" in result.traces else \
-            np.asarray(result.get(result.sweep_var), dtype=float)
-        i_raw = np.asarray(result.get("I(Vds_sweep_el)"), dtype=float)
+            np.asarray(result.get(result.sweep_var))
+        i_raw = np.asarray(result.get("I(Vds_sweep_el)"))
         i_t2 = np.abs(i_raw)
 
         order = np.argsort(vd_actual)

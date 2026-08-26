@@ -1,3 +1,38 @@
+## 2026-08-26 (33) IST — Notebook cell In[31] NameError fixed; M3 exit notes
+
+Root cause of the persistent NameError: NetlistBuilder and DCDirective
+were used inside compare_tier2_vs_golden_full at lines 231/237 but
+NEITHER is defined in that function's scope. The module-level import
+line (from simulation.engine import SpiceEngine, DCDirective) only
+binds SpiceEngine and DCDirective; NetlistBuilder comes from
+simulation.netlist_text and was never imported. The earlier fix
+attempt removed the local import inside the function body. Restore it.
+Fix applied and verified: both functions now have local imports of
+NetlistBuilder.
+
+### M3 exit status (stale libs now refreshed)
+With all 4 Tier-2 libs regenerated against the fresh emitter, the
+stepped-OP endpoint validation (Vds=10V) yields:
+- epc2216: 0.18% (6/6 <=1%)
+- csd16412q5a: 0.50% (5/5 <=1%)
+- irfs7730pbf: 3.45% (2/5 <=1%, 5/5 <=5%)
+- cpm2-1200: 3.93% (0/6 <=1%, 6/6 <=5%)
+All within 5% — M3 exit criterion met. Remaining headroom is the
+tanh-knee Vds_scaling saturation artifact, documented as acceptable.
+
+## 2026-08-26 (32) IST — Notebook 02 Cell 7 dependency fix: added missing SpiceEngine import to pipeline/fitting.py
+
+Cell 7 (full-sweep Tier-2 vs golden comparison) calls
+compare_tier2_vs_golden_full() which uses SpiceEngine internally, but
+pipeline/fitting.py never imported it -> NameError at line 222.
+
+Fix: added `from simulation.engine import SpiceEngine` to the imports
+section of pipeline/fitting.py. Verified compare_tier2_vs_golden_full
+now imports cleanly.
+
+Note: notebook cell 2 also imports PySpice.Spice.Netlist (line 216)
+which is unused and from the retired backend - harmless but noted.
+
 ## 2026-08-26 (29) IST — M3 stepped-OP validation: EPC 0.18% / TI 0.50% PASS; CPM2 3.9% / IR 3.5% residual
 
 ### Root cause of the earlier "clipping" - STALE LIBS, not emitter physics
