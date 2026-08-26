@@ -2,11 +2,11 @@ device: cpm2-1200
 testbench: curve7_threshold_voltage
 status: pass
 conditions_used:
-  Id_th_target: 0.005
+  Id_th_target: 0.0125
   Vgs_th_max: 6.0
 extracted:
-  vth_v: 2.16590613865578
-  Id_th_target: 0.005
+  vth_v: 2.4672094145234116
+  Id_th_target: 0.0125
   curve_vgs:
   - 0.0
   - 0.002

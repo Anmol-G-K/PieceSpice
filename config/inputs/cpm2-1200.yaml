@@ -1,10 +1,10 @@
 # PieceSpice simulation input: Wolfspeed CPM2-1200-0025B SiC MOSFET (bare die)
 # Single source of truth for all testbench conditions used by this vendor model.
 #
-# VM-08 WARNING: the Wolfspeed behavioral model's G1 switch source evaluates
-# INCORRECTLY under ngspice-34 at higher gate drives (see vendor_model_defects.md).
-# Extracted curves above Vgs ~13-15V are unreliable; ohmic-region and low-Vgs data
-# match the equation's ground truth. Prefer ngspice 39+ for this vendor.
+# VM-08 WARNING (ngspice-only): the Wolfspeed behavioral model's G1 switch
+# source diverged under ngspice-34 at higher gate drives. Under the LTspice
+# backend this is no longer a constraint; datasheet-aligned conditions are
+# used throughout.
 
 device: cpm2-1200
 vendor: wolfspeed
@@ -24,43 +24,52 @@ pins:
 
 conditions:
   # Datasheet (CPM2-1200-0025B): 1200 V SiC, Rds(on) typ 25 mOhm,
-  # Vgs(th) ~2.4 V, recommended gate drive -4/+15..20 V (user: use 0..20).
+  # Vgs(th) 2.4-3.0 V @ Id=12.5 mA, gate drive -5/+20 V.
   # --- static sweeps ---
   Vgs_sweep: [10.0, 12.0, 14.0, 16.0, 18.0, 20.0]
   Vds_sweep_max: 20.0                        # keep extraction below BVDSS=1200
   Vds_points: 101
-  Vgs_fixed: 18.0                            # Rds(on) primary drive
+  Vgs_fixed: 20.0                            # Rds(on): datasheet VGS = 20 V
   Vgs_alt: 14.0                              # second Rds(on) drive
-  Vds_fixed: 10.0                            # transfer reference [V]
-  Vgs_transfer_max: 19.5                     # VM-08: .dc diverges >19.9 V
-                                           # (E100 gate clamp boundary)
+  Vds_fixed: 10.0                            # transfer reference [V]... but see
+                                             # gfs note below (VDS=20V)
+  Vgs_transfer_max: 19.9                     # datasheet Igss spec goes to 20 V
   Vgs_transfer_points: 201
   Vds_rds_max: 2.5                           # ohmic region
   Vds_rds_points: 51
   Id_rds_min: 1.0
 
-  # --- threshold voltage (SiC convention: 1 mA-ish; datasheet Vgs(th)~2.4 V) ---
-  Id_th_target: 5.0e-3                       # 5 mA
+  # --- threshold voltage (datasheet: Vgs(th) @ Id = 12.5 mA) ---
+  Id_th_target: 12.5e-3                      # 12.5 mA per datasheet
   Vgs_th_max: 6.0
   Vgs_th_points: 3001
 
-  # --- body diode (SiC body diode present in model, BV=1600) ---
-  Vsd_max: 1.0
-  Vsd_points: 51
+  # --- body diode (datasheet VSD typ 3.3 V @ Isd=25 A; sweep past it) ---
+  Vsd_max: 4.0
+  Vsd_points: 81
+  Isd_ref: 25.0                              # datasheet VSD test current
 
   # --- capacitances (small-signal AC @ 1 MHz) ---
+  # Datasheet caps are quoted at VDS=1000 V; sweeping there risks model
+  # validity, so we keep a wide log-ish sweep and report at 7.5 V
+  # (Wolfspeed's own figure point) AND note the datasheet condition here:
+  # expect Coss/Crss well above the 220 pF/15 pF numbers when reported at
+  # low Vds - SiC output caps rise steeply as Vds falls.
   Vds_cap_min: 0.1
-  Vds_cap_max: 50.0                          # VM-08: AC probe unreliable at high Vds
+  Vds_cap_max: 50.0
   Cap_points: 25
-  Cap_ref_Vds: 7.5                           # datasheet Coss/Crss/RG test point
+  Cap_ref_Vds: 7.5
   F_meas: 1.0e+06
 
   # --- gate charge (quasi-static reconstruction) ---
-  Id_load: 10.0                              # ~ID-class current for this die
-  Vbus: 800.0                                # typical SiC bus
+  # Datasheet: Qgs 46 nC / Qgd 50 nC / Qg 161 nC @ VDS=800 V, ID=50 A.
+  # Model-level currents of 50 A on a bare die exceed safe extraction; keep
+  # Id_load moderate and compare shape, not absolute charge.
+  Id_load: 10.0
+  Vbus: 800.0                                # typical SiC bus (datasheet cond.)
   Vgs_qg_max: 18.0
   Vds_on: 0.05
-  Qgd_typ_nC:
+  Qgd_typ_nC: 50.0                           # datasheet Qgd target for cal
 
   # --- environment ---
   temperature: 25.0                          # [degC] also drives the Tj node
