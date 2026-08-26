@@ -33,28 +33,62 @@ class StaticSweepTestbench:
     def _core_roles(pin_roles):
         return [r for r in pin_roles if r.lower() != "tj"]
 
-    @staticmethod
-    def _has_tj(pin_roles):
-        return any(r.lower() == "tj" for r in pin_roles)
+    def _has_tj(self, lib_path, subcircuit_name, pin_roles) -> bool:
+        """True when the SUBCKT declares a thermal port.
 
-    def _header_lines(self, lib_path, pin_roles, xargs):
+        Checked from the library header itself (authoritative); some yamls
+        omit 'tj' from pin_order even though the port exists.
+        """
+        if any(r.lower() == "tj" for r in pin_roles):
+            return True
+        try:
+            from parser.netlist import NetlistParser
+            subs = NetlistParser.parse_subcircuits(Path(lib_path))
+            info = next((s for s in subs
+                         if s.name.lower() == subcircuit_name.lower()), None)
+            if info is None:
+                return False
+            return any(p.lower() == "tj" for p in info.nodes)
+        except Exception:
+            return False
+
+    def _header_lines(self, lib_path, subcircuit_name, pin_roles, xargs):
         lines = [f".include {Path(lib_path).resolve()}"]
-        if self._has_tj(pin_roles):
+        if self._has_tj(lib_path, subcircuit_name, pin_roles):
             temp = float(getattr(self.engine, "temperature", 25.0))
             lines.append(f"Vtj tj_dut 0 {temp:g}")
         return lines, xargs
 
-    def _finish(self, text, directive, current_trace, label):
+    def _finish(self, text, directive, current_trace, label,
+                negate: bool = True):
+        """Run a DC sweep and extract (x, |y|) with polarity validation.
+
+        LTspice reports a voltage SOURCE's current as positive when it
+        flows out of its + terminal; conduction current enters the DUT,
+        so bench traces come out negative and are negated here (matching
+        the historical '-analysis.Vds' convention). The sign check runs
+        AFTER negation so a flipped probe still fails loudly.
+        """
         result = self.engine.run_dc_sweep(text, directive)
         x = np.asarray(result.get(result.sweep_var), dtype=float)
-        y = np.abs(np.asarray(result.get(current_trace), dtype=float))
+        y = np.asarray(result.get(current_trace), dtype=float)
+        if negate:
+            y = -y
         self._check_sign(x, y, label)
-        return x, y
+        return x, np.abs(y)
 
-    def _xargs_for(self, roles):
-        """Positional connections for drain/gate/source ordering."""
-        conn = {r: n for r, n in zip(roles, ["drain", "gate", "0"])}
-        return [conn.get(r, r) for r in roles]
+    def _xargs_for(self, lib_path, subcircuit_name, roles):
+        """Positional connections including the tj node when present.
+
+        Roles are matched BY NAME (drain/gate/source), so gate-first
+        vendor headers bind correctly. A 'tj' role appends its dedicated
+        thermal node after the core three.
+        """
+        conn = {"drain": "drain", "gate": "gate", "source": "0"}
+        xargs = [conn.get(r, r) for r in self._core_roles(roles)]
+        if self._has_tj(lib_path, subcircuit_name, roles):
+            xargs.append("tj_dut")
+        return xargs
 
     # -- Curve 1: output characteristics --------------------------------------
 
@@ -67,14 +101,15 @@ class StaticSweepTestbench:
         step = vds_max / max(1, vds_points - 1)
         curves = []
         for vgs in vgs_list:
-            lines, xargs = self._header_lines(lib_path, roles,
-                                              self._xargs_for(roles))
-            # Vbus holds vgs+headroom so the swept source Vds sees the full
-            # range; Vds is between vbus and drain.
+            lines, xargs = self._header_lines(
+                lib_path, subcircuit_name, roles,
+                self._xargs_for(lib_path, subcircuit_name, roles))
+            # The swept source ties DIRECTLY to drain: sweeping it raises
+            # the true device Vds from 0 to vds_max (positive terminal at
+            # drain, negative at ground).
             lines += [
                 f"Vgs gate 0 {vgs:g}",
-                f"Vbus vbus 0 {vgs + float(vds_max):g}",
-                "Vds vbus drain 0",
+                "Vds drain 0 0",
                 f"Xdut {' '.join(xargs)} {subcircuit_name}",
             ]
             text = "* output characteristics\n" + "\n".join(lines) \
@@ -96,8 +131,9 @@ class StaticSweepTestbench:
                                      vds_fixed=10.0, vgs_max=15.0,
                                      vgs_points=151, pin_roles=None):
         roles = pin_roles or ["drain", "gate", "source"]
-        lines, xargs = self._header_lines(lib_path, roles,
-                                          self._xargs_for(roles))
+        lines, xargs = self._header_lines(
+            lib_path, subcircuit_name, roles,
+            self._xargs_for(lib_path, subcircuit_name, roles))
         lines += [
             f"Vds drain 0 {float(vds_fixed):g}",
             "Vgs gate 0 0",
@@ -119,11 +155,11 @@ class StaticSweepTestbench:
     def run_rds_on(self, lib_path, subcircuit_name, vgs=10.0, vds_max=2.5,
                    vds_points=51, min_current=1.0, pin_roles=None):
         roles = pin_roles or ["drain", "gate", "source"]
-        lines, xargs = self._header_lines(lib_path, roles,
-                                          self._xargs_for(roles))
+        lines, xargs = self._header_lines(
+            lib_path, subcircuit_name, roles,
+            self._xargs_for(lib_path, subcircuit_name, roles))
         lines += [
-            "Vds vbus drain 0",
-            f"Vdrive vbus 0 {float(vds_max):g}",
+            "Vds drain 0 0",
             f"Vgs gate 0 {vgs:g}",
             f"Xdut {' '.join(xargs)} {subcircuit_name}",
         ]
@@ -132,13 +168,8 @@ class StaticSweepTestbench:
                                 vds_max / max(1, vds_points - 1))
         result = self.engine.run_dc_sweep(text, directive)
 
-        # Vds across the device = Vdrive - sweep-source voltage. The raw
-        # carries node voltages; use v(drain) directly when present.
-        if "V(drain)" in result.traces:
-            v_dev = np.asarray(result.get("V(drain)"), dtype=float)
-        else:
-            v_sweep = np.asarray(result.get(result.sweep_var), dtype=float)
-            v_dev = float(vds_max) - v_sweep
+        # Device Vds IS the sweep variable now (source tied drain->gnd).
+        v_dev = np.asarray(result.get(result.sweep_var), dtype=float)
         i_arr = np.abs(np.asarray(result.get("I(Vds)"), dtype=float))
 
         mask = i_arr > float(min_current)
@@ -157,7 +188,7 @@ class StaticSweepTestbench:
                               pin_roles=None):
         """JEDEC constant-current method: drain tied to gate."""
         roles = self._core_roles(pin_roles)
-        has_tj = self._has_tj(pin_roles)
+        has_tj = self._has_tj(lib_path, subcircuit_name, roles)
         xargs = ["gd" if r != "source" else "0" for r in roles]
         lines = [f".include {Path(lib_path).resolve()}"]
         temp = float(getattr(self.engine, "temperature", 25.0))
@@ -196,7 +227,7 @@ class StaticSweepTestbench:
                        points=51, sweep_step=None, pin_roles=None):
         """Isd vs Vsd, gate tied to source; 10 MOhm anchor subtracted."""
         roles = self._core_roles(pin_roles)
-        has_tj = self._has_tj(pin_roles)
+        has_tj = self._has_tj(lib_path, subcircuit_name, roles)
         conn_map = {"drain": "drn"}
         others = ["src"] * (len(roles) - 1)
         xargs = [conn_map.get(r, "src") for r in roles]
@@ -225,9 +256,8 @@ class StaticSweepTestbench:
             _LOGGER.warning("body_diode default step diverged; retrying "
                             "coarse %.4g V", coarse)
             directive.step = coarse
-            x, y_raw = self._finish(make_text().replace("* body diode",
-                                                        "* body diode"),
-                                    directive, "I(Vsd)", "body diode")
+            x, y_raw = self._finish(make_text(), directive,
+                                    "I(Vsd)", "body diode")
 
         y = y_raw - x / bleed_ohm
         return CurveData(

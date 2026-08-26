@@ -1,0 +1,374 @@
+{
+  "irfs7730pbf": {
+    "curve1_output_characteristics": {
+      "scalars": {},
+      "curve_rel_rmse_pct": 0.29,
+      "ok": true
+    },
+    "curve2_transfer_characteristic": {
+      "scalars": {
+        "v_plateau_v": {
+          "new": 4.903722,
+          "old": 4.903551,
+          "rel_pct": 0.0
+        },
+        "gfs_s": {
+          "new": 262.401799,
+          "old": 261.840269,
+          "rel_pct": 0.21
+        }
+      },
+      "curve_rel_rmse_pct": 0.0,
+      "ok": true
+    },
+    "curve3_rds_on": {
+      "scalars": {
+        "rds_on_mohm_at_Id_load": {
+          "new": 2.519553,
+          "old": 2.523349,
+          "rel_pct": 0.15
+        }
+      },
+      "curve_rel_rmse_pct": 0.11,
+      "ok": true
+    },
+    "curve4_capacitances": {
+      "scalars": {
+        "ciss_f": {
+          "new": 0.0,
+          "old": 0.0,
+          "rel_pct": 0.0
+        },
+        "coss_f": {
+          "new": 0.0,
+          "old": 0.0,
+          "rel_pct": 0.06
+        },
+        "crss_f": {
+          "new": 0.0,
+          "old": 0.0,
+          "rel_pct": 0.05
+        }
+      },
+      "curve_rel_rmse_pct": null,
+      "ok": true
+    },
+    "curve5_gate_charge": {
+      "scalars": {
+        "qgs_nc": {
+          "new": 65.08794,
+          "old": 65.086897,
+          "rel_pct": 0.0
+        },
+        "qgd_nc": {
+          "new": 79.0,
+          "old": 79.0,
+          "rel_pct": 0.0
+        }
+      },
+      "curve_rel_rmse_pct": 0.01,
+      "ok": true
+    },
+    "curve6_body_diode": {
+      "scalars": {
+        "body_diode_vsd_at_Isd_ref_v": {
+          "new": 0.731143,
+          "old": 0.723321,
+          "rel_pct": 1.08
+        }
+      },
+      "curve_rel_rmse_pct": 1.55,
+      "ok": true
+    },
+    "curve7_threshold_voltage": {
+      "scalars": {
+        "vth_v": {
+          "new": 4.348318,
+          "old": 4.346334,
+          "rel_pct": 0.05
+        }
+      },
+      "curve_rel_rmse_pct": 0.0,
+      "ok": true
+    }
+  },
+  "csd16412q5a": {
+    "curve1_output_characteristics": {
+      "scalars": {},
+      "curve_rel_rmse_pct": 3.57,
+      "ok": true
+    },
+    "curve2_transfer_characteristic": {
+      "scalars": {
+        "v_plateau_v": {
+          "new": 2.818639,
+          "old": 2.808538,
+          "rel_pct": 0.36
+        },
+        "gfs_s": {
+          "new": 39.155506,
+          "old": 40.847333,
+          "rel_pct": 4.14
+        }
+      },
+      "curve_rel_rmse_pct": 0.0,
+      "ok": true
+    },
+    "curve3_rds_on": {
+      "scalars": {
+        "rds_on_mohm_at_Id_load": {
+          "new": 10.444602,
+          "old": 8.473723,
+          "rel_pct": 23.26
+        }
+      },
+      "curve_rel_rmse_pct": 10.15,
+      "ok": false
+    },
+    "curve4_capacitances": {
+      "scalars": {
+        "ciss_f": {
+          "new": 0.0,
+          "old": 0.0,
+          "rel_pct": 0.0
+        },
+        "coss_f": {
+          "new": 0.0,
+          "old": 0.0,
+          "rel_pct": 0.0
+        },
+        "crss_f": {
+          "new": 0.0,
+          "old": 0.0,
+          "rel_pct": 0.0
+        }
+      },
+      "curve_rel_rmse_pct": null,
+      "ok": true
+    },
+    "curve5_gate_charge": {
+      "scalars": {
+        "qgs_nc": {
+          "new": 1.162441,
+          "old": 1.158276,
+          "rel_pct": 0.36
+        },
+        "qgd_nc": {
+          "new": 0.581332,
+          "old": 0.581331,
+          "rel_pct": 0.0
+        }
+      },
+      "curve_rel_rmse_pct": 0.12,
+      "ok": true
+    },
+    "curve6_body_diode": {
+      "scalars": {
+        "body_diode_vsd_at_Isd_ref_v": {
+          "new": 0.858042,
+          "old": 0.831396,
+          "rel_pct": 3.2
+        }
+      },
+      "curve_rel_rmse_pct": null,
+      "ok": true
+    },
+    "curve7_threshold_voltage": {
+      "scalars": {
+        "vth_v": {
+          "new": 1.88237,
+          "old": 1.882369,
+          "rel_pct": 0.0
+        }
+      },
+      "curve_rel_rmse_pct": 0.0,
+      "ok": true
+    }
+  },
+  "epc2216": {
+    "curve1_output_characteristics": {
+      "scalars": {},
+      "curve_rel_rmse_pct": 0.01,
+      "ok": true
+    },
+    "curve2_transfer_characteristic": {
+      "scalars": {
+        "v_plateau_v": {
+          "new": 3.392926,
+          "old": 3.392926,
+          "rel_pct": 0.0
+        },
+        "gfs_s": {
+          "new": 16.231692,
+          "old": 15.120995,
+          "rel_pct": 7.35
+        }
+      },
+      "curve_rel_rmse_pct": 0.0,
+      "ok": false
+    },
+    "curve3_rds_on": {
+      "scalars": {
+        "rds_on_mohm_at_Id_load": {
+          "new": 22.441019,
+          "old": 68.247431,
+          "rel_pct": 67.12
+        }
+      },
+      "curve_rel_rmse_pct": 64.27,
+      "ok": false
+    },
+    "curve4_capacitances": {
+      "scalars": {
+        "ciss_f": {
+          "new": 0.0,
+          "old": 0.0,
+          "rel_pct": 0.0
+        },
+        "coss_f": {
+          "new": 0.0,
+          "old": 0.0,
+          "rel_pct": 320.69
+        },
+        "crss_f": {
+          "new": 0.0,
+          "old": 0.0,
+          "rel_pct": 320.63
+        }
+      },
+      "curve_rel_rmse_pct": null,
+      "ok": false
+    },
+    "curve5_gate_charge": {
+      "scalars": {
+        "qgs_nc": {
+          "new": 0.315282,
+          "old": 0.315282,
+          "rel_pct": 0.0
+        },
+        "qgd_nc": {
+          "new": 1.160596,
+          "old": 0.262756,
+          "rel_pct": 341.7
+        }
+      },
+      "curve_rel_rmse_pct": 80.46,
+      "ok": false
+    },
+    "curve6_body_diode": {
+      "scalars": {
+        "body_diode_vsd_at_Isd_ref_v": {
+          "new": 1.0,
+          "old": 1.0,
+          "rel_pct": 0.0
+        }
+      },
+      "curve_rel_rmse_pct": 0.0,
+      "ok": true
+    },
+    "curve7_threshold_voltage": {
+      "scalars": {
+        "vth_v": {
+          "new": 1.520026,
+          "old": 1.520031,
+          "rel_pct": 0.0
+        }
+      },
+      "curve_rel_rmse_pct": 0.0,
+      "ok": true
+    }
+  },
+  "cpm2-1200": {
+    "curve1_output_characteristics": {
+      "scalars": {},
+      "curve_rel_rmse_pct": 0.99,
+      "ok": true
+    },
+    "curve2_transfer_characteristic": {
+      "scalars": {
+        "v_plateau_v": {
+          "new": 6.224405,
+          "old": 6.21932,
+          "rel_pct": 0.08
+        },
+        "gfs_s": {
+          "new": 7.843285,
+          "old": 7.874085,
+          "rel_pct": 0.39
+        }
+      },
+      "curve_rel_rmse_pct": 0.0,
+      "ok": true
+    },
+    "curve3_rds_on": {
+      "scalars": {
+        "rds_on_mohm_at_Id_load": {
+          "new": 27.813996,
+          "old": 107.230336,
+          "rel_pct": 74.06
+        }
+      },
+      "curve_rel_rmse_pct": 205.96,
+      "ok": false
+    },
+    "curve4_capacitances": {
+      "scalars": {
+        "ciss_f": {
+          "new": 0.0,
+          "old": 0.0,
+          "rel_pct": 18.85
+        },
+        "coss_f": {
+          "new": 0.0,
+          "old": 0.0,
+          "rel_pct": 70.88
+        },
+        "crss_f": {
+          "new": 0.0,
+          "old": 0.0,
+          "rel_pct": 53289.2
+        }
+      },
+      "curve_rel_rmse_pct": null,
+      "ok": false
+    },
+    "curve5_gate_charge": {
+      "scalars": {
+        "qgs_nc": {
+          "new": 17.840408,
+          "old": 17.574467,
+          "rel_pct": 1.51
+        },
+        "qgd_nc": {
+          "new": 45.553536,
+          "old": 0.799797,
+          "rel_pct": 5595.63
+        }
+      },
+      "curve_rel_rmse_pct": 64.92,
+      "ok": false
+    },
+    "curve6_body_diode": {
+      "scalars": {
+        "body_diode_vsd_at_Isd_ref_v": {
+          "new": 1.0,
+          "old": 1.0,
+          "rel_pct": 0.0
+        }
+      },
+      "curve_rel_rmse_pct": 0.03,
+      "ok": true
+    },
+    "curve7_threshold_voltage": {
+      "scalars": {
+        "vth_v": {
+          "new": 2.165906,
+          "old": 2.16591,
+          "rel_pct": 0.0
+        }
+      },
+      "curve_rel_rmse_pct": 0.0,
+      "ok": true
+    }
+  }
+}

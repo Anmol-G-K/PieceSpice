@@ -52,24 +52,43 @@ class CapacitanceTestbench:
         """variant 'a': gate drive (Ciss). variant 'b': drain drive
         (Coss + Crss ratio)."""
         roles = [r for r in pin_roles if r.lower() != "tj"]
-        has_tj = len(roles) != len(pin_roles)
+        # yaml pin_order may omit tj even when the subckt declares it -
+        # check the header directly.
+        if not any(r.lower() == "tj" for r in (pin_roles or [])):
+            try:
+                from parser.netlist import NetlistParser
+                subs = NetlistParser.parse_subcircuits(Path(lib_path))
+                info = next((s for s in subs
+                             if s.name.lower() == subcircuit_name.lower()),
+                            None)
+                has_tj = info is not None and any(
+                    pn.lower() == "tj" for pn in info.nodes)
+            except Exception:
+                has_tj = False
+        else:
+            has_tj = True
         conn = {r: n for r, n in zip(roles, ["drain", "gate", "0"])}
         xargs = [conn.get(r, r) for r in roles]
+        if has_tj:
+            xargs.append("tj_dut")
 
         lines = [f".include {Path(lib_path).resolve()}"]
         temp = float(getattr(self.engine, "temperature", 25.0))
         if has_tj:
             lines.append(f"Vtj tj_dut 0 {temp:g}")
 
-        lines.append(f"Vds {conn['drain']} 0 {vds:g}")
-        lines.append(f"Rbleed {conn['gate']} 0 {GATE_BLEED_OHM:g}")
-
         if variant == "a":
+            # Drain AC-grounded by its ideal DC bias source.
+            lines.append(f"Vds {conn['drain']} 0 {vds:g}")
+            lines.append(f"Rbleed {conn['gate']} 0 {GATE_BLEED_OHM:g}")
             lines.append(f"Iprobe {conn['gate']} 0 DC 0 AC 1")
         else:
+            # Drain biased ONLY through the inductor (DC short, AC open):
+            # a direct Vds here would short the AC probe to ground.
             lines.append(f"Lbias vbus {conn['drain']} {BIAS_INDUCTOR_H:g}")
             lines.append(f"Vbus vbus 0 {vds:g}")
-            lines.append(f"Iprobe vbus 0 DC 0 AC 1")
+            lines.append(f"Rbleed {conn['gate']} 0 {GATE_BLEED_OHM:g}")
+            lines.append(f"Iprobe {conn['drain']} 0 DC 0 AC 1")
 
         lines.append(f"Xdut {' '.join(xargs)} {subcircuit_name}")
         title = ("ciss" if variant == "a" else "coss") + f"_vds_{vds:.3g}"

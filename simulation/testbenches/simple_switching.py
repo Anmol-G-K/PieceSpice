@@ -60,6 +60,13 @@ def run_simple_switching(
 ) -> SwitchingRun:
     """Simulate one 50 kHz / 50% duty resistive-load switching transient.
 
+    Timing note: the gate pulse starts at t=5 us, so the 60 us window
+    holds turn-ons at 5/25/45 us and turn-offs at 15/35/55 us; the final
+    period (45-60 us via steady_state_slice) therefore contains one full
+    turn-off plus one full turn-on edge rather than a symmetric half
+    cycle. This matches the historical behavior fitness baselines were
+    captured with - do not shift td without re-baselining.
+
     Args mirror config/inputs/<vendor>.yaml conditions - nothing
     device-specific lives here. pin_order is positional role order from
     the yaml semantic pin map; a 'tj' role gets its thermal source

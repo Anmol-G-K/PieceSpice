@@ -14,8 +14,7 @@ from pathlib import Path
 import numpy as np
 
 from config.yaml_io import load_input, save_output
-from simulation.testbenches.static_sweep import StaticSweepTestbench, \
-    normalized_lib_copy, discard_normalized_lib
+from simulation.testbenches.static_sweep import StaticSweepTestbench
 from simulation.testbenches.capacitance import CapacitanceTestbench
 from simulation.testbenches.gate_charge import reconstruct_gate_charge
 

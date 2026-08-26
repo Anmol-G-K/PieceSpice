@@ -1,0 +1,22 @@
+{
+  "irfs7730pbf": {
+    "status": "ok",
+    "seconds": 27.2,
+    "files": 7
+  },
+  "csd16412q5a": {
+    "status": "ok",
+    "seconds": 40.9,
+    "files": 7
+  },
+  "epc2216": {
+    "status": "ok",
+    "seconds": 33.1,
+    "files": 7
+  },
+  "cpm2-1200": {
+    "status": "ok",
+    "seconds": 32.1,
+    "files": 7
+  }
+}

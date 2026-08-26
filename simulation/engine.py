@@ -81,8 +81,8 @@ def render_directive(d) -> str:
         return (f".dc {d.source_name} {_fmt(d.start)} {_fmt(d.stop)} "
                 f"{_fmt(d.step)}")
     if isinstance(d, ACDirective):
-        return (f".ac {d.variation} {d.n_points} {_fmt(d.start_freq)} "
-                f"_ {_fmt(d.stop_freq)}".replace(" _ ", " "))
+        return (f".ac {d.variation} {d.n_points} "
+                f"{_fmt(d.start_freq)} {_fmt(d.stop_freq)}")
     if isinstance(d, OPDirective):
         return ".op"
     raise TypeError(f"unsupported directive type: {type(d)!r}")
@@ -189,34 +189,47 @@ class SpiceEngine:
     def run_transient(self, netlist_text: str, d: TranDirective, *,
                       timeout_s: float | None = None) -> SimResult:
         card = render_directive(d)
-        if ".tran" not in netlist_text.lower():
-            netlist_text = self._append_card(netlist_text, card)
+        if not self._has_directive(netlist_text, "tran"):
+            netlist_text = self._append_card(netlist_text, card, "tran")
         return self._execute(netlist_text, "tran", timeout_s)
 
     def run_dc_sweep(self, netlist_text: str, d: DCDirective, *,
                      timeout_s: float | None = None) -> SimResult:
         card = render_directive(d)
-        if ".dc" not in netlist_text.lower():
-            netlist_text = self._append_card(netlist_text, card)
+        if not self._has_directive(netlist_text, "dc"):
+            netlist_text = self._append_card(netlist_text, card, "dc")
         return self._execute(netlist_text, "dc", timeout_s)
 
     def run_ac_sweep(self, netlist_text: str, d: ACDirective, *,
                      timeout_s: float | None = None) -> SimResult:
         card = render_directive(d)
-        if ".ac" not in netlist_text.lower():
-            netlist_text = self._append_card(netlist_text, card)
+        if not self._has_directive(netlist_text, "ac"):
+            netlist_text = self._append_card(netlist_text, card, "ac")
         return self._execute(netlist_text, "ac", timeout_s)
 
     def run_op(self, netlist_text: str, *,
                timeout_s: float | None = None) -> SimResult:
-        if ".op" not in netlist_text.lower():
-            netlist_text = self._append_card(netlist_text, ".op")
+        if not self._has_directive(netlist_text, "op"):
+            netlist_text = self._append_card(netlist_text, ".op", "op")
         return self._execute(netlist_text, "op", timeout_s)
 
     # -- internals -------------------------------------------------------------
 
     @staticmethod
-    def _append_card(netlist_text: str, card_line: str) -> str:
+    def _has_directive(netlist_text: str, kind: str) -> bool:
+        """True when a line STARTS with the dot-card kind (word boundary).
+
+        Substring matching would false-positive on comments or titles
+        mentioning e.g. '.dc' mid-line; anchors to line start instead.
+        """
+        prefix = f".{kind.lower()}"
+        for ln in netlist_text.splitlines():
+            if ln.strip().lower().startswith(prefix):
+                return True
+        return False
+
+    def _append_card(self, netlist_text: str, card_line: str,
+                     kind: str) -> str:
         """Insert the analysis card before .end (or append if absent)."""
         lines = netlist_text.rstrip().splitlines()
         out, inserted = [], False
