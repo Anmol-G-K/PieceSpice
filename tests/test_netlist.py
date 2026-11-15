@@ -2,9 +2,21 @@
 
 from pathlib import Path
 
+import pytest
+
 from parser.netlist import NetlistParser
 
+# SpiceModels/* is .gitignore'd (vendor redistribution), so a fresh clone and
+# CI do not have it. Tests that need the real vendor file skip instead of
+# failing with FileNotFoundError.
+_IRF = Path("SpiceModels/irfs7730pbf.spi")
+_needs_irf = pytest.mark.skipif(
+    not _IRF.exists(),
+    reason="SpiceModels/irfs7730pbf.spi is not in the repository "
+           "(vendor files are .gitignore'd)")
 
+
+@_needs_irf
 def test_parse_subcircuits():
     spi_path = Path("SpiceModels/irfs7730pbf.spi")
     subcircuits = NetlistParser.parse_subcircuits(spi_path)
@@ -12,6 +24,7 @@ def test_parse_subcircuits():
     assert any(s.name == "irfb_s_sl7730pbf" for s in subcircuits)
 
 
+@_needs_irf
 def test_parse_thermal_subckt_too():
     """The vendor file also contains a thermal RC subcircuit; both must be found."""
     subs = NetlistParser.parse_subcircuits(Path("SpiceModels/irfs7730pbf.spi"))
@@ -19,6 +32,7 @@ def test_parse_thermal_subckt_too():
     assert "irfb_s_sl7730pbft" in names
 
 
+@_needs_irf
 def test_pin_count_matches_vendor():
     irf = next(
         s for s in NetlistParser.parse_subcircuits(Path("SpiceModels/irfs7730pbf.spi"))

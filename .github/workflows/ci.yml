@@ -58,11 +58,15 @@ jobs:
         run: |
           set -euo pipefail
           # git-crypt writes "\0GITCRYPT\0" as the first 10 bytes of every blob.
+          # Read the blob to a file first: piping it into `head -c 10` closes
+          # the pipe early and git dies with SIGPIPE (exit 141) under pipefail.
           expect=00474954435259505400
+          tmp=$(mktemp)
           status=0
           while IFS= read -r f; do
             [ -z "$f" ] && continue
-            magic=$(git cat-file -p "HEAD:$f" | head -c 10 | od -An -tx1 | tr -d ' \n')
+            git cat-file -p "HEAD:$f" > "$tmp"
+            magic=$(od -An -tx1 -N 10 "$tmp" | tr -d ' \n')
             if [ "$magic" != "$expect" ]; then
               echo "::error file=$f::not git-crypt encrypted (header=$magic)"
               status=1
@@ -71,4 +75,5 @@ jobs:
             git ls-tree -r --name-only HEAD -- docs
             printf '%s\n' piecespice_plan.md development-log.md AGENTS.md
           })
+          rm -f "$tmp"
           exit "$status"
