@@ -23,7 +23,7 @@ def _conn_for_roles(pin_roles: list[str]) -> list[str]:
     EPC's gate-first header must still bind its gate to the gate
     node. Unknown roles pass through unchanged.
     """
-    canonical = {"drain": "drain", "gate": "gate", "source": "0"}
+    canonical = ROLE_NODES
     return [canonical.get(r, r) for r in pin_roles]
 
 

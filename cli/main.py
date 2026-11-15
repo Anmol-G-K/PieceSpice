@@ -54,8 +54,9 @@ def sweep(
         vds_max=vds_max
     )
     console.print(f"Generated {len(curves)} output curves.")
-    # Real metrics require golden reference data (M3 scope). Until then the
-    # report omits the summary cards instead of showing fabricated values.
+    # Golden-reference metrics come from pipeline.fitting.compare_tier2_vs_golden
+    # / metrics.compare; until they are computed the report omits the summary
+    # cards rather than showing unmeasured values.
     generate_html_report(
         device_name=subckt,
         output_path=report_html,

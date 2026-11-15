@@ -92,13 +92,13 @@ def test_tier2_simulates_and_matches(tmp_path):
 def test_fit_pwl_model_generates_lib(tmp_path):
     """M3.6: pipeline stage consumes outputs YAML and emits a valid .lib.
 
-    Migration note (T1.2): currently blocked - the capacitance bench still
-    runs on ngspice, and the raw TI vendor lib needs .PARAM flattening that
-    ngspice cannot do natively (LTspice can; bench rewrite lands in M2).
+    Disabled: it needs a live LTspice install plus ~25 AC probe runs per
+    vendor. Tracked in docs/migration_todo.md T6.2a; re-enable together with
+    the other four skipped tests.
     """
     import pytest
-    pytest.skip("ngspice bench + raw TI lib incompatible after transpiler "
-                "removal (T1.2); rewritten on LTspice in M2")
+    pytest.skip("needs live LTspice + re-extraction of curve 4 "
+                "(docs/migration_todo.md T6.2a)")
     from pipeline.fitting import fit_pwl_model
     lib = fit_pwl_model("csd16412q5a", out_dir=tmp_path)
     assert lib.exists()

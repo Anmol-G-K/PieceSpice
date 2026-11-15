@@ -27,7 +27,7 @@ def _normalized_tmp(tmp_path: Path) -> Path:
 
 import pytest
 
-pytest.skip("T1.2 migration: TI vendor end-to-end runs on ngspice, which cannot parse the raw lib post-transpiler-removal. Re-enabled when benches move to LTspice (M2).", allow_module_level=True)
+pytest.skip("module still builds PySpice circuits and targets the retired ngspice backend; rewrite against LTspice is tracked in docs/migration_todo.md T6.2a.", allow_module_level=True)
 """Unit tests for multi-vendor model support: TI CSD16412Q5A (PSpice LEVEL=7
 dialect) alongside the Infineon/IR MODPEX model (SPICE3 LEVEL=1)."""
 

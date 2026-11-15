@@ -1,5 +1,12 @@
-"""Interactive HTML report generation with Jinja2 and Plotly."""
+"""Interactive HTML report generation with Jinja2 and Plotly.
 
+The output is a single HTML file; Plotly itself is loaded from the CDN
+referenced in the template (no local server, but a browser needs network
+access to render the charts).
+"""
+
+import json
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List
 import jinja2
@@ -34,25 +41,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <h1>PieceSpice Validation Report: {{ device_name }}</h1>
         <p><strong>Generated At:</strong> {{ timestamp }} | <strong>Model Tier:</strong> Tier {{ tier }}</p>
         
+        {% if metric_cards %}
         <h2>Executive Performance Summary</h2>
         <div class="card-grid">
+            {% for card in metric_cards %}
             <div class="card">
-                <div class="card-title">Static RMSE</div>
-                <div class="card-value">{{ static_rmse_pct }}%</div>
+                <div class="card-title">{{ card.label }}</div>
+                <div class="card-value">{{ card.value }}</div>
             </div>
-            <div class="card">
-                <div class="card-title">Switching Loss Error</div>
-                <div class="card-value">{{ loss_error_pct }}%</div>
-            </div>
-            <div class="card">
-                <div class="card-title">Transient Speedup</div>
-                <div class="card-value">{{ speedup_factor }}×</div>
-            </div>
-            <div class="card">
-                <div class="card-title">Convergence Status</div>
-                <div class="card-value" style="color: #16a34a;">PASS (0 Errors)</div>
-            </div>
+            {% endfor %}
         </div>
+        {% endif %}
 
         <h2>Datasheet Curve Comparison</h2>
         {% for chart in charts %}
@@ -72,6 +71,32 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 """
 
 
+_METRIC_CARDS = {
+    "static_rmse_pct": ("Static RMSE", "%"),
+    "loss_error_pct": ("Switching Loss Error", "%"),
+    "speedup_factor": ("Transient Speedup", "\u00d7"),
+}
+
+
+def _metric_cards(metrics: Dict[str, Any]) -> List[Dict[str, str]]:
+    """Format the metrics the caller actually supplied.
+
+    No defaults and no placeholder values: a metric that was not measured is
+    simply absent from the report.
+    """
+    cards: List[Dict[str, str]] = []
+    for key, value in metrics.items():
+        label, suffix = _METRIC_CARDS.get(
+            key, (key.replace("_", " ").title(), ""))
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            cards.append({"label": label, "value": str(value)})
+        elif suffix:
+            cards.append({"label": label, "value": f"{value:.2f}{suffix}"})
+        else:
+            cards.append({"label": label, "value": f"{value:.4g}"})
+    return cards
+
+
 def generate_html_report(
     device_name: str,
     output_path: Path,
@@ -79,7 +104,11 @@ def generate_html_report(
     metrics: Dict[str, Any],
     tier: int = 2,
 ):
-    """Generate a self-contained interactive HTML validation report."""
+    """Generate a single-file interactive HTML validation report.
+
+    ``metrics`` is rendered verbatim; no value is invented when a metric is
+    absent (the summary section is omitted when the dict is empty).
+    """
     charts = []
     for idx, curve in enumerate(curves):
         chart_id = f"chart_{idx}"
@@ -104,20 +133,19 @@ def generate_html_report(
                 x=1.02
             )
         )
+        plotly_json = fig.to_plotly_json()
         charts.append({
             "id": chart_id,
-            "data": fig.to_json(),
-            "layout": "{}"
+            "data": json.dumps(plotly_json["data"]),
+            "layout": json.dumps(plotly_json["layout"])
         })
 
     template = jinja2.Template(HTML_TEMPLATE)
     rendered = template.render(
         device_name=device_name,
-        timestamp="2026-08-21",
+        timestamp=datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z"),
         tier=tier,
-        static_rmse_pct=metrics.get("static_rmse_pct", 1.2),
-        loss_error_pct=metrics.get("loss_error_pct", 4.8),
-        speedup_factor=metrics.get("speedup_factor", 42.5),
+        metric_cards=_metric_cards(metrics),
         charts=charts
     )
     output_path.write_text(rendered, encoding="utf-8")

@@ -82,10 +82,11 @@ def compare_curve(
     y_unit: str = "A",
     mape_eps: float = 1e-9,
 ) -> CurveComparison:
-    """Compare one golden/candidate pair on a common x grid.
+    """Compare one golden/candidate pair.
 
-    The candidate is interpolated onto the golden x-grid first, so the two
-    curves need not be sampled identically.
+    ``y_candidate`` must be sampled on the same x grid as ``x_golden``: the
+    arrays are paired index-wise and merely reordered by x. A candidate on a
+    different grid has to be interpolated onto ``x_golden`` by the caller.
     """
     xg = np.asarray(x_golden, dtype=float)
     yg = np.asarray(y_golden, dtype=float)
@@ -174,7 +175,7 @@ def plot_overlays(
         ax.set_xlabel("Vds [V]")
         ax.set_ylabel("Id [A]")
         _style_ax(ax)
-        ax.legend(loc="lower right", fontsize=9)
+        ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9)
     for j in range(n, nrows * ncols):
         axs[j // ncols][j % ncols].set_visible(False)
     if save_path:
@@ -246,7 +247,7 @@ def plot_scorecard_bars(
     ax.set_title("Model Fidelity Scorecard — Relative RMSE by Curve")
     ax.set_xlim(0, max(vals) * 1.18)
     _style_ax(ax)
-    ax.legend(loc="lower right", fontsize=10)
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=10)
     if save_path:
         fig.savefig(save_path, dpi=300, bbox_inches="tight")
     return fig
@@ -277,7 +278,7 @@ def plot_parity(
     ax.set_ylabel("Tier-2 CPWL Id [A]")
     ax.set_title("Parity Plot — Model vs Golden")
     _style_ax(ax)
-    ax.legend(loc="upper left", fontsize=9)
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9)
     if save_path:
         fig.savefig(save_path, dpi=300, bbox_inches="tight")
     return fig

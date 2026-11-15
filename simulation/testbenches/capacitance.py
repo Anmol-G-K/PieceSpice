@@ -17,6 +17,7 @@ from pathlib import Path
 
 import numpy as np
 
+from common.roles import ROLE_NODES
 from common.types import CurveData
 from simulation.engine import SpiceEngine, ACDirective
 
@@ -69,7 +70,7 @@ class CapacitanceTestbench:
             has_tj = True
         # Role-name based mapping (NOT positional): gate-first vendors
         # like EPC would otherwise swap drain/gate nodes silently.
-        canonical = {"drain": "drain", "gate": "gate", "source": "0"}
+        canonical = ROLE_NODES
         conn = {r: canonical.get(r.lower(), r) for r in roles}
         xargs = [conn.get(r, r) for r in roles]
         if has_tj:
@@ -205,7 +206,7 @@ def sub_gate(pin_roles) -> str:
     Resolved BY ROLE NAME (not position) so gate-first vendor headers
     like EPC2216 bind correctly. Raises when no gate role exists.
     """
-    canonical = {"drain": "drain", "gate": "gate", "source": "0"}
+    canonical = ROLE_NODES
     for r in pin_roles or []:
         rl = r.lower()
         if rl == "tj":

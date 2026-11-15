@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Lint + tests (LTspice-free subset)
+    runs-on: ubuntu-latest
+    env:
+      # The live engine class needs a local LTspice install; skip it on CI.
+      PIECESPICE_LIVE: "0"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Static checks
+        run: uv run ruff check --select E9,F63,F7,F82 .
+
+      - name: Test suite
+        run: >-
+          uv run pytest -q
+          --deselect tests/test_netlist_builder.py::test_tier2_simulates_and_matches
+
+      - name: Upload pytest report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-report
+          path: reports/pytest_report.html
+          if-no-files-found: warn
+
+  encryption:
+    name: Encrypted files are ciphertext
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify git-crypt headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          # git-crypt writes "\0GITCRYPT\0" as the first 10 bytes of every blob.
+          expect=00474954435259505400
+          status=0
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            magic=$(git cat-file -p "HEAD:$f" | head -c 10 | od -An -tx1 | tr -d ' \n')
+            if [ "$magic" != "$expect" ]; then
+              echo "::error file=$f::not git-crypt encrypted (header=$magic)"
+              status=1
+            fi
+          done < <({
+            git ls-tree -r --name-only HEAD -- docs
+            printf '%s\n' piecespice_plan.md development-log.md AGENTS.md
+          })
+          exit "$status"

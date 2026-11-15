@@ -69,10 +69,7 @@ def _metrics_from_run(run: SwitchingRun) -> RunMetrics:
         v_bus=run.v_bus, i_load=run.i_load)
 
     # switching-energy windows: around the drain edges of the LAST cycle.
-    # Use the crossing times the extractor found via its returned values by
-    # re-deriving windows locally from the waveform.
-    period = 2 * (run.time[-1] - run.time[0]) if False else None
-    # Simpler robust approach: on/off windows bracket each gate edge.
+    # On/off windows bracket each gate edge.
     plateau = np.median(run.v_gs[len(run.v_gs) // 4:])
     rising = np.where((run.v_gs[:-1] < 0.5 * plateau)
                       & (run.v_gs[1:] >= 0.5 * plateau))[0]

@@ -7,9 +7,9 @@
 *PLECS-class speed. SPICE-class resolution. Standard SPICE netlists.*
 
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
-[![ngspice](https://img.shields.io/badge/ngspice-34--shared-orange)](https://ngspice.sourceforge.io/)
-[![PySpice](https://img.shields.io/badge/PySpice-powered-yellow)](https://pyspice.readthedocs.io/)
-[![Tests](https://img.shields.io/badge/tests-97%20passing-brightgreen?logo=pytest&logoColor=white)](#testing)
+[![LTspice](https://img.shields.io/badge/LTspice-26-orange)](https://www.analog.com/en/resources/design-tools-and-calculators/ltspice-simulator.html)
+[![spicelib](https://img.shields.io/badge/spicelib-powered-yellow)](https://pypi.org/project/spicelib/)
+[![Tests](https://img.shields.io/badge/tests-100%20passing%20%C2%B7%204%20skipped-brightgreen?logo=pytest&logoColor=white)](#testing)
 [![License](https://img.shields.io/badge/license-TBD-lightgrey)]()
 [![uv](https://img.shields.io/badge/managed%20with-uv-dead00?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
 
@@ -32,12 +32,14 @@ distills vendor MOSFET subcircuits into **Tier-2 Continuous Piecewise-Linear
 | | Fidelity | Speed | Robustness |
 |---|---|---|---|
 | Vendor SPICE | ●●●●● | ●○○○○ | ○○○○○ |
-| **PieceSpice Tier-2** | **●●●●○ (<5% err)** | **●●●●○ (10–100×)** | **●●●●● (C¹ Jacobians)** |
+| **PieceSpice Tier-2** | **●●●●○ (0.2–3.9% err)** | **●●●●○ (10–100× target)** | **●●●●● (C⁰ PWL + tanh knee)** |
 | PLECS / Ideal | ●○○○○ | ●●●●● | ●●●●● |
 
 Everything is emitted as a **standard SPICE subcircuit** — no proprietary
-solver, no special runtime. Drop the generated `.lib` into any ngspice-based
-flow and simulate 10–100× faster with <5% error against the golden model.
+solver, no special runtime. Drop the generated `.lib` into any SPICE flow
+that supports behavioral sources and charge-defined capacitors (validated on
+LTspice 26) and simulate against the golden model. The 10–100× speedup is
+the M5 target and has **not** been measured yet.
 
 ---
 
@@ -45,14 +47,14 @@ flow and simulate 10–100× faster with <5% error against the golden model.
 
 ```text
                  ┌──────────────────────────────────────────────┐
- vendor .lib ──▶ │ M1/M2: EXTRACTION (ngspice testbenches)      │
+ vendor .lib ──▶ │ M1/M2: EXTRACTION (LTspice testbenches)      │
                  │  7 datasheet curves per device               │
                  └──────────────────┬───────────────────────────┘
                                     ▼  config/outputs/<vendor>/
                  ┌──────────────────────────────────────────────┐
                  │ M3: APPROXIMATION ENGINES                    │
-                 │  • Adaptive PWL regression  → Vth, gfs       │
-                 │  • RDP compression          → lean curves    │
+                 │  • Adaptive PWL regression  → Vth, gfs *     │
+                 │  • RDP compression          → lean curves *  │
                  │  • Charge integration       → Q(V) tables    │
                  │  • C¹ knee smoothing        → tanh kernels   │
                  └──────────────────┬───────────────────────────┘
@@ -64,6 +66,10 @@ flow and simulate 10–100× faster with <5% error against the golden model.
                                     ▼
                      reports/models/<device>_PIECESPICE_T2.lib
 ```
+
+`*` analysis-only (notebook 02 / `metrics.compare`); the emitted model is
+built from the extracted curve rows plus the charge integration, not from
+the PWLF/RDP fits.
 
 ### The Seven Datasheet Curves
 
@@ -92,12 +98,11 @@ target measured directly on waveforms and curves.
 Each macromodel is built from the device's own extracted behavior, using
 the simplest formulation that preserves the physics that matter:
 
-**Channel conduction.** The drain current is fitted as a continuous
-piecewise-linear function of Vgs — anchored at the origin, with segment
-count selected adaptively until an RMSE tolerance is met — multiplied by a
-`tanh` saturation knee in Vds. The breakpoints carry the physical meaning:
-threshold sits at the knee, transconductance is the post-knee slope, so the
-reduced parameters remain interpretable.
+**Channel conduction.** The drain current is a continuous piecewise-linear
+function of Vgs with one segment per extracted Vgs family, anchored at the
+origin, multiplied by a `tanh` saturation knee in Vds. The breakpoints carry
+the physical meaning: threshold sits at the knee, transconductance is the
+post-knee slope, so the reduced parameters remain interpretable.
 
 **Charge behavior.** Nonlinear capacitances are integrated into stored
 charge Q(V) rather than used as C(v)·dv/dt — charge-conserving formulation,
@@ -114,7 +119,7 @@ what buys Newton robustness without sacrificing the ohmic region.
 state below threshold; the body diode is synthesized directly from extracted
 reverse-conduction data (IS/N/RS).
 
-The result: PLECS-class evaluation speed inside a plain SPICE subcircuit,
+The target: PLECS-class evaluation speed inside a plain SPICE subcircuit,
 with error measured and bounded against the vendor golden model rather than
 assumed.
 
@@ -126,7 +131,7 @@ assumed.
 
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/) package manager
-- ngspice shared library (bundled via PySpice)
+- LTspice 26 (system install; `LTSPICE_EXE` overrides auto-discovery)
 
 ### Installation
 
@@ -146,11 +151,11 @@ uv run python -c "from pipeline.curves import run_all_curves; run_all_curves('cs
 uv run python -c "from pipeline.fitting import fit_pwl_model; fit_pwl_model('csd16412q5a')"
 ```
 
-Or via the CLI:
+Or via the CLI (no console script is installed, so run the module):
 
 ```bash
-uv run piece-spice curves csd16412q5a     # all 7 curves
-uv run piece-spice parse SpiceModels/foo.lib
+uv run python -m cli.main curves csd16412q5a     # all 7 curves
+uv run python -m cli.main parse SpiceModels/EPC2216_V0_PSPICE.net
 ```
 
 Outputs land in:
@@ -185,7 +190,9 @@ automatically from the YAML pin map.
 ### Switching Transient Validation — 50 kHz / 50 % duty / 1 A resistive load
 
 Vendor golden vs Tier-2 CPWL over three full switching cycles for each
-supported device:
+supported device. This is the M4 *subset* (resistive load), not a
+clamped-inductive double-pulse test; the CPM2-1200 golden stops before
+turn-off because the vendor model aborts there (VM-10, engine-independent).
 
 | Infineon IRFS7730PBF | TI CSD16412Q5A |
 |:---:|:---:|
@@ -217,14 +224,17 @@ PieceSpice/
 ├── config/
 │   ├── inputs/           # Per-vendor simulation conditions (YAML)
 │   └── outputs/          # Extracted curve data (YAML)
+├── data/                 # Captured golden switching waveforms (CSV)
 ├── docs/                 # Reports, plans, reference notes
+├── Images/               # Rendered validation figures
 ├── metrics/              # Static/switching/loss/comparison metrics
 ├── models/               # Tier-2 netlist synthesis
 ├── notebooks/            # 01 extraction · 02 approximation & validation
-├── parser/               # PSpice/LTspice dialect transpiler + netlist parser
+├── parser/               # Subcircuit/pin parser (dialect transpiler retired)
 ├── pipeline/             # run_all_curves() · fit_pwl_model(vendor)
-├── reporting/            # Self-contained HTML report generator
-├── simulation/           # Engine + testbenches (static/cap/gate-charge)
+├── reporting/            # Single-file HTML report generator
+├── simulation/           # LTspice engine + benches (static/cap/gate-charge/
+│                         # switching)
 ├── SpiceModels/          # Vendor libraries (read-only inputs)
 ├── tests/                # pytest suite
 └── scripts/              # Utility scripts
@@ -235,14 +245,17 @@ PieceSpice/
 ## 🧪 Testing
 
 ```bash
-uv run pytest                # 97 tests
+uv run pytest                # 100 passed, 4 skipped (~3.5 min)
 uv run pytest tests/test_pwlf_fit.py -v    # single module
 ```
 
-The suite covers the parser/transpiler, every approximation engine, metric
-math, netlist emission (including end-to-end ngspice simulation of the
-synthesized Tier-2 model), YAML I/O contracts, and the stderr-diagnostics
-deduplicator.
+The suite covers the parser, every approximation engine, metric math,
+netlist emission, YAML I/O and the LTspice log-diagnostics layer, plus live
+LTspice engine tests (transient, DC sweep, timeout, temperature). The
+synthesized Tier-2 subcircuit is exercised end-to-end through
+PySpice/ngspice at an operating point — that is the only remaining PySpice
+use, and it is scheduled for rewrite in `docs/migration_todo.md` T6.2a
+together with four skipped tests.
 
 ---
 
@@ -252,9 +265,10 @@ deduplicator.
 |---|---|
 | [`01_datasheet_curves_extraction`](notebooks/01_datasheet_curves_extraction.ipynb) | Extract the 7 datasheet curves from any configured vendor |
 | [`02_piecewise_approximation`](notebooks/02_piecewise_approximation.ipynb) | Fit → compress → charge-integrate → smooth → synthesize → validate |
-| `03_double_pulse_transients` | *(planned — Milestone 4)* |
-| `04_buck_converter_benchmark` | *(planned — Milestone 5)* |
-| `05_comprehensive_validation_report` | *(planned — Milestone 6)* |
+| [`04a_simple_switching_subset`](notebooks/04a_simple_switching_subset.ipynb) | Golden-vs-Tier-2 resistive-load switching comparison (M4 subset) |
+| `03_double_pulse_transients` | *stub — synthetic waveforms only; needs the DPT bench (M4)* |
+| `04_buck_converter_benchmark` | *stub — its table is placeholder data, **not** a measurement (M5)* |
+| `05_comprehensive_validation_report` | *stub — runs one sweep and calls the HTML report* |
 
 ---
 
@@ -264,12 +278,19 @@ deduplicator.
 - [x] **M2** — Automated Datasheet Curves Simulation (7 curves × 4 vendors)
 - [x] **M3** — Piecewise Approximation & Charge Integration Engines
       + Tier-2 synthesis + golden validation
-- [ ] **M4** — Switching Dynamics & Double Pulse Testbench (metrics done)
+      *(endpoint error 0.18 % EPC · 0.50 % TI · 3.45 % IRFS · 3.93 % CPM2;
+      the last two are the shared-knee residual)*
+- [ ] **M4** — Switching Dynamics & Double Pulse Testbench
+      *(metrics + resistive-load subset done; DPT bench missing)*
 - [ ] **M5** — Switched-Mode Converter Benchmark & Speedup Evaluation
+      *(no wall-clock speedup has been measured yet)*
 - [x] **M6** — Automated HTML Reporting & CLI Polish
+      *(the report renders only metrics it is given)*
 
-Known limitations and vendor-model quirks are tracked in
-[`vendor_model_defects.md`](vendor_model_defects.md) (VM-01…VM-08).
+Backend: **LTspice 26 + spicelib**, out-of-process; the PySpice/ngspice path
+is retired. Known limitations and vendor-model quirks are tracked in
+[`vendor_model_defects.md`](vendor_model_defects.md) (VM-01…VM-12,
+HOST-01/HOST-02).
 
 ---
 
