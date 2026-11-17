@@ -1,5 +1,20 @@
 # Vendor Model Defect Catalog
 
+> **AES-STD100 — vendor-model fidelity caveat (cross-verified 2026-11-18).**
+> Manufacturer datasheets were checked against extracted currents at the
+> rated gate drive: IRFS7730PBF 246 A continuous / 984 A pulsed vs **1671 A**
+> extracted at Vgs=10 V; CSD16412Q5A 52 A / 91 A vs **305 A** at Vgs=10 V;
+> EPC2216 3.4 A / 28 A vs **61.7 A** at Vgs=6 V; CPM2-1200 81 A / 200 A vs
+> **342 A** at Vgs=20 V. These excesses are properties of the vendor
+> subcircuits themselves (unclipped saturation, VM-04/VM-06), reproduced by
+> the ROM with 0.18–3.93 % endpoint error. Other extracted scalars (Rds(on),
+> Vth except VM-01, Ciss/Crss, Qg/Qgd) are generally in datasheet bands.
+> Therefore **matching the vendor golden is not the same as matching the
+> datasheet**; fidelity claims against the vendor must not be read as
+> physical device ratings. Sources: Infineon IRFS7730PbF Rev 2.1,
+> TI SLPS207A (CSD16412Q5A), EPC2216 datasheet Rev 2025-04-25,
+> Wolfspeed CPM2-1200-0025A Rev 1 (2021-01).
+
 **Purpose:** Track every structural defect found in vendor SPICE models during PieceSpice
 extraction work. Each defect is root-caused to specific lines of the vendor file, its
 impact on extraction studies is recorded, and its implication for PieceSpice's own

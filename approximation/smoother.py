@@ -18,9 +18,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from scipy.optimize import minimize_scalar
 import numpy as np
-
 __all__ = [
+    "fit_tanh_knee_ls",
     "softplus",
     "sigmoid",
     "tanh_saturation",
@@ -147,6 +148,21 @@ class TanhKneeFit:
     gm: float              # transconductance scale = id_sat / v_ds_sat [A/V]
     max_abs_deviation_a: float   # worst |tanh - source curve| [A]
 
+
+def fit_tanh_knee_ls(v, i, i_sat, *, s_min=1e-3, s_max=200.0) -> float:
+    """Least-squares knee width for ``i ≈ i_sat·tanh(v/s)`` with fixed plateau.
+
+    ``fit_tanh_knee`` locates the knee from the tanh(1) crossing; that point
+    estimator is noisy on measured curves. Here the full sampled curve is
+    used, which is the parameter actually fitted in the Tier-2 emitter.
+    """
+    v = np.asarray(v, dtype=float)
+    i = np.asarray(i, dtype=float)
+    plateau = max(float(i_sat), 1e-12)
+    def loss(s: float) -> float:
+        return float(np.sum((plateau * np.tanh(v / max(s, 1e-12)) - i) ** 2))
+    return float(minimize_scalar(
+        loss, bounds=(max(s_min, 1e-12), s_max), method="bounded").x)
 
 def fit_tanh_knee(v_pwl: np.ndarray, i_pwl: np.ndarray) -> TanhKneeFit:
     """Fit a tanh saturation knee to a PWL/compressed output curve.

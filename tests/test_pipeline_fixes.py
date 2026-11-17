@@ -13,6 +13,7 @@ from metrics.fitness import (
 from metrics.switching import extract_switching_times
 from pipeline.curves import _cap_ref_vds
 from simulation.testbenches.simple_switching import SwitchingRun
+from approximation.smoother import fit_tanh_knee_ls
 
 
 def _make_run(t, vds, vgs, vbus, vgs_on):
@@ -44,6 +45,11 @@ def test_missing_crossings_are_nan_not_zero():
     assert np.isnan(m.delay_on_ns) and np.isnan(m.fall_time_ns)
     assert np.isnan(m.delay_off_ns) and np.isnan(m.rise_time_ns)
 
+
+def test_tanh_knee_ls_recovers_full_curve_width():
+    v = np.linspace(0.0, 10.0, 101)
+    i = 50.0 * np.tanh(v / 3.0)
+    assert fit_tanh_knee_ls(v, i, 50.0) == pytest.approx(3.0, rel=1e-3)
 
 def test_emitted_channel_blocks_below_extracted_vth():
     from common.types import PWLModelSpec

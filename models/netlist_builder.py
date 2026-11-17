@@ -29,6 +29,7 @@ from typing import List
 
 import numpy as np
 
+from approximation.smoother import fit_tanh_knee_ls
 from common.types import PWLModelSpec, PWL_META_KEYS
 
 
@@ -67,64 +68,62 @@ def _fmt(x: float) -> str:
     return f"{x:.6e}"
 
 
-def _channel_expression(spec: PWLModelSpec, vgs_term: str) -> str:
-    """Behavioral channel current: PWL(Vgs) drive * tanh saturation knee.
-
-    Id(vgs, vds) = Ipw(vgs) * tanh(vds / vds_sat)
-
-    * Ipw(vgs): piecewise-linear transfer from fitted breakpoints (Curve 2),
-      emitted as chained soft-abs ramps - exactly C0-continuous. Ramps encode
-      DELTA slopes between consecutive (vgs, Id) pairs; absolute slopes would
-      accumulate like the charge-source audit bug (21x divergence).
-    * tanh knee: saturation per plan §2.4; vds_sat derived from Rds(on) and
-      the top-curve plateau current so ohmic slope matches Curve 3.
-    """
-    vd0, vd1 = spec.breakpoints_vds[0], spec.breakpoints_vds[-1]
-    row_top = np.asarray(spec.breakpoints_id[-1], dtype=float)
-    i_sat = max(float(row_top[-1]), 1e-9)
-    rds = max(float(spec.rds_on), 1e-6)
-    vds_sat = max(0.05 * (vd1 - vd0), min(i_sat * rds, 0.25 * (vd1 - vd0)))
-
-    id_pts = [float(row[-1]) for row in spec.breakpoints_id]
-    vgs_pts = [float(v) for v in spec.vgs_values]
-
-    # Anchor the transfer at the origin so the model has a proper OFF state:
-    # without this, Id(Vgs<=first_point) = id_pts[0] (always-on). Then add the
-    # extracted threshold as a zero-current breakpoint: a single straight
-    # segment from (0,0) to the first extracted Vgs drives real current well
-    # below Vth (e.g. 8 A at 0.5 V on CSD16412Q5A) and makes the model turn on
-    # before the gate reaches its 10% level. Skip the anchor when Vth is
-    # corrupt/higher than the first measured drive (VM-01 on IRFS).
-    if min(vgs_pts, default=1.0) > 0.0:
-        vgs_pts = [0.0] + vgs_pts
-        id_pts = [0.0] + id_pts
-    v_th = float(spec.v_th)
-    if 0.0 < v_th < min(float(v) for v in spec.vgs_values):
-        vgs_pts = [0.0, v_th] + vgs_pts[1:]
-        id_pts = [0.0, 0.0] + id_pts[1:]
-
-    # Chained-ramp PWL through every (vgs_k, Id_k):
-    #   Id(x) = id_0 + s_1*ramp(x-vgs_0)
-    #           + (s_2-s_1)*ramp(x-vgs_1) + ...
-    # where s_k = segment slope between points k-1,k and
-    # ramp(d)=(d+|d|)/2. First ramp sits AT the first data point.
-    expr = f"{_fmt(id_pts[0])}"
+def _ramp_chain(xs: List[float], ys: List[float], term: str) -> str:
+    """C0 PWL through (xs, ys) as chained soft-abs ramps with delta slopes."""
+    expr = f"{_fmt(ys[0])}"
     prev_slope = 0.0
-    for i in range(1, len(vgs_pts)):
-        dv = vgs_pts[i] - vgs_pts[i - 1]
-        seg_slope = ((id_pts[i] - id_pts[i - 1]) / dv) if dv else 0.0
-        anchor = vgs_pts[i - 1]
-        delta = seg_slope - prev_slope
+    for i in range(1, len(xs)):
+        dv = xs[i] - xs[i - 1]
+        slope = (ys[i] - ys[i - 1]) / dv if dv else 0.0
+        delta = slope - prev_slope
         if abs(delta) > 0 or i == 1:
-            expr += (
-                f" + {seg_slope:.6e}*(({vgs_term}-{anchor:.6e})"
-                f"+abs(({vgs_term})-{anchor:.6e}))/2"
-                if i == 1 else
-                f" + {delta:.6e}*(({vgs_term}-{anchor:.6e})"
-                f"+abs(({vgs_term})-{anchor:.6e}))/2")
-        prev_slope = seg_slope
+            coeff = slope if i == 1 else delta
+            expr += (f" + {coeff:.6e}*(({term}-{xs[i - 1]:.6e})"
+                     f"+abs(({term})-{xs[i - 1]:.6e}))/2")
+        prev_slope = slope
+    return expr
 
-    return f"({expr})*tanh(V(di,ss)/{_fmt(vds_sat)})"
+
+def _channel_expression(spec: PWLModelSpec, vgs_term: str) -> str:
+    """Behavioral channel current: PWL(Vgs) drive * tanh(Vds/vds_sat(Vgs)).
+
+    The topology is unchanged from the original Tier-2 emitter (PWL transfer,
+    tanh saturation knee). What changes is how the knee width is chosen:
+    one least-squares fit per extracted output curve instead of a single
+    heuristic clamped from Rds(on) and the top-curve plateau. A global knee
+    systematically mis-shapes the low/mid Vds region of every Vgs family.
+    The width is capped at 0.377*Vmax so tanh(Vmax/s) >= 0.99, and the
+    transfer amplitude is scaled by 1/tanh(Vmax/s) so each endpoint still
+    matches the extracted golden current exactly.
+    """
+    vd = np.asarray(spec.breakpoints_vds, dtype=float)
+    vmax = float(vd[-1])
+    span = vmax - float(vd[0])
+    drives = [float(v) for v in spec.vgs_values]
+    endpoints = [float(row[-1]) for row in spec.breakpoints_id]
+
+    sat_vals = []
+    for row in spec.breakpoints_id:
+        y = np.asarray(row, dtype=float)
+        plateau = max(float(y[-1]), 1e-9)
+        s = fit_tanh_knee_ls(vd, y, plateau)
+        sat_vals.append(min(max(s, 0.05 * span), 0.377 * vmax))
+
+    scale = 1.0 / np.tanh(vmax / np.asarray(sat_vals))
+    id_vals = (np.asarray(endpoints) * scale).tolist()
+
+    xs = [0.0] + drives
+    iv = [0.0] + id_vals
+    sv = [sat_vals[0]] + sat_vals
+    v_th = float(spec.v_th)
+    if 0.0 < v_th < min(drives):
+        xs = [0.0, v_th] + drives
+        iv = [0.0, 0.0] + id_vals
+        sv = [sat_vals[0], sat_vals[0]] + sat_vals
+
+    amp = _ramp_chain(xs, iv, vgs_term)
+    sat = _ramp_chain(xs, sv, vgs_term)
+    return f"({amp})*tanh(V(di,ss)/({sat}))"
 
 
 def build_tier2_subcircuit(spec: PWLModelSpec) -> str:
