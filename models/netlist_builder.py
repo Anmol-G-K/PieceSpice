@@ -92,9 +92,10 @@ def _channel_expression(spec: PWLModelSpec, vgs_term: str) -> str:
     one least-squares fit per extracted output curve instead of a single
     heuristic clamped from Rds(on) and the top-curve plateau. A global knee
     systematically mis-shapes the low/mid Vds region of every Vgs family.
-    The width is capped at 0.377*Vmax so tanh(Vmax/s) >= 0.99, and the
-    transfer amplitude is scaled by 1/tanh(Vmax/s) so each endpoint still
-    matches the extracted golden current exactly.
+    The width is bounded only by the sweep span (not the earlier 0.377*Vmax
+    cap, which bound high-Vgs CPM2 and IRFS curves); the transfer amplitude
+    is scaled by 1/tanh(Vmax/s) so each endpoint still matches the extracted
+    golden current exactly even when s is large.
     """
     vd = np.asarray(spec.breakpoints_vds, dtype=float)
     vmax = float(vd[-1])
@@ -107,7 +108,7 @@ def _channel_expression(spec: PWLModelSpec, vgs_term: str) -> str:
         y = np.asarray(row, dtype=float)
         plateau = max(float(y[-1]), 1e-9)
         s = fit_tanh_knee_ls(vd, y, plateau)
-        sat_vals.append(min(max(s, 0.05 * span), 0.377 * vmax))
+        sat_vals.append(min(max(s, 0.05 * span), vmax))
 
     scale = 1.0 / np.tanh(vmax / np.asarray(sat_vals))
     id_vals = (np.asarray(endpoints) * scale).tolist()
