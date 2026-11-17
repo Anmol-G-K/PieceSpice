@@ -40,13 +40,22 @@ def test_subckt_structure(sample_spec):
 
 
 def test_no_absolute_slope_accumulation_in_channel(sample_spec):
-    """Regression (audit bug class): transfer ramps must use delta slopes."""
-    text = build_tier2_subcircuit(sample_spec)
-    g_line = next(l for l in text.splitlines() if l.startswith("G_CH"))
-    # first ramp slope should equal the first segment slope (30-20... for the
-    # TOP curve endpoints 20->30 over 5..10 => 2.0); verify no runaway sum of
-    # identical slopes.
-    assert "2.000000e+00*" in g_line or "+ 2.244457e+01*" in g_line
+    """Regression (audit bug class): transfer ramps must use delta slopes.
+
+    Endpoints are (0,0), (Vth,0), (5,20), (10,30) => segment slopes
+    0, 8, 2. If absolute slopes were emitted the last ramp would carry 8+2.
+    Evaluate the emitted PWL instead of matching a coefficient string.
+    """
+    line = next(l for l in build_tier2_subcircuit(sample_spec).splitlines()
+                if l.startswith("G_CH"))
+    expr = line.split("VALUE = {", 1)[1].rsplit("}", 1)[0]
+    pwl = expr[1:].split("*tanh")[0].replace("V(gi,ss)", "v")
+    id_of_vgs = eval("lambda v: " + pwl, {"abs": abs})
+    assert id_of_vgs(0.0) == pytest.approx(0.0)
+    assert id_of_vgs(2.5) == pytest.approx(0.0)   # Vth anchor
+    assert id_of_vgs(5.0) == pytest.approx(20.0)
+    assert id_of_vgs(10.0) == pytest.approx(30.0)
+    assert (id_of_vgs(10.0) - id_of_vgs(5.0)) / 5.0 == pytest.approx(2.0)
 
 
 def test_ascii_only_netlist(sample_spec):

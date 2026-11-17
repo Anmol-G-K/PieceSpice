@@ -17,7 +17,25 @@ from metrics.loss import SwitchingLossMetrics, compute_switching_energy
 from metrics.static import compute_curve_error
 from metrics.switching import extract_switching_times
 from simulation.testbenches.simple_switching import (
-    SwitchingRun, run_simple_switching, steady_state_slice)
+    F_SW_HZ, SwitchingRun, run_simple_switching, steady_state_slice)
+
+
+
+def infer_drive_conditions(golden: SwitchingRun | dict) -> tuple[float, float]:
+    """Recover (vbus, vgs_on) actually used by a captured golden run.
+
+    Config YAML may have changed since a golden CSV was recorded (e.g. CPM2
+    Vbus 800 V vs a 10 V capture). Driving the Tier-2 model with today's
+    config then compares two different experiments. The off-state drain
+    plateau and the gate plateau are recoverable from the waveform itself.
+    """
+    vds = getattr(golden, "v_ds", None)
+    vgs = getattr(golden, "v_gs", None)
+    if vds is None:                      # load_golden_csv() returns arrays
+        vds, vgs = golden["v_ds"], golden["v_gs"]
+    vbus = float(np.percentile(vds, 95))
+    vgs_on = float(np.percentile(vgs, 95))
+    return vbus, vgs_on
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,7 +64,8 @@ class SwitchFitness:
     energy_rel_err_pct: dict
     waveform_rel_rmse_pct: float  # Vds(t) full-cycle relative RMSE
     passed: bool                  # all gates within tolerance
-    verdict: str
+    evaluable: bool = True             # False when crossings/spans prevent a fair gate
+    verdict: str = ""
 
     def summary(self) -> str:
         lines = [
@@ -70,7 +89,9 @@ def _metrics_from_run(run: SwitchingRun) -> RunMetrics:
 
     # switching-energy windows: around the drain edges of the LAST cycle.
     # On/off windows bracket each gate edge.
-    plateau = np.median(run.v_gs[len(run.v_gs) // 4:])
+    # Match metrics.switching: the 95th percentile is duty-cycle agnostic.
+    # median(last 3/4) is 0 V for a 50% duty cycle captured from t=0.
+    plateau = float(np.percentile(run.v_gs, 95))
     rising = np.where((run.v_gs[:-1] < 0.5 * plateau)
                       & (run.v_gs[1:] >= 0.5 * plateau))[0]
     falling = np.where((run.v_gs[:-1] > 0.5 * plateau)
@@ -78,7 +99,7 @@ def _metrics_from_run(run: SwitchingRun) -> RunMetrics:
 
     def _energy_around(idx_arr):
         if len(idx_arr) == 0:
-            return 0.0
+            return float("nan")
         i = int(idx_arr[-1])
         lo = max(0, i - 200)
         hi = min(len(run.time) - 1, i + 200)
@@ -105,8 +126,10 @@ def _metrics_from_run(run: SwitchingRun) -> RunMetrics:
 
 
 def _rel_err_pct(a: float, b: float) -> float:
-    denom = max(abs(b), 1e-12)
-    return (a - b) / abs(denom) * 100.0
+    """Signed relative error; NaN for a missing or near-zero reference."""
+    if not (np.isfinite(a) and np.isfinite(b)) or abs(b) < 1e-12:
+        return float("nan")
+    return (a - b) / abs(b) * 100.0
 
 
 def compare_switching_fitness(
@@ -137,8 +160,23 @@ def compare_switching_fitness(
     waveform rel-RMSE ±5%.
     """
     if golden_run is not None and tier2_run is not None:
-        run_g = steady_state_slice(golden_run)
-        run_t = steady_state_slice(tier2_run)
+        for attr in ("v_bus", "vgs_on"):
+            gv, tv = getattr(golden_run, attr), getattr(tier2_run, attr)
+            if not np.isclose(gv, tv, rtol=1e-6, atol=1e-9):
+                raise ValueError(
+                    f"golden and Tier-2 runs use different {attr} "
+                    f"({gv:g} vs {tv:g}); infer the drive from the golden "
+                    "with infer_drive_conditions() before comparing")
+        period = 1.0 / F_SW_HZ
+        if golden_run.time[-1] - golden_run.time[0] < 0.9 * period:
+            # VM-10: the CPM2 golden aborts before turn-off. A last-period
+            # slice would compare golden t=0..14us with Tier-2 t=40..60us.
+            # Keep both full runs; the waveform window below uses the common
+            # leading span, and turn-off metrics stay NaN (not evaluable).
+            run_g, run_t = golden_run, tier2_run
+        else:
+            run_g = steady_state_slice(golden_run)
+            run_t = steady_state_slice(tier2_run)
     else:
         if vendor_lib is None or tier2_lib is None:
             raise ValueError(
@@ -172,12 +210,21 @@ def compare_switching_fitness(
     g_on_grid = np.interp(t_common, run_g.time, run_g.v_ds)
     err = compute_curve_error(g_on_grid, t2_on_grid)
 
-    ok_timing = all(abs(v) <= timing_tol_pct for v in timing_errs.values())
-    ok_energy = all(abs(v) <= energy_tol_pct for v in energy_errs.values())
+    finite_timing = [v for v in timing_errs.values() if np.isfinite(v)]
+    finite_energy = [v for v in energy_errs.values() if np.isfinite(v)]
+    ok_timing = all(abs(v) <= timing_tol_pct for v in finite_timing)
+    ok_energy = all(abs(v) <= energy_tol_pct for v in finite_energy)
     ok_wave = err.relative_rmse_pct <= waveform_tol_pct
     passed = ok_timing and ok_energy and ok_wave
 
-    if passed:
+    evaluable = (len(finite_timing) == len(timing_errs)
+                 and len(finite_energy) == len(energy_errs))
+    if not evaluable:
+        missing = [k for k, v in {**timing_errs, **energy_errs}.items()
+                   if not np.isfinite(v)]
+        verdict = ("N/A - level crossing missing for: " + ",".join(missing))
+        passed = False
+    elif passed:
         verdict = "PASS - Tier-2 switches like the vendor model"
     else:
         fails = []
@@ -194,6 +241,7 @@ def compare_switching_fitness(
         verdict = "FAIL - " + "; ".join(fails)
 
     return SwitchFitness(
+        evaluable=evaluable,
         golden=mg, tier2=mt,
         timing_rel_err_pct=timing_errs,
         energy_rel_err_pct=energy_errs,

@@ -20,6 +20,7 @@ import numpy as np
 
 from common.types import PWLModelSpec, trim_trailing_invalid
 from config.yaml_io import load_input, load_output
+from pipeline.curves import _cap_ref_vds
 from simulation.engine import SpiceEngine, DCDirective
 from simulation.netlist_text import NetlistBuilder
 
@@ -100,8 +101,11 @@ def fit_pwl_model(
     qoss_v: list = []
     qoss_q: list = []
     try:
-        cap_ref = float(cond.get("Cap_ref_Vds",
-                                 cond.get("Vds_cap_min", 0.1)) or 25.0)
+        # Q(Vref)/Vref is zero AT the sweep minimum by construction. Use the
+        # same reference as curve extraction (configured point or a quarter
+        # of the sweep span); otherwise cq/ce collapse to 0 and the metadata
+        # silently falls back to hardcoded 4.5 nF / 7.5 pF.
+        cap_ref = _cap_ref_vds(cond)
         from simulation.testbenches.capacitance import CapacitanceTestbench
         lib = Path(cfg["library"]).resolve()
         _, coss, _ = CapacitanceTestbench(
@@ -155,9 +159,9 @@ def fit_pwl_model(
             "r_gate": 1.5,
             "r_source": 1e-4,
             "r_drain": 1e-4,
-            "c_iss_lin": (cq or 1500e-12) * 3.0,
-            "c_oss_lin": (cq if cq else 500e-12),
-            "c_rss_lin": (ce if ce else 50e-12) * 0.15,
+            "c_iss_lin": (cq if cq is not None else 1500e-12) * 3.0,
+            "c_oss_lin": cq if cq is not None else 500e-12,
+            "c_rss_lin": (ce if ce is not None else 50e-12) * 0.15,
         },
     )
 

@@ -33,6 +33,13 @@ def _crossing_time(t: np.ndarray, y: np.ndarray, level: float,
     return float(t[i] + frac * (t[i + 1] - t[i]))
 
 
+def _ns(seconds: float) -> float:
+    """Seconds -> ns; NaN survives (means 'crossing not present')."""
+    if not np.isfinite(seconds):
+        return float("nan")
+    return max(seconds, 0.0) * 1e9
+
+
 def extract_switching_times(
     time: np.ndarray,
     v_ds: np.ndarray,
@@ -49,6 +56,10 @@ def extract_switching_times(
       tr:      v_ds from 90% down to 10% of the off-state value.
       td(off): v_gs drops to 90% of plateau until v_ds rises to 10% of bus.
       tf:      v_ds from 10% up to 90% of bus.
+
+    A timing figure whose level crossing is absent (e.g. a golden capture
+    truncated before turn-off) is returned as NaN, never 0.0: zero is a
+    measured value and made the relative-error gates report absurd numbers.
 
     Args:
         i_load: Expected on-state load current [A]. If None, inferred as the
@@ -81,11 +92,11 @@ def extract_switching_times(
     td_on = (
         (t_ds_90_on - t_gs_10_on)
         if (t_gs_10_on is not None and t_ds_90_on is not None)
-        else 0.0)
+        else float("nan"))
     tr = (
         (t_ds_10_on - t_ds_90_on)
         if (t_ds_10_on is not None and t_ds_90_on is not None)
-        else 0.0)
+        else float("nan"))
 
     # --- turn-off event: use the LAST crossings (falling gate edge) ---
     def last_crossing(level, falling=True, sig=None):
@@ -108,11 +119,11 @@ def extract_switching_times(
     td_off = (
         (t_ds_10_off - t_gs_90_off)
         if (t_gs_90_off is not None and t_ds_10_off is not None)
-        else 0.0)
+        else float("nan"))
     tf = (
         (t_ds_90_off - t_ds_10_off)
         if (t_ds_10_off is not None and t_ds_90_off is not None)
-        else 0.0)
+        else float("nan"))
 
     ns = 1e9
     dt = np.gradient(t)
@@ -120,10 +131,10 @@ def extract_switching_times(
     di_dt = np.abs(np.gradient(i_d)) / np.maximum(dt, 1e-15)
 
     return SwitchingTimeMetrics(
-        rise_time_ns=max(tr, 0.0) * ns,
-        fall_time_ns=max(tf, 0.0) * ns,
-        delay_on_ns=max(td_on, 0.0) * ns,
-        delay_off_ns=max(td_off, 0.0) * ns,
+        rise_time_ns=_ns(tr),
+        fall_time_ns=_ns(tf),
+        delay_on_ns=_ns(td_on),
+        delay_off_ns=_ns(td_off),
         dv_dt_max_v_per_ns=float(np.max(dv_dt) * ns),
         di_dt_max_a_per_ns=float(np.max(di_dt) * ns),
     )

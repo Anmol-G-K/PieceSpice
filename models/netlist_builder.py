@@ -89,11 +89,19 @@ def _channel_expression(spec: PWLModelSpec, vgs_term: str) -> str:
     vgs_pts = [float(v) for v in spec.vgs_values]
 
     # Anchor the transfer at the origin so the model has a proper OFF state:
-    # without this, Id(Vgs<=first_point) = id_pts[0] (always-on). Every real
-    # device has Id=0 at Vgs=0, so prepending (0,0) is universal.
+    # without this, Id(Vgs<=first_point) = id_pts[0] (always-on). Then add the
+    # extracted threshold as a zero-current breakpoint: a single straight
+    # segment from (0,0) to the first extracted Vgs drives real current well
+    # below Vth (e.g. 8 A at 0.5 V on CSD16412Q5A) and makes the model turn on
+    # before the gate reaches its 10% level. Skip the anchor when Vth is
+    # corrupt/higher than the first measured drive (VM-01 on IRFS).
     if min(vgs_pts, default=1.0) > 0.0:
         vgs_pts = [0.0] + vgs_pts
         id_pts = [0.0] + id_pts
+    v_th = float(spec.v_th)
+    if 0.0 < v_th < min(float(v) for v in spec.vgs_values):
+        vgs_pts = [0.0, v_th] + vgs_pts[1:]
+        id_pts = [0.0, 0.0] + id_pts[1:]
 
     # Chained-ramp PWL through every (vgs_k, Id_k):
     #   Id(x) = id_0 + s_1*ramp(x-vgs_0)

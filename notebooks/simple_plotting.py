@@ -31,6 +31,7 @@ from common.plotting import setup_style
 from metrics.static import compute_curve_error
 from metrics.loss import compute_switching_energy
 from metrics.switching import extract_switching_times
+from metrics.fitness import infer_drive_conditions
 from simulation.testbenches.simple_switching import (
     run_simple_switching)
 
@@ -124,14 +125,16 @@ def main(vendor: str) -> int:
 
     cfg = yaml.safe_load(
         (REPO_ROOT / f"config/inputs/{vendor}.yaml").read_text(encoding="utf-8"))
-    vbus = float(cfg["conditions"].get(
-        "Vbus", cfg["conditions"].get("Vds_fixed", 10.0)))
-    vgs_on = float(cfg["conditions"]["Vgs_fixed"])
+    # Drive conditions come from the captured waveform, not today's YAML:
+    # several golden CSVs predate condition changes in config/inputs/.
     i_load = 1.0
     temp = float(cfg["conditions"].get("temperature", 25.0))
 
     print(f"[plot] golden <- {DATA_DIR / f'{vendor}_golden.csv'}")
     g = load_golden_csv(vendor)
+    vbus, vgs_on = infer_drive_conditions(g)
+    print(f"[plot] drive inferred from golden: Vbus={vbus:g} V, "
+          f"Vgs_on={vgs_on:g} V")
     print(f"[plot]   {len(g['time'])} pts | "
           f"vds [{g['v_ds'].min():.3f}, {g['v_ds'].max():.3f}] V")
 
