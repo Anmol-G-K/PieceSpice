@@ -187,29 +187,6 @@ automatically from the YAML pin map.
 | EPC | EPC2216 | GaN eGaN (behavioral) | ✅ 7/7 curves |
 | Wolfspeed | CPM2-1200-0025B | SiC bare die (Tj port) | ✅ 7/7 curves |
 
-### Switching Transient Validation — 50 kHz / 50 % duty / 1 A resistive load
-
-Vendor golden vs Tier-2 CPWL over three full switching cycles for each
-supported device. This is the M4 *subset* (resistive load), not a
-clamped-inductive double-pulse test; the CPM2-1200 golden stops before
-turn-off because the vendor model aborts there (VM-10, engine-independent).
-
-| Infineon IRFS7730PBF | TI CSD16412Q5A |
-|:---:|:---:|
-| ![IRFS7730PBF](Images/irfs7730pbf_switching_3cycle.png) | ![CSD16412Q5A](Images/csd16412q5a_switching_3cycle.png) |
-| **EPC EPC2216** | **Wolfspeed CPM2-1200** |
-| ![EPC2216](Images/epc2216_switching_3cycle.png) | ![CPM2-1200](Images/cpm2-1200_switching_3cycle.png) |
-
-**Golden-vs-Tier-2 validation** (TI CSD16412Q5A, Vds = 10 V):
-
-| Vgs | Vendor Golden | Tier-2 CPWL | Error |
-|---|---|---|---|
-| 4.5 V | 76.5 A | 76.5 A | 0.07 % |
-| 5.0 V | 98.9 A | 98.4 A | 0.51 % |
-| 6.0 V | 144.7 A | 144.0 A | 0.52 % |
-| 8.0 V | 236.4 A | 235.1 A | 0.53 % |
-| 10.0 V | 325.5 A | 323.8 A | 0.51 % |
-
 ---
 
 ## 📂 Project Structure
@@ -226,7 +203,7 @@ PieceSpice/
 │   └── outputs/          # Extracted curve data (YAML)
 ├── data/                 # Captured golden switching waveforms (CSV)
 ├── docs/                 # Reports, plans, reference notes
-├── Images/               # Rendered validation figures
+├── figures/              # Plots by model: figures/<vendor>/*.png
 ├── metrics/              # Static/switching/loss/comparison metrics
 ├── models/               # Tier-2 netlist synthesis
 ├── notebooks/            # 01 extraction · 02 approximation & validation

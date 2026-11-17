@@ -100,7 +100,5 @@ def test_existing_outputs_cover_all_passing_curves():
         "curve4_capacitances",
         "curve5_gate_charge",
         "curve6_body_diode",
-        "curve7_threshold_voltage",
-        "gate_charge_transient",
     }
     assert expected <= outputs

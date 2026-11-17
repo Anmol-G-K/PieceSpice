@@ -1,10 +1,10 @@
 """Simple switching-plot runner (notebook 04a companion).
 
-Reads the verified golden waveform CSV (data/m4_subset_<vendor>_golden.csv),
-simulates the Tier-2 model live, and produces:
-  - Images/<vendor>_switching_3cycle.png   (300 dpi, full-run overlay)
-  - Images/<vendor>_switching_edge_zoom.png (300 dpi, rising+falling edges)
-  - reporting/<vendor>_switching_metrics.json
+Reads the golden waveform CSV (data/<vendor>_golden.csv), simulates the
+Tier-2 model live, and produces:
+  - figures/<vendor>/switching_3cycle.png   (300 dpi, full-run overlay)
+  - figures/<vendor>/switching_edge_zoom.png (300 dpi, edge zooms)
+  - reports/switching/<vendor>_switching_metrics.json
 
 Usage: python notebooks/simple_plotting.py [vendor]   (default: epc2216)
 """
@@ -35,7 +35,7 @@ from metrics.fitness import infer_drive_conditions
 from simulation.testbenches.simple_switching import (
     run_simple_switching)
 
-IMG_DIR = REPO_ROOT / "Images"
+IMG_DIR = REPO_ROOT / "figures"
 REPORT_DIR = REPO_ROOT / "reports" / "switching"
 DATA_DIR = REPO_ROOT / "data"
 F_SW = 50_000.0
@@ -120,7 +120,8 @@ def metrics_of(run: dict, vbus: float, i_load: float) -> dict:
 
 def main(vendor: str) -> int:
     setup_style()
-    IMG_DIR.mkdir(exist_ok=True)
+    img_dir = IMG_DIR / vendor
+    img_dir.mkdir(parents=True, exist_ok=True)
     REPORT_DIR.mkdir(exist_ok=True)
 
     cfg = yaml.safe_load(
@@ -155,7 +156,7 @@ def main(vendor: str) -> int:
     ax.set_title(f"Switching Transient — {vendor} "
                  f"(50 kHz, 50% duty, resistive {i_load:.0f} A)")
     _legend_east(ax)
-    p1 = IMG_DIR / f"{vendor}_switching_3cycle.png"
+    p1 = img_dir / "switching_3cycle.png"
     fig.savefig(p1, dpi=300)
     plt.close(fig)
     print(f"[plot] saved {p1.name}")
@@ -244,7 +245,7 @@ def main(vendor: str) -> int:
         axp.set_title(title)
         _legend_east(axp)
 
-    p2 = IMG_DIR / f"{vendor}_switching_edge_zoom.png"
+    p2 = img_dir / "switching_edge_zoom.png"
     fig.savefig(p2, dpi=300)
     plt.close(fig)
     print(f"[plot] saved {p2.name}")

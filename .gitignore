@@ -229,3 +229,10 @@ data/
 *.tgz
 *.tar.bz2
 *.tar.xz
+
+# Generated during local runs / CI; new plots live in figures/<model>/.
+.pytest_cache/
+.ruff_cache/
+reports/pytest_report.html
+reports/models_check/
+simulation/reports/
