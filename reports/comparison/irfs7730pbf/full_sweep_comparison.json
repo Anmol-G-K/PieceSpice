@@ -1,0 +1,57 @@
+[
+  {
+    "curve":"Vgs = 3 V",
+    "points":41,
+    "rmse":0.0,
+    "rel_rmse_pct":35.637,
+    "max_err":0.0,
+    "max_rel_pct":52.984,
+    "mape_pct":106.512,
+    "r_squared":0.999787,
+    "pass":false
+  },
+  {
+    "curve":"Vgs = 4.5 V",
+    "points":41,
+    "rmse":1.215569,
+    "rel_rmse_pct":16.98,
+    "max_err":4.128899,
+    "max_rel_pct":57.674,
+    "mape_pct":15.638,
+    "r_squared":-0.117472,
+    "pass":false
+  },
+  {
+    "curve":"Vgs = 6 V",
+    "points":41,
+    "rmse":40.759521,
+    "rel_rmse_pct":11.985,
+    "max_err":109.82187,
+    "max_rel_pct":32.291,
+    "mape_pct":10.917,
+    "r_squared":0.663907,
+    "pass":false
+  },
+  {
+    "curve":"Vgs = 8 V",
+    "points":41,
+    "rmse":25.866924,
+    "rel_rmse_pct":2.653,
+    "max_err":61.080145,
+    "max_rel_pct":6.264,
+    "mape_pct":2.344,
+    "r_squared":0.990299,
+    "pass":true
+  },
+  {
+    "curve":"Vgs = 10 V",
+    "points":41,
+    "rmse":126.034917,
+    "rel_rmse_pct":7.541,
+    "max_err":257.121174,
+    "max_rel_pct":15.384,
+    "mape_pct":13.467,
+    "r_squared":0.939086,
+    "pass":false
+  }
+]
