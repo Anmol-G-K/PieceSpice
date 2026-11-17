@@ -266,9 +266,9 @@ together with four skipped tests.
 | [`01_datasheet_curves_extraction`](notebooks/01_datasheet_curves_extraction.ipynb) | Extract the 7 datasheet curves from any configured vendor |
 | [`02_piecewise_approximation`](notebooks/02_piecewise_approximation.ipynb) | Fit → compress → charge-integrate → smooth → synthesize → validate |
 | [`04a_simple_switching_subset`](notebooks/04a_simple_switching_subset.ipynb) | Golden-vs-Tier-2 resistive-load switching comparison (M4 subset) |
-| `03_double_pulse_transients` | *stub — synthetic waveforms only; needs the DPT bench (M4)* |
-| `04_buck_converter_benchmark` | *stub — its table is placeholder data, **not** a measurement (M5)* |
-| `05_comprehensive_validation_report` | *stub — runs one sweep and calls the HTML report* |
+| `03_double_pulse_transients` | *placeholder — DPT bench not implemented; no synthetic data* |
+| `04_buck_converter_benchmark` | *placeholder — buck bench not implemented; no speedup numbers* |
+| `05_comprehensive_validation_report` | Synthesizes Tier-2 and renders **measured** endpoint error to HTML |
 
 ---
 
