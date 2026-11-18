@@ -27,16 +27,18 @@ CASES = {
     "short_forced": {"n_pulses": 2, "max_step": 2e-9},
     "short_adaptive": {"n_pulses": 2, "max_step": None},
     "long_adaptive": {"n_pulses": 20, "max_step": None},
+    "long_100ns": {"n_pulses": 20, "max_step": 100e-9},
 }
 REPEATS = 3
 TIMEOUT_S = 90.0
 
-# Golden vendor models that cannot complete a 20-pulse train: EPC hangs
-# after the second pulse (observed 60 s timeout), CPM2 aborts at turn-off
-# (VM-10). Their long-case golden timing is reported N/A, not fabricated.
-SKIP_GOLDEN_LONG = {
-    "epc2216": "vendor hangs after 2 pulses (observed timeout)",
-    "cpm2-1200": "VM-10 vendor turn-off abort",
+# EPC's vendor GaN model stalls when LTspice grows the timestep past
+# ~100-200 ns; it completes with a 100 ns cap (see long_100ns). CPM2 has
+# no skip: earlier failures came from a wrong subcircuit name in a probe,
+# not from the model.
+SKIP_GOLDEN = {
+    ("epc2216", "long_adaptive"):
+        "vendor stalls under adaptive step; use long_100ns",
 }
 
 
@@ -66,8 +68,8 @@ def main() -> None:
                  roles),
                 ("rom", rom_lib, rom_lib.stem, ["drain", "gate", "source"]),
             ):
-                if label == "golden" and case == "long_adaptive" and vendor in SKIP_GOLDEN_LONG:
-                    entry[label] = {"error": SKIP_GOLDEN_LONG[vendor]}
+                if label == "golden" and (vendor, case) in SKIP_GOLDEN:
+                    entry[label] = {"error": SKIP_GOLDEN[(vendor, case)]}
                     continue
                 try:
                     entry[label] = run_inductive_benchmark(
