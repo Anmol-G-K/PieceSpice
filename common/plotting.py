@@ -370,3 +370,36 @@ def plot_endpoint_ties(
     if show:
         plt.show()
     return fig, ax
+
+
+def plot_dual_axis(
+    x,
+    left,
+    right,
+    *,
+    left_label: str = "left",
+    right_label: str = "right",
+    title: str = "",
+    xlabel: str = "Time [ns]",
+    colors: Tuple[str, str] = ("tab:blue", "tab:red"),
+    save_path=None,
+    show: bool = True,
+) -> Tuple[plt.Figure, Tuple[plt.Axes, plt.Axes]]:
+    """Two generic y-series on one x axis with a single EAST-outside legend."""
+    setup_style()
+    fig, ax1 = plt.subplots(figsize=(10.5, 5.8), layout="constrained")
+    l1 = ax1.plot(x, left, color=colors[0], label=left_label)
+    ax1.set_xlabel(xlabel)
+    ax1.set_ylabel(left_label, color=colors[0])
+    ax2 = ax1.twinx()
+    l2 = ax2.plot(x, right, color=colors[1], label=right_label)
+    ax2.set_ylabel(right_label, color=colors[1])
+    ax1.set_title(title)
+    ax1.grid(True, alpha=0.35, ls="--")
+    ax1.legend(l1 + l2, [left_label, right_label],
+               loc="center left", bbox_to_anchor=(1.14, 0.5))
+    if save_path is not None:
+        fig.savefig(save_path, dpi=300, bbox_inches="tight")
+    if show:
+        plt.show()
+    return fig, (ax1, ax2)

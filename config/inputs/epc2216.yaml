@@ -65,3 +65,16 @@ conditions:
 
   # --- environment ---
   temperature: 25.0                           # [degC]
+
+dpt:
+  vbus: 11.0
+  vgs_on: 5.0
+  i_load_target: 10.0
+  l_load: 5.5e-6
+  t1_on: 1.0e-6
+  t1_width: 5.0e-6
+  t2_on: 10.0e-6
+  t2_width: 2.0e-6
+  edge_time: 20.0e-9
+  t_end: 14.0e-6
+  max_step: 2.0e-9
