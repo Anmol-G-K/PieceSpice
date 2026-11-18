@@ -255,8 +255,10 @@ together with four skipped tests.
 - [x] **M2** — Automated Datasheet Curves Simulation (7 curves × 4 vendors)
 - [x] **M3** — Piecewise Approximation & Charge Integration Engines
       + Tier-2 synthesis + golden validation
-      *(endpoint error 0.18 % EPC · 0.50 % TI · 3.45 % IRFS · 3.93 % CPM2;
-      the last two are the shared-knee residual)*
+      **Method closed.** Final mean full-sweep rel-RMSE: IRFS 7.07 %,
+      TI 8.49 %, EPC 2.04 %, CPM2 3.43 %; worst endpoint error <=4.13 %.
+      The remaining TI/IRFS deviations are limits of this model form —
+      further parameter ablations were measured and did not improve them.
 - [x] **M4** — Switching Dynamics & Double Pulse Testbench
       *(metrics, resistive-load subset and inductive DPT)*
 - [ ] **M5** — Switched-Mode Converter Benchmark & Speedup Evaluation
