@@ -1,0 +1,50 @@
+{
+  "schema": "piecespice.dpt/1.0",
+  "vendor": "irfs7730pbf",
+  "conditions": {
+    "vbus": 38.0,
+    "vgs_on": 10.0,
+    "i_load_target": 100.0,
+    "l_load": 1.9e-06,
+    "t1_on": 1e-06,
+    "t1_width": 5e-06,
+    "t2_on": 1e-05,
+    "t2_width": 2e-06,
+    "edge_time": 2e-08,
+    "t_end": 1.4e-05,
+    "max_step": 2e-09
+  },
+  "repeats": 3,
+  "golden_failure": "",
+  "golden_metrics": {
+    "td_on_ns": 32.29627698150211,
+    "tr_ns": 25.84350961529235,
+    "td_off_ns": 62.182902750101924,
+    "tf_ns": 26.538999478329874,
+    "dv_dt_max_v_per_ns": 35.93467060024436,
+    "di_dt_max_a_per_ns": 0.2268693130194744,
+    "e_on_uj": 157.43281606412236,
+    "e_off_uj": 596.9637000429396,
+    "e_oss_uj": 1.7143809984137939,
+    "i_peak_a": 138.5330810546875,
+    "wall_clock_s": 1.021428800000649
+  },
+  "tier2_metrics": {
+    "td_on_ns": 17.081334133714805,
+    "tr_ns": 2.892552707266252,
+    "td_off_ns": 17.134184632214943,
+    "tf_ns": 2.5289703561538817,
+    "dv_dt_max_v_per_ns": 587.4770711811311,
+    "di_dt_max_a_per_ns": 2.497784249508453,
+    "e_on_uj": 71.09326472844484,
+    "e_off_uj": 533.4319489514241,
+    "e_oss_uj": 1.7143809984137939,
+    "i_peak_a": 136.9910430908203,
+    "wall_clock_s": 1.1079628000006778
+  },
+  "wall_clock_s": {
+    "golden_median": 1.0208065000006172,
+    "tier2_median": 1.0989281999991363,
+    "speedup": 0.928911006198057
+  }
+}

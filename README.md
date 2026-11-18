@@ -243,7 +243,7 @@ together with four skipped tests.
 | [`01_datasheet_curves_extraction`](notebooks/01_datasheet_curves_extraction.ipynb) | Extract the 7 datasheet curves from any configured vendor |
 | [`02_piecewise_approximation`](notebooks/02_piecewise_approximation.ipynb) | Fit → compress → charge-integrate → smooth → synthesize → validate |
 | [`04a_simple_switching_subset`](notebooks/04a_simple_switching_subset.ipynb) | Golden-vs-Tier-2 resistive-load switching comparison (M4 subset) |
-| `03_double_pulse_transients` | *placeholder — DPT bench not implemented; no synthetic data* |
+| [`03_double_pulse_transients`](notebooks/03_double_pulse_transients.ipynb) | Clamped-inductive DPT: golden-vs-ROM timing, energy and measured wall-clock speedup |
 | `04_buck_converter_benchmark` | *placeholder — buck bench not implemented; no speedup numbers* |
 | `05_comprehensive_validation_report` | Synthesizes Tier-2 and renders **measured** endpoint error to HTML |
 
@@ -257,10 +257,10 @@ together with four skipped tests.
       + Tier-2 synthesis + golden validation
       *(endpoint error 0.18 % EPC · 0.50 % TI · 3.45 % IRFS · 3.93 % CPM2;
       the last two are the shared-knee residual)*
-- [ ] **M4** — Switching Dynamics & Double Pulse Testbench
-      *(metrics + resistive-load subset done; DPT bench missing)*
+- [x] **M4** — Switching Dynamics & Double Pulse Testbench
+      *(metrics, resistive-load subset and inductive DPT with measured speedup)*
 - [ ] **M5** — Switched-Mode Converter Benchmark & Speedup Evaluation
-      *(no wall-clock speedup has been measured yet)*
+      *(DPT wall-time is measured; no converter benchmark exists)*
 - [x] **M6** — Automated HTML Reporting & CLI Polish
       *(the report renders only metrics it is given)*
 
