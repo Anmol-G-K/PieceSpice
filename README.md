@@ -258,9 +258,11 @@ together with four skipped tests.
       *(endpoint error 0.18 % EPC · 0.50 % TI · 3.45 % IRFS · 3.93 % CPM2;
       the last two are the shared-knee residual)*
 - [x] **M4** — Switching Dynamics & Double Pulse Testbench
-      *(metrics, resistive-load subset and inductive DPT with measured speedup)*
+      *(metrics, resistive-load subset and inductive DPT)*
 - [ ] **M5** — Switched-Mode Converter Benchmark & Speedup Evaluation
-      *(DPT wall-time is measured; no converter benchmark exists)*
+      *(a DPT-topology runtime benchmark now exists: 20-pulse adaptive run
+      gives 5.5× solver / 3.2× wall-clock on TI, ~1× on IRFS, N/A where the
+      vendor model hangs; no converter benchmark yet)*
 - [x] **M6** — Automated HTML Reporting & CLI Polish
       *(the report renders only metrics it is given)*
 

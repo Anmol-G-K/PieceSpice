@@ -1,0 +1,364 @@
+{
+  "schema": "piecespice.speedup/1.0",
+  "cases": {
+    "short_forced": {
+      "n_pulses": 2,
+      "max_step": 2e-09
+    },
+    "short_adaptive": {
+      "n_pulses": 2,
+      "max_step": null
+    },
+    "long_adaptive": {
+      "n_pulses": 20,
+      "max_step": null
+    }
+  },
+  "repeats": 3,
+  "vendors": {
+    "irfs7730pbf": {
+      "short_forced": {
+        "golden": {
+          "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\SpiceModels\\irfs7730pbf.spi",
+          "subcircuit": "irfb_s_sl7730pbf",
+          "n_pulses": 2,
+          "max_step": 2e-09,
+          "end_time_s": 1.4e-05,
+          "repeats": 3,
+          "wall_clock_s": 1.1050367999996524,
+          "solver_elapsed_s": 0.419,
+          "iterations": 14825.0,
+          "trace_points": 7114.0,
+          "trace_names": 12.0
+        },
+        "rom": {
+          "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\irfs7730pbf_PIECESPICE_T2.lib",
+          "subcircuit": "irfs7730pbf_PIECESPICE_T2",
+          "n_pulses": 2,
+          "max_step": 2e-09,
+          "end_time_s": 1.4e-05,
+          "repeats": 3,
+          "wall_clock_s": 1.1203182999997807,
+          "solver_elapsed_s": 0.483,
+          "iterations": 20386.0,
+          "trace_points": 7116.0,
+          "trace_names": 12.0
+        },
+        "wall_speedup": 0.9863596801015111,
+        "solver_speedup": 0.8674948240165632
+      },
+      "short_adaptive": {
+        "golden": {
+          "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\SpiceModels\\irfs7730pbf.spi",
+          "subcircuit": "irfb_s_sl7730pbf",
+          "n_pulses": 2,
+          "max_step": null,
+          "end_time_s": 1.4e-05,
+          "repeats": 3,
+          "wall_clock_s": 0.7894562000001315,
+          "solver_elapsed_s": 0.264,
+          "iterations": 3288.0,
+          "trace_points": 1259.0,
+          "trace_names": 12.0
+        },
+        "rom": {
+          "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\irfs7730pbf_PIECESPICE_T2.lib",
+          "subcircuit": "irfs7730pbf_PIECESPICE_T2",
+          "n_pulses": 2,
+          "max_step": null,
+          "end_time_s": 1.4e-05,
+          "repeats": 3,
+          "wall_clock_s": 0.7835625000006985,
+          "solver_elapsed_s": 0.263,
+          "iterations": 3373.0,
+          "trace_points": 1180.0,
+          "trace_names": 12.0
+        },
+        "wall_speedup": 1.0075216718505897,
+        "solver_speedup": 1.0038022813688212
+      },
+      "long_adaptive": {
+        "golden": {
+          "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\SpiceModels\\irfs7730pbf.spi",
+          "subcircuit": "irfb_s_sl7730pbf",
+          "n_pulses": 20,
+          "max_step": null,
+          "end_time_s": 0.000176,
+          "repeats": 3,
+          "wall_clock_s": 0.9367267999987234,
+          "solver_elapsed_s": 0.343,
+          "iterations": 12718.0,
+          "trace_points": 3432.0,
+          "trace_names": 12.0
+        },
+        "rom": {
+          "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\irfs7730pbf_PIECESPICE_T2.lib",
+          "subcircuit": "irfs7730pbf_PIECESPICE_T2",
+          "n_pulses": 20,
+          "max_step": null,
+          "end_time_s": 0.000176,
+          "repeats": 3,
+          "wall_clock_s": 0.9050827000010031,
+          "solver_elapsed_s": 0.319,
+          "iterations": 9274.0,
+          "trace_points": 2556.0,
+          "trace_names": 12.0
+        },
+        "wall_speedup": 1.0349626614205367,
+        "solver_speedup": 1.0752351097178685
+      }
+    },
+    "csd16412q5a": {
+      "short_forced": {
+        "golden": {
+          "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\SpiceModels\\CSD16412Q5A.lib",
+          "subcircuit": "CSD16412Q5A",
+          "n_pulses": 2,
+          "max_step": 2e-09,
+          "end_time_s": 1.4e-05,
+          "repeats": 3,
+          "wall_clock_s": 1.2892537000006996,
+          "solver_elapsed_s": 0.573,
+          "iterations": 24435.0,
+          "trace_points": 10189.0,
+          "trace_names": 12.0
+        },
+        "rom": {
+          "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\csd16412q5a_PIECESPICE_T2.lib",
+          "subcircuit": "csd16412q5a_PIECESPICE_T2",
+          "n_pulses": 2,
+          "max_step": 2e-09,
+          "end_time_s": 1.4e-05,
+          "repeats": 3,
+          "wall_clock_s": 1.21200189999945,
+          "solver_elapsed_s": 0.531,
+          "iterations": 18863.0,
+          "trace_points": 7140.0,
+          "trace_names": 12.0
+        },
+        "wall_speedup": 1.0637390089910623,
+        "solver_speedup": 1.07909604519774
+      },
+      "short_adaptive": {
+        "golden": {
+          "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\SpiceModels\\CSD16412Q5A.lib",
+          "subcircuit": "CSD16412Q5A",
+          "n_pulses": 2,
+          "max_step": null,
+          "end_time_s": 1.4e-05,
+          "repeats": 3,
+          "wall_clock_s": 1.0525099000005866,
+          "solver_elapsed_s": 0.39,
+          "iterations": 13581.0,
+          "trace_points": 4708.0,
+          "trace_names": 12.0
+        },
+        "rom": {
+          "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\csd16412q5a_PIECESPICE_T2.lib",
+          "subcircuit": "csd16412q5a_PIECESPICE_T2",
+          "n_pulses": 2,
+          "max_step": null,
+          "end_time_s": 1.4e-05,
+          "repeats": 3,
+          "wall_clock_s": 0.8297504000001936,
+          "solver_elapsed_s": 0.271,
+          "iterations": 3634.0,
+          "trace_points": 1225.0,
+          "trace_names": 12.0
+        },
+        "wall_speedup": 1.2684656735330782,
+        "solver_speedup": 1.4391143911439115
+      },
+      "long_adaptive": {
+        "golden": {
+          "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\SpiceModels\\CSD16412Q5A.lib",
+          "subcircuit": "CSD16412Q5A",
+          "n_pulses": 20,
+          "max_step": null,
+          "end_time_s": 0.000176,
+          "repeats": 3,
+          "wall_clock_s": 3.239646800000628,
+          "solver_elapsed_s": 1.83,
+          "iterations": 131558.0,
+          "trace_points": 44050.0,
+          "trace_names": 12.0
+        },
+        "rom": {
+          "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\csd16412q5a_PIECESPICE_T2.lib",
+          "subcircuit": "csd16412q5a_PIECESPICE_T2",
+          "n_pulses": 20,
+          "max_step": null,
+          "end_time_s": 0.000176,
+          "repeats": 3,
+          "wall_clock_s": 1.0029845000008208,
+          "solver_elapsed_s": 0.331,
+          "iterations": 10195.0,
+          "trace_points": 2868.0,
+          "trace_names": 12.0
+        },
+        "wall_speedup": 3.2300068445703563,
+        "solver_speedup": 5.528700906344411
+      }
+    },
+    "epc2216": {
+      "short_forced": {
+        "golden": {
+          "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\SpiceModels\\EPC2216_V0_PSPICE.net",
+          "subcircuit": "EPC2216",
+          "n_pulses": 2,
+          "max_step": 2e-09,
+          "end_time_s": 1.4e-05,
+          "repeats": 3,
+          "wall_clock_s": 1.1796364000001631,
+          "solver_elapsed_s": 0.486,
+          "iterations": 23036.0,
+          "trace_points": 7418.0,
+          "trace_names": 12.0
+        },
+        "rom": {
+          "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\epc2216_PIECESPICE_T2.lib",
+          "subcircuit": "epc2216_PIECESPICE_T2",
+          "n_pulses": 2,
+          "max_step": 2e-09,
+          "end_time_s": 1.4e-05,
+          "repeats": 3,
+          "wall_clock_s": 1.330344600000899,
+          "solver_elapsed_s": 0.477,
+          "iterations": 18576.0,
+          "trace_points": 7169.0,
+          "trace_names": 12.0
+        },
+        "wall_speedup": 0.8867149158190788,
+        "solver_speedup": 1.0188679245283019
+      },
+      "short_adaptive": {
+        "golden": {
+          "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\SpiceModels\\EPC2216_V0_PSPICE.net",
+          "subcircuit": "EPC2216",
+          "n_pulses": 2,
+          "max_step": null,
+          "end_time_s": 1.4e-05,
+          "repeats": 3,
+          "wall_clock_s": 0.8715217999997549,
+          "solver_elapsed_s": 0.285,
+          "iterations": 4707.0,
+          "trace_points": 1348.0,
+          "trace_names": 12.0
+        },
+        "rom": {
+          "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\epc2216_PIECESPICE_T2.lib",
+          "subcircuit": "epc2216_PIECESPICE_T2",
+          "n_pulses": 2,
+          "max_step": null,
+          "end_time_s": 1.4e-05,
+          "repeats": 3,
+          "wall_clock_s": 0.8558608000003005,
+          "solver_elapsed_s": 0.278,
+          "iterations": 3248.0,
+          "trace_points": 1239.0,
+          "trace_names": 12.0
+        },
+        "wall_speedup": 1.0182985363968637,
+        "solver_speedup": 1.0251798561151078
+      },
+      "long_adaptive": {
+        "golden": {
+          "error": "vendor hangs after 2 pulses (observed timeout)"
+        },
+        "rom": {
+          "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\epc2216_PIECESPICE_T2.lib",
+          "subcircuit": "epc2216_PIECESPICE_T2",
+          "n_pulses": 20,
+          "max_step": null,
+          "end_time_s": 0.000176,
+          "repeats": 3,
+          "wall_clock_s": 0.963317100000495,
+          "solver_elapsed_s": 0.338,
+          "iterations": 10696.0,
+          "trace_points": 2863.0,
+          "trace_names": 12.0
+        }
+      }
+    },
+    "cpm2-1200": {
+      "short_forced": {
+        "golden": {
+          "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\SpiceModels\\CPM2-1200-0025B-Bare-Die.lib",
+          "subcircuit": "CPM2-1200-0025B",
+          "n_pulses": 2,
+          "max_step": 2e-09,
+          "end_time_s": 1.4e-05,
+          "repeats": 3,
+          "wall_clock_s": 1.2233758000002126,
+          "solver_elapsed_s": 0.531,
+          "iterations": 21310.0,
+          "trace_points": 7154.0,
+          "trace_names": 15.0
+        },
+        "rom": {
+          "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\cpm2-1200_PIECESPICE_T2.lib",
+          "subcircuit": "cpm2-1200_PIECESPICE_T2",
+          "n_pulses": 2,
+          "max_step": 2e-09,
+          "end_time_s": 1.4e-05,
+          "repeats": 3,
+          "wall_clock_s": 1.2006008999996993,
+          "solver_elapsed_s": 0.496,
+          "iterations": 20961.0,
+          "trace_points": 7107.0,
+          "trace_names": 12.0
+        },
+        "wall_speedup": 1.0189695843144204,
+        "solver_speedup": 1.0705645161290323
+      },
+      "short_adaptive": {
+        "golden": {
+          "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\SpiceModels\\CPM2-1200-0025B-Bare-Die.lib",
+          "subcircuit": "CPM2-1200-0025B",
+          "n_pulses": 2,
+          "max_step": null,
+          "end_time_s": 1.4e-05,
+          "repeats": 3,
+          "wall_clock_s": 0.8825686999989557,
+          "solver_elapsed_s": 0.281,
+          "iterations": 4058.0,
+          "trace_points": 1250.0,
+          "trace_names": 15.0
+        },
+        "rom": {
+          "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\cpm2-1200_PIECESPICE_T2.lib",
+          "subcircuit": "cpm2-1200_PIECESPICE_T2",
+          "n_pulses": 2,
+          "max_step": null,
+          "end_time_s": 1.4e-05,
+          "repeats": 3,
+          "wall_clock_s": 0.8573316000001796,
+          "solver_elapsed_s": 0.27,
+          "iterations": 3994.0,
+          "trace_points": 1183.0,
+          "trace_names": 12.0
+        },
+        "wall_speedup": 1.0294368013482424,
+        "solver_speedup": 1.0407407407407407
+      },
+      "long_adaptive": {
+        "golden": {
+          "error": "VM-10 vendor turn-off abort"
+        },
+        "rom": {
+          "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\cpm2-1200_PIECESPICE_T2.lib",
+          "subcircuit": "cpm2-1200_PIECESPICE_T2",
+          "n_pulses": 20,
+          "max_step": null,
+          "end_time_s": 0.000176,
+          "repeats": 3,
+          "wall_clock_s": 0.8681432999983372,
+          "solver_elapsed_s": 0.32,
+          "iterations": 9214.0,
+          "trace_points": 2523.0,
+          "trace_names": 12.0
+        }
+      }
+    }
+  }
+}

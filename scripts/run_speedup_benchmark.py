@@ -19,6 +19,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from parser.netlist import resolve_pin_connections
 from simulation.testbenches.speedup_bench import run_inductive_benchmark
 
 VENDORS = ("irfs7730pbf", "csd16412q5a", "epc2216", "cpm2-1200")
@@ -46,6 +47,9 @@ def main() -> None:
         cfg = yaml.safe_load((ROOT / "config" / "inputs" /
                               f"{vendor}.yaml").read_text(encoding="utf-8"))
         d = cfg["dpt"]
+        roles = resolve_pin_connections(
+            ROOT / cfg["library"], cfg["subcircuit"],
+            cfg["pins"]["pin_order_semantic"])
         common = dict(vbus=d["vbus"], vgs_on=d["vgs_on"],
                       i_load=d["i_load_target"], l_load=d["l_load"],
                       pulse_width=d["t2_width"],
@@ -59,7 +63,7 @@ def main() -> None:
             entry = {}
             for label, lib, sub, pins in (
                 ("golden", ROOT / cfg["library"], cfg["subcircuit"],
-                 cfg["pins"]["pin_order"]),
+                 roles),
                 ("rom", rom_lib, rom_lib.stem, ["drain", "gate", "source"]),
             ):
                 if label == "golden" and case == "long_adaptive" and vendor in SKIP_GOLDEN_LONG:
