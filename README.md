@@ -260,9 +260,9 @@ together with four skipped tests.
 - [x] **M4** — Switching Dynamics & Double Pulse Testbench
       *(metrics, resistive-load subset and inductive DPT)*
 - [ ] **M5** — Switched-Mode Converter Benchmark & Speedup Evaluation
-      *(a DPT-topology runtime benchmark now exists: 20-pulse adaptive run
-      gives 5.5× solver / 3.2× wall-clock on TI, ~1× on IRFS, N/A where the
-      vendor model hangs; no converter benchmark yet)*
+      *(DPT-topology runtime benchmark: 20-pulse TI ~4.9× solver /
+      3.3× wall-clock, other devices ~1×; EPC golden needs a 100 ns
+      step cap in that run. No converter benchmark exists.)*
 - [x] **M6** — Automated HTML Reporting & CLI Polish
       *(the report renders only metrics it is given)*
 
