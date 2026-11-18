@@ -1,0 +1,40 @@
+{
+  "schema": "piecespice.tier3/1.0",
+  "vendor": "irfs7730pbf",
+  "methods": [
+    "TPWL (Rewienski & White 2003)",
+    "POD-DEIM (Chaturantabut & Sorensen 2010)"
+  ],
+  "algorithm": {
+    "weight_exponent": 25.0,
+    "pod_rank": 3,
+    "linearization_points": 3,
+    "linearization_eps": 2.450619586977407,
+    "deim_indices": [
+      "V(xdut:5)",
+      "V(xdut:8)",
+      "V(xdut:7)"
+    ],
+    "smoothing_window": 21,
+    "stability_projection": true,
+    "max_reduced_eigenvalue": 2497.271598067832,
+    "stiffness_bound": 2497.2715980678317,
+    "time_scale_s": 9.989086392271284e-06
+  },
+  "python_validation": {
+    "evaluable": true,
+    "nfev": 9275,
+    "rmse_id": 0.26135724232224666,
+    "rmse_ig": 0.4749355505333919,
+    "rmse_mean": 0.3681463964278193
+  },
+  "spice_validation": {
+    "evaluable": true,
+    "points": 7742,
+    "rmse_id": 54.96446322084133,
+    "rmse_id_rel": 0.39642196171917937,
+    "rmse_ig": 2.917055798325675,
+    "rmse_ig_rel": 0.4728655699606172
+  },
+  "emitted_lib": "reports\\models\\irfs7730pbf_PIECESPICE_T3.lib"
+}

@@ -1,0 +1,38 @@
+{
+  "schema": "piecespice.tier3/1.0",
+  "vendor": "epc2216",
+  "methods": [
+    "TPWL (Rewienski & White 2003)",
+    "POD-DEIM (Chaturantabut & Sorensen 2010)"
+  ],
+  "algorithm": {
+    "weight_exponent": 25.0,
+    "pod_rank": 5,
+    "linearization_points": 3,
+    "linearization_eps": 2.2009308430169128,
+    "deim_indices": [
+      "V(xdut:tl_ds)",
+      "V(xdut:gate)",
+      "V(xdut:source)",
+      "V(xdut:drain)",
+      "V(xdut:tl_gd)"
+    ],
+    "smoothing_window": 21,
+    "stability_projection": true,
+    "max_reduced_eigenvalue": 2497.433977863431,
+    "stiffness_bound": 2497.4339778634303,
+    "time_scale_s": 9.989735911453414e-06
+  },
+  "python_validation": {
+    "evaluable": true,
+    "nfev": 11568,
+    "rmse_id": 0.6712077261028664,
+    "rmse_ig": 0.48449285179019397,
+    "rmse_mean": 0.5778502889465302
+  },
+  "spice_validation": {
+    "evaluable": false,
+    "error": "LTSpiceError: LTspice timed out after 120s (tran)"
+  },
+  "emitted_lib": "reports\\models\\epc2216_PIECESPICE_T3.lib"
+}

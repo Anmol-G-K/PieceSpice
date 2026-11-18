@@ -1,0 +1,40 @@
+{
+  "schema": "piecespice.tier3/1.0",
+  "vendor": "cpm2-1200",
+  "methods": [
+    "TPWL (Rewienski & White 2003)",
+    "POD-DEIM (Chaturantabut & Sorensen 2010)"
+  ],
+  "algorithm": {
+    "weight_exponent": 25.0,
+    "pod_rank": 7,
+    "linearization_points": 8,
+    "linearization_eps": 0.06767638304864107,
+    "deim_indices": [
+      "V(xdut:s1)",
+      "V(xdut:d3)",
+      "V(xdut:g2)",
+      "V(xdut:g1)",
+      "V(xdut:d1)",
+      "V(xdut:g3)",
+      "V(xdut:d2)"
+    ],
+    "smoothing_window": 21,
+    "stability_projection": true,
+    "max_reduced_eigenvalue": 2497.409640834639,
+    "stiffness_bound": 2497.4096408346354,
+    "time_scale_s": 9.989638563338498e-06
+  },
+  "python_validation": {
+    "evaluable": true,
+    "nfev": 12660,
+    "rmse_id": 0.26420514704831316,
+    "rmse_ig": 0.47543227842157715,
+    "rmse_mean": 0.36981871273494515
+  },
+  "spice_validation": {
+    "evaluable": false,
+    "error": "LTSpiceError: LTspice produced no raw output for 'tran' (rc=1). Solver likely failed."
+  },
+  "emitted_lib": "reports\\models\\cpm2-1200_PIECESPICE_T3.lib"
+}
