@@ -1,41 +1,146 @@
 {
-  "schema": "piecespice.tier3/1.0",
+  "schema": "piecespice.tier3/2.0",
   "vendor": "csd16412q5a",
   "methods": [
     "TPWL (Rewienski & White 2003)",
-    "POD-DEIM (Chaturantabut & Sorensen 2010)"
+    "POD-DEIM anchors (Chaturantabut & Sorensen 2010)"
   ],
   "algorithm": {
     "weight_exponent": 25.0,
-    "pod_rank": 8,
-    "linearization_points": 3,
-    "linearization_eps": 1.7701070766626157,
-    "deim_indices": [
-      "V(xdut:12)",
-      "V(xdut:7)",
-      "V(xdut:14)",
-      "V(xdut:5)",
-      "V(xdut:11)",
-      "V(xdut:13)",
-      "V(xdut:6)",
-      "V(xdut:8)"
+    "cells": 8,
+    "pod_energy": [
+      0.9968798010986684,
+      0.003120198901331636
     ],
-    "smoothing_window": 21,
-    "stability_projection": true,
-    "max_reduced_eigenvalue": 2497.4865309421803,
-    "stiffness_bound": 2497.4865309421752,
-    "time_scale_s": 9.98994612376522e-06
+    "deim_seed_count": 2,
+    "edge_smoothing_window": 21,
+    "anchors_scaled": [
+      [
+        0.6025153949415337,
+        -0.5961021727668055
+      ],
+      [
+        -0.10867490027788765,
+        -0.5581144298309394
+      ],
+      [
+        -0.3974846050584663,
+        0.39756902559801366
+      ],
+      [
+        0.0828929736768853,
+        0.09622348087209372
+      ],
+      [
+        0.24777506138440483,
+        -0.5821136857906656
+      ],
+      [
+        -0.18450586055163032,
+        -0.2278734451678685
+      ],
+      [
+        -0.05849599097612983,
+        0.3958073803365525
+      ],
+      [
+        -0.21484123919848092,
+        0.24253645552981054
+      ]
+    ],
+    "v_block_vth": 1.882369687837783,
+    "v_width_v": 0.04983388704318937
   },
-  "python_validation": {
-    "evaluable": true,
-    "nfev": 18908,
-    "rmse_id": 0.27710360689395935,
-    "rmse_ig": 0.43998355404705436,
-    "rmse_mean": 0.35854358047050683
+  "function_fit": {
+    "heldout_id_rmse_rel": 0.07863902841935849,
+    "heldout_qg_rmse_rel": 0.26240843675836906
   },
-  "spice_validation": {
-    "evaluable": false,
-    "error": "LTSpiceError: LTspice timed out after 120s (tran)"
+  "dpt_comparison": {
+    "td_on_ns": {
+      "golden": 7.388513716454634,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 5.408314818582241,
+      "tier2_rel_err_pct": -26.8010451609825
+    },
+    "tr_ns": {
+      "golden": 1.095746039040917,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 1.4861257630541513,
+      "tier2_rel_err_pct": 35.626843274279615
+    },
+    "td_off_ns": {
+      "golden": 12.44075693519395,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 15.01376605189435,
+      "tier2_rel_err_pct": 20.682094587199558
+    },
+    "tf_ns": {
+      "golden": 1.6618198938018818,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 2.2460204524818494,
+      "tier2_rel_err_pct": 35.15426436155148
+    },
+    "dv_dt_max_v_per_ns": {
+      "golden": 600.4276841381004,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 158.23055831928798,
+      "tier2_rel_err_pct": -73.64702486254873
+    },
+    "di_dt_max_a_per_ns": {
+      "golden": 0.6675253760000001,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 0.10114323265643511,
+      "tier2_rel_err_pct": -84.84803180629419
+    },
+    "e_on_uj": {
+      "golden": 1.0626504772529932,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 0.753136436322644,
+      "tier2_rel_err_pct": -29.126608189219382
+    },
+    "e_off_uj": {
+      "golden": 17.971885981979373,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 17.732076246198947,
+      "tier2_rel_err_pct": -1.3343604339627249
+    },
+    "i_peak_a": {
+      "golden": 13.432002067565918,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 13.444268226623535,
+      "tier2_rel_err_pct": 0.09132040775392763
+    }
   },
+  "runtime": {
+    "golden": {
+      "wall_clock_s": 1.1429270000007818,
+      "solver_elapsed_s": 0.53,
+      "iterations": 24435.0
+    },
+    "tier3": {
+      "wall_clock_s": 0.7302209999979823,
+      "solver_elapsed_s": 0.212,
+      "iterations": 648.0
+    },
+    "solver_speedup": 2.5,
+    "bench_wall_s": {
+      "golden": 3.431896800000686,
+      "tier3": 2.179781400001957
+    }
+  },
+  "build_seconds": {
+    "capture": 1.3139443999971263,
+    "fit": 43.75157180000315
+  },
+  "spice_log_tail": "TypeError: DoublePulseRun.__init__() missing 1 required positional argument: 'v_ds'",
   "emitted_lib": "reports\\models\\csd16412q5a_PIECESPICE_T3.lib"
 }

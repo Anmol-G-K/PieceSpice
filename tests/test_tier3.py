@@ -1,7 +1,13 @@
-"""Unit tests for the paper-defined parts of Tier-3 TPWL/POD-DEIM."""
+"""Unit tests for the paper-defined parts of the Tier-3 TPWL terminal model."""
 import numpy as np
 
-from tier3.tpwl_deim import TPWLModel, WEIGHT_EXPONENT, deim_indices
+from tier3.tpwl_deim import (
+    WEIGHT_EXPONENT,
+    TPWLTerminalModel,
+    deim_indices,
+    paper_weights,
+)
+
 
 def test_deim_indices_are_distinct_and_interpolatory():
     rng = np.random.default_rng(0)
@@ -16,20 +22,30 @@ def test_deim_indices_are_distinct_and_interpolatory():
     assert np.allclose((proj @ v)[idx], v[idx])
 
 
-def test_tpwl_weights_follow_paper_formula():
-    model = TPWLModel(
-        vendor="test", basis=np.zeros((1, 1)), x_mean=np.zeros(1),
-        z_points=np.array([[0.0], [1.0]]), Ared=np.zeros((2, 1, 1)),
-        Bred=np.zeros((2, 1, 1)), gamma=np.zeros((2, 1)),
-        C=np.zeros((1, 1)), D=np.zeros((1, 1)), e=np.zeros(1),
-        deim_indices=np.array([0]), deim_coeff=np.ones((1, 1)),
-        z0=np.zeros(1), time=np.array([0.0]), state_names=["n"],
-        pin_roles=["drain", "gate", "source"], subcircuit="X", r=1,
-        n_points=2, eps=1.0, validation_rmse=0.0,
-    )
+def test_paper_weights_follow_rewienski_white_formula():
     assert WEIGHT_EXPONENT == 25.0
-    mid = model.weights(np.array([0.5]))
-    assert np.allclose(mid, [0.5, 0.5])
-    near = model.weights(np.array([0.1]))
-    assert near[0] > near[1]
-    assert np.isclose(near.sum(), 1.0)
+    anchors = np.array([[0.0, 0.0], [1.0, 0.0]])
+    mid = paper_weights(anchors, np.array([[0.5], [0.0]]))
+    assert np.allclose(mid[:, 0], [0.5, 0.5])
+    near = paper_weights(anchors, np.array([[0.1], [0.0]]))
+    assert near[0, 0] > near[1, 0]
+    assert np.isclose(near[:, 0].sum(), 1.0)
+    # far from every anchor the weights stay normalised and finite
+    far = paper_weights(anchors, np.array([[50.0], [0.0]]))
+    assert np.all(np.isfinite(far[:, 0]))
+    assert np.isclose(far[:, 0].sum(), 1.0)
+
+
+def test_single_cell_model_predicts_its_affine_channel():
+    model = TPWLTerminalModel(
+        vendor="t", subcircuit="T", pin_roles=["drain", "gate", "source"],
+        anchors=np.array([[0.0, 0.0]]),
+        v_ref=np.zeros(2), v_span=np.ones(2),
+        channel=np.array([[1.0, 2.0, 3.0]]),
+        charge_d=np.zeros((1, 2)),
+        charge_g=np.zeros((1, 3)), edge_window=3)
+    t = np.linspace(0.0, 1e-6, 11)
+    u = np.vstack([np.linspace(0.0, 1.0, 11), np.zeros(11)])
+    id_pred, qg_pred = model.predict(t, u)
+    assert np.allclose(id_pred, 1.0 + 2.0 * u[0])
+    assert np.allclose(qg_pred, 0.0)

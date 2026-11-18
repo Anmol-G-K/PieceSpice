@@ -1,40 +1,162 @@
 {
-  "schema": "piecespice.tier3/1.0",
+  "schema": "piecespice.tier3/2.0",
   "vendor": "irfs7730pbf",
   "methods": [
     "TPWL (Rewienski & White 2003)",
-    "POD-DEIM (Chaturantabut & Sorensen 2010)"
+    "POD-DEIM anchors (Chaturantabut & Sorensen 2010)"
   ],
   "algorithm": {
     "weight_exponent": 25.0,
-    "pod_rank": 3,
-    "linearization_points": 3,
-    "linearization_eps": 2.450619586977407,
-    "deim_indices": [
-      "V(xdut:5)",
-      "V(xdut:8)",
-      "V(xdut:7)"
+    "cells": 12,
+    "pod_energy": [
+      0.9887564193827599,
+      0.011243580617240111
     ],
-    "smoothing_window": 21,
-    "stability_projection": true,
-    "max_reduced_eigenvalue": 2497.271598067832,
-    "stiffness_bound": 2497.2715980678317,
-    "time_scale_s": 9.989086392271284e-06
+    "deim_seed_count": 2,
+    "edge_smoothing_window": 21,
+    "anchors_scaled": [
+      [
+        -0.4989799387168823,
+        0.5045796685807056
+      ],
+      [
+        0.5010200612831177,
+        0.49757102467218817
+      ],
+      [
+        -0.04897993871688229,
+        -0.4892036119719119
+      ],
+      [
+        0.5010200612831177,
+        -0.21437476466467065
+      ],
+      [
+        -0.4989799387168823,
+        -0.10978686122753183
+      ],
+      [
+        0.03151904275894779,
+        0.4918799372263611
+      ],
+      [
+        -0.4489799387168823,
+        -0.4890385135933331
+      ],
+      [
+        0.5010200612831177,
+        0.14432062437905788
+      ],
+      [
+        0.3510200612831177,
+        -0.4892212319531816
+      ],
+      [
+        -0.4989799387168823,
+        0.2427195841307583
+      ],
+      [
+        -0.244660318584436,
+        0.5045135261880002
+      ],
+      [
+        0.2315190427589478,
+        0.497397976575125
+      ]
+    ],
+    "v_block_vth": 4.348318313631395,
+    "v_width_v": 0.09933774834437085
   },
-  "python_validation": {
-    "evaluable": true,
-    "nfev": 9275,
-    "rmse_id": 0.26135724232224666,
-    "rmse_ig": 0.4749355505333919,
-    "rmse_mean": 0.3681463964278193
+  "function_fit": {
+    "heldout_id_rmse_rel": 0.35696216252785706,
+    "heldout_qg_rmse_rel": 0.05709095911110249
   },
-  "spice_validation": {
-    "evaluable": true,
-    "points": 7742,
-    "rmse_id": 54.96446322084133,
-    "rmse_id_rel": 0.39642196171917937,
-    "rmse_ig": 2.917055798325675,
-    "rmse_ig_rel": 0.4728655699606172
+  "dpt_comparison": {
+    "td_on_ns": {
+      "golden": 32.29627698150211,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 17.081334133714805,
+      "tier2_rel_err_pct": -47.11051634992404
+    },
+    "tr_ns": {
+      "golden": 25.84350961529235,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 2.892552707266252,
+      "tier2_rel_err_pct": -88.80743076182407
+    },
+    "td_off_ns": {
+      "golden": 62.182902750101924,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 17.134184632214943,
+      "tier2_rel_err_pct": -72.44550531667346
+    },
+    "tf_ns": {
+      "golden": 26.538999478329874,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 2.5289703561538817,
+      "tier2_rel_err_pct": -90.47073964405146
+    },
+    "dv_dt_max_v_per_ns": {
+      "golden": 35.93467060024436,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 587.4770711811311,
+      "tier2_rel_err_pct": 1534.8475201471201
+    },
+    "di_dt_max_a_per_ns": {
+      "golden": 0.22686931200000002,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 2.497784249508453,
+      "tier2_rel_err_pct": 1000.9793380554056
+    },
+    "e_on_uj": {
+      "golden": 157.43281606412236,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 71.09326472844484,
+      "tier2_rel_err_pct": -54.84215647931461
+    },
+    "e_off_uj": {
+      "golden": 596.9637000429396,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 533.4319489514241,
+      "tier2_rel_err_pct": -10.642481458578748
+    },
+    "i_peak_a": {
+      "golden": 138.5330810546875,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 136.9910430908203,
+      "tier2_rel_err_pct": -1.1131189403478658
+    }
   },
+  "runtime": {
+    "golden": {
+      "wall_clock_s": 0.9782425999983388,
+      "solver_elapsed_s": 0.42,
+      "iterations": 14825.0
+    },
+    "tier3": {
+      "wall_clock_s": 0.8159000999985437,
+      "solver_elapsed_s": 0.311,
+      "iterations": 620.0
+    },
+    "solver_speedup": 1.3504823151125402,
+    "bench_wall_s": {
+      "golden": 2.927628500001447,
+      "tier3": 2.468117299998994
+    }
+  },
+  "build_seconds": {
+    "capture": 1.1774476999999024,
+    "fit": 27.163181600000826
+  },
+  "spice_log_tail": "ValueError: zero-size array to reduction operation maximum which has no identity",
   "emitted_lib": "reports\\models\\irfs7730pbf_PIECESPICE_T3.lib"
 }

@@ -1,38 +1,130 @@
 {
-  "schema": "piecespice.tier3/1.0",
+  "schema": "piecespice.tier3/2.0",
   "vendor": "epc2216",
   "methods": [
     "TPWL (Rewienski & White 2003)",
-    "POD-DEIM (Chaturantabut & Sorensen 2010)"
+    "POD-DEIM anchors (Chaturantabut & Sorensen 2010)"
   ],
   "algorithm": {
     "weight_exponent": 25.0,
-    "pod_rank": 5,
-    "linearization_points": 3,
-    "linearization_eps": 2.2009308430169128,
-    "deim_indices": [
-      "V(xdut:tl_ds)",
-      "V(xdut:gate)",
-      "V(xdut:source)",
-      "V(xdut:drain)",
-      "V(xdut:tl_gd)"
+    "cells": 4,
+    "pod_energy": [
+      0.9970954871092782,
+      0.0029045128907217383
     ],
-    "smoothing_window": 21,
-    "stability_projection": true,
-    "max_reduced_eigenvalue": 2497.433977863431,
-    "stiffness_bound": 2497.4339778634303,
-    "time_scale_s": 9.989735911453414e-06
+    "deim_seed_count": 2,
+    "edge_smoothing_window": 21,
+    "anchors_scaled": [
+      [
+        0.5231186832023391,
+        -0.5167199223436217
+      ],
+      [
+        -0.04453711857073213,
+        -0.5161560633979884
+      ],
+      [
+        -0.4768813167976608,
+        0.48327959217371536
+      ],
+      [
+        -0.08382790436022187,
+        0.08364017604176653
+      ]
+    ],
+    "v_block_vth": 1.3038702077826494,
+    "v_width_v": 0.049586776859504134
   },
-  "python_validation": {
-    "evaluable": true,
-    "nfev": 11568,
-    "rmse_id": 0.6712077261028664,
-    "rmse_ig": 0.48449285179019397,
-    "rmse_mean": 0.5778502889465302
+  "function_fit": {
+    "heldout_id_rmse_rel": 0.06162873892383995,
+    "heldout_qg_rmse_rel": 0.43962528567830705
   },
-  "spice_validation": {
-    "evaluable": false,
-    "error": "LTSpiceError: LTspice timed out after 120s (tran)"
+  "dpt_comparison": {
+    "td_on_ns": {
+      "golden": 8.279633410423578,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 8.51059303501782,
+      "tier2_rel_err_pct": 2.7894909490011575
+    },
+    "tr_ns": {
+      "golden": 0.8455906106561757,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 0.8378172211750414,
+      "tier2_rel_err_pct": -0.9192852171220465
+    },
+    "td_off_ns": {
+      "golden": 6.954277428144817,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 7.049488582885772,
+      "tier2_rel_err_pct": 1.3691020486991767
+    },
+    "tf_ns": {
+      "golden": 1.2274909896712498,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 1.3428684081228792,
+      "tier2_rel_err_pct": 9.3994513542238
+    },
+    "dv_dt_max_v_per_ns": {
+      "golden": 3556.2034081685165,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 175.83101776359916,
+      "tier2_rel_err_pct": -95.05565352758734
+    },
+    "di_dt_max_a_per_ns": {
+      "golden": 3.7103493120000004,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 0.1449314523649215,
+      "tier2_rel_err_pct": -96.09385962943745
+    },
+    "e_on_uj": {
+      "golden": 1.0914983705530676,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 1.1489460307901267,
+      "tier2_rel_err_pct": 5.263192487218285
+    },
+    "e_off_uj": {
+      "golden": 15.627365907947942,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 15.413235527544533,
+      "tier2_rel_err_pct": -1.3702269574074817
+    },
+    "i_peak_a": {
+      "golden": 13.239307403564453,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 13.227612495422363,
+      "tier2_rel_err_pct": -0.08833474278980177
+    }
   },
+  "runtime": {
+    "golden": {
+      "wall_clock_s": 1.0519644000014523,
+      "solver_elapsed_s": 0.455,
+      "iterations": 23036.0
+    },
+    "tier3": {
+      "wall_clock_s": null,
+      "solver_elapsed_s": null,
+      "iterations": null
+    },
+    "solver_speedup": null,
+    "bench_wall_s": {
+      "golden": 3.1532129000006535,
+      "tier3": 120.02595260000089
+    }
+  },
+  "build_seconds": {
+    "capture": 1.1309483000004548,
+    "fit": 33.24245719999817
+  },
+  "spice_log_tail": "LTSpiceError: LTspice timed out after 120s (tran)",
   "emitted_lib": "reports\\models\\epc2216_PIECESPICE_T3.lib"
 }

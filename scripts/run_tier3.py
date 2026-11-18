@@ -1,4 +1,4 @@
-"""Build and validate Tier-3 TPWL/POD-DEIM models for the configured vendors.
+"""Build and validate Tier-3 TPWL terminal models for the configured vendors.
 
 Usage:
     uv run python scripts/run_tier3.py                 # all four vendors
@@ -11,23 +11,28 @@ import sys
 from tier3.pipeline import run_vendor
 
 VENDORS = ("irfs7730pbf", "csd16412q5a", "epc2216", "cpm2-1200")
+SHOW = ("tr_ns", "tf_ns", "e_on_uj", "e_off_uj")
 
 
 def main() -> None:
     names = tuple(sys.argv[1:]) or VENDORS
     for vendor in names:
         record = run_vendor(vendor)
-        py = record["python_validation"]
-        sp = record["spice_validation"]
-        py_rmse = py.get("rmse_mean", py.get("reason", "N/A"))
-        if sp.get("evaluable"):
-            detail = (f"spice_id_rel={sp['rmse_id_rel']:.4g} "
-                      f"spice_ig_rel={sp['rmse_ig_rel']:.4g}")
-        else:
-            detail = f"spice=N/A ({sp.get('error', 'failed')[:60]})"
-        print(f"{vendor:14s} r={record['algorithm']['pod_rank']:2d} "
-              f"s={record['algorithm']['linearization_points']:2d} "
-              f"py_rmse={py_rmse} {detail}", flush=True)
+        algo = record["algorithm"]
+        ff = record["function_fit"]
+        print(f"{vendor:14s} cells={algo['cells']:2d} "
+              f"fit_id={ff['heldout_id_rmse_rel']:.3g} "
+              f"fit_qg={ff['heldout_qg_rmse_rel']:.3g}", flush=True)
+        for m in SHOW:
+            row = record["dpt_comparison"][m]
+            t3, t2 = row["tier3"], row.get("tier2")
+            t3_txt = (f"{t3:9.4g} ({row['tier3_rel_err_pct']:+7.1f}%)"
+                      if t3 is not None else "N/A")
+            t2_txt = (f"{t2:9.4g} "
+                      f"({row.get('tier2_rel_err_pct', float('nan')):+7.1f}%)"
+                      if t2 is not None else "N/A")
+            print(f"    {m:9s} golden={row['golden']:9.4g} "
+                  f"tier3={t3_txt}  tier2={t2_txt}", flush=True)
 
 
 if __name__ == "__main__":

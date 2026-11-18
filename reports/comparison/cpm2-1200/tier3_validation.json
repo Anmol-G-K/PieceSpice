@@ -1,40 +1,210 @@
 {
-  "schema": "piecespice.tier3/1.0",
+  "schema": "piecespice.tier3/2.0",
   "vendor": "cpm2-1200",
   "methods": [
     "TPWL (Rewienski & White 2003)",
-    "POD-DEIM (Chaturantabut & Sorensen 2010)"
+    "POD-DEIM anchors (Chaturantabut & Sorensen 2010)"
   ],
   "algorithm": {
     "weight_exponent": 25.0,
-    "pod_rank": 7,
-    "linearization_points": 8,
-    "linearization_eps": 0.06767638304864107,
-    "deim_indices": [
-      "V(xdut:s1)",
-      "V(xdut:d3)",
-      "V(xdut:g2)",
-      "V(xdut:g1)",
-      "V(xdut:d1)",
-      "V(xdut:g3)",
-      "V(xdut:d2)"
+    "cells": 24,
+    "pod_energy": [
+      0.9983383020725715,
+      0.001661697927428402
     ],
-    "smoothing_window": 21,
-    "stability_projection": true,
-    "max_reduced_eigenvalue": 2497.409640834639,
-    "stiffness_bound": 2497.4096408346354,
-    "time_scale_s": 9.989638563338498e-06
+    "deim_seed_count": 2,
+    "edge_smoothing_window": 21,
+    "anchors_scaled": [
+      [
+        0.5034323145976809,
+        -0.5043722976230215
+      ],
+      [
+        -0.35696183210964194,
+        -0.419447747923666
+      ],
+      [
+        -0.01463949580677869,
+        0.49476530378603023
+      ],
+      [
+        -0.49656768540231905,
+        0.21416600522583465
+      ],
+      [
+        0.10086137818275039,
+        -0.1337762442608101
+      ],
+      [
+        0.07485165960568334,
+        -0.47614355597523
+      ],
+      [
+        -0.35992663336815295,
+        0.49556758192260425
+      ],
+      [
+        0.026033442222192664,
+        0.15867798766104046
+      ],
+      [
+        -0.49656768540231905,
+        -0.07378256064644752
+      ],
+      [
+        0.28914445076033285,
+        -0.5039592083050564
+      ],
+      [
+        -0.12514836158707926,
+        -0.47210510936950967
+      ],
+      [
+        0.17177818980791315,
+        -0.3263176700547134
+      ],
+      [
+        -0.1888246658744599,
+        0.4955734473327871
+      ],
+      [
+        -0.017789588037681468,
+        0.3163376014357831
+      ],
+      [
+        -0.45743009679537866,
+        -0.2322316677965062
+      ],
+      [
+        -0.49656768540231905,
+        0.36080639203118686
+      ],
+      [
+        -0.49656768540231905,
+        0.4956277023769785
+      ],
+      [
+        0.06948173145762561,
+        -0.01718231467572895
+      ],
+      [
+        -0.49656768540231905,
+        0.041480539444605176
+      ],
+      [
+        -0.2251483456925073,
+        -0.4652927361589511
+      ],
+      [
+        -0.02514835099069796,
+        -0.47481954559333306
+      ],
+      [
+        0.17485167020206463,
+        -0.4768611092927417
+      ],
+      [
+        0.38572845293725344,
+        -0.5042289205816108
+      ],
+      [
+        -0.09346873130753824,
+        0.4651742177664791
+      ]
+    ],
+    "v_block_vth": 2.4672094145234116,
+    "v_width_v": 0.0990049751243781
   },
-  "python_validation": {
-    "evaluable": true,
-    "nfev": 12660,
-    "rmse_id": 0.26420514704831316,
-    "rmse_ig": 0.47543227842157715,
-    "rmse_mean": 0.36981871273494515
+  "function_fit": {
+    "heldout_id_rmse_rel": 0.21650865482255915,
+    "heldout_qg_rmse_rel": 0.2538396390954648
   },
-  "spice_validation": {
-    "evaluable": false,
-    "error": "LTSpiceError: LTspice produced no raw output for 'tran' (rc=1). Solver likely failed."
+  "dpt_comparison": {
+    "td_on_ns": {
+      "golden": 10.252879764066485,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 11.780657210018502,
+      "tier2_rel_err_pct": 14.900959351015269
+    },
+    "tr_ns": {
+      "golden": 4.703011959080317,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 4.123180135595054,
+      "tier2_rel_err_pct": -12.328946397122296
+    },
+    "td_off_ns": {
+      "golden": 14.034458010213152,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 18.242309580736105,
+      "tier2_rel_err_pct": 29.982287648449386
+    },
+    "tf_ns": {
+      "golden": 4.139181554911007,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 8.788832112198792,
+      "tier2_rel_err_pct": 112.33260719794045
+    },
+    "dv_dt_max_v_per_ns": {
+      "golden": 373.7322739993671,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 374.9478906231432,
+      "tier2_rel_err_pct": 0.3252640214257114
+    },
+    "di_dt_max_a_per_ns": {
+      "golden": 0.595746176,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 0.3811123163714551,
+      "tier2_rel_err_pct": -36.027736018324845
+    },
+    "e_on_uj": {
+      "golden": 5.618961077859762,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 6.109476707046132,
+      "tier2_rel_err_pct": 8.729649883483535
+    },
+    "e_off_uj": {
+      "golden": 56.69922530455782,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 57.041822545858814,
+      "tier2_rel_err_pct": 0.6042361945171991
+    },
+    "i_peak_a": {
+      "golden": 26.82243537902832,
+      "tier3": null,
+      "tier3_rel_err_pct": NaN,
+      "tier2": 26.73192024230957,
+      "tier2_rel_err_pct": -0.3374605453967135
+    }
   },
+  "runtime": {
+    "golden": {
+      "wall_clock_s": 1.137884000003396,
+      "solver_elapsed_s": 0.513,
+      "iterations": 21310.0
+    },
+    "tier3": {
+      "wall_clock_s": null,
+      "solver_elapsed_s": null,
+      "iterations": null
+    },
+    "solver_speedup": null,
+    "bench_wall_s": {
+      "golden": 3.4389547999999195,
+      "tier3": 120.03947440000047
+    }
+  },
+  "build_seconds": {
+    "capture": 1.049799799999164,
+    "fit": 31.96599359999891
+  },
+  "spice_log_tail": "LTSpiceError: LTspice timed out after 120s (tran)",
   "emitted_lib": "reports\\models\\cpm2-1200_PIECESPICE_T3.lib"
 }

@@ -1,15 +1,17 @@
-"""End-to-end Tier-3 (TPWL + POD-DEIM) build and validation for one vendor.
+"""End-to-end Tier-3 (TPWL terminal model) build and validation.
 
 Writes:
-  reports/models/<vendor>_PIECESPICE_T3.lib       emitted ASCII subcircuit
+  reports/models/<vendor>_PIECESPICE_T3.lib            emitted subcircuit
   reports/comparison/<vendor>/tier3_validation.json   measured metrics
 
-No number is fabricated: every reported value comes from the captured
-trajectory, the fit, or an LTspice run of the emitted subcircuit.
+Everything reported is measured: function-fit errors on the held-out
+second pulse, LTspice DPT figures of the emitted subcircuit, and runtime
+medians from the same benchmark that produced the Tier-2 numbers.
 """
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 import numpy as np
@@ -17,86 +19,199 @@ import numpy as np
 from config.yaml_io import load_input
 from simulation.engine import SpiceEngine, TranDirective
 from simulation.netlist_text import NetlistBuilder
-from simulation.testbenches.speedup_bench import _pulse_train
+from simulation.testbenches.double_pulse import (
+    DoublePulseRun,
+    extract_dpt_metrics,
+)
+from simulation.testbenches.speedup_bench import (
+    _pulse_train,
+    run_inductive_benchmark,
+)
 from tier3.emitter import emit_subcircuit
-from tier3.tpwl_deim import TPWLModel, build_model, validate_dynamics
-from tier3.trajectory import Trajectory, capture_trajectory
+from tier3.tpwl_deim import build_model
+from tier3.trajectory import capture_trajectory
 
 ROOT = Path(__file__).resolve().parent.parent
+METRICS = ("td_on_ns", "tr_ns", "td_off_ns", "tf_ns",
+           "dv_dt_max_v_per_ns", "di_dt_max_a_per_ns",
+           "e_on_uj", "e_off_uj", "i_peak_a")
 
 
-def simulate_emitted(model: TPWLModel, lib_path: Path,
-                     traj: Trajectory) -> dict:
-    """Run the emitted subcircuit in the same DPT bench as the golden model."""
-    cfg = load_input(model.vendor)
-    dpt = cfg["dpt"]
-    nb = NetlistBuilder(f"T3_CHECK_{model.vendor}")
+def _dpt_conditions(vendor: str) -> dict:
+    dpt = load_input(vendor)["dpt"]
+    return {k: float(v) for k, v in dpt.items()}
+
+
+def _run_emitted_dpt(model, lib_path: Path, vendor: str):
+    """Simulate the emitted subcircuit in the vendor's DPT bench."""
+    dpt = _dpt_conditions(vendor)
+    cfg = load_input(vendor)
+    temp = float(cfg["conditions"]["temperature"])
+    name = f"{model.vendor.upper()}_TPWL_DEIM"
+    nb = NetlistBuilder(f"T3_DPT_{vendor}")
     nb.include(lib_path)
-    nb.v_dc("bus", "vbus", "0", float(dpt["vbus"]))
-    nb.l("load", "vbus", "drain", float(dpt["l_load"]))
+    nb.v_dc("bus", "vbus", "0", dpt["vbus"])
+    nb.l("load", "vbus", "drain", dpt["l_load"])
     nb.raw_line("Dclamp drain vbus DCLAMP")
     nb.raw_line(".model DCLAMP D(IS=1e-12 N=1 RS=1e-3 CJO=0)")
     nb.raw_line("Vgs gate 0 PWL(" + _pulse_train(
-        float(dpt["t1_on"]), float(dpt["t1_width"]), float(dpt["t2_width"]),
-        float(dpt["t2_on"]) - float(dpt["t1_on"]), 2,
-        float(dpt["edge_time"]), float(dpt["vgs_on"])) + ")")
-    name = f"{model.vendor.upper()}_TPWL_DEIM"
-    nb.x_instance("dut", name, model.pin_roles,
-                  temperature=cfg["conditions"]["temperature"])
-    step = float(dpt["max_step"])
-    try:
-        result = SpiceEngine(timeout_s=120.0).run_transient(
-            nb.render(), TranDirective(step_time=step, end_time=float(dpt["t_end"]),
-                                       max_step=step))
-        t = np.asarray(result.get("time"))
-        id_sim = np.asarray(result.get("I(Lload)")) - np.asarray(result.get("I(Dclamp)"))
-        ig_sim = -np.asarray(result.get("I(Vgs)"))
-    except Exception as exc:  # solver failures are reported, never fabricated
-        return {"evaluable": False, "error": f"{type(exc).__name__}: {exc}"[:220]}
-    if len(t) < 0.5 * len(traj.time):
-        return {"evaluable": False,
-                "error": f"solver truncated at {len(t)} of {len(traj.time)} samples"}
-    t_ref = traj.time
-    id_ref = np.interp(t, t_ref, traj.output[0])
-    ig_ref = np.interp(t, t_ref, traj.output[1])
-    span_id = float(np.ptp(id_ref)) or 1.0
-    span_ig = float(np.ptp(ig_ref)) or 1.0
-    return {"evaluable": True, "points": len(t), "rmse_id": float(np.sqrt(np.mean((id_sim - id_ref) ** 2))),
-            "rmse_id_rel": float(np.sqrt(np.mean((id_sim - id_ref) ** 2)) / span_id),
-            "rmse_ig": float(np.sqrt(np.mean((ig_sim - ig_ref) ** 2))),
-            "rmse_ig_rel": float(np.sqrt(np.mean((ig_sim - ig_ref) ** 2)) / span_ig)}
+        dpt["t1_on"], dpt["t1_width"], dpt["t2_width"],
+        dpt["t2_on"] - dpt["t1_on"], 2, dpt["edge_time"],
+        dpt["vgs_on"]) + ")")
+    nb.x_instance("dut", name, model.pin_roles, temperature=temp)
+    t0 = time.perf_counter()
+    res = SpiceEngine(timeout_s=120.0).run_transient(
+        nb.render(), TranDirective(step_time=dpt["max_step"],
+                                   end_time=dpt["t_end"],
+                                   max_step=dpt["max_step"]))
+    wall = time.perf_counter() - t0
+    run = DoublePulseRun(
+        time=np.asarray(res.get("time")),
+        v_ds=np.asarray(res.get("V(drain)")),
+        i_d=np.abs(np.asarray(res.get("I(Lload)"), dtype=float)),
+        v_gs=np.asarray(res.get("V(gate)")),
+        v_bus=dpt["vbus"], i_load=dpt["i_load_target"],
+        l_load=dpt["l_load"], vgs_on=dpt["vgs_on"],
+        wall_clock_s=float(wall), t2_on=dpt["t2_on"])
+    return run, res.log_text
+
+
+def _rel_err(value, ref) -> float:
+    if value is None or ref is None or ref == 0:
+        return float("nan")
+    return float((value - ref) / abs(ref) * 100.0)
 
 
 def run_vendor(vendor: str) -> dict:
     """Build, validate, emit and persist one vendor's Tier-3 model."""
+    t0 = time.perf_counter()
     traj = capture_trajectory(vendor)
-    model = build_model(traj)
-    python_validation = validate_dynamics(model, traj)
+    capture_wall = time.perf_counter() - t0
+
+    # AC-derived Coss(Vds): base drain charge (the DPT never moves Vds at
+    # Vgs = 0, so this table is what keeps the blocking state physical).
+    from config.yaml_io import load_output
+    cfg = load_input(vendor)
+    cond = cfg["conditions"]
+    v_block = None
+    try:
+        v_block = float(load_output(
+            vendor, "curve7_threshold_voltage")["extracted"]["vth_v"])
+    except (FileNotFoundError, KeyError, ValueError):
+        pass
+    v_width = float(cond["Vgs_transfer_max"]) / \
+        float(cond["Vgs_transfer_points"])
+    coss_curve = None
+    cond = cfg["conditions"]
+    coss_curve = None
+    try:
+        from simulation.testbenches.capacitance import CapacitanceTestbench
+        _, coss, _ = CapacitanceTestbench(
+            f_meas=cond.get("F_meas")).run(
+            Path(cfg["library"]).resolve(), cfg["subcircuit"],
+            vds_min=cond["Vds_cap_min"], vds_max=cond["Vds_cap_max"],
+            points=cond["Cap_points"],
+            pin_roles=cfg.get("pins", {}).get("pin_order"))
+        coss_curve = (np.asarray(coss.x_data), np.asarray(coss.y_data))
+    except Exception as exc:  # reported, never fabricated
+        print(f"[tier3] {vendor}: Coss base unavailable ({exc})", flush=True)
+    model = build_model(traj, coss_curve=coss_curve,
+                        v_block=v_block, v_width=v_width)
+    fit_wall = time.perf_counter() - t0 - capture_wall
 
     lib = ROOT / "reports" / "models" / f"{vendor}_PIECESPICE_T3.lib"
     lib.parent.mkdir(parents=True, exist_ok=True)
-    text = emit_subcircuit(model)
-    lib.write_text(text, encoding="ascii")
+    lib.write_text(emit_subcircuit(model), encoding="ascii")
+    dpt = _dpt_conditions(vendor)
+    golden_run = DoublePulseRun(
+        time=traj.time, v_ds=traj.input[1],
+        i_d=np.abs(traj.result.get("I(Lload)")),
+        v_gs=traj.input[0], v_bus=dpt["vbus"],
+        i_load=dpt["i_load_target"], l_load=dpt["l_load"],
+        vgs_on=dpt["vgs_on"], wall_clock_s=capture_wall,
+        t2_on=dpt["t2_on"])
+    golden = extract_dpt_metrics(golden_run)
 
-    spice = simulate_emitted(model, lib, traj)
+    try:
+        tier3_run, log = _run_emitted_dpt(model, lib, vendor)
+        tier3 = extract_dpt_metrics(tier3_run)
+    except Exception as exc:  # solver failures are reported, never fabricated
+        tier3_run, log, tier3 = None, f"{type(exc).__name__}: {exc}", {}
+        print(f"[tier3] {vendor}: emitted DPT failed: {type(exc).__name__}",
+              flush=True)
+    recorded = ROOT / "reports" / "comparison" / vendor / "dpt_metrics.json"
+    tier2 = json.loads(recorded.read_text(encoding="utf-8"))["tier2_metrics"] \
+        if recorded.exists() else {}
+
+    comparison = {}
+    for m in METRICS:
+        g, t3 = golden.get(m), tier3.get(m)
+        row = {"golden": g, "tier3": t3,
+               "tier3_rel_err_pct": _rel_err(t3, g)}
+        if m in tier2:
+            row["tier2"] = tier2[m]
+            row["tier2_rel_err_pct"] = _rel_err(tier2[m], g)
+        comparison[m] = row
+
+    # runtime medians from the same benchmark that produced the Tier-2 table
+    cfg = load_input(vendor)
+    bench_kw = {
+        "vbus": dpt["vbus"], "vgs_on": dpt["vgs_on"],
+        "i_load": dpt["i_load_target"], "l_load": dpt["l_load"],
+        "first_pulse_width": dpt["t1_width"],
+        "pulse_width": dpt["t2_width"],
+        "pulse_period": dpt["t2_on"] - dpt["t1_on"],
+        "n_pulses": 2, "edge_time": dpt["edge_time"],
+        "max_step": dpt["max_step"], "repeats": 3, "timeout_s": 120.0,
+    }
+    t1 = time.perf_counter()
+    golden_time = run_inductive_benchmark(
+        Path(cfg["library"]).resolve(), cfg["subcircuit"],
+        model.pin_roles, **bench_kw)
+    bench_wall_golden = time.perf_counter() - t1
+    t1 = time.perf_counter()
+    try:
+        rom_time = run_inductive_benchmark(
+            lib, f"{model.vendor.upper()}_TPWL_DEIM",
+            model.pin_roles, **bench_kw)
+    except Exception as exc:  # reported, never fabricated
+        rom_time = {"wall_clock_s": None, "solver_elapsed_s": None,
+                    "iterations": None, "error": str(exc)[:200]}
+    bench_wall_rom = time.perf_counter() - t1
+
     record = {
-        "schema": "piecespice.tier3/1.0",
+        "schema": "piecespice.tier3/2.0",
         "vendor": vendor,
-        "methods": ["TPWL (Rewienski & White 2003)", "POD-DEIM (Chaturantabut & Sorensen 2010)"],
+        "methods": ["TPWL (Rewienski & White 2003)",
+                    "POD-DEIM anchors (Chaturantabut & Sorensen 2010)"],
         "algorithm": {
-            "weight_exponent": model.meta["weight_exponent"],
-            "pod_rank": model.r,
-            "linearization_points": model.n_points,
-            "linearization_eps": model.eps,
-            "deim_indices": model.meta["deim_index_names"],
-            "smoothing_window": model.meta["smoothing_window"],
-            "stability_projection": model.meta["stability_projection"],
-            "max_reduced_eigenvalue": model.meta["max_reduced_eigenvalue"],
-            "stiffness_bound": model.meta["stiffness_bound"],
-            "time_scale_s": model.time_scale,
+            "weight_exponent": 25.0,
+            "cells": model.meta["cells"],
+            "pod_energy": model.meta["pod_energy"],
+            "deim_seed_count": model.meta["deim_seed_count"],
+            "edge_smoothing_window": model.edge_window,
+            "anchors_scaled": model.anchors.tolist(),
+            "v_block_vth": model.v_block,
+            "v_width_v": model.v_width,
         },
-        "python_validation": python_validation,
-        "spice_validation": spice,
+        "function_fit": {
+            "heldout_id_rmse_rel": model.meta["heldout_id_rmse"],
+            "heldout_qg_rmse_rel": model.meta["heldout_qg_rmse"],
+        },
+        "dpt_comparison": comparison,
+        "runtime": {
+            "golden": {k: golden_time[k] for k in
+                       ("wall_clock_s", "solver_elapsed_s", "iterations")},
+            "tier3": {k: rom_time[k] for k in
+                      ("wall_clock_s", "solver_elapsed_s", "iterations")},
+            "solver_speedup": (
+                golden_time["solver_elapsed_s"] / rom_time["solver_elapsed_s"]
+                if rom_time["solver_elapsed_s"] else None),
+            "bench_wall_s": {"golden": bench_wall_golden,
+                             "tier3": bench_wall_rom},
+        },
+        "build_seconds": {"capture": capture_wall, "fit": fit_wall},
+        "spice_log_tail": "\n".join(log.splitlines()[-6:]),
         "emitted_lib": str(lib.relative_to(ROOT)),
     }
     out = ROOT / "reports" / "comparison" / vendor / "tier3_validation.json"
