@@ -9,6 +9,7 @@ class StaticErrorMetrics(BaseModel):
     max_abs_error: float
     rmse: float
     relative_rmse_pct: float
+    peak_rmse_pct: float = 0.0       # RMSE / max|golden|; stable for near-zero curves
     r_squared: float
 
 
@@ -21,6 +22,8 @@ def compute_curve_error(y_golden: np.ndarray, y_candidate: np.ndarray) -> Static
     # Relative RMSE normalized by peak-to-peak span
     span = np.max(y_golden) - np.min(y_golden)
     rel_rmse = float((rmse / max(1e-9, span)) * 100.0)
+    peak = float(np.max(np.abs(y_golden)))
+    peak_rmse = float((rmse / max(1e-9, peak)) * 100.0)
 
     # R² correlation coefficient
     ss_res = np.sum(diff ** 2)
@@ -31,5 +34,6 @@ def compute_curve_error(y_golden: np.ndarray, y_candidate: np.ndarray) -> Static
         max_abs_error=max_err,
         rmse=rmse,
         relative_rmse_pct=rel_rmse,
+        peak_rmse_pct=peak_rmse,
         r_squared=r2,
     )

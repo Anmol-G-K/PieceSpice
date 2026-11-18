@@ -17,11 +17,13 @@ and d/dx is bounded and continuous everywhere. Device-agnostic.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Tuple
 
 from scipy.optimize import minimize_scalar
 import numpy as np
 __all__ = [
     "fit_tanh_knee_ls",
+    "fit_tanh_plateau",
     "softplus",
     "sigmoid",
     "tanh_saturation",
@@ -163,6 +165,30 @@ def fit_tanh_knee_ls(v, i, i_sat, *, s_min=1e-3, s_max=200.0) -> float:
         return float(np.sum((plateau * np.tanh(v / max(s, 1e-12)) - i) ** 2))
     return float(minimize_scalar(
         loss, bounds=(max(s_min, 1e-12), s_max), method="bounded").x)
+
+
+def fit_tanh_plateau(v, i, i_sat, *, s_max=200.0) -> Tuple[float, float]:
+    """Fit both plateau and knee of ``i ≈ I·tanh(v/s)`` to a sampled curve.
+
+    The last extracted sample is not always the true tanh plateau (the TI
+    BSIM and IR MODPEX curves are still rising at the sweep ceiling). This
+    fit estimates the plateau as a parameter; callers decide whether to use
+    it via the ratio ``I_fit / I_end``.
+    """
+    from scipy.optimize import least_squares
+
+    v = np.asarray(v, dtype=float)
+    i = np.asarray(i, dtype=float)
+    end = max(float(i_sat), 1e-12)
+    lo = [1e-6, 0.01]
+    hi = [max(end * 10.0, 1.0), s_max]
+    seed_s = fit_tanh_knee_ls(v, i, end, s_max=s_max)
+    x0 = [float(np.clip(end, lo[0], hi[0])),
+          float(np.clip(seed_s, lo[1], hi[1]))]
+    res = least_squares(
+        lambda p: p[0] * np.tanh(v / max(p[1], 1e-12)) - i,
+        x0=x0, bounds=(lo, hi))
+    return float(res.x[0]), float(res.x[1])
 
 def fit_tanh_knee(v_pwl: np.ndarray, i_pwl: np.ndarray) -> TanhKneeFit:
     """Fit a tanh saturation knee to a PWL/compressed output curve.

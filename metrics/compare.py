@@ -43,6 +43,7 @@ class CurveComparison:
     mape_pct: float                # mean |err|/|golden| where |golden|>eps
     r_squared: float
     passed: bool                   # within tolerance?
+    peak_rmse_pct: float = 0.0      # RMSE / max|golden| * 100
     x_unit: str = "V"
     y_unit: str = "A"
 
@@ -111,6 +112,7 @@ def compare_curve(
         rmse=m.rmse,
         max_abs_error=m.max_abs_error,
         rel_rmse_pct=m.relative_rmse_pct,
+        peak_rmse_pct=m.peak_rmse_pct,
         max_rel_error_pct=m.max_abs_error / span * 100.0,
         mape_pct=mape,
         r_squared=m.r_squared,
@@ -296,6 +298,7 @@ def report_to_rows(report: ComparisonReport) -> List[Dict]:
             "points": c.n_points,
             "rmse": round(c.rmse, 6),
             "rel_rmse_pct": round(c.rel_rmse_pct, 3),
+            "peak_rmse_pct": round(c.peak_rmse_pct, 3),
             "max_err": round(c.max_abs_error, 6),
             "max_rel_pct": round(c.max_rel_error_pct, 3),
             "mape_pct": round(c.mape_pct, 3),
