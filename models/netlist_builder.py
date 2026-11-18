@@ -29,7 +29,7 @@ from typing import List
 
 import numpy as np
 
-from approximation.smoother import fit_tanh_knee_ls
+from approximation.smoother import fit_tanh_knee_ls, fit_tanh_plateau
 from common.types import PWLModelSpec, PWL_META_KEYS
 
 
@@ -40,6 +40,12 @@ _META_DEFAULTS = {
     "r_source": 1e-4,
     "r_drain": 1e-4,
 }
+
+# Fixed, vendor-independent fitting rule (validated by the four-device sweep
+# in reports/guarded_blend_sweep.json). A plateau outside this ratio band is
+# unreliable (e.g. a near-zero curve) and the forced endpoint is retained.
+_PLATEAU_BLEND_W = 0.25
+_PLATEAU_GUARD = (0.7, 1.3)
 
 
 def _resolve_metadata(spec: PWLModelSpec) -> dict:
@@ -93,9 +99,10 @@ def _channel_expression(spec: PWLModelSpec, vgs_term: str) -> str:
     heuristic clamped from Rds(on) and the top-curve plateau. A global knee
     systematically mis-shapes the low/mid Vds region of every Vgs family.
     The width is bounded only by the sweep span (not the earlier 0.377*Vmax
-    cap, which bound high-Vgs CPM2 and IRFS curves); the transfer amplitude
-    is scaled by 1/tanh(Vmax/s) so each endpoint still matches the extracted
-    golden current exactly even when s is large.
+    cap, which bound high-Vgs CPM2 and IRFS curves). Transfer amplitude is
+    scaled by 1/tanh(Vmax/s); a fitted plateau is blended in at a fixed 25 %
+    only when its ratio to the extracted endpoint lies in [0.7, 1.3], a rule
+    that excludes unreliable near-zero curves without device-specific tuning.
     """
     vd = np.asarray(spec.breakpoints_vds, dtype=float)
     vmax = float(vd[-1])
@@ -104,14 +111,24 @@ def _channel_expression(spec: PWLModelSpec, vgs_term: str) -> str:
     endpoints = [float(row[-1]) for row in spec.breakpoints_id]
 
     sat_vals = []
-    for row in spec.breakpoints_id:
+    amplitudes = []
+    for row, end in zip(spec.breakpoints_id, endpoints):
         y = np.asarray(row, dtype=float)
-        plateau = max(float(y[-1]), 1e-9)
+        plateau = max(end, 1e-9)
         s = fit_tanh_knee_ls(vd, y, plateau)
-        sat_vals.append(min(max(s, 0.05 * span), vmax))
+        s = min(max(s, 0.05 * span), vmax)
+        sat_vals.append(s)
 
-    scale = 1.0 / np.tanh(vmax / np.asarray(sat_vals))
-    id_vals = (np.asarray(endpoints) * scale).tolist()
+        # Endpoint is forced by default. Only a well-behaved fitted plateau
+        # (ratio inside the fixed guard band) is blended in, by a fixed 25 %.
+        amp = end / np.tanh(vmax / s)
+        i_fit, _ = fit_tanh_plateau(vd, y, plateau)
+        ratio = i_fit / max(end, 1e-12)
+        if _PLATEAU_GUARD[0] <= ratio <= _PLATEAU_GUARD[1]:
+            amp = (1.0 - _PLATEAU_BLEND_W) * amp + _PLATEAU_BLEND_W * i_fit
+        amplitudes.append(amp)
+
+    id_vals = amplitudes
 
     xs = [0.0] + drives
     iv = [0.0] + id_vals
