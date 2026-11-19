@@ -30,7 +30,7 @@ import numpy as np
 from scipy.integrate import cumulative_trapezoid
 from scipy.signal import savgol_filter
 
-from tier3.trajectory import Trajectory
+from simulation.testbenches.dpt_trajectory import Trajectory
 
 # Paper-printed constant (Rewienski & White 2003, section 4.1, step 3)
 WEIGHT_EXPONENT = 25.0
@@ -263,7 +263,7 @@ def build_model(traj: Trajectory, coss_curve=None,
     is_dpt = np.ones(wtr.shape[1], dtype=bool)
     static_u = static_id = None
     if include_static:
-        from tier3.static_curves import static_samples
+        from approximation.static_curves import static_samples
         static_u, static_id, _ = static_samples(traj.vendor)
         ws_static = (static_u - v_ref[:, None]) / v_span[:, None]
         ws_all = np.hstack([wtr, ws_static])

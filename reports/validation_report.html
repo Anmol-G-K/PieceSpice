@@ -1,0 +1,1133 @@
+<html><head><meta charset="utf-8"><title>PieceSpice Validation Report</title></head><body><h1>PieceSpice Comprehensive Validation - measured JSON values</h1><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>vendor</th>
+      <th>T2 static mean rel RMSE</th>
+      <th>T3 static fit rel RMSE</th>
+      <th>T3 emitted rel RMSE</th>
+      <th>DPT Vds RMSE</th>
+      <th>DPT Id RMSE</th>
+      <th>solver time ratio</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>irfs7730pbf</td>
+      <td>+7.07%</td>
+      <td>+4.24%</td>
+      <td>+4.10%</td>
+      <td>+39.59%</td>
+      <td>+13.09%</td>
+      <td>0.2156</td>
+    </tr>
+    <tr>
+      <td>csd16412q5a</td>
+      <td>+8.49%</td>
+      <td>+1.54%</td>
+      <td>+2.15%</td>
+      <td>+2.38%</td>
+      <td>+0.42%</td>
+      <td>0.06671</td>
+    </tr>
+    <tr>
+      <td>epc2216</td>
+      <td>+2.04%</td>
+      <td>+2.37%</td>
+      <td>+7.12%</td>
+      <td>+5.29%</td>
+      <td>+0.76%</td>
+      <td>0.229</td>
+    </tr>
+    <tr>
+      <td>cpm2-1200</td>
+      <td>+3.43%</td>
+      <td>+0.61%</td>
+      <td>+0.97%</td>
+      <td>+4.21%</td>
+      <td>+0.35%</td>
+      <td>0.1026</td>
+    </tr>
+  </tbody>
+</table><p>Manufacturer datasheets were checked against extracted currents at the rated gate drive: IRFS7730PBF 246 A continuous / 984 A pulsed vs 1671 A extracted at Vgs=10 V; CSD16412Q5A 52 A / 91 A vs 305 A; EPC2216 3.4 A / 28 A vs 61.7 A at Vgs=6 V; CPM2-1200 81 A / 200 A vs 342 A at Vgs=20 V. These excesses are properties of the vendor subcircuits (VM-04/VM-06). Matching the vendor golden is not the same as matching the datasheet; fidelity claims against the vendor must not be read as physical device ratings.</p><h2>irfs7730pbf</h2><h3>Tier-2 endpoint comparison</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>Vgs [V]</th>
+      <th>golden [A]</th>
+      <th>Tier-2 [A]</th>
+      <th>rel err</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>3.0</td>
+      <td>2.021e-07</td>
+      <td>2.021e-07</td>
+      <td>+0.00%</td>
+    </tr>
+    <tr>
+      <td>4.5</td>
+      <td>7.159</td>
+      <td>6.875</td>
+      <td>+3.96%</td>
+    </tr>
+    <tr>
+      <td>6.0</td>
+      <td>340.1</td>
+      <td>327.5</td>
+      <td>+3.72%</td>
+    </tr>
+    <tr>
+      <td>8.0</td>
+      <td>975.1</td>
+      <td>940.1</td>
+      <td>+3.59%</td>
+    </tr>
+    <tr>
+      <td>10.0</td>
+      <td>1671</td>
+      <td>1620</td>
+      <td>+3.08%</td>
+    </tr>
+  </tbody>
+</table><h3>Tier-2 full-sweep fit</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>curve</th>
+      <th>points</th>
+      <th>rel RMSE</th>
+      <th>peak RMSE</th>
+      <th>max rel err</th>
+      <th>R^2</th>
+      <th>pass</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Vgs = 3 V</td>
+      <td>41</td>
+      <td>+10.13%</td>
+      <td>+10.13%</td>
+      <td>+14.76%</td>
+      <td>1</td>
+      <td>False</td>
+    </tr>
+    <tr>
+      <td>Vgs = 4.5 V</td>
+      <td>41</td>
+      <td>+13.85%</td>
+      <td>+13.85%</td>
+      <td>+49.72%</td>
+      <td>0.2562</td>
+      <td>False</td>
+    </tr>
+    <tr>
+      <td>Vgs = 6 V</td>
+      <td>41</td>
+      <td>+4.64%</td>
+      <td>+4.64%</td>
+      <td>+9.41%</td>
+      <td>0.9497</td>
+      <td>True</td>
+    </tr>
+    <tr>
+      <td>Vgs = 8 V</td>
+      <td>41</td>
+      <td>+3.07%</td>
+      <td>+3.07%</td>
+      <td>+6.87%</td>
+      <td>0.987</td>
+      <td>True</td>
+    </tr>
+    <tr>
+      <td>Vgs = 10 V</td>
+      <td>41</td>
+      <td>+3.65%</td>
+      <td>+3.65%</td>
+      <td>+7.05%</td>
+      <td>0.9857</td>
+      <td>True</td>
+    </tr>
+  </tbody>
+</table><h3>Tier-3 static fit</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>quantity</th>
+      <th>value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Tier-3 static fit rel RMSE</td>
+      <td>+4.24%</td>
+    </tr>
+    <tr>
+      <td>Tier-3 emitted static rel RMSE</td>
+      <td>+4.10%</td>
+    </tr>
+    <tr>
+      <td>Tier-3 held-out Id rel RMSE</td>
+      <td>+3327.16%</td>
+    </tr>
+    <tr>
+      <td>Tier-3 held-out Qg rel RMSE</td>
+      <td>+8.47%</td>
+    </tr>
+    <tr>
+      <td>static samples</td>
+      <td>505</td>
+    </tr>
+  </tbody>
+</table><h3>DPT timing / energy</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>metric</th>
+      <th>golden</th>
+      <th>Tier-2</th>
+      <th>Tier-3</th>
+      <th>T2 err</th>
+      <th>T3 err</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>td_on_ns</td>
+      <td>32.3</td>
+      <td>17.08</td>
+      <td>not available</td>
+      <td>-47.11%</td>
+      <td>not available</td>
+    </tr>
+    <tr>
+      <td>tr_ns</td>
+      <td>25.84</td>
+      <td>2.893</td>
+      <td>3.171</td>
+      <td>-88.81%</td>
+      <td>-87.73%</td>
+    </tr>
+    <tr>
+      <td>td_off_ns</td>
+      <td>62.18</td>
+      <td>17.13</td>
+      <td>not available</td>
+      <td>-72.45%</td>
+      <td>not available</td>
+    </tr>
+    <tr>
+      <td>tf_ns</td>
+      <td>26.54</td>
+      <td>2.529</td>
+      <td>0.865</td>
+      <td>-90.47%</td>
+      <td>-96.74%</td>
+    </tr>
+    <tr>
+      <td>dv_dt_max_v_per_ns</td>
+      <td>35.93</td>
+      <td>587.5</td>
+      <td>1.907e-05</td>
+      <td>+1534.85%</td>
+      <td>-100.00%</td>
+    </tr>
+    <tr>
+      <td>di_dt_max_a_per_ns</td>
+      <td>0.2269</td>
+      <td>2.498</td>
+      <td>0.005455</td>
+      <td>+1000.98%</td>
+      <td>-97.60%</td>
+    </tr>
+    <tr>
+      <td>e_on_uj</td>
+      <td>157.4</td>
+      <td>71.09</td>
+      <td>not available</td>
+      <td>-54.84%</td>
+      <td>not available</td>
+    </tr>
+    <tr>
+      <td>e_off_uj</td>
+      <td>597</td>
+      <td>533.4</td>
+      <td>not available</td>
+      <td>-10.64%</td>
+      <td>not available</td>
+    </tr>
+    <tr>
+      <td>i_peak_a</td>
+      <td>138.5</td>
+      <td>137</td>
+      <td>99.49</td>
+      <td>-1.11%</td>
+      <td>-28.18%</td>
+    </tr>
+  </tbody>
+</table><h3>Tier-3 DPT run / runtime</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>quantity</th>
+      <th>value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>DPT completed</td>
+      <td>True</td>
+    </tr>
+    <tr>
+      <td>golden trace points</td>
+      <td>7114</td>
+    </tr>
+    <tr>
+      <td>Tier-3 trace points</td>
+      <td>7210</td>
+    </tr>
+    <tr>
+      <td>Tier-3 iterations</td>
+      <td>19530</td>
+    </tr>
+    <tr>
+      <td>DPT Vds rel RMSE</td>
+      <td>+39.59%</td>
+    </tr>
+    <tr>
+      <td>DPT Id rel RMSE</td>
+      <td>+13.09%</td>
+    </tr>
+    <tr>
+      <td>golden solver elapsed [s]</td>
+      <td>0.447</td>
+    </tr>
+    <tr>
+      <td>Tier-3 solver elapsed [s]</td>
+      <td>2.073</td>
+    </tr>
+    <tr>
+      <td>solver time ratio (measured)</td>
+      <td>0.2156</td>
+    </tr>
+    <tr>
+      <td>Tier-2 golden failure</td>
+      <td>none</td>
+    </tr>
+  </tbody>
+</table><h2>csd16412q5a</h2><h3>Tier-2 endpoint comparison</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>Vgs [V]</th>
+      <th>golden [A]</th>
+      <th>Tier-2 [A]</th>
+      <th>rel err</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>4.5</td>
+      <td>72.84</td>
+      <td>69.83</td>
+      <td>+4.12%</td>
+    </tr>
+    <tr>
+      <td>5.0</td>
+      <td>93.99</td>
+      <td>90.29</td>
+      <td>+3.93%</td>
+    </tr>
+    <tr>
+      <td>6.0</td>
+      <td>137</td>
+      <td>132.2</td>
+      <td>+3.45%</td>
+    </tr>
+    <tr>
+      <td>8.0</td>
+      <td>222.6</td>
+      <td>216.5</td>
+      <td>+2.72%</td>
+    </tr>
+    <tr>
+      <td>10.0</td>
+      <td>305.2</td>
+      <td>298.8</td>
+      <td>+2.10%</td>
+    </tr>
+  </tbody>
+</table><h3>Tier-2 full-sweep fit</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>curve</th>
+      <th>points</th>
+      <th>rel RMSE</th>
+      <th>peak RMSE</th>
+      <th>max rel err</th>
+      <th>R^2</th>
+      <th>pass</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Vgs = 4.5 V</td>
+      <td>41</td>
+      <td>+12.03%</td>
+      <td>+12.03%</td>
+      <td>+29.14%</td>
+      <td>0.5949</td>
+      <td>False</td>
+    </tr>
+    <tr>
+      <td>Vgs = 5 V</td>
+      <td>41</td>
+      <td>+10.79%</td>
+      <td>+10.79%</td>
+      <td>+24.48%</td>
+      <td>0.6993</td>
+      <td>False</td>
+    </tr>
+    <tr>
+      <td>Vgs = 6 V</td>
+      <td>41</td>
+      <td>+8.94%</td>
+      <td>+8.94%</td>
+      <td>+17.70%</td>
+      <td>0.823</td>
+      <td>False</td>
+    </tr>
+    <tr>
+      <td>Vgs = 8 V</td>
+      <td>41</td>
+      <td>+6.30%</td>
+      <td>+6.30%</td>
+      <td>+11.64%</td>
+      <td>0.9316</td>
+      <td>False</td>
+    </tr>
+    <tr>
+      <td>Vgs = 10 V</td>
+      <td>41</td>
+      <td>+4.41%</td>
+      <td>+4.41%</td>
+      <td>+8.80%</td>
+      <td>0.9723</td>
+      <td>True</td>
+    </tr>
+  </tbody>
+</table><h3>Tier-3 static fit</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>quantity</th>
+      <th>value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Tier-3 static fit rel RMSE</td>
+      <td>+1.54%</td>
+    </tr>
+    <tr>
+      <td>Tier-3 emitted static rel RMSE</td>
+      <td>+2.15%</td>
+    </tr>
+    <tr>
+      <td>Tier-3 held-out Id rel RMSE</td>
+      <td>+44.60%</td>
+    </tr>
+    <tr>
+      <td>Tier-3 held-out Qg rel RMSE</td>
+      <td>+25.87%</td>
+    </tr>
+    <tr>
+      <td>static samples</td>
+      <td>505</td>
+    </tr>
+  </tbody>
+</table><h3>DPT timing / energy</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>metric</th>
+      <th>golden</th>
+      <th>Tier-2</th>
+      <th>Tier-3</th>
+      <th>T2 err</th>
+      <th>T3 err</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>td_on_ns</td>
+      <td>7.389</td>
+      <td>5.408</td>
+      <td>7.053</td>
+      <td>-26.80%</td>
+      <td>-4.55%</td>
+    </tr>
+    <tr>
+      <td>tr_ns</td>
+      <td>1.096</td>
+      <td>1.486</td>
+      <td>0.1064</td>
+      <td>+35.63%</td>
+      <td>-90.29%</td>
+    </tr>
+    <tr>
+      <td>td_off_ns</td>
+      <td>12.44</td>
+      <td>15.01</td>
+      <td>11.89</td>
+      <td>+20.68%</td>
+      <td>-4.46%</td>
+    </tr>
+    <tr>
+      <td>tf_ns</td>
+      <td>1.662</td>
+      <td>2.246</td>
+      <td>0.6886</td>
+      <td>+35.15%</td>
+      <td>-58.56%</td>
+    </tr>
+    <tr>
+      <td>dv_dt_max_v_per_ns</td>
+      <td>600.4</td>
+      <td>158.2</td>
+      <td>1244</td>
+      <td>-73.65%</td>
+      <td>+107.20%</td>
+    </tr>
+    <tr>
+      <td>di_dt_max_a_per_ns</td>
+      <td>0.6675</td>
+      <td>0.1011</td>
+      <td>1.008</td>
+      <td>-84.85%</td>
+      <td>+50.94%</td>
+    </tr>
+    <tr>
+      <td>e_on_uj</td>
+      <td>1.063</td>
+      <td>0.7531</td>
+      <td>0.941</td>
+      <td>-29.13%</td>
+      <td>-11.45%</td>
+    </tr>
+    <tr>
+      <td>e_off_uj</td>
+      <td>17.97</td>
+      <td>17.73</td>
+      <td>17.55</td>
+      <td>-1.33%</td>
+      <td>-2.33%</td>
+    </tr>
+    <tr>
+      <td>i_peak_a</td>
+      <td>13.43</td>
+      <td>13.44</td>
+      <td>13.35</td>
+      <td>+0.09%</td>
+      <td>-0.64%</td>
+    </tr>
+  </tbody>
+</table><h3>Tier-3 DPT run / runtime</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>quantity</th>
+      <th>value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>DPT completed</td>
+      <td>True</td>
+    </tr>
+    <tr>
+      <td>golden trace points</td>
+      <td>10189</td>
+    </tr>
+    <tr>
+      <td>Tier-3 trace points</td>
+      <td>66240</td>
+    </tr>
+    <tr>
+      <td>Tier-3 iterations</td>
+      <td>394001</td>
+    </tr>
+    <tr>
+      <td>DPT Vds rel RMSE</td>
+      <td>+2.38%</td>
+    </tr>
+    <tr>
+      <td>DPT Id rel RMSE</td>
+      <td>+0.42%</td>
+    </tr>
+    <tr>
+      <td>golden solver elapsed [s]</td>
+      <td>0.557</td>
+    </tr>
+    <tr>
+      <td>Tier-3 solver elapsed [s]</td>
+      <td>8.35</td>
+    </tr>
+    <tr>
+      <td>solver time ratio (measured)</td>
+      <td>0.06671</td>
+    </tr>
+    <tr>
+      <td>Tier-2 golden failure</td>
+      <td>none</td>
+    </tr>
+  </tbody>
+</table><h2>epc2216</h2><h3>Tier-2 endpoint comparison</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>Vgs [V]</th>
+      <th>golden [A]</th>
+      <th>Tier-2 [A]</th>
+      <th>rel err</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>2.5</td>
+      <td>9.739</td>
+      <td>9.688</td>
+      <td>+0.53%</td>
+    </tr>
+    <tr>
+      <td>3.5</td>
+      <td>26.85</td>
+      <td>26.7</td>
+      <td>+0.56%</td>
+    </tr>
+    <tr>
+      <td>4.0</td>
+      <td>34.66</td>
+      <td>34.48</td>
+      <td>+0.52%</td>
+    </tr>
+    <tr>
+      <td>4.5</td>
+      <td>42.03</td>
+      <td>41.82</td>
+      <td>+0.48%</td>
+    </tr>
+    <tr>
+      <td>5.0</td>
+      <td>48.97</td>
+      <td>48.75</td>
+      <td>+0.45%</td>
+    </tr>
+    <tr>
+      <td>6.0</td>
+      <td>61.74</td>
+      <td>61.5</td>
+      <td>+0.40%</td>
+    </tr>
+  </tbody>
+</table><h3>Tier-2 full-sweep fit</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>curve</th>
+      <th>points</th>
+      <th>rel RMSE</th>
+      <th>peak RMSE</th>
+      <th>max rel err</th>
+      <th>R^2</th>
+      <th>pass</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Vgs = 2.5 V</td>
+      <td>41</td>
+      <td>+3.61%</td>
+      <td>+3.61%</td>
+      <td>+19.38%</td>
+      <td>0.9501</td>
+      <td>True</td>
+    </tr>
+    <tr>
+      <td>Vgs = 3.5 V</td>
+      <td>41</td>
+      <td>+2.16%</td>
+      <td>+2.16%</td>
+      <td>+6.11%</td>
+      <td>0.9841</td>
+      <td>True</td>
+    </tr>
+    <tr>
+      <td>Vgs = 4 V</td>
+      <td>41</td>
+      <td>+1.93%</td>
+      <td>+1.93%</td>
+      <td>+4.75%</td>
+      <td>0.988</td>
+      <td>True</td>
+    </tr>
+    <tr>
+      <td>Vgs = 4.5 V</td>
+      <td>41</td>
+      <td>+1.73%</td>
+      <td>+1.73%</td>
+      <td>+4.10%</td>
+      <td>0.9909</td>
+      <td>True</td>
+    </tr>
+    <tr>
+      <td>Vgs = 5 V</td>
+      <td>41</td>
+      <td>+1.55%</td>
+      <td>+1.55%</td>
+      <td>+3.56%</td>
+      <td>0.9931</td>
+      <td>True</td>
+    </tr>
+    <tr>
+      <td>Vgs = 6 V</td>
+      <td>41</td>
+      <td>+1.26%</td>
+      <td>+1.26%</td>
+      <td>+2.82%</td>
+      <td>0.9958</td>
+      <td>True</td>
+    </tr>
+  </tbody>
+</table><h3>Tier-3 static fit</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>quantity</th>
+      <th>value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Tier-3 static fit rel RMSE</td>
+      <td>+2.37%</td>
+    </tr>
+    <tr>
+      <td>Tier-3 emitted static rel RMSE</td>
+      <td>+7.12%</td>
+    </tr>
+    <tr>
+      <td>Tier-3 held-out Id rel RMSE</td>
+      <td>+42.97%</td>
+    </tr>
+    <tr>
+      <td>Tier-3 held-out Qg rel RMSE</td>
+      <td>+36.78%</td>
+    </tr>
+    <tr>
+      <td>static samples</td>
+      <td>606</td>
+    </tr>
+  </tbody>
+</table><h3>DPT timing / energy</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>metric</th>
+      <th>golden</th>
+      <th>Tier-2</th>
+      <th>Tier-3</th>
+      <th>T2 err</th>
+      <th>T3 err</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>td_on_ns</td>
+      <td>8.28</td>
+      <td>8.511</td>
+      <td>8.717</td>
+      <td>+2.79%</td>
+      <td>+5.29%</td>
+    </tr>
+    <tr>
+      <td>tr_ns</td>
+      <td>0.8456</td>
+      <td>0.8378</td>
+      <td>1.524</td>
+      <td>-0.92%</td>
+      <td>+80.23%</td>
+    </tr>
+    <tr>
+      <td>td_off_ns</td>
+      <td>6.954</td>
+      <td>7.049</td>
+      <td>4.736</td>
+      <td>+1.37%</td>
+      <td>-31.90%</td>
+    </tr>
+    <tr>
+      <td>tf_ns</td>
+      <td>1.227</td>
+      <td>1.343</td>
+      <td>2.078</td>
+      <td>+9.40%</td>
+      <td>+69.31%</td>
+    </tr>
+    <tr>
+      <td>dv_dt_max_v_per_ns</td>
+      <td>3556</td>
+      <td>175.8</td>
+      <td>733.8</td>
+      <td>-95.06%</td>
+      <td>-79.37%</td>
+    </tr>
+    <tr>
+      <td>di_dt_max_a_per_ns</td>
+      <td>3.71</td>
+      <td>0.1449</td>
+      <td>1.35</td>
+      <td>-96.09%</td>
+      <td>-63.62%</td>
+    </tr>
+    <tr>
+      <td>e_on_uj</td>
+      <td>1.091</td>
+      <td>1.149</td>
+      <td>1.26</td>
+      <td>+5.26%</td>
+      <td>+15.47%</td>
+    </tr>
+    <tr>
+      <td>e_off_uj</td>
+      <td>15.63</td>
+      <td>15.41</td>
+      <td>15.25</td>
+      <td>-1.37%</td>
+      <td>-2.44%</td>
+    </tr>
+    <tr>
+      <td>i_peak_a</td>
+      <td>13.24</td>
+      <td>13.23</td>
+      <td>13.07</td>
+      <td>-0.09%</td>
+      <td>-1.30%</td>
+    </tr>
+  </tbody>
+</table><h3>Tier-3 DPT run / runtime</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>quantity</th>
+      <th>value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>DPT completed</td>
+      <td>True</td>
+    </tr>
+    <tr>
+      <td>golden trace points</td>
+      <td>7418</td>
+    </tr>
+    <tr>
+      <td>Tier-3 trace points</td>
+      <td>9301</td>
+    </tr>
+    <tr>
+      <td>Tier-3 iterations</td>
+      <td>33664</td>
+    </tr>
+    <tr>
+      <td>DPT Vds rel RMSE</td>
+      <td>+5.29%</td>
+    </tr>
+    <tr>
+      <td>DPT Id rel RMSE</td>
+      <td>+0.76%</td>
+    </tr>
+    <tr>
+      <td>golden solver elapsed [s]</td>
+      <td>0.47</td>
+    </tr>
+    <tr>
+      <td>Tier-3 solver elapsed [s]</td>
+      <td>2.052</td>
+    </tr>
+    <tr>
+      <td>solver time ratio (measured)</td>
+      <td>0.229</td>
+    </tr>
+    <tr>
+      <td>Tier-2 golden failure</td>
+      <td>none</td>
+    </tr>
+  </tbody>
+</table><h2>cpm2-1200</h2><h3>Tier-2 endpoint comparison</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>Vgs [V]</th>
+      <th>golden [A]</th>
+      <th>Tier-2 [A]</th>
+      <th>rel err</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>10.0</td>
+      <td>66.68</td>
+      <td>65.79</td>
+      <td>+1.33%</td>
+    </tr>
+    <tr>
+      <td>12.0</td>
+      <td>119.1</td>
+      <td>109.2</td>
+      <td>+8.34%</td>
+    </tr>
+    <tr>
+      <td>14.0</td>
+      <td>179.7</td>
+      <td>148.9</td>
+      <td>+17.16%</td>
+    </tr>
+    <tr>
+      <td>16.0</td>
+      <td>238.2</td>
+      <td>185.5</td>
+      <td>+22.12%</td>
+    </tr>
+    <tr>
+      <td>18.0</td>
+      <td>292.6</td>
+      <td>219.7</td>
+      <td>+24.93%</td>
+    </tr>
+    <tr>
+      <td>20.0</td>
+      <td>342.2</td>
+      <td>251.2</td>
+      <td>+26.61%</td>
+    </tr>
+  </tbody>
+</table><h3>Tier-2 full-sweep fit</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>curve</th>
+      <th>points</th>
+      <th>rel RMSE</th>
+      <th>peak RMSE</th>
+      <th>max rel err</th>
+      <th>R^2</th>
+      <th>pass</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Vgs = 10 V</td>
+      <td>41</td>
+      <td>+2.91%</td>
+      <td>+2.91%</td>
+      <td>+9.14%</td>
+      <td>0.9843</td>
+      <td>True</td>
+    </tr>
+    <tr>
+      <td>Vgs = 12 V</td>
+      <td>41</td>
+      <td>+3.40%</td>
+      <td>+3.40%</td>
+      <td>+8.48%</td>
+      <td>0.9826</td>
+      <td>True</td>
+    </tr>
+    <tr>
+      <td>Vgs = 14 V</td>
+      <td>41</td>
+      <td>+3.29%</td>
+      <td>+3.29%</td>
+      <td>+6.76%</td>
+      <td>0.9851</td>
+      <td>True</td>
+    </tr>
+    <tr>
+      <td>Vgs = 16 V</td>
+      <td>41</td>
+      <td>+3.09%</td>
+      <td>+3.09%</td>
+      <td>+4.56%</td>
+      <td>0.9875</td>
+      <td>True</td>
+    </tr>
+    <tr>
+      <td>Vgs = 18 V</td>
+      <td>41</td>
+      <td>+3.50%</td>
+      <td>+3.50%</td>
+      <td>+5.69%</td>
+      <td>0.9845</td>
+      <td>True</td>
+    </tr>
+    <tr>
+      <td>Vgs = 20 V</td>
+      <td>41</td>
+      <td>+4.38%</td>
+      <td>+4.38%</td>
+      <td>+6.96%</td>
+      <td>0.9764</td>
+      <td>True</td>
+    </tr>
+  </tbody>
+</table><h3>Tier-3 static fit</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>quantity</th>
+      <th>value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Tier-3 static fit rel RMSE</td>
+      <td>+0.61%</td>
+    </tr>
+    <tr>
+      <td>Tier-3 emitted static rel RMSE</td>
+      <td>+0.97%</td>
+    </tr>
+    <tr>
+      <td>Tier-3 held-out Id rel RMSE</td>
+      <td>+29.56%</td>
+    </tr>
+    <tr>
+      <td>Tier-3 held-out Qg rel RMSE</td>
+      <td>+31.79%</td>
+    </tr>
+    <tr>
+      <td>static samples</td>
+      <td>606</td>
+    </tr>
+  </tbody>
+</table><h3>DPT timing / energy</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>metric</th>
+      <th>golden</th>
+      <th>Tier-2</th>
+      <th>Tier-3</th>
+      <th>T2 err</th>
+      <th>T3 err</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>td_on_ns</td>
+      <td>10.25</td>
+      <td>11.78</td>
+      <td>8.641</td>
+      <td>+14.90%</td>
+      <td>-15.72%</td>
+    </tr>
+    <tr>
+      <td>tr_ns</td>
+      <td>4.703</td>
+      <td>4.123</td>
+      <td>0.814</td>
+      <td>-12.33%</td>
+      <td>-82.69%</td>
+    </tr>
+    <tr>
+      <td>td_off_ns</td>
+      <td>14.03</td>
+      <td>18.24</td>
+      <td>7.764</td>
+      <td>+29.98%</td>
+      <td>-44.68%</td>
+    </tr>
+    <tr>
+      <td>tf_ns</td>
+      <td>4.139</td>
+      <td>8.789</td>
+      <td>2.53</td>
+      <td>+112.33%</td>
+      <td>-38.87%</td>
+    </tr>
+    <tr>
+      <td>dv_dt_max_v_per_ns</td>
+      <td>373.7</td>
+      <td>374.9</td>
+      <td>1170</td>
+      <td>+0.33%</td>
+      <td>+213.10%</td>
+    </tr>
+    <tr>
+      <td>di_dt_max_a_per_ns</td>
+      <td>0.5957</td>
+      <td>0.3811</td>
+      <td>0.4946</td>
+      <td>-36.03%</td>
+      <td>-16.98%</td>
+    </tr>
+    <tr>
+      <td>e_on_uj</td>
+      <td>5.619</td>
+      <td>6.109</td>
+      <td>4.465</td>
+      <td>+8.73%</td>
+      <td>-20.53%</td>
+    </tr>
+    <tr>
+      <td>e_off_uj</td>
+      <td>56.7</td>
+      <td>57.04</td>
+      <td>55.43</td>
+      <td>+0.60%</td>
+      <td>-2.25%</td>
+    </tr>
+    <tr>
+      <td>i_peak_a</td>
+      <td>26.82</td>
+      <td>26.73</td>
+      <td>26.65</td>
+      <td>-0.34%</td>
+      <td>-0.65%</td>
+    </tr>
+  </tbody>
+</table><h3>Tier-3 DPT run / runtime</h3><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>quantity</th>
+      <th>value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>DPT completed</td>
+      <td>True</td>
+    </tr>
+    <tr>
+      <td>golden trace points</td>
+      <td>7154</td>
+    </tr>
+    <tr>
+      <td>Tier-3 trace points</td>
+      <td>31436</td>
+    </tr>
+    <tr>
+      <td>Tier-3 iterations</td>
+      <td>189005</td>
+    </tr>
+    <tr>
+      <td>DPT Vds rel RMSE</td>
+      <td>+4.21%</td>
+    </tr>
+    <tr>
+      <td>DPT Id rel RMSE</td>
+      <td>+0.35%</td>
+    </tr>
+    <tr>
+      <td>golden solver elapsed [s]</td>
+      <td>0.532</td>
+    </tr>
+    <tr>
+      <td>Tier-3 solver elapsed [s]</td>
+      <td>5.185</td>
+    </tr>
+    <tr>
+      <td>solver time ratio (measured)</td>
+      <td>0.1026</td>
+    </tr>
+    <tr>
+      <td>Tier-2 golden failure</td>
+      <td>none</td>
+    </tr>
+  </tbody>
+</table></body></html>

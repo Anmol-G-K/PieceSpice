@@ -1,6 +1,7 @@
 {
   "schema": "piecespice.tier3/2.0",
   "vendor": "csd16412q5a",
+  "variant": "v1",
   "methods": [
     "TPWL (Rewienski & White 2003)",
     "POD-DEIM anchors (Chaturantabut & Sorensen 2010)"
@@ -234,28 +235,28 @@
   },
   "runtime": {
     "golden": {
-      "wall_clock_s": 1.2764224999991711,
-      "solver_elapsed_s": 0.578,
+      "wall_clock_s": 1.2749069000001327,
+      "solver_elapsed_s": 0.557,
       "iterations": 24435.0,
       "trace_points": 10189.0
     },
     "tier3": {
-      "wall_clock_s": 9.806285000000571,
-      "solver_elapsed_s": 8.048,
+      "wall_clock_s": 9.99489689999973,
+      "solver_elapsed_s": 8.35,
       "iterations": 394001.0,
       "trace_points": 66240.0
     },
     "tier3_bench_completed": true,
-    "solver_speedup": 0.07181908548707754,
+    "solver_speedup": 0.06670658682634731,
     "bench_wall_s": {
-      "golden": 3.8652099999999336,
-      "tier3": 29.765306900000724
+      "golden": 3.873717599999509,
+      "tier3": 27.034480999998777
     }
   },
   "build_seconds": {
-    "capture": 1.552838999999949,
-    "fit": 50.65922489999866
+    "capture": 2.325302700000975,
+    "fit": 51.18748079999932
   },
-  "spice_log_tail": "Total elapsed time: 7.921 seconds.\nTotal iterations: 394001\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_it9kdqqr\\tran.net\n",
+  "spice_log_tail": "Total elapsed time: 7.886 seconds.\nTotal iterations: 394001\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_4ey8r543\\tran.net\n",
   "emitted_lib": "reports\\models\\csd16412q5a_PIECESPICE_T3.lib"
 }

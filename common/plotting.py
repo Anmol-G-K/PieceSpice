@@ -12,6 +12,7 @@ Design goals (publication quality):
   dashed grid.
 """
 
+from pathlib import Path
 from typing import Dict, Optional, List, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
@@ -101,6 +102,36 @@ def _new_figure(figsize: Tuple[float, float] = (10.5, 5.8)):
     return fig, ax
 
 
+# ---------------------------------------------------------------------------
+# Tiered figure output. Notebooks pass arrays + metadata; all placement and
+# resolution logic stays here (house rule: helpers own figure paths).
+# ---------------------------------------------------------------------------
+FIGURES_ROOT = Path(__file__).resolve().parents[1] / "figures"
+_VALID_TIERS = (None, "tier2", "tier3")
+
+
+def figure_path(vendor: str, filename: str, tier: Optional[str] = None) -> Path:
+    """Resolve ``figures/<vendor>/[tier]/<filename>`` and create its parent.
+
+    ``tier`` selects the comparison subdirectory (``tier2``/``tier3``);
+    ``None`` keeps extraction/analysis figures at the vendor root.
+    """
+    if tier not in _VALID_TIERS:
+        raise ValueError(f"tier must be one of {_VALID_TIERS}, got {tier!r}")
+    parts = (vendor,) if tier is None else (vendor, tier)
+    path = FIGURES_ROOT.joinpath(*parts, filename)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def save_figure(fig, vendor: str, filename: str,
+                tier: Optional[str] = None) -> Path:
+    """Save a figure into the tiered layout at 300 dpi; return the path."""
+    path = figure_path(vendor, filename, tier)
+    fig.savefig(path, dpi=300, bbox_inches="tight")
+    return path
+
+
 def plot_curves(
     curves: List[CurveData],
     title: str,
@@ -182,6 +213,55 @@ def plot_waveforms(
         fig.savefig(save_path, bbox_inches='tight', dpi=300)
 
     return fig, ax
+
+
+def plot_waveform_comparison(
+    t,
+    left_families: Dict[str, object],
+    right_families: Dict[str, object],
+    *,
+    vendor: str,
+    filename: str,
+    tier: Optional[str] = None,
+    left_label: str = "left",
+    right_label: str = "right",
+    title: str = "",
+    xlabel: str = "Time [ns]",
+    figsize: Tuple[float, float] = (10.5, 8.0),
+    show: bool = False,
+) -> Tuple[plt.Figure, Tuple[plt.Axes, Optional[plt.Axes]]]:
+    """Two stacked panels overlaying golden/tier families on a shared time axis.
+
+    Generic: accepts only arrays and metadata. Each panel gets an EAST legend
+    outside the axes; the figure is saved at 300 dpi under the tier figures
+    directory selected by ``tier``.
+    """
+    setup_style()
+    if right_families:
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=figsize, sharex=True,
+                                       layout="constrained")
+    else:
+        fig, ax1 = plt.subplots(1, 1,
+                                figsize=(figsize[0], figsize[1] / 2),
+                                layout="constrained")
+        ax2 = None
+    for label, y in left_families.items():
+        ax1.plot(t, y, label=label)
+    if ax2 is not None:
+        for label, y in right_families.items():
+            ax2.plot(t, y, label=label)
+    axes = [ax1] if ax2 is None else [ax1, ax2]
+    for ax, ylabel in zip(axes, (left_label, right_label)):
+        ax.set_ylabel(ylabel)
+        ax.grid(True, alpha=0.35, ls="--")
+        _east_legend(ax)
+    (ax2 if ax2 is not None else ax1).set_xlabel(xlabel)
+    if title:
+        fig.suptitle(title)
+    save_figure(fig, vendor, filename, tier)
+    if show:
+        plt.show()
+    return fig, (ax1, ax2)
 
 
 # ---------------------------------------------------------------------------

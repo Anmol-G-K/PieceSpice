@@ -9,13 +9,13 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![LTspice](https://img.shields.io/badge/LTspice-26-orange)](https://www.analog.com/en/resources/design-tools-and-calculators/ltspice-simulator.html)
 [![spicelib](https://img.shields.io/badge/spicelib-powered-yellow)](https://pypi.org/project/spicelib/)
-[![Tests](https://img.shields.io/badge/tests-100%20passing%20%C2%B7%204%20skipped-brightgreen?logo=pytest&logoColor=white)](#testing)
+[![Tests](https://img.shields.io/badge/tests-118%20passing%20%C2%B7%204%20skipped-brightgreen?logo=pytest&logoColor=white)](#testing)
 [![License](https://img.shields.io/badge/license-TBD-lightgrey)]()
 [![uv](https://img.shields.io/badge/managed%20with-uv-dead00?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
 
 [![Infineon](https://img.shields.io/badge/supported-Infineon%20%2F%20IR-0A8276?labelColor=1a1a1a)](#validated-devices) [![TI](https://img.shields.io/badge/supported-Texas%20Instruments-CC0000?labelColor=1a1a1a)](#validated-devices) [![EPC](https://img.shields.io/badge/supported-EPC%20GaN-006FBA?labelColor=1a1a1a)](#validated-devices) [![Wolfspeed](https://img.shields.io/badge/supported-Wolfspeed%20SiC-58238C?labelColor=1a1a1a)](#validated-devices)
 
-*Vendor `.lib` in → validated Tier-2 CPWL macromodel out*
+*Vendor `.lib` in → validated Tier-2 CPWL **or** Tier-3 TPWL macromodel out*
 
 </div>
 
@@ -26,20 +26,35 @@
 **PieceSpice** bridges the simulation gap between full physics SPICE models
 (high fidelity, hours of compute, convergence failures) and system-level
 ideal-switch tools (instant, but no ringing/losses). It automatically
-distills vendor MOSFET subcircuits into **Tier-2 Continuous Piecewise-Linear
-(CPWL) macromodels** that:
+distills vendor MOSFET subcircuits into one of **two selectable solver tiers**:
+
+- **Tier-2 — CPWL macromodel.** Continuous piecewise-linear channel with a
+  `tanh` saturation knee plus charge-defined capacitors, emitted as a small
+  standard-SPICE subcircuit. Method closed; robust and fast.
+- **Tier-3 — TPWL terminal model.** Trajectory piecewise-linear fit with
+  POD-DEIM anchors captured from the device's own double-pulse waveform,
+  emitted as its own subcircuit. Better static fit, but slower today.
 
 | | Fidelity | Speed | Robustness |
 |---|---|---|---|
 | Vendor SPICE | ●●●●● | ●○○○○ | ○○○○○ |
-| **PieceSpice Tier-2** | **●●●●○ (0.2–3.9% err)** | **●●●●○ (10–100× target)** | **●●●●● (C⁰ PWL + tanh knee)** |
+| **PieceSpice Tier-2 (CPWL)** | **●●●●○ (2.04–8.49 % static rel-RMSE; ≤ 4.13 % endpoint)** | **●●○○○ (no speedup claimed)** | **●●●●● (C⁰ PWL + tanh knee)** |
+| **PieceSpice Tier-3 (TPWL)** | **●●●●○ (0.61–4.24 % static fit rel-RMSE)** | **●○○○○ (0.07–0.23× measured)** | **●●●○○ (anchored on captured trajectory)** |
 | PLECS / Ideal | ●○○○○ | ●●●●● | ●●●●● |
 
 Everything is emitted as a **standard SPICE subcircuit** — no proprietary
 solver, no special runtime. Drop the generated `.lib` into any SPICE flow
 that supports behavioral sources and charge-defined capacitors (validated on
-LTspice 26) and simulate against the golden model. The 10–100× speedup is
-the M5 target and has **not** been measured yet.
+LTspice 26) and simulate against the golden model.
+
+**Measured status — honest:** Tier-3 does **not** currently deliver a speedup.
+Measured solver speedups are 0.216× (IRFS), 0.0667× (TI), 0.229× (EPC) and
+0.103× (CPM2) — that is **0.07–0.23×** (rounded), slower than the golden in every
+case.
+The earlier aspirational speedup claim is superseded by these measurements.
+The pipeline guard reports speedup as **N/A whenever either DPT bench fails
+to complete**, so an incomplete run is never counted as a win. See
+[Measured Results](#-measured-results) for the full tables.
 
 ---
 
@@ -53,22 +68,19 @@ the M5 target and has **not** been measured yet.
                                     ▼  config/outputs/<vendor>/
                  ┌──────────────────────────────────────────────┐
                  │ M3: APPROXIMATION ENGINES                    │
-                 │  • Adaptive PWL regression  → Vth, gfs *     │
-                 │  • RDP compression          → lean curves *  │
-                 │  • Charge integration       → Q(V) tables    │
-                 │  • C¹ knee smoothing        → tanh kernels   │
-                 └──────────────────┬───────────────────────────┘
-                                    ▼  PWLModelSpec
-                 ┌──────────────────────────────────────────────┐
-                 │ SYNTHESIS: netlist_builder                   │
-                 │  tanh-knee G_CH + C_QOSS + D_BODY            │
+                 │  Tier-2: adaptive PWL regression → Vth, gfs* │
+                 │          RDP compression, charge integration │
+                 │          C¹ knee smoothing (tanh kernels)    │
+                 │  Tier-3: TPWL terminal model + POD-DEIM      │
+                 │          anchors from the captured DPT       │
                  └──────────────────┬───────────────────────────┘
                                     ▼
-                     reports/models/<device>_PIECESPICE_T2.lib
+          Tier-2 → reports/models/<device>_PIECESPICE_T2.lib
+          Tier-3 → reports/models/<device>_PIECESPICE_T3[_<variant>].lib
 ```
 
-`*` analysis-only (notebook 02 / `metrics.compare`); the emitted model is
-built from the extracted curve rows plus the charge integration, not from
+`*` analysis-only (notebook 02 / `metrics.compare`); the Tier-2 emitted model
+is built from the extracted curve rows plus the charge integration, not from
 the PWLF/RDP fits.
 
 ### The Seven Datasheet Curves
@@ -98,11 +110,12 @@ target measured directly on waveforms and curves.
 Each macromodel is built from the device's own extracted behavior, using
 the simplest formulation that preserves the physics that matter:
 
-**Channel conduction.** The drain current is a continuous piecewise-linear
-function of Vgs with one segment per extracted Vgs family, anchored at the
-origin, multiplied by a `tanh` saturation knee in Vds. The breakpoints carry
-the physical meaning: threshold sits at the knee, transconductance is the
-post-knee slope, so the reduced parameters remain interpretable.
+**Channel conduction (Tier-2).** The drain current is a continuous
+piecewise-linear function of Vgs with one segment per extracted Vgs family,
+anchored at the origin, multiplied by a `tanh` saturation knee in Vds. The
+breakpoints carry the physical meaning: threshold sits at the knee,
+transconductance is the post-knee slope, so the reduced parameters remain
+interpretable.
 
 **Charge behavior.** Nonlinear capacitances are integrated into stored
 charge Q(V) rather than used as C(v)·dv/dt — charge-conserving formulation,
@@ -119,9 +132,18 @@ what buys Newton robustness without sacrificing the ohmic region.
 state below threshold; the body diode is synthesized directly from extracted
 reverse-conduction data (IS/N/RS).
 
+**Tier-3 — TPWL terminal model.** Where Tier-2 fits static curves, Tier-3
+captures a double-pulse trajectory from the golden device, selects POD-DEIM
+anchors and builds a trajectory piecewise-linear terminal model, emitted as
+its own SPICE subcircuit. It targets terminal waveform fidelity rather than
+internal-state projection. Its static fit error is lower than Tier-2 on
+three of four devices, but its emitted DPT runs slower than golden — select
+Tier-3 for fidelity studies, not for speed today.
+
 The target: PLECS-class evaluation speed inside a plain SPICE subcircuit,
 with error measured and bounded against the vendor golden model rather than
-assumed.
+assumed. Measured results are below; the speed target is **not** met by
+either tier in the current DPT runs.
 
 ---
 
@@ -158,11 +180,31 @@ uv run python -m cli.main curves csd16412q5a     # all 7 curves
 uv run python -m cli.main parse SpiceModels/EPC2216_V0_PSPICE.net
 ```
 
+### Select the Solver Tier
+
+The `fit`, `validate` and `compare` commands choose the tier explicitly:
+
+```bash
+uv run python -m cli.main fit csd16412q5a --tier 2                 # Tier-2 CPWL (default)
+uv run python -m cli.main fit csd16412q5a --tier 3                 # Tier-3 TPWL, default variant
+uv run python -m cli.main fit csd16412q5a --tier 3 --variant alt   # named Tier-3 variant
+uv run python -m cli.main validate csd16412q5a --tier 2            # golden vs Tier-2
+uv run python -m cli.main validate csd16412q5a --tier 3             # golden vs Tier-3
+uv run python -m cli.main compare csd16412q5a                       # golden vs Tier-2 vs Tier-3
+```
+
+Tier-2 emits `reports/models/<vendor>_PIECESPICE_T2.lib`; Tier-3 emits
+`<vendor>_PIECESPICE_T3.lib` for the default variant and
+`<vendor>_PIECESPICE_T3_<variant>.lib` for named variants. Multiple Tier-3
+variants per vendor are the norm, and the registry lists them.
+
 Outputs land in:
 
 ```text
 config/outputs/<vendor>/        extracted curve data (YAML)
-reports/models/                 synthesized Tier-2 .lib files
+reports/models/                 synthesized Tier-2 (.T2) and Tier-3 (.T3) .lib files
+reports/comparison/<vendor>/    golden-vs-model metrics and validation JSONs
+figures/<vendor>/tier2|tier3/   golden-vs-tier DPT figures
 ```
 
 ### Adding a New Vendor Model
@@ -187,6 +229,77 @@ automatically from the YAML pin map.
 | EPC | EPC2216 | GaN eGaN (behavioral) | ✅ 7/7 curves |
 | Wolfspeed | CPM2-1200-0025B | SiC bare die (Tj port) | ✅ 7/7 curves |
 
+Both tiers are exercised on all four devices; measured figures follow.
+
+---
+
+## 📊 Measured Results
+
+> **AES-STD100 — vendor-model fidelity caveat.** "Manufacturer datasheets
+> were checked against extracted currents at the rated gate drive:
+> IRFS7730PBF 246 A continuous / 984 A pulsed vs 1671 A extracted at Vgs=10 V;
+> CSD16412Q5A 52 A / 91 A vs 305 A; EPC2216 3.4 A / 28 A vs 61.7 A at
+> Vgs=6 V; CPM2-1200 81 A / 200 A vs 342 A at Vgs=20 V. These excesses are
+> properties of the vendor subcircuits (VM-04/VM-06). Matching the vendor
+> golden is not the same as matching the datasheet; fidelity claims against
+> the vendor must not be read as physical device ratings."
+
+**This caveat applies to every table in this section.** All figures below are
+measured from the JSON exports in `reports/comparison/<vendor>/`; none are
+estimates or imputations.
+
+**Static Curve-1 relative RMSE** — Tier-2 (closed, full sweep) vs Tier-3
+(function fit / emitted netlist). Tier-3's fit error is lower on 3 of 4
+devices; EPC is the exception.
+
+| Device | Tier-2 rel-RMSE | Tier-3 fit rel-RMSE | Tier-3 emitted rel-RMSE |
+|---|---|---|---|
+| IRFS7730PBF | 7.07 % | 4.24 % | 4.10 % |
+| CSD16412Q5A (TI) | 8.49 % | 1.54 % | 2.15 % |
+| EPC2216 | 2.04 % | 2.37 % | 7.12 % |
+| CPM2-1200 | 3.43 % | 0.61 % | 0.97 % |
+
+Tier-2 worst endpoint error ≤ 4.13 %. *AES-STD100 caveat above applies.*
+
+**DPT waveform completion and terminal waveform error** — golden points →
+Tier-3 points, with Tier-3 relative RMSE against golden. All four Tier-3 DPT
+runs completed.
+
+| Device | Golden points | Tier-3 points | Vds rel-RMSE | Id rel-RMSE |
+|---|---|---|---|---|
+| IRFS7730PBF | 7114 | 7210 | 39.59 % | 13.09 % |
+| CSD16412Q5A | 10189 | 66240 | 2.38 % | 0.42 % |
+| EPC2216 | 7418 | 9301 | 5.29 % | 0.76 % |
+| CPM2-1200 | 7154 | 31436 | 4.21 % | 0.35 % |
+
+*AES-STD100 caveat above applies.*
+
+**Solver speed (Tier-3 vs golden):** 0.216× / 0.0667× / 0.229× / 0.103×
+(IRFS / TI / EPC / CPM2) — **no speedup**. The pipeline guard reports N/A
+unless both benches complete. *AES-STD100 caveat above applies.*
+
+**DPT timing and energy — golden / Tier-3 / Tier-2.** `tr`, `tf` in ns;
+`e_on`, `e_off` in µJ. IRFS Tier-3 cells are **N/A** because the gate
+crossings were absent in that run — never imputed.
+
+| Device | tr (ns) G / T3 / T2 | tf (ns) G / T3 / T2 | e_on (µJ) G / T3 / T2 | e_off (µJ) G / T3 / T2 |
+|---|---|---|---|---|
+| IRFS7730PBF | 25.84 / 3.171 / 2.893 | 26.54 / 0.865 / 2.529 | 157.4 / N/A / 71.09 | 597.0 / N/A / 533.4 |
+| CSD16412Q5A | 1.096 / 0.1064 / 1.486 | 1.662 / 0.689 / 2.246 | 1.063 / 0.941 / 0.753 | 17.97 / 17.55 / 17.73 |
+| EPC2216 | 0.846 / 1.524 / 0.838 | 1.227 / 2.078 / 1.343 | 1.091 / 1.260 / 1.149 | 15.63 / 15.25 / 15.41 |
+| CPM2-1200 | 4.703 / 0.814 / 4.123 | 4.139 / 2.530 / 8.789 | 5.619 / 4.465 / 6.109 | 56.70 / 55.43 / 57.04 |
+
+*AES-STD100 caveat above applies.*
+
+**Test suite.**
+
+| Command | Passed | Skipped |
+|---|---|---|
+| `uv run pytest` | 118 | 4 |
+
+*AES-STD100 caveat above applies to the fidelity figures these tests
+protect, not to the test process itself.*
+
 ---
 
 ## 📂 Project Structure
@@ -194,45 +307,56 @@ automatically from the YAML pin map.
 ```text
 PieceSpice/
 ├── approximation/        # Core algorithms: pwlf_fit, rdp_compress,
-│                         # charge_model, smoother
-├── cli/                  # Typer CLI entrypoint
+│                         # charge_model, smoother, static_curves,
+│                         # tpwl_deim (Tier-3 TPWL + POD-DEIM)
+├── cli/                  # Typer CLI entrypoint (--tier / --variant)
 ├── common/               # Shared types, roles registry, plotting,
-│                         # diagnostics (stderr dedup), plotting utils
+│                         # diagnostics (stderr dedup)
 ├── config/
 │   ├── inputs/           # Per-vendor simulation conditions (YAML)
 │   └── outputs/          # Extracted curve data (YAML)
 ├── data/                 # Captured golden switching waveforms (CSV)
 ├── docs/                 # Reports, plans, reference notes
-├── figures/              # Plots by model: figures/<vendor>/*.png
+├── figures/
+│   └── <vendor>/
+│       ├── 01_*, 02_*    # extraction / analysis figures
+│       ├── tier2/        # golden-vs-Tier-2 DPT figures
+│       └── tier3/        # golden-vs-Tier-3 DPT figures
 ├── metrics/              # Static/switching/loss/comparison metrics
-├── models/               # Tier-2 netlist synthesis
-├── notebooks/            # 01 extraction · 02 approximation & validation
+├── models/               # netlist_builder (Tier-2) +
+│                         # tpwl_netlist_builder (Tier-3)
+├── notebooks/            # 01 extraction · 02 approximation · 03 DPT · 05 validation
 ├── parser/               # Subcircuit/pin parser (dialect transpiler retired)
-├── pipeline/             # run_all_curves() · fit_pwl_model(vendor)
+├── pipeline/             # run_all_curves · fit_pwl_model · tier3 ·
+│                         # registry (tier registry for the CLI)
 ├── reporting/            # Single-file HTML report generator
 ├── simulation/           # LTspice engine + benches (static/cap/gate-charge/
-│                         # switching)
+│                         # switching/dpt_trajectory)
 ├── SpiceModels/          # Vendor libraries (read-only inputs)
 ├── tests/                # pytest suite
-└── scripts/              # Utility scripts
+└── scripts/              # Utility scripts (incl. run_tier3)
 ```
+
+The former `tier3/` package has been folded into the paths above — there are
+no re-export shims.
 
 ---
 
 ## 🧪 Testing
 
 ```bash
-uv run pytest                # 100 passed, 4 skipped (~3.5 min)
+uv run pytest                # 118 passed, 4 skipped
 uv run pytest tests/test_pwlf_fit.py -v    # single module
 ```
 
-The suite covers the parser, every approximation engine, metric math,
-netlist emission, YAML I/O and the LTspice log-diagnostics layer, plus live
-LTspice engine tests (transient, DC sweep, timeout, temperature). The
-synthesized Tier-2 subcircuit is exercised end-to-end through
-PySpice/ngspice at an operating point — that is the only remaining PySpice
-use, and it is scheduled for rewrite in `docs/migration_todo.md` T6.2a
-together with four skipped tests.
+The suite covers the parser, every approximation engine (including the
+Tier-3 TPWL/DEIM path), metric math, netlist emission, YAML I/O and the
+LTspice log-diagnostics layer, plus live LTspice engine tests (transient,
+DC sweep, timeout, temperature). The synthesized Tier-2 subcircuit is
+exercised end-to-end through PySpice/ngspice at an operating point — that is
+the only remaining PySpice use, and it is scheduled for rewrite in
+`docs/migration_todo.md` T6.2a together with four skipped tests. Tier-3 has
+its own test module, `tests/test_tier3.py`.
 
 ---
 
@@ -243,9 +367,9 @@ together with four skipped tests.
 | [`01_datasheet_curves_extraction`](notebooks/01_datasheet_curves_extraction.ipynb) | Extract the 7 datasheet curves from any configured vendor |
 | [`02_piecewise_approximation`](notebooks/02_piecewise_approximation.ipynb) | Fit → compress → charge-integrate → smooth → synthesize → validate |
 | [`04a_simple_switching_subset`](notebooks/04a_simple_switching_subset.ipynb) | Golden-vs-Tier-2 resistive-load switching comparison (M4 subset) |
-| [`03_double_pulse_transients`](notebooks/03_double_pulse_transients.ipynb) | Clamped-inductive DPT: golden-vs-ROM timing, energy and measured wall-clock speedup |
-| `04_buck_converter_benchmark` | *placeholder — buck bench not implemented; no speedup numbers* |
-| `05_comprehensive_validation_report` | Synthesizes Tier-2 and renders **measured** endpoint error to HTML |
+| [`03_double_pulse_transients`](notebooks/03_double_pulse_transients.ipynb) | Clamped-inductive DPT: golden vs Tier-2 vs Tier-3 waveforms, timing and energy; writes `figures/<vendor>/tier2/` and `tier3/` |
+| [`04_buck_converter_benchmark`](notebooks/04_buck_converter_benchmark.ipynb) | *placeholder — buck bench not implemented; no speedup numbers* |
+| [`05_comprehensive_validation_report`](notebooks/05_comprehensive_validation_report.ipynb) | Rewritten — Tier-2 **and** Tier-3 validation, measured numbers only, per-vendor table |
 
 ---
 
@@ -256,15 +380,20 @@ together with four skipped tests.
 - [x] **M3** — Piecewise Approximation & Charge Integration Engines
       + Tier-2 synthesis + golden validation
       **Method closed.** Final mean full-sweep rel-RMSE: IRFS 7.07 %,
-      TI 8.49 %, EPC 2.04 %, CPM2 3.43 %; worst endpoint error <=4.13 %.
+      TI 8.49 %, EPC 2.04 %, CPM2 3.43 %; worst endpoint error ≤4.13 %.
       The remaining TI/IRFS deviations are limits of this model form —
       further parameter ablations were measured and did not improve them.
+- [x] **Tier-3 — TPWL terminal model** *(selectable alongside Tier-2)*
+      Static Curve-1 fit rel-RMSE beats Tier-2 on 3 of 4 devices
+      (IRFS 4.24 vs 7.07 %, TI 1.54 vs 8.49 %, CPM2 0.61 vs 3.43 %;
+      EPC 2.37 vs 2.04 % is the exception). All four DPTs completed.
+      **No speedup claimed** — measured solver speed 0.07–0.23×; the
+      guard reports N/A if a bench does not complete.
 - [x] **M4** — Switching Dynamics & Double Pulse Testbench
       *(metrics, resistive-load subset and inductive DPT)*
 - [ ] **M5** — Switched-Mode Converter Benchmark & Speedup Evaluation
-      *(DPT-topology runtime benchmark: 20-pulse TI ~4.9× solver /
-      3.3× wall-clock, other devices ~1×; EPC golden needs a 100 ns
-      step cap in that run. No converter benchmark exists.)*
+      *(DPT-topology runtime benchmark only; no converter benchmark exists.
+      Tier-3 adds no measured speedup — see Measured Results.)*
 - [x] **M6** — Automated HTML Reporting & CLI Polish
       *(the report renders only metrics it is given)*
 

@@ -1,9 +1,9 @@
 """Unit tests for the paper-defined parts of the Tier-3 TPWL terminal model."""
 import numpy as np
 
-from tier3 import emitter
-from tier3.pipeline import _log_iterations
-from tier3.tpwl_deim import (
+from models import tpwl_netlist_builder as emitter
+from pipeline.tier3 import _log_iterations
+from approximation.tpwl_deim import (
     WEIGHT_EXPONENT,
     TPWLTerminalModel,
     deim_indices,
@@ -104,7 +104,7 @@ def test_emitted_channel_clamps_negative_drain_voltage():
 
 
 def test_emitted_static_rmse_matches_channel_prediction():
-    from tier3.static_curves import static_samples
+    from approximation.static_curves import static_samples
     model = _toy_model()
     u, ref, _ = static_samples(model.vendor)
     pred = emitter.emitted_channel(model, u)

@@ -41,8 +41,8 @@ from __future__ import annotations
 import numpy as np
 
 from config.yaml_io import load_input, load_output
-from tier3.static_curves import load_output_family
-from tier3.tpwl_deim import TPWLTerminalModel, paper_weights
+from approximation.static_curves import load_output_family
+from approximation.tpwl_deim import TPWLTerminalModel, paper_weights
 
 _PORT = {"drain": "d", "gate": "g", "source": "s", "tj": "tj"}
 _VSAT_DEFAULT = 0.2        # low-Vds saturation scale [V], measured on TI/IRFS/CPM2
@@ -146,7 +146,7 @@ def emitted_channel(model: TPWLTerminalModel, u: np.ndarray) -> np.ndarray:
 
 def emitted_static_rmse(model: TPWLTerminalModel) -> float:
     """Relative RMSE of the emitted channel on the Curve-1 static family."""
-    from tier3.static_curves import static_samples
+    from approximation.static_curves import static_samples
     u, ref, _ = static_samples(model.vendor)
     pred = emitted_channel(model, u)
     span = float(np.ptp(ref)) or 1.0

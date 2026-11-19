@@ -1,8 +1,8 @@
 """End-to-end Tier-3 (TPWL terminal model) build and validation.
 
 Writes:
-  reports/models/<vendor>_PIECESPICE_T3.lib            emitted subcircuit
-  reports/comparison/<vendor>/tier3_validation.json   measured metrics
+  reports/models/<vendor>_PIECESPICE_T3[_<variant>].lib   emitted subcircuit
+  reports/comparison/<vendor>/tier3_validation[_<variant>].json  metrics
 
 Everything reported is measured: function-fit errors on the held-out
 second pulse, LTspice DPT figures of the emitted subcircuit, and runtime
@@ -28,9 +28,10 @@ from simulation.testbenches.speedup_bench import (
     _pulse_train,
     run_inductive_benchmark,
 )
-from tier3.emitter import emit_subcircuit, emitted_static_rmse
-from tier3.tpwl_deim import build_model
-from tier3.trajectory import capture_trajectory
+from models.tpwl_netlist_builder import emit_subcircuit, emitted_static_rmse
+from approximation.tpwl_deim import build_model
+from simulation.testbenches.dpt_trajectory import capture_trajectory
+from pipeline.registry import DEFAULT_VARIANT
 
 ROOT = Path(__file__).resolve().parent.parent
 METRICS = ("td_on_ns", "tr_ns", "td_off_ns", "tf_ns",
@@ -107,8 +108,9 @@ def _waveform_errors(run, traj) -> dict:
     }
 
 
-def run_vendor(vendor: str) -> dict:
+def run_vendor(vendor: str, variant: str = DEFAULT_VARIANT) -> dict:
     """Build, validate, emit and persist one vendor's Tier-3 model."""
+    suffix = "" if variant == DEFAULT_VARIANT else f"_{variant}"
     t0 = time.perf_counter()
     traj = capture_trajectory(vendor)
     capture_wall = time.perf_counter() - t0
@@ -142,7 +144,7 @@ def run_vendor(vendor: str) -> dict:
                         v_block=v_block, v_width=v_width)
     fit_wall = time.perf_counter() - t0 - capture_wall
 
-    lib = ROOT / "reports" / "models" / f"{vendor}_PIECESPICE_T3.lib"
+    lib = ROOT / "reports" / "models" / f"{vendor}_PIECESPICE_T3{suffix}.lib"
     lib.parent.mkdir(parents=True, exist_ok=True)
     lib.write_text(emit_subcircuit(model), encoding="ascii")
     static_emitted = emitted_static_rmse(model)
@@ -233,6 +235,7 @@ def run_vendor(vendor: str) -> dict:
     record = {
         "schema": "piecespice.tier3/2.0",
         "vendor": vendor,
+        "variant": variant,
         "methods": ["TPWL (Rewienski & White 2003)",
                     "POD-DEIM anchors (Chaturantabut & Sorensen 2010)"],
         "algorithm": {
@@ -273,7 +276,7 @@ def run_vendor(vendor: str) -> dict:
         "spice_log_tail": "\n".join(log.splitlines()[-6:]),
         "emitted_lib": str(lib.relative_to(ROOT)),
     }
-    out = ROOT / "reports" / "comparison" / vendor / "tier3_validation.json"
+    out = ROOT / "reports" / "comparison" / vendor / f"tier3_validation{suffix}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     return record

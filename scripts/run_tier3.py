@@ -9,7 +9,7 @@ import math
 
 import sys
 
-from tier3.pipeline import run_vendor
+from pipeline.tier3 import run_vendor
 
 VENDORS = ("irfs7730pbf", "csd16412q5a", "epc2216", "cpm2-1200")
 SHOW = ("tr_ns", "tf_ns", "e_on_uj", "e_off_uj")
