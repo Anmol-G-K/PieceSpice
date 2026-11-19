@@ -1,0 +1,391 @@
+{
+  "schema": "piecespice.tier3/2.0",
+  "vendor": "irfs7730pbf",
+  "variant": "simplis",
+  "methods": [
+    "SIMPLIS Level-2 (CGS/CDS/CDG V-Q tables; S-MOS, S-APPB)",
+    "Tier-2 CPWL channel + body diode + parasitics (unchanged)"
+  ],
+  "algorithm": {
+    "cgs_decision": {
+      "mode": "linear",
+      "chord_deviation": 0.0005656440153336745,
+      "rel_tolerance": 0.005
+    },
+    "nseg": {
+      "cgs": 1,
+      "cds": 4,
+      "cdg": 4
+    },
+    "table_points": {
+      "cgs": 2,
+      "cds": 5,
+      "cdg": 5
+    },
+    "max_abs_charge_error_c": {
+      "cgs": 4.2999091314085256e-10,
+      "cds": 1.0568540055396006e-09,
+      "cdg": 1.2657978893474883e-09
+    },
+    "rel_tolerance": 0.005,
+    "ac_sweep": {
+      "v_min_v": 0.1,
+      "v_max_v": 60.0,
+      "points": 25,
+      "f_meas_hz": 1000000.0
+    },
+    "clipped_delta_points": {
+      "cgs": 0,
+      "cds": 0
+    },
+    "cap_ref_vds": 15.075,
+    "curve4_recorded_scalars": {
+      "ciss_f": 1.3544355759244372e-08,
+      "coss_f": 1.4115209490764857e-09,
+      "crss_f": 8.564135068335591e-10,
+      "cap_ref_vds": 15.075
+    },
+    "breakpoint_formula": "greedy pwl_charge_segments (our rule; SIMPLIS interior rule undocumented)",
+    "channel": "reused models.netlist_builder._channel_expression"
+  },
+  "function_fit": {
+    "static_curve_rmse_rel": 7.068258861145344,
+    "emitted_static_curve_rmse_rel": 7.068258861145344,
+    "emitted_static_per_curve_pct": [
+      10.126001998194026,
+      13.852793759398027,
+      4.637687963974991,
+      3.0702388740758417,
+      3.654571710083839
+    ],
+    "emitted_static_samples": 41,
+    "tier2_recorded_mean_rel_rmse_pct": 7.0684,
+    "static_delta_pp_vs_tier2": -0.00014113885465594223
+  },
+  "dpt_run": {
+    "completed": true,
+    "trace_points": 7171,
+    "golden_trace_points": 7114,
+    "iterations": 18602,
+    "t_last_s": 1.4e-05,
+    "error": null,
+    "waveform": {
+      "vds_rel_rmse_pct": 11.259711021663797,
+      "id_rel_rmse_pct": 0.5367058965917174,
+      "compare_points": 7171
+    }
+  },
+  "dpt_comparison": {
+    "td_on_ns": {
+      "golden": 32.29627698150211,
+      "tier3": 23.153196909727036,
+      "tier3_rel_err_pct": -28.310012565881294,
+      "tier2": 17.081334133714805,
+      "tier2_rel_err_pct": -47.11051634992404
+    },
+    "tr_ns": {
+      "golden": 25.84350961529235,
+      "tier3": 8.959340191195384,
+      "tier3_rel_err_pct": -65.3323394362278,
+      "tier2": 2.892552707266252,
+      "tier2_rel_err_pct": -88.80743076182407
+    },
+    "td_off_ns": {
+      "golden": 62.182902750101924,
+      "tier3": 21.84665194177049,
+      "tier3_rel_err_pct": -64.86710819923137,
+      "tier2": 17.134184632214943,
+      "tier2_rel_err_pct": -72.44550531667346
+    },
+    "tf_ns": {
+      "golden": 26.538999478329874,
+      "tier3": 8.604762672290395,
+      "tier3_rel_err_pct": -67.57691381954125,
+      "tier2": 2.5289703561538817,
+      "tier2_rel_err_pct": -90.47073964405146
+    },
+    "dv_dt_max_v_per_ns": {
+      "golden": 35.93467060024436,
+      "tier3": 1099.1399731200001,
+      "tier3_rel_err_pct": 2958.717263189623,
+      "tier2": 587.4770711811311,
+      "tier2_rel_err_pct": 1534.8475201471201
+    },
+    "di_dt_max_a_per_ns": {
+      "golden": 0.22686931200000002,
+      "tier3": 3.7826070390282953,
+      "tier3_rel_err_pct": 1567.306611759062,
+      "tier2": 2.497784249508453,
+      "tier2_rel_err_pct": 1000.9793380554056
+    },
+    "e_on_uj": {
+      "golden": 157.43281606412236,
+      "tier3": 101.14949743204727,
+      "tier3_rel_err_pct": -35.75069038284299,
+      "tier2": 71.09326472844484,
+      "tier2_rel_err_pct": -54.84215647931461
+    },
+    "e_off_uj": {
+      "golden": 596.9637000429396,
+      "tier3": 550.4983599796886,
+      "tier3_rel_err_pct": -7.783612313430238,
+      "tier2": 533.4319489514241,
+      "tier2_rel_err_pct": -10.642481458578748
+    },
+    "i_peak_a": {
+      "golden": 138.5330810546875,
+      "tier3": 137.0476837158203,
+      "tier3_rel_err_pct": -1.072232947941734,
+      "tier2": 136.9910430908203,
+      "tier2_rel_err_pct": -1.1131189403478658
+    }
+  },
+  "runtime": {
+    "golden": {
+      "wall_clock_s": 0.992065399997955,
+      "solver_elapsed_s": 0.425,
+      "iterations": 14825.0,
+      "trace_points": 7114.0
+    },
+    "tier3": {
+      "wall_clock_s": 1.0155865999986418,
+      "solver_elapsed_s": 0.427,
+      "iterations": 18602.0,
+      "trace_points": 7171.0
+    },
+    "tier3_bench_completed": true,
+    "solver_speedup": 0.9953161592505855,
+    "bench_wall_s": {
+      "golden": 2.988240800001222,
+      "tier3": 3.026511299998674
+    }
+  },
+  "build_seconds": {
+    "capture": 1.10625760000039,
+    "fit": 27.02189879999787,
+    "static_sweep": 2.941227600000275
+  },
+  "spice_log_tail": "Total elapsed time: 0.433 seconds.\nTotal iterations: 18602\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_2inwnfyv\\tran.net\n",
+  "emitted_lib": "reports\\models\\irfs7730pbf_PIECESPICE_T3_simplis.lib",
+  "speed_adaptive_20": {
+    "conditions": {
+      "n_pulses": 20,
+      "max_step_golden_s": null,
+      "max_step_simplis_s": null,
+      "end_time_s": 0.000176,
+      "repeats": 3,
+      "timeout_s": 90.0,
+      "topology": "clamped-inductive DPT, per-vendor config YAML"
+    },
+    "golden": {
+      "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\SpiceModels\\irfs7730pbf.spi",
+      "subcircuit": "irfb_s_sl7730pbf",
+      "n_pulses": 20,
+      "max_step": null,
+      "end_time_s": 0.000176,
+      "repeats": 3,
+      "wall_clock_s": 0.8429982000016025,
+      "solver_elapsed_s": 0.321,
+      "iterations": 12718.0,
+      "trace_points": 3432.0,
+      "trace_names": 12.0,
+      "bench_wall_s": 2.5655698999980814,
+      "guard_run": {
+        "t_last_s": 0.000176,
+        "iterations": 12718,
+        "trace_points": 3432,
+        "solver_elapsed_s": 0.323
+      },
+      "completed": true,
+      "anti_fake_guard": "3/3 repeats must return (timeout raises => failure); median solver/wall > 0 with median iterations and trace points > 0; end_time_s = 176 us; separate identical-netlist guard run must reach t_last >= 0.999*176 us with iterations/points > 0"
+    },
+    "tier3_simplis": {
+      "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\irfs7730pbf_PIECESPICE_T3_simplis.lib",
+      "subcircuit": "irfs7730pbf_PIECESPICE_T3_simplis",
+      "n_pulses": 20,
+      "max_step": null,
+      "end_time_s": 0.000176,
+      "repeats": 3,
+      "wall_clock_s": 0.8955690000002505,
+      "solver_elapsed_s": 0.334,
+      "iterations": 14299.0,
+      "trace_points": 3250.0,
+      "trace_names": 12.0,
+      "bench_wall_s": 2.737413099999685,
+      "guard_run": {
+        "t_last_s": 0.000176,
+        "iterations": 14299,
+        "trace_points": 3250,
+        "solver_elapsed_s": 0.332
+      },
+      "completed": true,
+      "anti_fake_guard": "3/3 repeats must return (timeout raises => failure); median solver/wall > 0 with median iterations and trace points > 0; end_time_s = 176 us; separate identical-netlist guard run must reach t_last >= 0.999*176 us with iterations/points > 0"
+    },
+    "solver_speedup": 0.9610778443113772,
+    "wall_speedup": 0.9412989953888161,
+    "epc_golden_fully_adaptive_attempt": null,
+    "ceiling_context": {
+      "golden_solver_s_recorded": 0.331,
+      "golden_iterations_recorded": 12718,
+      "five_x_budget_s": 0.06620000000000001,
+      "rom_floor_s_recorded": 0.3,
+      "statement": "Golden already takes 12.96 ns inter-pulse / 80.94 ns plateau steps; 5x needs <=0.066 s, the fastest measured PWL variant is 0.300 s (~4.5x above budget). Golden/ROM both reach the 171.875 ns adaptive ceiling off-edge: 5x implausible here."
+    },
+    "notes": [
+      "All timing rows are medians of completed runs only; timeouts/exception rows carry completed=false and no speedup.",
+      "EPC golden uses the documented 100 ns max_step cap; simplis remains fully adaptive (max_step=None)."
+    ]
+  },
+  "fidelity": {
+    "bars": {
+      "static_full_sweep_rel_rmse_pct": {
+        "simplis": 7.068258861145344,
+        "best_prior_name": "tier3_v1",
+        "best_prior_value": 4.154260572611815,
+        "delta_pp_vs_best": 2.913998288533529,
+        "flag": "REGRESSED"
+      },
+      "dpt_waveform_vds_rel_rmse_pct": {
+        "simplis": 11.259711021663797,
+        "best_prior_name": "tier3_v1",
+        "best_prior_value": 16.9582095508409,
+        "delta_pp_vs_best": -5.698498529177101,
+        "flag": "IMPROVED"
+      },
+      "dpt_waveform_id_rel_rmse_pct": {
+        "simplis": 0.5367058965917174,
+        "best_prior_name": "tier3_v1",
+        "best_prior_value": 0.5103037894733514,
+        "delta_pp_vs_best": 0.02640210711836599,
+        "flag": "REGRESSED"
+      },
+      "abs_rel_err_tr_ns": {
+        "simplis": 65.3323394362278,
+        "best_prior_name": "tier2",
+        "best_prior_value": 88.80743076182407,
+        "delta_pp_vs_best": -23.475091325596267,
+        "flag": "IMPROVED"
+      },
+      "abs_rel_err_tf_ns": {
+        "simplis": 67.57691381954125,
+        "best_prior_name": "tier2",
+        "best_prior_value": 90.47073964405146,
+        "delta_pp_vs_best": -22.893825824510216,
+        "flag": "IMPROVED"
+      },
+      "abs_rel_err_e_on_uj": {
+        "simplis": 35.75069038284299,
+        "best_prior_name": "tier2",
+        "best_prior_value": 54.84215647931461,
+        "delta_pp_vs_best": -19.09146609647162,
+        "flag": "IMPROVED"
+      },
+      "abs_rel_err_e_off_uj": {
+        "simplis": 7.783612313430238,
+        "best_prior_name": "tier3_v1",
+        "best_prior_value": 10.322757796978497,
+        "delta_pp_vs_best": -2.5391454835482588,
+        "flag": "IMPROVED"
+      }
+    },
+    "regressed_bars": {
+      "static_full_sweep_rel_rmse_pct": {
+        "simplis": 7.068258861145344,
+        "best_prior_name": "tier3_v1",
+        "best_prior_value": 4.154260572611815,
+        "delta_pp_vs_best": 2.913998288533529,
+        "flag": "REGRESSED"
+      },
+      "dpt_waveform_id_rel_rmse_pct": {
+        "simplis": 0.5367058965917174,
+        "best_prior_name": "tier3_v1",
+        "best_prior_value": 0.5103037894733514,
+        "delta_pp_vs_best": 0.02640210711836599,
+        "flag": "REGRESSED"
+      }
+    },
+    "dpt_metrics_all_tiers": {
+      "td_on_ns": {
+        "golden": 32.29627698150211,
+        "tier2": 17.081334133714805,
+        "tier3_v1": 6.988158189815557,
+        "simplis": 23.153196909727036,
+        "simplis_rel_err_pct": -28.310012565881294,
+        "tier2_rel_err_pct": -47.11051634992404,
+        "tier3_v1_rel_err_pct": -78.3623412883842
+      },
+      "tr_ns": {
+        "golden": 25.84350961529235,
+        "tier2": 2.892552707266252,
+        "tier3_v1": 0.835879395085263,
+        "simplis": 8.959340191195384,
+        "simplis_rel_err_pct": -65.3323394362278,
+        "tier2_rel_err_pct": -88.80743076182407,
+        "tier3_v1_rel_err_pct": -96.76561191754448
+      },
+      "td_off_ns": {
+        "golden": 62.182902750101924,
+        "tier2": 17.134184632214943,
+        "tier3_v1": 7.97851726349042,
+        "simplis": 21.84665194177049,
+        "simplis_rel_err_pct": -64.86710819923137,
+        "tier2_rel_err_pct": -72.44550531667346,
+        "tier3_v1_rel_err_pct": -87.16927497650897
+      },
+      "tf_ns": {
+        "golden": 26.538999478329874,
+        "tier2": 2.5289703561538817,
+        "tier3_v1": 1.409867947372475,
+        "simplis": 8.604762672290395,
+        "simplis_rel_err_pct": -67.57691381954125,
+        "tier2_rel_err_pct": -90.47073964405146,
+        "tier3_v1_rel_err_pct": -94.68756179552402
+      },
+      "dv_dt_max_v_per_ns": {
+        "golden": 35.93467060024436,
+        "tier2": 587.4770711811311,
+        "tier3_v1": 7076.495491072001,
+        "simplis": 1099.1399731200001,
+        "simplis_rel_err_pct": 2958.717263189623,
+        "tier2_rel_err_pct": 1534.8475201471201,
+        "tier3_v1_rel_err_pct": 19592.668314104092
+      },
+      "di_dt_max_a_per_ns": {
+        "golden": 0.2268693130194744,
+        "tier2": 2.497784249508453,
+        "tier3_v1": 23.81104122024803,
+        "simplis": 3.7826070390282953,
+        "simplis_rel_err_pct": 1567.306611759062,
+        "tier2_rel_err_pct": 1000.9793380554056,
+        "tier3_v1_rel_err_pct": 10395.487913432746
+      },
+      "e_on_uj": {
+        "golden": 157.43281606412236,
+        "tier2": 71.09326472844484,
+        "tier3_v1": 25.10266520299661,
+        "simplis": 101.14949743204727,
+        "simplis_rel_err_pct": -35.75069038284299,
+        "tier2_rel_err_pct": -54.84215647931461,
+        "tier3_v1_rel_err_pct": -84.05499829668784
+      },
+      "e_off_uj": {
+        "golden": 596.9637000429396,
+        "tier2": 533.4319489514241,
+        "tier3_v1": 535.3405831516258,
+        "simplis": 550.4983599796886,
+        "simplis_rel_err_pct": -7.783612313430238,
+        "tier2_rel_err_pct": -10.642481458578748,
+        "tier3_v1_rel_err_pct": -10.322757796978497
+      },
+      "i_peak_a": {
+        "golden": 138.5330810546875,
+        "tier2": 136.9910430908203,
+        "tier3_v1": 137.3198699951172,
+        "simplis": 137.0476837158203,
+        "simplis_rel_err_pct": -1.072232947941734,
+        "tier2_rel_err_pct": -1.1131189403478658,
+        "tier3_v1_rel_err_pct": -0.8757554876667933
+      }
+    }
+  }
+}

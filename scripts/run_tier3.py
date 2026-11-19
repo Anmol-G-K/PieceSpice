@@ -1,15 +1,16 @@
-"""Build and validate Tier-3 TPWL terminal models for the configured vendors.
+"""Build and validate Tier-3 terminal models for the configured vendors.
 
 Usage:
-    uv run python scripts/run_tier3.py                 # all four vendors
-    uv run python scripts/run_tier3.py irfs7730pbf     # one vendor
+    uv run python scripts/run_tier3.py                          # all, v1
+    uv run python scripts/run_tier3.py irfs7730pbf              # one, v1
+    uv run python scripts/run_tier3.py csd16412q5a --variant simplis
 """
 from __future__ import annotations
+
+import argparse
 import math
 
-import sys
-
-from pipeline.tier3 import run_vendor
+from pipeline import registry
 
 VENDORS = ("irfs7730pbf", "csd16412q5a", "epc2216", "cpm2-1200")
 SHOW = ("tr_ns", "tf_ns", "e_on_uj", "e_off_uj")
@@ -22,15 +23,22 @@ def _fmt(v, pct=False):
 
 
 def main() -> None:
-    names = tuple(sys.argv[1:]) or VENDORS
-    for vendor in names:
-        record = run_vendor(vendor)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("vendors", nargs="*", default=list(VENDORS))
+    parser.add_argument("--variant", default=registry.DEFAULT_VARIANT,
+                        choices=["v1", "simplis"],
+                        help="Tier-3 variant (default: v1)")
+    args = parser.parse_args()
+    for vendor in args.vendors:
+        record = registry.validate(vendor, 3, args.variant)
         algo = record["algorithm"]
         ff = record["function_fit"]
         dpt = record["dpt_run"]
-        print(f"{vendor:14s} cells={algo['cells']:2d} "
-              f"static={_fmt(ff['static_curve_rmse_rel'])} "
-              f"static_emitted={_fmt(ff['emitted_static_curve_rmse_rel'])} "
+        cells = algo.get("cells")
+        cells_txt = f"{cells:2d}" if cells is not None else "N/A"
+        print(f"{vendor:14s} variant={args.variant:8s} cells={cells_txt} "
+              f"static={_fmt(ff.get('static_curve_rmse_rel'))} "
+              f"static_emitted={_fmt(ff.get('emitted_static_curve_rmse_rel'))} "
               f"DPT={'complete' if dpt['completed'] else 'FAILED'} "
               f"points={dpt['trace_points']}/{dpt['golden_trace_points']} "
               f"iterations={_fmt(dpt['iterations'])}", flush=True)

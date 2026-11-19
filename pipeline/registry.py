@@ -23,10 +23,10 @@ VENDORS: tuple[str, ...] = (
 )
 
 # Registered Tier-3 variants per vendor, default first.  "v1" is the current
-# validated terminal TPWL/POD-DEIM form; further validated variants are
-# appended here (they emit the suffixed library name).
+# validated terminal TPWL/POD-DEIM form; "simplis" is the SIMPLIS-style
+# Level-2 (V,Q) charge-table variant, added behind the default.
 VARIANTS: dict[str, tuple[str, ...]] = {
-    vendor: (DEFAULT_VARIANT,) for vendor in VENDORS
+    vendor: (DEFAULT_VARIANT, "simplis") for vendor in VENDORS
 }
 
 DPT_METRICS: tuple[str, ...] = (
@@ -64,10 +64,10 @@ def fit(vendor: str, tier: int = 2,
     Tier-2 calls the closed ``pipeline.fitting.fit_pwl_model`` unchanged.
     Tier-3 calls ``pipeline.tier3.run_vendor`` (build + validation).
     """
-    if tier == 2:
-        from pipeline.fitting import fit_pwl_model
-        return fit_pwl_model(vendor)
     if tier == 3:
+        if variant == "simplis":
+            from pipeline.tier3_simplis import run_vendor as run_simplis
+            return Path(run_simplis(vendor)["emitted_lib"])
         from pipeline.tier3 import run_vendor
         return Path(run_vendor(vendor, variant=variant)["emitted_lib"])
     raise ValueError(f"unknown tier {tier}; expected one of {TIERS}")
@@ -85,9 +85,11 @@ def validate(vendor: str, tier: int = 2,
         from pipeline.fitting import compare_tier2_vs_golden
         return compare_tier2_vs_golden(vendor)
     if tier == 3:
+        if variant == "simplis":
+            from pipeline.tier3_simplis import run_vendor as run_simplis
+            return run_simplis(vendor)
         from pipeline.tier3 import run_vendor
         return run_vendor(vendor, variant=variant)
-    raise ValueError(f"unknown tier {tier}; expected one of {TIERS}")
 
 
 def compare_rows(vendor: str) -> list[tuple[str, float | None,

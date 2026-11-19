@@ -26,36 +26,46 @@
 **PieceSpice** bridges the simulation gap between full physics SPICE models
 (high fidelity, hours of compute, convergence failures) and system-level
 ideal-switch tools (instant, but no ringing/losses). It automatically
-distills vendor MOSFET subcircuits into one of **two selectable solver tiers**:
+distills vendor MOSFET subcircuits into one of **three selectable model options**:
 
 - **Tier-2 — CPWL macromodel.** Continuous piecewise-linear channel with a
   `tanh` saturation knee plus charge-defined capacitors, emitted as a small
   standard-SPICE subcircuit. Method closed; fidelity maintained at recorded
   levels, with no significant measured speedup at matched conditions.
-- **Tier-3 — TPWL terminal model.** Trajectory piecewise-linear fit with
-  POD-DEIM anchors captured from the device's own double-pulse waveform,
-  emitted as its own subcircuit. Better static fit, but slower today.
+- **Tier-3 — TPWL terminal model, two variants.** Trajectory piecewise-linear
+  fit with POD-DEIM anchors captured from the device's own double-pulse
+  waveform, emitted as its own subcircuit. `v1` has better static fit on three
+  of four devices but is slower than golden today; `simplis` reuses the closed
+  Tier-2 channel with SIMPLIS-style PWL charge tables, holding Tier-2 static
+  parity with mixed waveform fidelity (TI Vds REGRESSED vs `v1`). Neither is a
+  global speed tier: the guarded 20-pulse adaptive ≥5× result is TI-only.
 
 | | Fidelity | Speed | Robustness |
 |---|---|---|---|
 | Vendor SPICE | ●●●●● | ●○○○○ | ○○○○○ |
 | **PieceSpice Tier-2 (CPWL)** | **●●●●○ (2.04–8.49 % static rel-RMSE; ≤ 4.13 % endpoint)** | **●●○○○ (~1× at matched conditions; not significant)** | **●●●●● (C⁰ PWL + tanh knee)** |
 | **PieceSpice Tier-3 (TPWL)** | **●●●●○ (0.61–4.24 % static fit rel-RMSE)** | **●●○○○ (0.0988–0.570× measured; slower than golden)** | **●●●○○ (anchored on captured trajectory)** |
+| **PieceSpice Tier-3 `simplis` (PWL charge)** | **●●●○○ (2.04–8.49 % static rel-RMSE, Tier-2 parity; DPT Vds 2.79–11.26 %; TI Vds REGRESSED vs v1)** | **●●○○○ (20-pulse adaptive solver 0.961–5.079×; ≥5× TI-only)** | **●●●○○ (guarded 20-pulse runs; four completed DPTs)** |
 | PLECS / Ideal | ●○○○○ | ●●●●● | ●●●●● |
+
+**Measured status — honest:** Three options are selectable: Tier-2 CPWL,
+Tier-3 v1 TPWL and Tier-3 `simplis` (PWL charge tables). At matched 2-pulse,
+forced 2 ns-step DPT conditions, neither established tier shows a significant
+speedup against the vendor golden: Tier-2 solver 0.875–1.173×, Tier-3 v1
+0.0988–0.570× (IRFS / TI / EPC / CPM2); Tier-3 v1 is slower on every device.
+The `simplis` variant holds Tier-2 static parity within ±0.0002 pp, has mixed
+waveform fidelity (TI Vds REGRESSED +3.699 pp vs v1), and its guarded
+20-pulse adaptive solver / wall speedups are 0.961× / 0.941×, 5.079× / 3.070×,
+1.080× / 1.059× and 1.124× / 1.066× (same vendor order). Only TI exceeds 5×,
+driven by the golden's stiffness; the other three goldens already ride the
+adaptive-step ceiling. Tier-3 v1 speed was audited closed on 2026-11-20;
+all three options hold their recorded fidelity. See
+[Measured Results](#-measured-results) for the tables and conditions of validity.
 
 Everything is emitted as a **standard SPICE subcircuit** — no proprietary
 solver, no special runtime. Drop the generated `.lib` into any SPICE flow
 that supports behavioral sources and charge-defined capacitors (validated on
 LTspice 26) and simulate against the golden model.
-
-**Measured status — honest:** At matched 2-pulse, forced 2 ns-step DPT
-conditions, neither tier shows a significant speedup against the vendor
-golden: Tier-2 solver 0.875–1.173×, Tier-3 solver 0.0988–0.570×
-(IRFS / TI / EPC / CPM2); Tier-3 is slower on every device. The one measured
-Tier-2 win is the 20-pulse adaptive TI case (4.86× solver / 3.39× wall).
-Tier-3 speed was audited closed on 2026-11-20; both tiers hold their recorded
-fidelity. See [Measured Results](#-measured-results) for the tables and the
-conditions of validity.
 
 ---
 
@@ -133,18 +143,21 @@ what buys Newton robustness without sacrificing the ohmic region.
 state below threshold; the body diode is synthesized directly from extracted
 reverse-conduction data (IS/N/RS).
 
-**Tier-3 — TPWL terminal model.** Where Tier-2 fits static curves, Tier-3
-captures a double-pulse trajectory from the golden device, selects POD-DEIM
-anchors and builds a trajectory piecewise-linear terminal model, emitted as
-its own SPICE subcircuit. It targets terminal waveform fidelity rather than
-internal-state projection. Its static fit error is lower than Tier-2 on
-three of four devices, but its emitted DPT runs slower than golden — select
-Tier-3 for fidelity studies, not for speed today.
+**Tier-3 — TPWL terminal model, `v1` and `simplis`.** Where Tier-2 fits
+static curves, Tier-3 captures a double-pulse trajectory from the golden
+device, selects POD-DEIM anchors and builds a trajectory piecewise-linear
+terminal model, emitted as its own SPICE subcircuit. `v1` targets terminal
+waveform fidelity rather than internal-state projection: its static fit error
+is lower than Tier-2 on three of four devices, but its emitted DPT runs
+slower than golden. The `simplis` variant reuses the closed Tier-2 channel and
+adds SIMPLIS-style PWL charge tables; its fidelity is mixed (TI Vds REGRESSED
+vs `v1`) and its speed is reported per vendor on the 20-pulse adaptive bench.
 
 The target: PLECS-class evaluation speed inside a plain SPICE subcircuit,
 with error measured and bounded against the vendor golden model rather than
-assumed. Measured results are below; the speed target is **not** met by
-either tier in the current DPT runs.
+assumed. Measured results are below; the ≥5× solver result is reached only by
+`simplis` on TI under the 20-pulse adaptive bench (3.070× wall), and no
+global speedup is claimed.
 
 ---
 
@@ -230,7 +243,7 @@ automatically from the YAML pin map.
 | EPC | EPC2216 | GaN eGaN (behavioral) | ✅ 7/7 curves |
 | Wolfspeed | CPM2-1200-0025B | SiC bare die (Tj port) | ✅ 7/7 curves |
 
-Both tiers are exercised on all four devices; measured figures follow.
+All three selectable options are exercised on all four devices; measured figures follow.
 
 ---
 
@@ -252,49 +265,69 @@ estimates or imputations.
 **Conditions of validity.** Every figure below is measured on the
 clamped-inductive double-pulse bench configured per vendor YAML (two pulses,
 forced 2 ns maximum step for the matched-condition runs), with the vendor
-golden subcircuit at default settings as the sole reference. Fidelity means
-matching the golden's terminal curves and waveforms, not datasheet ratings
-(the caveat above); only quantities that were actually measured are reported,
-and the guard returns N/A whenever a bench does not complete.
+golden subcircuit at default settings as the sole reference. The `simplis`
+rows use the same benches: emitted ROM vs golden, static via the live LTspice
+DC sweep, DPT waveform with both sides on `|I(Lload)|`, and a separate
+20-pulse adaptive bench (3 repeats, 176 us, medians, guard on every row;
+EPC golden alone at the documented 100 ns cap). Fidelity means matching the
+golden's terminal curves and waveforms, not datasheet ratings (the caveat
+above); only quantities that were actually measured are reported, and the
+guard returns N/A whenever a bench does not complete.
 
-**Two-tier measured status (2026-11-20).** Neither tier delivers a significant
-speedup at matched conditions. Tier-2 solver speedups are 0.875× / 1.173× /
-1.011× / 0.945× and Tier-3 solver speedups 0.570× / 0.0988× / 0.399× /
-0.175× (IRFS / TI / EPC / CPM2), each measured as golden solver time over ROM
-solver time. Tier-3 is slower than golden on every device. The single measured
-Tier-2 win is the 20-pulse adaptive TI case — 4.86× solver / 3.39× wall — with
-IRFS and CPM2 near 1× and EPC's golden stalling under an adaptive step (it
-needs the 100 ns step cap). The 2026-11-20 audit closed the Tier-3 speed
-question: no fidelity-preserving speedup exists in this emission family or
-through the documented solver knobs. Fidelity is maintained at the recorded
-levels in the tables below, with the edge-timing limit stated after the
-timing table.
+**Three-option measured status (2026-11-20).** Neither Tier-2 nor Tier-3 v1
+delivers a significant speedup at matched conditions. Tier-2 solver speedups
+are 0.875× / 1.173× / 1.011× / 0.945× and Tier-3 v1 solver speedups 0.570× /
+0.0988× / 0.399× / 0.175× (IRFS / TI / EPC / CPM2), each measured as golden
+solver time over ROM solver time. Tier-3 v1 is slower than golden on every
+device. The measured Tier-2 win is the 20-pulse adaptive TI case — 4.86×
+solver / 3.39× wall — with IRFS and CPM2 near 1× and EPC's golden stalling
+under an adaptive step (it needs the 100 ns step cap). The 2026-11-20 audit
+closed the Tier-3 v1 speed question: no fidelity-preserving speedup exists in
+this emission family or through the documented solver knobs. `simplis` adds a
+third selectable option with Tier-2 static parity, mixed DPT fidelity (TI Vds
+REGRESSED +3.699 pp vs T3-v1), and guarded 20-pulse adaptive solver speedups
+0.961× / 5.079× / 1.080× / 1.124× (wall 0.941× / 3.070× / 1.059× / 1.066×,
+same vendor order). Only TI exceeds 5×, and only in solver time, because
+TI's golden is globally stiff; the other goldens already ride the adaptive
+step ceiling. Fidelity is maintained at the recorded levels in the tables
+below, with the edge-timing limit stated after the timing table.
 
 **Static Curve-1 relative RMSE** — Tier-2 (closed, full sweep) vs Tier-3
-(function fit / emitted netlist). Tier-3's fit error is lower on 3 of 4
-devices; EPC is the exception.
+(`v1` function fit / emitted netlist; `simplis` emitted netlist). Tier-3 v1's
+fit error is lower on 3 of 4 devices; EPC is the exception. `simplis` reuses
+the Tier-2 channel unchanged, so the same live LTspice DC-sweep methodology
+applies to its row.
 
-| Device | Tier-2 rel-RMSE | Tier-3 fit rel-RMSE | Tier-3 emitted rel-RMSE |
-|---|---|---|---|
-| IRFS7730PBF | 7.07 % | 4.24 % | 4.15 % |
-| CSD16412Q5A (TI) | 8.49 % | 1.54 % | 2.15 % |
-| EPC2216 | 2.04 % | 2.37 % | 7.22 % |
-| CPM2-1200 | 3.43 % | 0.61 % | 0.97 % |
+| Device | Tier-2 rel-RMSE | T3-v1 fit rel-RMSE | T3-v1 emitted rel-RMSE | T3 simplis rel-RMSE | simplis delta vs T2 (pp) |
+|---|---|---|---|---|---|
+| IRFS7730PBF | 7.07 % | 4.24 % | 4.15 % | 7.0683 % | -0.00014 |
+| CSD16412Q5A (TI) | 8.49 % | 1.54 % | 2.15 % | 8.4935 % | +0.00011 |
+| EPC2216 | 2.04 % | 2.37 % | 7.22 % | 2.0394 % | -0.00008 |
+| CPM2-1200 | 3.43 % | 0.61 % | 0.97 % | 3.4287 % | +0.00020 |
 
 Tier-2 worst endpoint error ≤ 4.13 %. *AES-STD100 caveat above applies.*
+`simplis` holds Tier-2 parity on all four devices (|delta| ≤ 0.0002 pp);
+its REGRESSED flags are against the lower T3-v1 emitted bar, not against T2.
 
 **DPT waveform completion and terminal waveform error** — golden points →
-Tier-3 points, with Tier-3 relative RMSE against golden. All four Tier-3 DPT
-runs completed.
+T3-v1 / `simplis` points, with relative RMSE against golden. Device current
+is like-with-like (both sides use `|I(Lload)|` interpolated onto the ROM
+grid); the completion guard requires ≥50 % of golden points and
+`t_last ≥ 0.999×14 us`. All runs completed; `simplis` reaches 1.4e-5 s on all
+four devices.
 
-| Device | Golden points | Tier-3 points | Vds rel-RMSE | Id rel-RMSE |
-|---|---|---|---|---|
-| IRFS7730PBF | 7114 | 7376 | 16.96 % | 0.51 % |
-| CSD16412Q5A | 10189 | 65788 | 2.36 % | 0.41 % |
-| EPC2216 | 7418 | 9434 | 4.83 % | 0.79 % |
-| CPM2-1200 | 7154 | 32487 | 4.09 % | 0.29 % |
+| Device | Golden points | T3-v1 points | T3-v1 Vds | T3-v1 Id | Simplis points / iterations | Simplis Vds | Simplis Id |
+|---|---|---|---|---|---|---|---|
+| IRFS7730PBF | 7114 | 7376 | 16.96 % | 0.51 % | 7171 / 18602 | 11.260 % | 0.537 % |
+| CSD16412Q5A | 10189 | 65788 | 2.36 % | 0.41 % | 7197 / 18265 | 6.063 % | 0.047 % |
+| EPC2216 | 7418 | 9434 | 4.83 % | 0.79 % | 7198 / 18449 | 5.250 % | 0.049 % |
+| CPM2-1200 | 7154 | 32487 | 4.09 % | 0.29 % | 7127 / 18669 | 2.786 % | 0.261 % |
 
-*AES-STD100 caveat above applies.*
+Against T3-v1, `simplis` improves CPM2 Vds (2.786 vs 4.09 %) and IRFS Vds
+(11.260 vs 16.96 %), but EPC Vds REGRESSES (+0.422 pp) and TI Vds REGRESSES
+(+3.699 pp: 6.063 vs 2.36 %) while TI Id improves. IRFS Id REGRESSES
+(+0.0264 pp) and carries the catalogued VM-02 vendor tail. These are
+golden-vs-ROM figures, not datasheet ratings. *AES-STD100 caveat above applies.*
 
 **Solver speed vs golden at matched 2-pulse, forced 2 ns-step conditions**
 (vendor golden at default settings as the sole reference):
@@ -306,9 +339,37 @@ runs completed.
 | EPC2216 | 1.011× | 0.399× |
 | CPM2-1200 | 0.945× | 0.175× |
 
-Neither tier shows a significant speedup; Tier-3 is slower on every device.
-The 20-pulse adaptive TI case (4.86× solver / 3.39× wall) is the one measured
-Tier-2 exception. The guard reports N/A unless both benches complete.
+Neither tier shows a significant speedup at matched conditions; Tier-3 v1 is
+slower on every device. The 20-pulse adaptive TI case (4.86× solver / 3.39×
+wall) is the measured Tier-2 exception; `simplis` measures 5.079× solver /
+3.070× wall there (table below). The guard reports N/A unless both benches
+complete.
+*AES-STD100 caveat above applies.*
+
+**Tier-3 `simplis` — 20-pulse adaptive solver and wall speed vs golden.**
+Medians of 3 completed runs; 176 us end time, adaptive step on both sides
+except EPC golden at the documented 100 ns cap, 90 s timeout. Every row is
+guarded (t_last = 1.76e-4 s on both sides, iterations and trace points > 0);
+speedup = golden solver (wall) time over `simplis` solver (wall) time, with
+the vendor golden at default settings as the sole reference.
+
+| Device | Golden solver s (iters) | Simplis solver s (iters) | Solver speedup | Wall speedup | Ceiling context |
+|---|---|---|---|---|---|
+| IRFS7730PBF | 0.321 (12,718) | 0.334 (14,299) | 0.961× | 0.941× | golden 12.96 ns inter-pulse / 80.94 ns plateau; 5× needs ≤0.0642 s, measured PWL floor 0.300 s |
+| CSD16412Q5A (TI) | 1.737 (131,558) | 0.342 (12,250) | **5.079×** | 3.070× | only globally stiff golden (0.175 ns median step); 5× budget ≤0.3474 s |
+| EPC2216 (golden 100 ns cap) | 0.350 (16,514) | 0.324 (12,665) | 1.080× | 1.059× | fully-adaptive golden failed (30 s timeout, no timing); capped golden at 100 ns, 5× needs ≤0.0700 s (simplis 4.63× over budget), ROM plateau 171.875 ns |
+| CPM2-1200 | 0.344 (12,492) | 0.306 (10,380) | 1.124× | 1.066× | golden plateau / inter-pulse already 171.875 ns; 5× needs ≤0.0688 s |
+
+The 171.875 ns = 176 us / 1024 step is the plateau ceiling the ROMs reach;
+its origin as an LTspice setting is an inference from the equality, not a
+documented setting. Only TI's golden is stiff; the other three goldens
+already ride that ceiling (EPC at the capped 100 ns), which bounds a
+waveform-resolving ROM to roughly 1.1–1.23× in the feasibility controls —
+`simplis` measures 0.961× / 1.080× / 1.124× there. TI is the sole ≥5× solver
+result and is golden-side driven; its wall speedup is 3.070×. No global
+speedup is claimed. Full four-vendor tables, REGRESSED flags and the D2
+methodology note are in
+[§15 of the candidates doc](docs/plans/tier3_method_candidates.md#15-characterization-results-2026-11-20).
 *AES-STD100 caveat above applies.*
 
 **DPT timing and energy — golden / Tier-3 / Tier-2.** `tr`, `tf` in ns;
@@ -337,13 +398,14 @@ tiers and vendors, with 70-100 % of that error inside the +/-50 ns edge
 windows; outside them the deviation is 0.03-0.4 % except IRFS ~5.6 %
 (the catalogued VM-02 vendor-defect tail). Tier-2 full-waveform adherence,
 computed at the matched bench in the 2026-11-19 analysis (not stored in a
-JSON), is
+JSON), is Vds 12.31 / 3.81 / 4.29 / 3.65 % and Id 0.57 / 0.04 / 0.05 /
+0.21 % (IRFS / TI / EPC / CPM2); the same edge-timing limit applies.
 
 **Test suite.**
 
 | Command | Passed | Skipped |
 |---|---|---|
-| `uv run pytest` | 120 | 4 |
+| `uv run pytest` | 124 | 4 |
 
 *AES-STD100 caveat above applies to the fidelity figures these tests
 protect, not to the test process itself.*
@@ -393,7 +455,7 @@ no re-export shims.
 ## 🧪 Testing
 
 ```bash
-uv run pytest                # 120 passed, 4 skipped
+uv run pytest                # 124 passed, 4 skipped
 uv run pytest tests/test_pwlf_fit.py -v    # single module
 ```
 
@@ -431,7 +493,7 @@ its own test module, `tests/test_tier3.py`.
       TI 8.49 %, EPC 2.04 %, CPM2 3.43 %; worst endpoint error ≤4.13 %.
       The remaining TI/IRFS deviations are limits of this model form —
       further parameter ablations were measured and did not improve them.
-- [x] **Tier-3 — TPWL terminal model** *(selectable alongside Tier-2)*
+- [x] **Tier-3 — TPWL terminal model** *(two variants selectable alongside Tier-2)*
       Static Curve-1 fit rel-RMSE beats Tier-2 on 3 of 4 devices
       (IRFS 4.24 vs 7.07 %, TI 1.54 vs 8.49 %, CPM2 0.61 vs 3.43 %;
       EPC 2.37 vs 2.04 % is the exception). All four DPTs completed.
@@ -441,13 +503,18 @@ its own test module, `tests/test_tier3.py`.
       (2026-11-19 emission rework: smooth two-exponential Qoss,
       conditioned grids, soft-plus clamps, IRFS second-pulse fix);
       the guard reports N/A if a bench does not complete.
+      The `simplis` variant (Level-2 PWL charge tables) holds Tier-2 static
+      parity and reaches 5.079× solver / 3.070× wall on TI in the 20-pulse
+      adaptive bench; the other three sit at the measured golden ceiling
+      (~1×), with TI Vds REGRESSED vs v1.
 - [x] **M4** — Switching Dynamics & Double Pulse Testbench
       *(metrics, resistive-load subset and inductive DPT)*
 - [ ] **M5** — Switched-Mode Converter Benchmark & Speedup Evaluation
       *(DPT-topology runtime benchmark only; no converter benchmark exists.
-      Neither tier shows a significant matched-condition speedup; the one
-      measured win is 20-pulse adaptive TI (4.86× solver / 3.39× wall), and
-      Tier-3 speed was audited closed on 2026-11-20 — see Measured Results.)*
+      Neither established tier shows a significant matched-condition speedup;
+      the 20-pulse adaptive TI win is 4.86× solver / 3.39× wall for Tier-2
+      and 5.079× / 3.070× for `simplis` (TI-only), and Tier-3 v1 speed was
+      audited closed on 2026-11-20 — see Measured Results.)*
 - [x] **M6** — Automated HTML Reporting & CLI Polish
       *(the report renders only metrics it is given)*
 
