@@ -39,7 +39,7 @@ distills vendor MOSFET subcircuits into one of **two selectable solver tiers**:
 |---|---|---|---|
 | Vendor SPICE | ●●●●● | ●○○○○ | ○○○○○ |
 | **PieceSpice Tier-2 (CPWL)** | **●●●●○ (2.04–8.49 % static rel-RMSE; ≤ 4.13 % endpoint)** | **●●○○○ (no speedup claimed)** | **●●●●● (C⁰ PWL + tanh knee)** |
-| **PieceSpice Tier-3 (TPWL)** | **●●●●○ (0.61–4.24 % static fit rel-RMSE)** | **●○○○○ (0.07–0.23× measured)** | **●●●○○ (anchored on captured trajectory)** |
+| **PieceSpice Tier-3 (TPWL)** | **●●●●○ (0.61–4.24 % static fit rel-RMSE)** | **●●○○○ (0.10–0.57× measured)** | **●●●○○ (anchored on captured trajectory)** |
 | PLECS / Ideal | ●○○○○ | ●●●●● | ●●●●● |
 
 Everything is emitted as a **standard SPICE subcircuit** — no proprietary
@@ -48,9 +48,9 @@ that supports behavioral sources and charge-defined capacitors (validated on
 LTspice 26) and simulate against the golden model.
 
 **Measured status — honest:** Tier-3 does **not** currently deliver a speedup.
-Measured solver speedups are 0.216× (IRFS), 0.0667× (TI), 0.229× (EPC) and
-0.103× (CPM2) — that is **0.07–0.23×** (rounded), slower than the golden in every
-case.
+Measured solver speedups are 0.570× (IRFS), 0.0988× (TI), 0.399× (EPC) and
+0.175× (CPM2) — that is **0.10–0.57×** (rounded), slower than the golden in
+every case.
 The earlier aspirational speedup claim is superseded by these measurements.
 The pipeline guard reports speedup as **N/A whenever either DPT bench fails
 to complete**, so an incomplete run is never counted as a win. See
@@ -254,10 +254,10 @@ devices; EPC is the exception.
 
 | Device | Tier-2 rel-RMSE | Tier-3 fit rel-RMSE | Tier-3 emitted rel-RMSE |
 |---|---|---|---|
-| IRFS7730PBF | 7.07 % | 4.24 % | 4.10 % |
+| IRFS7730PBF | 7.07 % | 4.24 % | 4.15 % |
 | CSD16412Q5A (TI) | 8.49 % | 1.54 % | 2.15 % |
-| EPC2216 | 2.04 % | 2.37 % | 7.12 % |
-| CPM2-1200 | 3.43 % | 0.61 % | 0.97 % |
+| EPC2216 | 2.04 % | 2.37 % | 7.22 % |
+| CPM2-1200 | 3.43 % | 0.61 % | 0.98 % |
 
 Tier-2 worst endpoint error ≤ 4.13 %. *AES-STD100 caveat above applies.*
 
@@ -267,27 +267,28 @@ runs completed.
 
 | Device | Golden points | Tier-3 points | Vds rel-RMSE | Id rel-RMSE |
 |---|---|---|---|---|
-| IRFS7730PBF | 7114 | 7210 | 39.59 % | 13.09 % |
-| CSD16412Q5A | 10189 | 66240 | 2.38 % | 0.42 % |
-| EPC2216 | 7418 | 9301 | 5.29 % | 0.76 % |
-| CPM2-1200 | 7154 | 31436 | 4.21 % | 0.35 % |
+| IRFS7730PBF | 7114 | 7210 | 16.96 % | 0.51 % |
+| CSD16412Q5A | 10189 | 66240 | 2.36 % | 0.41 % |
+| EPC2216 | 7418 | 9301 | 4.83 % | 0.79 % |
+| CPM2-1200 | 7154 | 31436 | 4.09 % | 0.29 % |
 
 *AES-STD100 caveat above applies.*
 
-**Solver speed (Tier-3 vs golden):** 0.216× / 0.0667× / 0.229× / 0.103×
+**Solver speed (Tier-3 vs golden):** 0.570× / 0.0988× / 0.399× / 0.175×
 (IRFS / TI / EPC / CPM2) — **no speedup**. The pipeline guard reports N/A
 unless both benches complete. *AES-STD100 caveat above applies.*
 
 **DPT timing and energy — golden / Tier-3 / Tier-2.** `tr`, `tf` in ns;
-`e_on`, `e_off` in µJ. IRFS Tier-3 cells are **N/A** because the gate
-crossings were absent in that run — never imputed.
+`e_on`, `e_off` in µJ. All Tier-3 crossings now exist on every device
+(the earlier IRFS N/A cells were a second-pulse turn-on failure, fixed
+2026-11-19); values are never imputed.
 
 | Device | tr (ns) G / T3 / T2 | tf (ns) G / T3 / T2 | e_on (µJ) G / T3 / T2 | e_off (µJ) G / T3 / T2 |
 |---|---|---|---|---|
-| IRFS7730PBF | 25.84 / 3.171 / 2.893 | 26.54 / 0.865 / 2.529 | 157.4 / N/A / 71.09 | 597.0 / N/A / 533.4 |
-| CSD16412Q5A | 1.096 / 0.1064 / 1.486 | 1.662 / 0.689 / 2.246 | 1.063 / 0.941 / 0.753 | 17.97 / 17.55 / 17.73 |
-| EPC2216 | 0.846 / 1.524 / 0.838 | 1.227 / 2.078 / 1.343 | 1.091 / 1.260 / 1.149 | 15.63 / 15.25 / 15.41 |
-| CPM2-1200 | 4.703 / 0.814 / 4.123 | 4.139 / 2.530 / 8.789 | 5.619 / 4.465 / 6.109 | 56.70 / 55.43 / 57.04 |
+| IRFS7730PBF | 25.84 / 0.836 / 2.893 | 26.54 / 1.410 / 2.529 | 157.4 / 25.10 / 71.09 | 597.0 / 535.3 / 533.4 |
+| CSD16412Q5A | 1.096 / 0.106 / 1.486 | 1.662 / 0.622 / 2.246 | 1.063 / 0.938 / 0.753 | 17.97 / 17.56 / 17.73 |
+| EPC2216 | 0.846 / 1.485 / 0.838 | 1.227 / 2.255 / 1.343 | 1.091 / 1.260 / 1.149 | 15.63 / 15.26 / 15.41 |
+| CPM2-1200 | 4.703 / 0.851 / 4.123 | 4.139 / 2.528 / 8.789 | 5.619 / 4.440 / 6.109 | 56.70 / 55.46 / 57.04 |
 
 *AES-STD100 caveat above applies.*
 
@@ -387,8 +388,10 @@ its own test module, `tests/test_tier3.py`.
       Static Curve-1 fit rel-RMSE beats Tier-2 on 3 of 4 devices
       (IRFS 4.24 vs 7.07 %, TI 1.54 vs 8.49 %, CPM2 0.61 vs 3.43 %;
       EPC 2.37 vs 2.04 % is the exception). All four DPTs completed.
-      **No speedup claimed** — measured solver speed 0.07–0.23×; the
-      guard reports N/A if a bench does not complete.
+      **No speedup claimed** — measured solver speed 0.10–0.57×
+      (2026-11-19 emission rework: smooth two-exponential Qoss,
+      conditioned grids, soft-plus clamps, IRFS second-pulse fix);
+      the guard reports N/A if a bench does not complete.
 - [x] **M4** — Switching Dynamics & Double Pulse Testbench
       *(metrics, resistive-load subset and inductive DPT)*
 - [ ] **M5** — Switched-Mode Converter Benchmark & Speedup Evaluation

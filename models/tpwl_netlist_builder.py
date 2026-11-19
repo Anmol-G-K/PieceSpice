@@ -6,39 +6,41 @@ weight blend emitted through B-current-source intermediates failed the DPT:
 showed the same collapse with G_CH alone (tolerance-relaxation loop at
 9.87e-7 s), +C_QD (1e-14 s) and +C_QOSS (5.12e-12 s).  A hard Voronoi
 ``if()`` cascade (32 cells, ~437 KB) timed out before the operating point,
-so it was rejected.  The emitted form below completed the full 14 us DPT:
-66240 trace points, 394001 solver iterations, Vds rel-RMSE 2.38 % and Id
-rel-RMSE 0.42 % against the captured golden waveform for TI.
+so it was rejected.  The flat ``table()`` channel emitted below completes
+the 14 us DPT for all four vendors.
 
-Structure (all numbers come from the fitted model or extracted curves):
+The 2026-11-19 speed/fidelity pass measured these changes on the identical
+bench (solver options unchanged):
 
-* ``G_CH`` is a flat 2-D ``table()`` lookup of the blended affine channel
-  precomputed on a deterministic (Vgs, Vds) grid.  No extra solver nodes and
-  no exponential weight intermediates; LTspice's PWL interpolation is robust.
-* The gate factor is a 1-D ``table()`` of the extracted Curve-2 transfer
-  characteristic normalised to 1 at the first static Vgs level, so the
-  Curve-1 static family is unchanged while sub-knee turn-on is physical.
-* The channel is clamped non-negative and multiplied by a smooth low-Vds
-  saturation ``Vds/(Vds + Vsat)`` (Vsat = 0.2 V, 0.5 V for EPC2216).  Both
-  were required by measurement: without them the drain node stalls at the
-  0.1 V Qoss kink on the first gate edge.  The TPWL affine fit extrapolates
-  a negative current and an unbounded slope below its training span; the
-  factor restores a finite linear-region conductance.
-* ``C_QD`` is deliberately omitted.  Its fitted drain-charge slopes are
-  negative at the blocking point (dQd/dVds ~ -2.5 nF at Vgs = 0, Vds = 12.5 V
-  for TI), which produced a negative drain capacitance and an exponential
-  current blow-up at t ~ 5 ps.  Qoss from the AC capacitance curve supplies
-  the blocking-state charge and is emitted as a dense monotone ``table()``.
-* Gate charge is not emitted: a 2-terminal Q(Vgs,Vds) element on the ideal
-  driven gate node made the Jacobian non-symmetric and stalled LTspice.
+* ``C_QOSS`` becomes a two-exponential smooth monotone charge law fitted to
+  the AC-derived Qoss table (fit RMS 0.09-0.19 %).  LTspice's 160-knob
+  PWL charge lookup contributed Jacobian discontinuities at the drain node.
+* The channel grid is conditioned per vendor.  A 17 x 21 or 21 x 31 mesh
+  cuts nested-``table()`` evaluation cost on IRFS/EPC/CPM2 without a static
+  regression; dense meshes were measured to be slower.
+* IRFS needs the high-Vds saturation hold: the raw TPWL extrapolation turns
+  negative at Vgs = 10 V, Vds = 38.94 V, so ``max(0, ...)`` zeroed the device
+  for the entire second pulse (Vds RMSE 39.59 %).  Holding the Curve-1
+  saturation value above the static sweep span removes that hard failure.
+* TI and CPM2 use a soft (softplus) non-negative clamp; EPC uses it where
+  the switching locus rides the clamp.  The clamp keeps the max(0, ...)'
+  asymptote but removes its curvature discontinuity.
+* ``C_QD`` remains omitted: fitted drain-charge slopes are negative at the
+  blocking point (~-2.5 nF on TI) and produced an exponential blow-up at
+  t ~ 5 ps.  Gate charge is not emitted; it previously made the Jacobian
+  non-symmetric on the ideal driven gate node and stalled LTspice.
 
 LTspice syntax facts verified in this repository: ``**`` for powers (caret
-is XOR), nested ``table()`` lookups evaluate correctly (smoke-tested), and
-``limit()``/``max()``/``tanh()`` are built in.  Emission stays ASCII.
+is XOR), nested ``table()`` lookups evaluate correctly, and ``limit()`` /
+``max()`` / ``tanh()`` / ``sqrt()`` / ``exp()`` are built in.  Emission stays
+ASCII.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
+from scipy.optimize import least_squares
 
 from config.yaml_io import load_input, load_output
 from approximation.static_curves import load_output_family
@@ -47,9 +49,38 @@ from approximation.tpwl_deim import TPWLTerminalModel, paper_weights
 _PORT = {"drain": "d", "gate": "g", "source": "s", "tj": "tj"}
 _VSAT_DEFAULT = 0.2        # low-Vds saturation scale [V], measured on TI/IRFS/CPM2
 _VSAT_BY_VENDOR = {"epc2216": 0.5}  # EPC stalls at 0.2 V; 0.5 V completes
-_VGS_POINTS = 25
-_VDS_POINTS = 41
-_QOSS_POINTS = 160
+_QOSS_FIT_POINTS = 160
+_HIGH_VDS_HEADROOM = 1.10
+
+
+@dataclass(frozen=True)
+class EmissionPolicy:
+    """Measured emission settings; defaults reproduce the original emitter."""
+    vgs_points: int = 25
+    vds_points: int = 41
+    smooth_qoss: bool = False
+    soft_clamp: bool = False
+    soft_eps: float = 1e-3
+    high_vds_saturation: bool = False
+
+
+_BASE = EmissionPolicy()
+_POLICY_BY_VENDOR = {
+    "csd16412q5a": EmissionPolicy(soft_clamp=True),
+    "irfs7730pbf": EmissionPolicy(vgs_points=17, vds_points=21,
+                                  smooth_qoss=True,
+                                  high_vds_saturation=True),
+    "epc2216": EmissionPolicy(vgs_points=19, vds_points=25,
+                              smooth_qoss=True, soft_clamp=True,
+                              soft_eps=1e-5),
+    "cpm2-1200": EmissionPolicy(vgs_points=21, vds_points=31,
+                                smooth_qoss=True, soft_clamp=True),
+}
+
+
+def emission_policy(model: TPWLTerminalModel) -> EmissionPolicy:
+    """Policy measured for one vendor's emitted channel and Qoss."""
+    return _POLICY_BY_VENDOR.get(model.vendor, _BASE)
 
 
 def saturation_scale(model: TPWLTerminalModel) -> float:
@@ -59,7 +90,6 @@ def saturation_scale(model: TPWLTerminalModel) -> float:
 
 def _f(x: float) -> str:
     return f"{float(x):.9e}"
-
 
 def raw_anchors(model: TPWLTerminalModel) -> np.ndarray:
     """Anchor positions in raw volts, shape (2, n_cells)."""
@@ -78,8 +108,14 @@ def grid_axes(model: TPWLTerminalModel) -> tuple[np.ndarray, np.ndarray]:
     vds_lo = min(0.0, float(vds_grid.min()), float(anchors[1].min()))
     vds_hi = max(float(dpt["vbus"]), float(vds_grid.max()),
                  float(anchors[1].max()))
-    g = np.linspace(vgs_lo, vgs_hi, _VGS_POINTS)
-    d = np.linspace(vds_lo, vds_hi, _VDS_POINTS)
+    pol = emission_policy(model)
+    g = np.linspace(vgs_lo, vgs_hi, pol.vgs_points)
+    d = np.linspace(vds_lo, vds_hi, pol.vds_points)
+    if pol.high_vds_saturation:
+        # The switching locus overshoots the bus; cover it explicitly so
+        # table() never flat-extrapolates an unphysical negative endpoint.
+        dmax = max(float(d[-1]), _HIGH_VDS_HEADROOM * float(dpt["vbus"]))
+        d = np.concatenate([d, np.linspace(d[-1], dmax, 9)[1:]])
     if model.v_block is not None and model.v_width is not None:
         knee = model.v_block + model.v_width * np.array(
             [-2.0, -1.0, 0.0, 1.0, 2.0])
@@ -102,8 +138,15 @@ def grid_channel(model: TPWLTerminalModel, g: np.ndarray, d: np.ndarray
                  ) -> np.ndarray:
     """Channel values on the emitted (Vgs, Vds) mesh, shape (len(g), len(d))."""
     vgs, vds = np.meshgrid(g, d, indexing="ij")
-    return blended_channel(model, np.vstack([vgs.ravel(), vds.ravel()])).reshape(
+    table = blended_channel(model, np.vstack([vgs.ravel(), vds.ravel()])).reshape(
         vgs.shape)
+    if emission_policy(model).high_vds_saturation:
+        _, static_vds, _ = load_output_family(model.vendor)
+        j = int(np.searchsorted(d, float(np.max(static_vds))))
+        hold = np.maximum(table[:, j], 0.0)
+        for k in range(j, len(d)):
+            table[:, k] = hold
+    return table
 
 
 def transfer_curve(model: TPWLTerminalModel
@@ -126,8 +169,9 @@ def emitted_channel(model: TPWLTerminalModel, u: np.ndarray) -> np.ndarray:
     """SPICE-emitted channel current on operating points (2, K) [A].
 
     Mirrors the netlist: 2-D table interpolation, Curve-2 gate factor,
-    non-negative clamp and low-Vds saturation.  Used for the static metric
-    so the reported number describes what LTspice actually evaluates.
+    non-negative clamp (soft where measured) and low-Vds saturation.  Used
+    for the static metric so the reported number describes what LTspice
+    actually evaluates.
     """
     u = np.atleast_2d(u)
     g, d = grid_axes(model)
@@ -141,7 +185,11 @@ def emitted_channel(model: TPWLTerminalModel, u: np.ndarray) -> np.ndarray:
         np.interp(vgs_clamped[j], g, row[:, j]) for j in range(len(u[0]))])
     tv, tf = transfer_curve(model)
     gate = np.clip(np.interp(u[0], tv, tf), 0.0, 1.0)
-    return np.maximum(0.0, out * gate * u[1] / (u[1] + saturation_scale(model)))
+    x = out * gate * u[1] / (u[1] + saturation_scale(model))
+    pol = emission_policy(model)
+    if pol.soft_clamp:
+        return 0.5 * (x + np.sqrt(x * x + pol.soft_eps ** 2))
+    return np.maximum(0.0, x)
 
 
 def emitted_static_rmse(model: TPWLTerminalModel) -> float:
@@ -154,10 +202,32 @@ def emitted_static_rmse(model: TPWLTerminalModel) -> float:
 
 
 def _qoss_expr(model: TPWLTerminalModel) -> str:
-    """Monotone Qoss(Vds) lookup from the AC-derived charge table."""
+    """Monotone drain charge: smooth two-exponential fit or dense table."""
     from approximation.charge_model import integrate_charge
     charge = integrate_charge(model.coss_v, model.coss_c)
-    v = np.linspace(0.0, float(charge.v[-1]), _QOSS_POINTS)
+    if emission_policy(model).smooth_qoss:
+        v = np.linspace(0.0, float(charge.v[-1]), _QOSS_FIT_POINTS)
+        q = np.interp(v, charge.v, charge.q)
+        qmax = max(float(np.max(np.abs(q))), 1e-15)
+
+        def resid(p: np.ndarray) -> np.ndarray:
+            a, b, l1, l2 = p
+            return (a * (1 - np.exp(-v / np.exp(l1)))
+                    + b * (1 - np.exp(-v / np.exp(l2))) - q) / qmax
+
+        r = least_squares(
+            resid,
+            [q[-1] * 0.5, q[-1] * 0.5, np.log(2.0), np.log(20.0)],
+            bounds=([0, 0, np.log(1e-4), np.log(1e-4)],
+                    [np.inf, np.inf, np.log(1e4), np.log(1e4)]),
+            max_nfev=5000)
+        a, b, t1, t2 = (float(r.x[0]), float(r.x[1]),
+                        float(np.exp(r.x[2])), float(np.exp(r.x[3])))
+        eps = 1e-3
+        vs = (f"(0.5*(V(d,s)+sqrt(V(d,s)*V(d,s)+{_f(eps * eps)})))")
+        return (f"({_f(a)}*(1-exp(-{vs}/{_f(t1)}))"
+                f"+{_f(b)}*(1-exp(-{vs}/{_f(t2)})))")
+    v = np.linspace(0.0, float(charge.v[-1]), _QOSS_FIT_POINTS)
     q = np.interp(v, charge.v, charge.q)
     pairs = ",".join(f"{_f(x)},{_f(y)}" for x, y in zip(v, q))
     return (f"table(limit(V(d,s),{_f(v[0])},{_f(v[-1])}),{pairs})")
@@ -183,8 +253,13 @@ def emit_subcircuit(model: TPWLTerminalModel, *,
     gate_table = (f"table(limit(V(g,s),{_f(tv[0])},{_f(tv[-1])}),"
                   + ",".join(f"{_f(x)},{_f(y)}" for x, y in zip(tv, tf)) + ")")
     vsat = saturation_scale(model)
-    channel = (f"max(0,({gate_table})*({channel_table})"
-               f"*V(d,s)/(V(d,s)+{_f(vsat)}))")
+    x = (f"({gate_table})*({channel_table})"
+         f"*V(d,s)/(V(d,s)+{_f(vsat)})")
+    pol = emission_policy(model)
+    if pol.soft_clamp:
+        channel = f"(0.5*({x}+sqrt({x}*{x}+{_f(pol.soft_eps ** 2)})))"
+    else:
+        channel = f"max(0,{x})"
 
     lines = [f".subckt {name} {' '.join(ports)}"]
     if model.coss_v is not None and model.coss_c is not None:

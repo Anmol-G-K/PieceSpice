@@ -1,6 +1,7 @@
 """Unit tests for the paper-defined parts of the Tier-3 TPWL terminal model."""
 import numpy as np
 
+from config.yaml_io import load_input
 from models import tpwl_netlist_builder as emitter
 from pipeline.tier3 import _log_iterations
 from approximation.tpwl_deim import (
@@ -84,13 +85,13 @@ def test_emission_is_ascii_and_uses_flat_tables_without_weights():
     assert text.isascii()
     assert text.startswith(".subckt TOY_T3 d g s\n")
     assert text.rstrip().endswith(".ends")
-    assert "G_CH d s VALUE={max(0," in text
+    assert "G_CH d s VALUE={(0.5*(" in text
     assert "table(V(d,s)," in text
     assert "V(d,s)/(V(d,s)+2.000000000e-01)" in text
     assert "QOSS d s Q={table(limit(V(d,s)" in text
     # No B-source intermediates, no per-cell weight nodes, no C_QD.
     assert "\nB" not in text and "C_QD" not in text
-    assert "exp(" not in text and "sqrt(" not in text
+    assert "exp(" not in text and "sqrt(" in text
 
 
 def test_emitted_channel_clamps_negative_drain_voltage():
@@ -98,9 +99,38 @@ def test_emitted_channel_clamps_negative_drain_voltage():
     u = np.vstack([np.array([10.0, 10.0, 10.0]),
                    np.array([-0.1, 0.0, 10.0])])
     current = emitter.emitted_channel(model, u)
-    assert current[0] == 0.0
-    assert current[1] == 0.0
+    # TI's measured soft clamp approaches zero below Vds = 0 but is C1.
+    assert current[0] < 1e-2
+    assert current[1] < 1e-2
     assert current[2] > 0.0
+
+
+def test_emission_policies_are_vendor_specific_and_ascii():
+    toy = _toy_model()
+    ir = _toy_model()
+    ir.vendor = "irfs7730pbf"
+    epc = _toy_model()
+    epc.vendor = "epc2216"
+    text = emitter.emit_subcircuit(ir, name="IR_T3")
+    assert text.isascii()
+    assert "QOSS d s Q={table(" not in text
+    assert "exp(-" in text and "sqrt(" in text
+    assert "max(0," in text  # IRFS keeps the hard clamp
+    assert emitter.emission_policy(toy).soft_clamp
+    assert emitter.emission_policy(ir).high_vds_saturation
+    assert emitter.emission_policy(epc).vgs_points == 19
+
+
+def test_high_vds_saturation_extends_grid_and_floors_channel():
+    ir = _toy_model()
+    ir.vendor = "irfs7730pbf"
+    g, d = emitter.grid_axes(ir)
+    cfg = load_input(ir.vendor)["dpt"]
+    assert d[-1] >= 1.10 * float(cfg["vbus"])
+    table = emitter.grid_channel(ir, g, d)
+    tail = table[:, np.searchsorted(d, 10.0):]
+    assert np.all(np.isfinite(tail)) and np.all(tail >= 0.0)
+    assert np.allclose(tail, tail[:, :1])
 
 
 def test_emitted_static_rmse_matches_channel_prediction():

@@ -1,6 +1,7 @@
 {
   "schema": "piecespice.tier3/2.0",
   "vendor": "cpm2-1200",
+  "variant": "v1",
   "methods": [
     "TPWL (Rewienski & White 2003)",
     "POD-DEIM anchors (Chaturantabut & Sorensen 2010)"
@@ -117,113 +118,113 @@
   },
   "function_fit": {
     "static_curve_rmse_rel": 0.006058122188922697,
-    "emitted_static_curve_rmse_rel": 0.009698455455390432,
+    "emitted_static_curve_rmse_rel": 0.009749351034205083,
     "static_samples": 606,
     "heldout_id_rmse_rel": 0.29557970128190425,
     "heldout_qg_rmse_rel": 0.31788472015824637
   },
   "dpt_run": {
     "completed": true,
-    "trace_points": 31436,
+    "trace_points": 32487,
     "golden_trace_points": 7154,
-    "iterations": 189005,
+    "iterations": 207339,
     "t_last_s": 1.4e-05,
     "error": null,
     "waveform": {
-      "vds_rel_rmse_pct": 4.214779960561809,
-      "id_rel_rmse_pct": 0.3455219971014038,
-      "compare_points": 31436
+      "vds_rel_rmse_pct": 4.0889446530908895,
+      "id_rel_rmse_pct": 0.29095586476318364,
+      "compare_points": 32487
     }
   },
   "dpt_comparison": {
     "td_on_ns": {
       "golden": 10.252879764066485,
-      "tier3": 8.64110127128361,
-      "tier3_rel_err_pct": -15.72025157684687,
+      "tier3": 8.594059579371336,
+      "tier3_rel_err_pct": -16.1790660074729,
       "tier2": 11.780657210018502,
       "tier2_rel_err_pct": 14.900959351015269
     },
     "tr_ns": {
       "golden": 4.703011959080317,
-      "tier3": 0.8140235357625275,
-      "tier3_rel_err_pct": -82.69144235980826,
+      "tier3": 0.8504772707448643,
+      "tier3_rel_err_pct": -81.91632770350903,
       "tier2": 4.123180135595054,
       "tier2_rel_err_pct": -12.328946397122296
     },
     "td_off_ns": {
       "golden": 14.034458010213152,
-      "tier3": 7.76379126674825,
-      "tier3_rel_err_pct": -44.68050521724184,
+      "tier3": 7.7562379693306545,
+      "tier3_rel_err_pct": -44.73432487605658,
       "tier2": 18.242309580736105,
       "tier2_rel_err_pct": 29.982287648449386
     },
     "tf_ns": {
       "golden": 4.139181554911007,
-      "tier3": 2.5301273865901726,
-      "tier3_rel_err_pct": -38.8737277400104,
+      "tier3": 2.5275097859924975,
+      "tier3_rel_err_pct": -38.93696730954727,
       "tier2": 8.788832112198792,
       "tier2_rel_err_pct": 112.33260719794045
     },
     "dv_dt_max_v_per_ns": {
       "golden": 373.7322739993671,
-      "tier3": 1170.1405614080002,
-      "tier3_rel_err_pct": 213.09593599882186,
+      "tier3": 1450.554949632,
+      "tier3_rel_err_pct": 288.12675558077603,
       "tier2": 374.9478906231432,
       "tier2_rel_err_pct": 0.3252640214257114
     },
     "di_dt_max_a_per_ns": {
       "golden": 0.595746176,
-      "tier3": 0.4945952066483511,
-      "tier3_rel_err_pct": -16.978870100485363,
+      "tier3": 0.5950175819443639,
+      "tier3_rel_err_pct": -0.122299409545195,
       "tier2": 0.3811123163714551,
       "tier2_rel_err_pct": -36.027736018324845
     },
     "e_on_uj": {
       "golden": 5.618961077859762,
-      "tier3": 4.465366359647694,
-      "tier3_rel_err_pct": -20.530391690334806,
+      "tier3": 4.4404307602133315,
+      "tier3_rel_err_pct": -20.97416766758113,
       "tier2": 6.109476707046132,
       "tier2_rel_err_pct": 8.729649883483535
     },
     "e_off_uj": {
       "golden": 56.69922530455782,
-      "tier3": 55.42540552283926,
-      "tier3_rel_err_pct": -2.2466264307427157,
+      "tier3": 55.45520826113146,
+      "tier3_rel_err_pct": -2.19406356390968,
       "tier2": 57.041822545858814,
       "tier2_rel_err_pct": 0.6042361945171991
     },
     "i_peak_a": {
       "golden": 26.82243537902832,
-      "tier3": 26.646873474121094,
-      "tier3_rel_err_pct": -0.6545337976449868,
+      "tier3": 26.665342330932617,
+      "tier3_rel_err_pct": -0.5856777950093585,
       "tier2": 26.73192024230957,
       "tier2_rel_err_pct": -0.3374605453967135
     }
   },
   "runtime": {
     "golden": {
-      "wall_clock_s": 1.2765878000009252,
-      "solver_elapsed_s": 0.532,
+      "wall_clock_s": 1.0877798000001349,
+      "solver_elapsed_s": 0.507,
       "iterations": 21310.0,
       "trace_points": 7154.0
     },
     "tier3": {
-      "wall_clock_s": 6.41234489999988,
-      "solver_elapsed_s": 5.185,
-      "iterations": 189005.0,
-      "trace_points": 31436.0
+      "wall_clock_s": 3.772540600002685,
+      "solver_elapsed_s": 2.903,
+      "iterations": 207339.0,
+      "trace_points": 32487.0
     },
     "tier3_bench_completed": true,
-    "solver_speedup": 0.10260366441658632,
+    "solver_speedup": 0.17464691698243195,
     "bench_wall_s": {
-      "golden": 3.799286999999822,
-      "tier3": 18.87419580000096
+      "golden": 3.2668078999995487,
+      "tier3": 11.291171000000759
     }
   },
   "build_seconds": {
-    "capture": 1.1743404999997438,
-    "fit": 36.1989506000009
+    "capture": 1.1188751999980013,
+    "fit": 31.461448199999722
   },
-  "spice_log_tail": "Total elapsed time: 5.015 seconds.\nTotal iterations: 189005\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_j0t1w3p2\\tran.net\n",
+  "spice_log_tail": "Total elapsed time: 2.869 seconds.\nTotal iterations: 207339\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_rltujq7w\\tran.net\n",
   "emitted_lib": "reports\\models\\cpm2-1200_PIECESPICE_T3.lib"
 }
