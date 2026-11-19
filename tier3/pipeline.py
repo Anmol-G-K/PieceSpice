@@ -195,6 +195,8 @@ def run_vendor(vendor: str) -> dict:
             "v_width_v": model.v_width,
         },
         "function_fit": {
+            "static_curve_rmse_rel": model.meta.get("static_rmse_rel"),
+            "static_samples": model.meta.get("static_samples"),
             "heldout_id_rmse_rel": model.meta["heldout_id_rmse"],
             "heldout_qg_rmse_rel": model.meta["heldout_qg_rmse"],
         },

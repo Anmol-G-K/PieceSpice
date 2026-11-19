@@ -168,14 +168,12 @@ def _anchors_for(ws: np.ndarray, s: int) -> list[int]:
     return _farthest_completion(ws, seeds, s)
 
 
-def _fit_cells(ws, dws, id_, qg, anchors_idx):
-    """Per-cell joint fit: channel affine + drain-charge slopes + Qg.
+def _fit_cells(ws, dws, id_, qg, anchors_idx, is_static, is_dpt):
+    """Per-cell fit from two data sources.
 
-    The golden DPT of some vendors (IRFS MODPEX mirror network, VM-02)
-    carries amp-level terminal current at Vgs ~ 0 while Vds sweeps; the
-    sweep-rate features [dVgs/dt, dVds/dt] attribute that to charge.
-    Off-state blocking is enforced at emission by the Vth gate envelope,
-    not by distorting the fit.
+    * channel affine: extracted Curve-1 static family + DPT samples;
+    * drain-charge slopes and gate charge: DPT samples only, where the
+      sweep rates needed to separate displacement current are observable.
     """
     P = ws[:, anchors_idx]                               # (2, s)
     cell = np.argmin(
@@ -186,19 +184,35 @@ def _fit_cells(ws, dws, id_, qg, anchors_idx):
     charge_g = np.zeros((n_cells, 3))
     for p in range(n_cells):
         rows = np.flatnonzero(cell == p)
-        if rows.size < 5:
+        static = rows[is_static[rows]]
+        dpt = rows[is_dpt[rows]]
+        if len(static) + len(dpt) < 5:
             dd = np.linalg.norm(ws - ws[:, anchors_idx[p]:anchors_idx[p] + 1],
                                 axis=0)
             rows = np.argsort(dd)[:5]
-        dv = (ws[:, rows] - ws[:, anchors_idx[p]:anchors_idx[p] + 1]).T
-        F = np.column_stack([np.ones(rows.size), dv[:, 0], dv[:, 1],
-                             dws[0, rows], dws[1, rows]])
-        sol, *_ = np.linalg.lstsq(F, id_[rows], rcond=None)
-        channel[p] = sol[:3]
-        charge_d[p] = sol[3:5]
-        Fq = np.column_stack([np.ones(rows.size), dv[:, 0], dv[:, 1]])
-        solq, *_ = np.linalg.lstsq(Fq, qg[rows], rcond=None)
-        charge_g[p] = solq
+            static = rows[is_static[rows]]
+            dpt = rows[is_dpt[rows]]
+        anchor = ws[:, anchors_idx[p]:anchors_idx[p] + 1]
+        # Channel uses the extracted static family only: DPT samples at
+        # Vgs ~ 0 carry the VM-02 mirror-network transient (100 A while
+        # Vds sweeps) and corrupt the quasi-static channel (IRFS fit_id
+        # exploded to 31.5 when they were included). The DPT residual is
+        # handled entirely by the charge slopes and the Qoss base.
+        ch_rows = static if len(static) >= 3 else rows
+        dv = (ws[:, ch_rows] - anchor).T
+        Fc = np.column_stack([np.ones(len(ch_rows)), dv[:, 0], dv[:, 1]])
+        solc, *_ = np.linalg.lstsq(Fc, id_[ch_rows], rcond=None)
+        channel[p] = solc
+        if len(dpt) >= 3:
+            dvd = (ws[:, dpt] - anchor).T
+            resid = id_[dpt] - (solc[0] + solc[1] * dvd[:, 0]
+                                + solc[2] * dvd[:, 1])
+            Fs = np.column_stack([dws[0, dpt], dws[1, dpt]])
+            sols, *_ = np.linalg.lstsq(Fs, resid, rcond=None)
+            charge_d[p] = sols
+            Fq = np.column_stack([np.ones(len(dpt)), dvd[:, 0], dvd[:, 1]])
+            solq, *_ = np.linalg.lstsq(Fq, qg[dpt], rcond=None)
+            charge_g[p] = solq
     return channel, charge_d, charge_g
 
 
@@ -210,9 +224,13 @@ def _rmse(pred: np.ndarray, ref: np.ndarray) -> float:
 def build_model(traj: Trajectory, coss_curve=None,
                 v_block: float | None = None,
                 v_width: float | None = None,
-                s_grid: tuple[int, ...] = (4, 8, 12, 16, 24)) \
-        -> TPWLTerminalModel:
-    """Fit per-cell terminal models; select s by held-out second pulse."""
+                s_grid: tuple[int, ...] = (8, 16, 24, 32),
+                include_static: bool = True) -> TPWLTerminalModel:
+    """Fit channel on Curve-1 static family + DPT; select s by static error.
+
+    DPT alone drives only two Vgs levels and gave 65-1e9 % error on the
+    Curve-1 family; the static family is the project's headline metric.
+    """
     split = _split_index(traj.input[0])
     t, u, y = traj.time, traj.input, traj.output
     v_ref, v_span = _operating_scaler(u[:, :split])
@@ -224,13 +242,9 @@ def build_model(traj: Trajectory, coss_curve=None,
     window += (window + 1) % 2
     window = min(window, split - 1 + (split - 1) % 2)
     wsm = savgol_filter(wtr, window, 2, axis=1)
-    dws = np.gradient(wsm, t[:split], axis=1)      # scaled V per second
+    dws = np.gradient(wsm, t[:split], axis=1)
     qg = cumulative_trapezoid(y[1, :split], t[:split], initial=0.0)
 
-    # AC-derived Qoss(Vds) base: the DPT never moves Vds at Vgs = 0, so the
-    # 2-D blend alone would leave the blocking drain node with no
-    # capacitance and the first timestep collapses. The blend is therefore
-    # fitted (and emitted) as the correction on top of this table.
     qoss_v = qoss_q = None
     id_fit = y[0, :split]
     if coss_curve is not None:
@@ -243,32 +257,56 @@ def build_model(traj: Trajectory, coss_curve=None,
     coss_v = None if coss_curve is None else np.asarray(coss_curve[0])
     coss_c = None if coss_curve is None else np.asarray(coss_curve[1])
 
-    sv = np.linalg.svd(wtr, compute_uv=False)
+    # combine sources: static family for channel coverage, DPT for charges
+    ws_all, dws_all, id_all, qg_all = wtr, dws, id_fit, qg
+    is_static = np.zeros(wtr.shape[1], dtype=bool)
+    is_dpt = np.ones(wtr.shape[1], dtype=bool)
+    static_u = static_id = None
+    if include_static:
+        from tier3.static_curves import static_samples
+        static_u, static_id, _ = static_samples(traj.vendor)
+        ws_static = (static_u - v_ref[:, None]) / v_span[:, None]
+        ws_all = np.hstack([wtr, ws_static])
+        dws_all = np.hstack([dws, np.zeros_like(ws_static)])
+        id_all = np.hstack([id_fit, static_id])
+        qg_all = np.hstack([qg, np.zeros(ws_static.shape[1])])
+        is_static = np.hstack([
+            np.zeros(wtr.shape[1], dtype=bool),
+            np.ones(ws_static.shape[1], dtype=bool)])
+        is_dpt = ~is_static
+
+    sv = np.linalg.svd(ws_all, compute_uv=False)
     energy = (sv ** 2 / np.sum(sv ** 2)).tolist()
 
     best = None
     for s in s_grid:
-        if s > split // 8:
-            continue
-        idx = _anchors_for(wtr, s)
+        idx = _anchors_for(ws_all, s)
         channel, charge_d, charge_g = _fit_cells(
-            wtr, dws, id_fit, qg, idx)
+            ws_all, dws_all, id_all, qg_all, idx, is_static, is_dpt)
         cand = TPWLTerminalModel(
             vendor=traj.vendor, subcircuit=traj.subcircuit,
-            pin_roles=traj.pin_roles, anchors=ws[:, idx].T,
+            pin_roles=traj.pin_roles, anchors=ws_all[:, idx].T,
             v_ref=v_ref, v_span=v_span, channel=channel,
             charge_d=charge_d, charge_g=charge_g, edge_window=window,
             qoss_v=qoss_v, qoss_q=qoss_q, coss_v=coss_v, coss_c=coss_c,
             v_block=v_block, v_width=v_width,
             meta={"pod_energy": energy, "cells": s,
                   "deim_seed_count": min(s, len(energy)),
-                  "qoss_base": coss_curve is not None})
+                  "qoss_base": coss_curve is not None,
+                  "static_samples": int(is_static.sum())})
+        if static_u is not None:
+            sp = cand.predict(np.linspace(0, 1, static_u.shape[1]),
+                              static_u)[0]
+            st_err = _rmse(sp, static_id)
+            cand.meta["static_rmse_rel"] = st_err
+        else:
+            st_err = float("inf")
         id_pred, qg_pred = cand.predict(t[split:], u[:, split:])
-        e_id = _rmse(id_pred, y[0, split:])
+        cand.meta["heldout_id_rmse"] = _rmse(id_pred, y[0, split:])
         qg_ref = cumulative_trapezoid(y[1, split:], t[split:], initial=0.0)
-        e_qg = _rmse(qg_pred, qg_ref)
-        cand.meta.update(heldout_id_rmse=e_id, heldout_qg_rmse=e_qg)
-        if best is None or e_id < best.meta["heldout_id_rmse"]:
+        cand.meta["heldout_qg_rmse"] = _rmse(qg_pred, qg_ref)
+        if best is None or st_err < best.meta.get(
+                "static_rmse_rel", float("inf")):
             best = cand
     if best is None:
         raise RuntimeError(f"{traj.vendor}: no valid TPWL candidate")

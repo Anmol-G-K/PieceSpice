@@ -20,9 +20,10 @@ def main() -> None:
         record = run_vendor(vendor)
         algo = record["algorithm"]
         ff = record["function_fit"]
-        print(f"{vendor:14s} cells={algo['cells']:2d} "
-              f"fit_id={ff['heldout_id_rmse_rel']:.3g} "
-              f"fit_qg={ff['heldout_qg_rmse_rel']:.3g}", flush=True)
+        st = ff.get("static_curve_rmse_rel")
+        st_txt = f"{st:.3g}" if st is not None else "N/A"
+        print(f"{vendor:14s} cells={algo['cells']:2d} static={st_txt}"
+              f" fit_id={ff['heldout_id_rmse_rel']:.3g}", flush=True)
         for m in SHOW:
             row = record["dpt_comparison"][m]
             t3, t2 = row["tier3"], row.get("tier2")
