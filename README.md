@@ -4,7 +4,7 @@
 
 **High-Fidelity Piecewise SPICE Modeling Framework**
 
-*PLECS-class speed. SPICE-class resolution. Standard SPICE netlists.*
+*PLECS-class speed (target). SPICE-class resolution. Standard SPICE netlists.*
 
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![LTspice](https://img.shields.io/badge/LTspice-26-orange)](https://www.analog.com/en/resources/design-tools-and-calculators/ltspice-simulator.html)
@@ -30,7 +30,8 @@ distills vendor MOSFET subcircuits into one of **two selectable solver tiers**:
 
 - **Tier-2 — CPWL macromodel.** Continuous piecewise-linear channel with a
   `tanh` saturation knee plus charge-defined capacitors, emitted as a small
-  standard-SPICE subcircuit. Method closed; robust and fast.
+  standard-SPICE subcircuit. Method closed; fidelity maintained at recorded
+  levels, with no significant measured speedup at matched conditions.
 - **Tier-3 — TPWL terminal model.** Trajectory piecewise-linear fit with
   POD-DEIM anchors captured from the device's own double-pulse waveform,
   emitted as its own subcircuit. Better static fit, but slower today.
@@ -38,8 +39,8 @@ distills vendor MOSFET subcircuits into one of **two selectable solver tiers**:
 | | Fidelity | Speed | Robustness |
 |---|---|---|---|
 | Vendor SPICE | ●●●●● | ●○○○○ | ○○○○○ |
-| **PieceSpice Tier-2 (CPWL)** | **●●●●○ (2.04–8.49 % static rel-RMSE; ≤ 4.13 % endpoint)** | **●●○○○ (no speedup claimed)** | **●●●●● (C⁰ PWL + tanh knee)** |
-| **PieceSpice Tier-3 (TPWL)** | **●●●●○ (0.61–4.24 % static fit rel-RMSE)** | **●●○○○ (0.10–0.57× measured)** | **●●●○○ (anchored on captured trajectory)** |
+| **PieceSpice Tier-2 (CPWL)** | **●●●●○ (2.04–8.49 % static rel-RMSE; ≤ 4.13 % endpoint)** | **●●○○○ (~1× at matched conditions; not significant)** | **●●●●● (C⁰ PWL + tanh knee)** |
+| **PieceSpice Tier-3 (TPWL)** | **●●●●○ (0.61–4.24 % static fit rel-RMSE)** | **●●○○○ (0.0988–0.570× measured; slower than golden)** | **●●●○○ (anchored on captured trajectory)** |
 | PLECS / Ideal | ●○○○○ | ●●●●● | ●●●●● |
 
 Everything is emitted as a **standard SPICE subcircuit** — no proprietary
@@ -47,14 +48,14 @@ solver, no special runtime. Drop the generated `.lib` into any SPICE flow
 that supports behavioral sources and charge-defined capacitors (validated on
 LTspice 26) and simulate against the golden model.
 
-**Measured status — honest:** Tier-3 does **not** currently deliver a speedup.
-Measured solver speedups are 0.570× (IRFS), 0.0988× (TI), 0.399× (EPC) and
-0.175× (CPM2) — that is **0.10–0.57×** (rounded), slower than the golden in
-every case.
-The earlier aspirational speedup claim is superseded by these measurements.
-The pipeline guard reports speedup as **N/A whenever either DPT bench fails
-to complete**, so an incomplete run is never counted as a win. See
-[Measured Results](#-measured-results) for the full tables.
+**Measured status — honest:** At matched 2-pulse, forced 2 ns-step DPT
+conditions, neither tier shows a significant speedup against the vendor
+golden: Tier-2 solver 0.875–1.173×, Tier-3 solver 0.0988–0.570×
+(IRFS / TI / EPC / CPM2); Tier-3 is slower on every device. The one measured
+Tier-2 win is the 20-pulse adaptive TI case (4.86× solver / 3.39× wall).
+Tier-3 speed was audited closed on 2026-11-20; both tiers hold their recorded
+fidelity. See [Measured Results](#-measured-results) for the tables and the
+conditions of validity.
 
 ---
 
@@ -248,6 +249,27 @@ Both tiers are exercised on all four devices; measured figures follow.
 measured from the JSON exports in `reports/comparison/<vendor>/`; none are
 estimates or imputations.
 
+**Conditions of validity.** Every figure below is measured on the
+clamped-inductive double-pulse bench configured per vendor YAML (two pulses,
+forced 2 ns maximum step for the matched-condition runs), with the vendor
+golden subcircuit at default settings as the sole reference. Fidelity means
+matching the golden's terminal curves and waveforms, not datasheet ratings
+(the caveat above); only quantities that were actually measured are reported,
+and the guard returns N/A whenever a bench does not complete.
+
+**Two-tier measured status (2026-11-20).** Neither tier delivers a significant
+speedup at matched conditions. Tier-2 solver speedups are 0.875× / 1.173× /
+1.011× / 0.945× and Tier-3 solver speedups 0.570× / 0.0988× / 0.399× /
+0.175× (IRFS / TI / EPC / CPM2), each measured as golden solver time over ROM
+solver time. Tier-3 is slower than golden on every device. The single measured
+Tier-2 win is the 20-pulse adaptive TI case — 4.86× solver / 3.39× wall — with
+IRFS and CPM2 near 1× and EPC's golden stalling under an adaptive step (it
+needs the 100 ns step cap). The 2026-11-20 audit closed the Tier-3 speed
+question: no fidelity-preserving speedup exists in this emission family or
+through the documented solver knobs. Fidelity is maintained at the recorded
+levels in the tables below, with the edge-timing limit stated after the
+timing table.
+
 **Static Curve-1 relative RMSE** — Tier-2 (closed, full sweep) vs Tier-3
 (function fit / emitted netlist). Tier-3's fit error is lower on 3 of 4
 devices; EPC is the exception.
@@ -257,7 +279,7 @@ devices; EPC is the exception.
 | IRFS7730PBF | 7.07 % | 4.24 % | 4.15 % |
 | CSD16412Q5A (TI) | 8.49 % | 1.54 % | 2.15 % |
 | EPC2216 | 2.04 % | 2.37 % | 7.22 % |
-| CPM2-1200 | 3.43 % | 0.61 % | 0.98 % |
+| CPM2-1200 | 3.43 % | 0.61 % | 0.97 % |
 
 Tier-2 worst endpoint error ≤ 4.13 %. *AES-STD100 caveat above applies.*
 
@@ -267,16 +289,27 @@ runs completed.
 
 | Device | Golden points | Tier-3 points | Vds rel-RMSE | Id rel-RMSE |
 |---|---|---|---|---|
-| IRFS7730PBF | 7114 | 7210 | 16.96 % | 0.51 % |
-| CSD16412Q5A | 10189 | 66240 | 2.36 % | 0.41 % |
-| EPC2216 | 7418 | 9301 | 4.83 % | 0.79 % |
-| CPM2-1200 | 7154 | 31436 | 4.09 % | 0.29 % |
+| IRFS7730PBF | 7114 | 7376 | 16.96 % | 0.51 % |
+| CSD16412Q5A | 10189 | 65788 | 2.36 % | 0.41 % |
+| EPC2216 | 7418 | 9434 | 4.83 % | 0.79 % |
+| CPM2-1200 | 7154 | 32487 | 4.09 % | 0.29 % |
 
 *AES-STD100 caveat above applies.*
 
-**Solver speed (Tier-3 vs golden):** 0.570× / 0.0988× / 0.399× / 0.175×
-(IRFS / TI / EPC / CPM2) — **no speedup**. The pipeline guard reports N/A
-unless both benches complete. *AES-STD100 caveat above applies.*
+**Solver speed vs golden at matched 2-pulse, forced 2 ns-step conditions**
+(vendor golden at default settings as the sole reference):
+
+| Device | Tier-2 solver | Tier-3 solver |
+|---|---|---|
+| IRFS7730PBF | 0.875× | 0.570× |
+| CSD16412Q5A (TI) | 1.173× | 0.0988× |
+| EPC2216 | 1.011× | 0.399× |
+| CPM2-1200 | 0.945× | 0.175× |
+
+Neither tier shows a significant speedup; Tier-3 is slower on every device.
+The 20-pulse adaptive TI case (4.86× solver / 3.39× wall) is the one measured
+Tier-2 exception. The guard reports N/A unless both benches complete.
+*AES-STD100 caveat above applies.*
 
 **DPT timing and energy — golden / Tier-3 / Tier-2.** `tr`, `tf` in ns;
 `e_on`, `e_off` in µJ. All Tier-3 crossings now exist on every device
@@ -288,15 +321,29 @@ unless both benches complete. *AES-STD100 caveat above applies.*
 | IRFS7730PBF | 25.84 / 0.836 / 2.893 | 26.54 / 1.410 / 2.529 | 157.4 / 25.10 / 71.09 | 597.0 / 535.3 / 533.4 |
 | CSD16412Q5A | 1.096 / 0.106 / 1.486 | 1.662 / 0.622 / 2.246 | 1.063 / 0.938 / 0.753 | 17.97 / 17.56 / 17.73 |
 | EPC2216 | 0.846 / 1.485 / 0.838 | 1.227 / 2.255 / 1.343 | 1.091 / 1.260 / 1.149 | 15.63 / 15.26 / 15.41 |
-| CPM2-1200 | 4.703 / 0.851 / 4.123 | 4.139 / 2.528 / 8.789 | 5.619 / 4.440 / 6.109 | 56.70 / 55.46 / 57.04 |
+| CPM2-1200 | 4.703 / 0.850 / 4.123 | 4.139 / 2.528 / 8.789 | 5.619 / 4.440 / 6.109 | 56.70 / 55.46 / 57.04 |
 
 *AES-STD100 caveat above applies.*
+
+**Fidelity scope — edge timing.** The small full-waveform rel-RMSE above does
+not imply accurate switching edges. `tr`/`tf` deviate measurably on several
+devices: CPM2 Tier-3 `tr` 0.850 ns vs golden 4.703 ns, and IRFS Tier-3 `tr`
+0.836 ns vs 25.84 ns. These ROMs hold terminal waveform shape at the recorded
+levels, not switching-edge timing. The device-current comparison plotted in
+notebook 03 (corrected 2026-11-20 to compare like-with-like `I(Lload)-I(Dclamp)`
+on both sides; it previously plotted golden device current against ROM
+inductor current, a 52-64 % artifact) is full-waveform 1.5-11.0 % across
+tiers and vendors, with 70-100 % of that error inside the +/-50 ns edge
+windows; outside them the deviation is 0.03-0.4 % except IRFS ~5.6 %
+(the catalogued VM-02 vendor-defect tail). Tier-2 full-waveform adherence,
+computed at the matched bench in the 2026-11-19 analysis (not stored in a
+JSON), is
 
 **Test suite.**
 
 | Command | Passed | Skipped |
 |---|---|---|
-| `uv run pytest` | 118 | 4 |
+| `uv run pytest` | 120 | 4 |
 
 *AES-STD100 caveat above applies to the fidelity figures these tests
 protect, not to the test process itself.*
@@ -346,7 +393,7 @@ no re-export shims.
 ## 🧪 Testing
 
 ```bash
-uv run pytest                # 118 passed, 4 skipped
+uv run pytest                # 120 passed, 4 skipped
 uv run pytest tests/test_pwlf_fit.py -v    # single module
 ```
 
@@ -388,7 +435,9 @@ its own test module, `tests/test_tier3.py`.
       Static Curve-1 fit rel-RMSE beats Tier-2 on 3 of 4 devices
       (IRFS 4.24 vs 7.07 %, TI 1.54 vs 8.49 %, CPM2 0.61 vs 3.43 %;
       EPC 2.37 vs 2.04 % is the exception). All four DPTs completed.
-      **No speedup claimed** — measured solver speed 0.10–0.57×
+      **No significant speedup** — matched-condition solver speed
+      0.0988–0.570×, slower than golden on all four devices; the
+      2026-11-20 speed audit closed this line of work.
       (2026-11-19 emission rework: smooth two-exponential Qoss,
       conditioned grids, soft-plus clamps, IRFS second-pulse fix);
       the guard reports N/A if a bench does not complete.
@@ -396,7 +445,9 @@ its own test module, `tests/test_tier3.py`.
       *(metrics, resistive-load subset and inductive DPT)*
 - [ ] **M5** — Switched-Mode Converter Benchmark & Speedup Evaluation
       *(DPT-topology runtime benchmark only; no converter benchmark exists.
-      Tier-3 adds no measured speedup — see Measured Results.)*
+      Neither tier shows a significant matched-condition speedup; the one
+      measured win is 20-pulse adaptive TI (4.86× solver / 3.39× wall), and
+      Tier-3 speed was audited closed on 2026-11-20 — see Measured Results.)*
 - [x] **M6** — Automated HTML Reporting & CLI Polish
       *(the report renders only metrics it is given)*
 
