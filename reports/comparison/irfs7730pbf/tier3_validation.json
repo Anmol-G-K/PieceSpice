@@ -84,95 +84,114 @@
     "v_width_v": 0.09933774834437085
   },
   "function_fit": {
+    "static_curve_rmse_rel": 0.04239996164674703,
+    "emitted_static_curve_rmse_rel": 0.04101825332286603,
+    "static_samples": 505,
     "heldout_id_rmse_rel": 33.271642256615266,
     "heldout_qg_rmse_rel": 0.08465983087232477
+  },
+  "dpt_run": {
+    "completed": true,
+    "trace_points": 7210,
+    "golden_trace_points": 7114,
+    "iterations": 19530,
+    "t_last_s": 1.4e-05,
+    "error": null,
+    "waveform": {
+      "vds_rel_rmse_pct": 39.59045175177429,
+      "id_rel_rmse_pct": 13.091754451296978,
+      "compare_points": 7210
+    }
   },
   "dpt_comparison": {
     "td_on_ns": {
       "golden": 32.29627698150211,
-      "tier3": null,
+      "tier3": NaN,
       "tier3_rel_err_pct": NaN,
       "tier2": 17.081334133714805,
       "tier2_rel_err_pct": -47.11051634992404
     },
     "tr_ns": {
       "golden": 25.84350961529235,
-      "tier3": null,
-      "tier3_rel_err_pct": NaN,
+      "tier3": 3.1714336577516344,
+      "tier3_rel_err_pct": -87.7283166839112,
       "tier2": 2.892552707266252,
       "tier2_rel_err_pct": -88.80743076182407
     },
     "td_off_ns": {
       "golden": 62.182902750101924,
-      "tier3": null,
+      "tier3": NaN,
       "tier3_rel_err_pct": NaN,
       "tier2": 17.134184632214943,
       "tier2_rel_err_pct": -72.44550531667346
     },
     "tf_ns": {
       "golden": 26.538999478329874,
-      "tier3": null,
-      "tier3_rel_err_pct": NaN,
+      "tier3": 0.8650452314149127,
+      "tier3_rel_err_pct": -96.74047534413927,
       "tier2": 2.5289703561538817,
       "tier2_rel_err_pct": -90.47073964405146
     },
     "dv_dt_max_v_per_ns": {
       "golden": 35.93467060024436,
-      "tier3": null,
-      "tier3_rel_err_pct": NaN,
+      "tier3": 1.9073486328125e-05,
+      "tier3_rel_err_pct": -99.99994692177218,
       "tier2": 587.4770711811311,
       "tier2_rel_err_pct": 1534.8475201471201
     },
     "di_dt_max_a_per_ns": {
       "golden": 0.22686931200000002,
-      "tier3": null,
-      "tier3_rel_err_pct": NaN,
+      "tier3": 0.005455017089877995,
+      "tier3_rel_err_pct": -97.59552447098795,
       "tier2": 2.497784249508453,
       "tier2_rel_err_pct": 1000.9793380554056
     },
     "e_on_uj": {
       "golden": 157.43281606412236,
-      "tier3": null,
+      "tier3": NaN,
       "tier3_rel_err_pct": NaN,
       "tier2": 71.09326472844484,
       "tier2_rel_err_pct": -54.84215647931461
     },
     "e_off_uj": {
       "golden": 596.9637000429396,
-      "tier3": null,
+      "tier3": NaN,
       "tier3_rel_err_pct": NaN,
       "tier2": 533.4319489514241,
       "tier2_rel_err_pct": -10.642481458578748
     },
     "i_peak_a": {
       "golden": 138.5330810546875,
-      "tier3": null,
-      "tier3_rel_err_pct": NaN,
+      "tier3": 99.49444580078125,
+      "tier3_rel_err_pct": -28.18000939320429,
       "tier2": 136.9910430908203,
       "tier2_rel_err_pct": -1.1131189403478658
     }
   },
   "runtime": {
     "golden": {
-      "wall_clock_s": 0.9619814000002407,
-      "solver_elapsed_s": 0.424,
-      "iterations": 14825.0
+      "wall_clock_s": 1.1375019000006432,
+      "solver_elapsed_s": 0.447,
+      "iterations": 14825.0,
+      "trace_points": 7114.0
     },
     "tier3": {
-      "wall_clock_s": 0.941123300000072,
-      "solver_elapsed_s": 0.433,
-      "iterations": 632.0
+      "wall_clock_s": 2.7709469000001263,
+      "solver_elapsed_s": 2.073,
+      "iterations": 19530.0,
+      "trace_points": 7210.0
     },
-    "solver_speedup": 0.9792147806004619,
+    "tier3_bench_completed": true,
+    "solver_speedup": 0.21562952243125905,
     "bench_wall_s": {
-      "golden": 2.9219954000000143,
-      "tier3": 2.806414600000153
+      "golden": 3.3753248999983043,
+      "tier3": 8.369770999999673
     }
   },
   "build_seconds": {
-    "capture": 1.0739886000001206,
-    "fit": 26.4949787999999
+    "capture": 1.3997686000002432,
+    "fit": 34.80970510000043
   },
-  "spice_log_tail": "ValueError: zero-size array to reduction operation maximum which has no identity",
+  "spice_log_tail": "Total elapsed time: 2.166 seconds.\nTotal iterations: 19530\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_ji812k7z\\tran.net\n",
   "emitted_lib": "reports\\models\\irfs7730pbf_PIECESPICE_T3.lib"
 }

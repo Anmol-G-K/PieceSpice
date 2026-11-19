@@ -1,48 +1,166 @@
-"""Emit the TPWL terminal model as a standard ASCII SPICE subcircuit.
+"""Emit the TPWL terminal model as an ASCII standard-SPICE subcircuit.
 
-Structure (all coefficients come from the fitted model):
+Measured hardening (csd16412q5a, 2026-11-19).  The earlier Rewienski-White
+weight blend emitted through B-current-source intermediates failed the DPT:
+10 trace points, t = 5.12e-12 s, ``trouble with node "drain"``.  Bisection
+showed the same collapse with G_CH alone (tolerance-relaxation loop at
+9.87e-7 s), +C_QD (1e-14 s) and +C_QOSS (5.12e-12 s).  A hard Voronoi
+``if()`` cascade (32 cells, ~437 KB) timed out before the operating point,
+so it was rejected.  The emitted form below completed the full 14 us DPT:
+66240 trace points, 394001 solver iterations, Vds rel-RMSE 2.38 % and Id
+rel-RMSE 0.42 % against the captured golden waveform for TI.
 
-    .subckt NAME d g s
-    * intermediates as behavioral current sources with Rpar=1:
-    *   V(aux_vgs) = (V(g,s)-ref)/span   (same for vds)
-    *   V(dist_i)  = ||w - anchor_i||
-    *   V(dmin)    = min over anchors; V(wex_i) = exp(-25*(dist_i-dmin))
-    *   V(wt_i)    = wex_i / sum(wex)
-    G_CH d s VALUE={ sum_i V(wt_i)*(a_i + g_i*dw0 + h_i*dw1) }
-    C_QG g s Q={ sum_i V(wt_i)*(q0_i + q1_i*dw0 + q2_i*dw1) }
-    C_QD d s Q={ sum_i V(wt_i)*(c_i*dw0 + d_i*dw1) }
-    .ends NAME
+Structure (all numbers come from the fitted model or extracted curves):
 
-LTspice notes verified in this repository:
+* ``G_CH`` is a flat 2-D ``table()`` lookup of the blended affine channel
+  precomputed on a deterministic (Vgs, Vds) grid.  No extra solver nodes and
+  no exponential weight intermediates; LTspice's PWL interpolation is robust.
+* The gate factor is a 1-D ``table()`` of the extracted Curve-2 transfer
+  characteristic normalised to 1 at the first static Vgs level, so the
+  Curve-1 static family is unchanged while sub-knee turn-on is physical.
+* The channel is clamped non-negative and multiplied by a smooth low-Vds
+  saturation ``Vds/(Vds + Vsat)`` (Vsat = 0.2 V, 0.5 V for EPC2216).  Both
+  were required by measurement: without them the drain node stalls at the
+  0.1 V Qoss kink on the first gate edge.  The TPWL affine fit extrapolates
+  a negative current and an unbounded slope below its training span; the
+  factor restores a finite linear-region conductance.
+* ``C_QD`` is deliberately omitted.  Its fitted drain-charge slopes are
+  negative at the blocking point (dQd/dVds ~ -2.5 nF at Vgs = 0, Vds = 12.5 V
+  for TI), which produced a negative drain capacitance and an exponential
+  current blow-up at t ~ 5 ps.  Qoss from the AC capacitance curve supplies
+  the blocking-state charge and is emitted as a dense monotone ``table()``.
+* Gate charge is not emitted: a 2-terminal Q(Vgs,Vds) element on the ideal
+  driven gate node made the Jacobian non-symmetric and stalled LTspice.
 
-* ``Q={...}`` on a capacitor is honored, including 2-D expressions in
-  V(g,s) and V(d,s) (smoke-tested to 7e-8 A against an analytic ramp);
-* powers must use ``**`` (caret is XOR in B-source expressions);
-* nested ``.func`` macros blow up combinatorially between 4 and 8 cells
-  (measured: 4 cells runs, 8 cells stalls before the operating point),
-  so intermediates are behavioral current sources with ``Rpar=1`` —
-  the documented idiom that evaluates each subexpression once and
-  gives every node a DC path;
-* the Rewienski-White weight exponent 25 is the paper's constant; the
-  exp argument is min-shifted (max value 0) so it never overflows, and
-  the shift is REQUIRED: without it, far-from-anchor operating points
-  drive every exp to zero and the normalisation becomes 0/0.
+LTspice syntax facts verified in this repository: ``**`` for powers (caret
+is XOR), nested ``table()`` lookups evaluate correctly (smoke-tested), and
+``limit()``/``max()``/``tanh()`` are built in.  Emission stays ASCII.
 """
 from __future__ import annotations
 
 import numpy as np
 
-from tier3.tpwl_deim import TPWLTerminalModel, WEIGHT_EXPONENT
+from config.yaml_io import load_input, load_output
+from tier3.static_curves import load_output_family
+from tier3.tpwl_deim import TPWLTerminalModel, paper_weights
 
 _PORT = {"drain": "d", "gate": "g", "source": "s", "tj": "tj"}
+_VSAT_DEFAULT = 0.2        # low-Vds saturation scale [V], measured on TI/IRFS/CPM2
+_VSAT_BY_VENDOR = {"epc2216": 0.5}  # EPC stalls at 0.2 V; 0.5 V completes
+_VGS_POINTS = 25
+_VDS_POINTS = 41
+_QOSS_POINTS = 160
+
+
+def saturation_scale(model: TPWLTerminalModel) -> float:
+    """Measured low-Vds saturation scale for one vendor's emitted channel."""
+    return float(_VSAT_BY_VENDOR.get(model.vendor, _VSAT_DEFAULT))
 
 
 def _f(x: float) -> str:
-    return f"({float(x):.9e})"
+    return f"{float(x):.9e}"
 
 
-def _term(coef: float, dv: str) -> str:
-    return f"({_f(coef)}*({dv}))" if coef != 0.0 else "0"
+def raw_anchors(model: TPWLTerminalModel) -> np.ndarray:
+    """Anchor positions in raw volts, shape (2, n_cells)."""
+    return model.v_ref[:, None] + model.anchors.T * model.v_span[:, None]
+
+
+def grid_axes(model: TPWLTerminalModel) -> tuple[np.ndarray, np.ndarray]:
+    """Deterministic raw-voltage grid covering DPT, static family, anchors."""
+    cfg = load_input(model.vendor)
+    dpt = cfg["dpt"]
+    levels, vds_grid, _ = load_output_family(model.vendor)
+    anchors = raw_anchors(model)
+    vgs_lo = min(0.0, float(levels.min()), float(anchors[0].min()))
+    vgs_hi = max(float(dpt["vgs_on"]), float(levels.max()),
+                 float(anchors[0].max()))
+    vds_lo = min(0.0, float(vds_grid.min()), float(anchors[1].min()))
+    vds_hi = max(float(dpt["vbus"]), float(vds_grid.max()),
+                 float(anchors[1].max()))
+    g = np.linspace(vgs_lo, vgs_hi, _VGS_POINTS)
+    d = np.linspace(vds_lo, vds_hi, _VDS_POINTS)
+    if model.v_block is not None and model.v_width is not None:
+        knee = model.v_block + model.v_width * np.array(
+            [-2.0, -1.0, 0.0, 1.0, 2.0])
+        g = np.unique(np.concatenate([g, knee]))
+        g = g[(g >= vgs_lo) & (g <= vgs_hi)]
+    return g, d
+
+
+def blended_channel(model: TPWLTerminalModel, u: np.ndarray) -> np.ndarray:
+    """Analytic Rewienski-White blend of the affine channel pieces [A]."""
+    ws = model.scaled(u)
+    w = paper_weights(model.anchors, ws)
+    dw = ws[:, None, :] - model.anchors.T[:, :, None]
+    return np.einsum("sk,sk->k", w, model.channel[:, 0][:, None]
+                     + model.channel[:, 1][:, None] * dw[0]
+                     + model.channel[:, 2][:, None] * dw[1])
+
+
+def grid_channel(model: TPWLTerminalModel, g: np.ndarray, d: np.ndarray
+                 ) -> np.ndarray:
+    """Channel values on the emitted (Vgs, Vds) mesh, shape (len(g), len(d))."""
+    vgs, vds = np.meshgrid(g, d, indexing="ij")
+    return blended_channel(model, np.vstack([vgs.ravel(), vds.ravel()])).reshape(
+        vgs.shape)
+
+
+def transfer_curve(model: TPWLTerminalModel
+                   ) -> tuple[np.ndarray, np.ndarray]:
+    """Curve-2 Id(Vgs) normalised to 1 at the first static Vgs level."""
+    data = load_output(model.vendor, "curve2_transfer_characteristic")
+    v = np.asarray(data["extracted"]["curve_vgs"], dtype=float)
+    i = np.asarray(data["extracted"]["curve_id"], dtype=float)
+    levels, _, _ = load_output_family(model.vendor)
+    above = levels[levels > (model.v_block or 0.0)]
+    v_full = float(above.min()) if len(above) else float(levels.max())
+    mask = v <= v_full
+    v, i = v[mask], i[mask]
+    i = np.maximum.accumulate(np.maximum(i, 0.0))
+    norm = float(np.interp(v_full, v, i)) or 1.0
+    return v, np.clip(i / norm, 0.0, 1.0)
+
+
+def emitted_channel(model: TPWLTerminalModel, u: np.ndarray) -> np.ndarray:
+    """SPICE-emitted channel current on operating points (2, K) [A].
+
+    Mirrors the netlist: 2-D table interpolation, Curve-2 gate factor,
+    non-negative clamp and low-Vds saturation.  Used for the static metric
+    so the reported number describes what LTspice actually evaluates.
+    """
+    u = np.atleast_2d(u)
+    g, d = grid_axes(model)
+    table = grid_channel(model, g, d)
+    row = np.array([
+        [np.interp(vds, d, table[k]) for vds in u[1]]
+        for k in range(len(g))])
+    # table() interpolates along Vgs after evaluating every row lookup
+    vgs_clamped = np.clip(u[0], g[0], g[-1])
+    out = np.array([
+        np.interp(vgs_clamped[j], g, row[:, j]) for j in range(len(u[0]))])
+    tv, tf = transfer_curve(model)
+    gate = np.clip(np.interp(u[0], tv, tf), 0.0, 1.0)
+    return np.maximum(0.0, out * gate * u[1] / (u[1] + saturation_scale(model)))
+
+
+def emitted_static_rmse(model: TPWLTerminalModel) -> float:
+    """Relative RMSE of the emitted channel on the Curve-1 static family."""
+    from tier3.static_curves import static_samples
+    u, ref, _ = static_samples(model.vendor)
+    pred = emitted_channel(model, u)
+    span = float(np.ptp(ref)) or 1.0
+    return float(np.sqrt(np.mean((pred - ref) ** 2)) / span)
+
+
+def _qoss_expr(model: TPWLTerminalModel) -> str:
+    """Monotone Qoss(Vds) lookup from the AC-derived charge table."""
+    from approximation.charge_model import integrate_charge
+    charge = integrate_charge(model.coss_v, model.coss_c)
+    v = np.linspace(0.0, float(charge.v[-1]), _QOSS_POINTS)
+    q = np.interp(v, charge.v, charge.q)
+    pairs = ",".join(f"{_f(x)},{_f(y)}" for x, y in zip(v, q))
+    return (f"table(limit(V(d,s),{_f(v[0])},{_f(v[-1])}),{pairs})")
 
 
 def emit_subcircuit(model: TPWLTerminalModel, *,
@@ -50,87 +168,27 @@ def emit_subcircuit(model: TPWLTerminalModel, *,
     """Return a complete ``.subckt`` string for one fitted model."""
     name = name or f"{model.vendor.upper()}_TPWL_DEIM"
     ports = [_PORT.get(r, r) for r in model.pin_roles]
-    s = len(model.anchors)
-    p = f"{name}_"
+    g, d = grid_axes(model)
+    table = grid_channel(model, g, d)
+    tv, tf = transfer_curve(model)
+
+    def rows(vals: np.ndarray) -> str:
+        return ",".join(
+            f"{_f(vgs)},table(V(d,s)," + ",".join(
+                f"{_f(x)},{_f(y)}" for x, y in zip(d, row)) + ")"
+            for vgs, row in zip(g, vals))
+
+    channel_table = (f"table(limit(V(g,s),{_f(g[0])},{_f(g[-1])}),"
+                     + rows(table) + ")")
+    gate_table = (f"table(limit(V(g,s),{_f(tv[0])},{_f(tv[-1])}),"
+                  + ",".join(f"{_f(x)},{_f(y)}" for x, y in zip(tv, tf)) + ")")
+    vsat = saturation_scale(model)
+    channel = (f"max(0,({gate_table})*({channel_table})"
+               f"*V(d,s)/(V(d,s)+{_f(vsat)}))")
 
     lines = [f".subckt {name} {' '.join(ports)}"]
-
-    # scaled terminal voltages
-    lines.append(f"B{p}vgs {p}vgs 0 I="
-                 f"((V(g,s)-{_f(model.v_ref[0])})/{_f(model.v_span[0])}) Rpar=1")
-    lines.append(f"B{p}vds {p}vds 0 I="
-                 f"((V(d,s)-{_f(model.v_ref[1])})/{_f(model.v_span[1])}) Rpar=1")
-    vgs, vds = f"V({p}vgs)", f"V({p}vds)"
-
-    # distances to each anchor
-    dist = []
-    for i in range(s):
-        sq = (f"({vgs}-{_f(model.anchors[i, 0])})**2"
-              f"+({vds}-{_f(model.anchors[i, 1])})**2")
-        lines.append(f"B{p}dist{i} {p}dist{i} 0 I=sqrt({sq}) Rpar=1")
-        dist.append(f"V({p}dist{i})")
-    dmin = dist[0]
-    for d in dist[1:]:
-        dmin = f"min({dmin},{d})"
-    lines.append(f"B{p}dmin {p}dmin 0 I={dmin} Rpar=1")
-
-    # unnormalised weights, min-shifted so the largest is exp(0)=1
-    wex = []
-    for i in range(s):
-        lines.append(f"B{p}wex{i} {p}wex{i} 0 I="
-                     f"exp({_f(-WEIGHT_EXPONENT)}*({dist[i]}-V({p}dmin)))"
-                     f" Rpar=1")
-        wex.append(f"V({p}wex{i})")
-    lines.append(f"B{p}wsum {p}wsum 0 I={'+'.join(wex)} Rpar=1")
-    wt = []
-    for i in range(s):
-        lines.append(f"B{p}wt{i} {p}wt{i} 0 I={wex[i]}/V({p}wsum) Rpar=1")
-        wt.append(f"V({p}wt{i})")
-
-    def blend(coef_rows, with_offset):
-        """Per-cell affine piece; rows are [off, c_vgs, c_vds] or [c_vgs, c_vds]."""
-        terms = []
-        for i in range(s):
-            dw0 = f"({vgs}-{_f(model.anchors[i, 0])})"
-            dw1 = f"({vds}-{_f(model.anchors[i, 1])})"
-            if with_offset:
-                off, cvgs, cvds = coef_rows[i]
-            else:
-                off, cvgs, cvds = 0.0, coef_rows[i][0], coef_rows[i][1]
-            parts = []
-            if off != 0.0:
-                parts.append(_f(off))
-            if cvgs != 0.0:
-                parts.append(_term(cvgs, dw0))
-            if cvds != 0.0:
-                parts.append(_term(cvds, dw1))
-            inner = "+".join(parts) if parts else "0"
-            terms.append(f"{wt[i]}*({inner})")
-        return "+".join(terms)
-
-
-    # AC-derived Qoss(Vds) base table (delta-slope chain, Tier-2 lineage).
-    # The DPT never moves Vds at Vgs = 0, so the 2-D blend alone would leave
-    # the blocking drain node with no capacitance and the transient would
-    # collapse on the first timestep.
     if model.coss_v is not None and model.coss_c is not None:
-        from approximation.charge_model import synthesize_charge_source
-        block = synthesize_charge_source(
-            "d", "s", model.coss_v, model.coss_c,
-            model_name=f"{name}_QOSS")
-        lines.extend(block.splitlines())
-    channel_expr = blend(model.channel, True)
-    if model.v_block is not None and model.v_width is not None:
-        envelope = (f"limit((V(g,s)-({_f(model.v_block)}))/"
-                    f"({_f(model.v_width)}),0,1)")
-        channel_expr = f"{envelope}*({channel_expr})"
-    lines.append(f"G_CH d s VALUE={{{channel_expr}}}")
-    # C_QG is deliberately not emitted: a 2-terminal Q(vgs,vds) element on
-    # the ideal-driven gate node produced a non-symmetric Jacobian and
-    # stalled LTspice before the first edge on all tested vendors (measured:
-    # removing it alone restores a full 14 us run). Gate current is not a
-    # DPT figure; the Miller cross-charge is retained in C_QD via reciprocity.
-    lines.append(f"C_QD d s Q={{{blend(model.charge_d, False)}}}")
-
+        lines.append(f"C{name}_QOSS d s Q={{{_qoss_expr(model)}}}")
+    lines.append(f"G_CH d s VALUE={{{channel}}}")
     lines.append(".ends")
     return "\n".join(lines) + "\n"

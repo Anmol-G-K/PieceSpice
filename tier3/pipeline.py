@@ -11,6 +11,7 @@ medians from the same benchmark that produced the Tier-2 numbers.
 from __future__ import annotations
 
 import json
+import re
 import time
 from pathlib import Path
 
@@ -27,7 +28,7 @@ from simulation.testbenches.speedup_bench import (
     _pulse_train,
     run_inductive_benchmark,
 )
-from tier3.emitter import emit_subcircuit
+from tier3.emitter import emit_subcircuit, emitted_static_rmse
 from tier3.tpwl_deim import build_model
 from tier3.trajectory import capture_trajectory
 
@@ -82,6 +83,30 @@ def _rel_err(value, ref) -> float:
     return float((value - ref) / abs(ref) * 100.0)
 
 
+def _log_iterations(log: str) -> int | None:
+    match = re.search(r"Total iterations:\s*(\d+)", log)
+    return int(match.group(1)) if match else None
+
+
+def _waveform_errors(run, traj) -> dict:
+    """Relative RMSE of one completed DPT run against the golden capture."""
+    mask = run.time <= traj.time[-1]
+    if not np.any(mask):
+        return {"vds_rel_rmse_pct": None, "id_rel_rmse_pct": None,
+                "compare_points": 0}
+    t = run.time[mask]
+    vds = np.interp(t, traj.time, traj.input[1])
+    ids = np.interp(t, traj.time, np.abs(traj.result.get("I(Lload)")))
+    return {
+        "vds_rel_rmse_pct": float(100 * np.sqrt(np.mean(
+            (run.v_ds[mask] - vds) ** 2)) / (np.ptp(traj.input[1]) or 1)),
+        "id_rel_rmse_pct": float(100 * np.sqrt(np.mean(
+            (run.i_d[mask] - ids) ** 2)) / (
+                np.ptp(np.abs(traj.result.get("I(Lload)"))) or 1)),
+        "compare_points": int(mask.sum()),
+    }
+
+
 def run_vendor(vendor: str) -> dict:
     """Build, validate, emit and persist one vendor's Tier-3 model."""
     t0 = time.perf_counter()
@@ -102,8 +127,6 @@ def run_vendor(vendor: str) -> dict:
     v_width = float(cond["Vgs_transfer_max"]) / \
         float(cond["Vgs_transfer_points"])
     coss_curve = None
-    cond = cfg["conditions"]
-    coss_curve = None
     try:
         from simulation.testbenches.capacitance import CapacitanceTestbench
         _, coss, _ = CapacitanceTestbench(
@@ -122,6 +145,7 @@ def run_vendor(vendor: str) -> dict:
     lib = ROOT / "reports" / "models" / f"{vendor}_PIECESPICE_T3.lib"
     lib.parent.mkdir(parents=True, exist_ok=True)
     lib.write_text(emit_subcircuit(model), encoding="ascii")
+    static_emitted = emitted_static_rmse(model)
     dpt = _dpt_conditions(vendor)
     golden_run = DoublePulseRun(
         time=traj.time, v_ds=traj.input[1],
@@ -132,11 +156,32 @@ def run_vendor(vendor: str) -> dict:
         t2_on=dpt["t2_on"])
     golden = extract_dpt_metrics(golden_run)
 
+    tier3_run, tier3, log = None, {}, ""
+    dpt_info = {"completed": False, "trace_points": 0,
+                "golden_trace_points": int(len(traj.time)),
+                "iterations": None, "t_last_s": None,
+                "error": None, "waveform": {}}
     try:
         tier3_run, log = _run_emitted_dpt(model, lib, vendor)
-        tier3 = extract_dpt_metrics(tier3_run)
+        n3 = int(len(tier3_run.time))
+        it3 = _log_iterations(log)
+        t_last = float(tier3_run.time[-1]) if n3 else 0.0
+        # Anti-fake guard: an aborted solver run is never a completed DPT.
+        complete = (n3 >= 0.5 * len(traj.time)
+                    and t_last >= 0.999 * dpt["t_end"])
+        dpt_info.update(trace_points=n3, iterations=it3, t_last_s=t_last)
+        if complete:
+            dpt_info["completed"] = True
+            dpt_info["waveform"] = _waveform_errors(tier3_run, traj)
+            tier3 = extract_dpt_metrics(tier3_run)
+        else:
+            dpt_info["error"] = (
+                f"incomplete: {n3} trace points, t_last={t_last:.3g} s")
+            print(f"[tier3] {vendor}: emitted DPT incomplete "
+                  f"({n3} points, t_last={t_last:.3g} s)", flush=True)
     except Exception as exc:  # solver failures are reported, never fabricated
-        tier3_run, log, tier3 = None, f"{type(exc).__name__}: {exc}", {}
+        log = f"{type(exc).__name__}: {exc}"
+        dpt_info["error"] = log[:200]
         print(f"[tier3] {vendor}: emitted DPT failed: {type(exc).__name__}",
               flush=True)
     recorded = ROOT / "reports" / "comparison" / vendor / "dpt_metrics.json"
@@ -176,8 +221,14 @@ def run_vendor(vendor: str) -> dict:
             model.pin_roles, **bench_kw)
     except Exception as exc:  # reported, never fabricated
         rom_time = {"wall_clock_s": None, "solver_elapsed_s": None,
-                    "iterations": None, "error": str(exc)[:200]}
+                    "iterations": None, "trace_points": 0,
+                    "error": str(exc)[:200]}
     bench_wall_rom = time.perf_counter() - t1
+    # An aborted bench run has few iterations; call it incomplete, not fast.
+    bench_complete = ((rom_time.get("iterations") or 0) >=
+                      0.5 * (golden_time["iterations"] or 0)
+                      and (rom_time.get("trace_points") or 0) >=
+                      0.5 * (golden_time["trace_points"] or 0))
 
     record = {
         "schema": "piecespice.tier3/2.0",
@@ -196,19 +247,25 @@ def run_vendor(vendor: str) -> dict:
         },
         "function_fit": {
             "static_curve_rmse_rel": model.meta.get("static_rmse_rel"),
+            "emitted_static_curve_rmse_rel": static_emitted,
             "static_samples": model.meta.get("static_samples"),
             "heldout_id_rmse_rel": model.meta["heldout_id_rmse"],
             "heldout_qg_rmse_rel": model.meta["heldout_qg_rmse"],
         },
+        "dpt_run": dpt_info,
         "dpt_comparison": comparison,
         "runtime": {
-            "golden": {k: golden_time[k] for k in
-                       ("wall_clock_s", "solver_elapsed_s", "iterations")},
-            "tier3": {k: rom_time[k] for k in
-                      ("wall_clock_s", "solver_elapsed_s", "iterations")},
+            "golden": {k: golden_time.get(k) for k in
+                       ("wall_clock_s", "solver_elapsed_s", "iterations",
+                        "trace_points")},
+            "tier3": {k: rom_time.get(k) for k in
+                      ("wall_clock_s", "solver_elapsed_s", "iterations",
+                       "trace_points")},
+            "tier3_bench_completed": bench_complete,
             "solver_speedup": (
                 golden_time["solver_elapsed_s"] / rom_time["solver_elapsed_s"]
-                if rom_time["solver_elapsed_s"] else None),
+                if bench_complete and rom_time.get("solver_elapsed_s")
+                else None),
             "bench_wall_s": {"golden": bench_wall_golden,
                              "tier3": bench_wall_rom},
         },
