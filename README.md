@@ -9,7 +9,7 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![LTspice](https://img.shields.io/badge/LTspice-26-orange)](https://www.analog.com/en/resources/design-tools-and-calculators/ltspice-simulator.html)
 [![spicelib](https://img.shields.io/badge/spicelib-powered-yellow)](https://pypi.org/project/spicelib/)
-[![Tests](https://img.shields.io/badge/tests-531%20passed%20%C2%B7%204%20skipped%20%C2%B7%201%20warning-brightgreen?logo=pytest&logoColor=white)](#testing)
+[![Tests](https://img.shields.io/badge/tests-532%20passed%20%C2%B7%204%20skipped%20%C2%B7%201%20warning-brightgreen?logo=pytest&logoColor=white)](#testing)
 [![License](https://img.shields.io/badge/license-TBD-lightgrey)]()
 [![uv](https://img.shields.io/badge/managed%20with-uv-dead00?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
 
@@ -609,12 +609,12 @@ is partially achieved, not universal across all four vendors. TI's gain is
 a golden-stiffness artifact of this scoped bench; EPC's solver gain is
 marginal (≈0.6 %), and IRFS/CPM2 remain rejects.
 
-**Test suite (final executed run).** Final result: **531 passed, 4 skipped,
+**Test suite (final executed run).** Final result: **532 passed, 4 skipped,
 1 warning** from `uv run pytest`; no collected-count figure is claimed.
 
 | Command | Passed | Skipped | Warnings |
 |---|---|---|---|
-| `uv run pytest` | 531 | 4 | 1 |
+| `uv run pytest` | 532 | 4 | 1 |
 
 *AES-STD100 caveat above applies to the fidelity figures these tests
 protect, not to the test process itself.*
@@ -669,7 +669,7 @@ metadata only; no converter bench or T4 figures directory exists.
 ## 🧪 Testing
 
 ```bash
-uv run pytest                # final: 531 passed, 4 skipped, 1 warning
+uv run pytest                # final: 532 passed, 4 skipped, 1 warning
 uv run pytest tests/test_pwlf_fit.py -v    # single module
 ```
 
@@ -745,6 +745,10 @@ its own test module, `tests/test_tier3.py`.
       `not_run`. Per-vendor scope with `global_claim=false`: one emitted ROM
       holds fidelity and scoped speed on TI/EPC only — partially achieved,
       not universal.
+      The official-source fixed-topology tuning probe has been measured and
+      closed without an accepted candidate; its tuning-on artifacts are
+      temporary diagnostics, not final models. See
+      [`phase_v_improvement_closure.md`](docs/plans/phase_v_improvement_closure.md).
 - [x] **M4** — Switching Dynamics & Double Pulse Testbench
       *(metrics, resistive-load subset and inductive DPT)*
 - [ ] **M5** — Switched-Mode Converter Benchmark & Speedup Evaluation

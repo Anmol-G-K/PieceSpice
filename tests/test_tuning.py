@@ -24,6 +24,7 @@ from pipeline.tuning import (
     ConditionResult,
     TuningResult,
     _check_bounds,
+    _emit_tuned_body,
     _normalise_bounds,
     _normalise_theta,
     _normalise_weights,
@@ -540,3 +541,47 @@ def test_budget_and_empty_condition_set_are_rejected():
     with pytest.raises(ValueError, match="at least one calibration condition"):
         tune_scalars("bad", method="trap/default", conditions=[],
                      bounds=_bounds(), max_evals=2)
+
+
+def test_dpt_emit_defaults_to_c0_and_forwards_finite_eps_explicitly(
+        monkeypatch):
+    """Pin the DPT adapter's Tier-2 emit branch without a live simulation.
+
+    ``build_tier2_subcircuit`` takes keyword-only ``c1_eps``/``name``/
+    ``subckt_name``. A missing or None epsilon must call the closed C0
+    emitter with no keywords at all; a finite epsilon must arrive as
+    ``c1_eps`` alone (coerced to float), leaving the string slots unset.
+    """
+    calls = []
+
+    def fake_builder(spec, *args, **kwargs):
+        calls.append((spec, args, kwargs))
+        return "EMITTED"
+
+    monkeypatch.setattr(
+        "models.netlist_builder.build_tier2_subcircuit", fake_builder)
+    identity = dict(UNIFIED_TUNING_IDENTITY)
+
+    # Absent or explicitly None epsilon -> closed C0 emitter, no keywords.
+    for meta in ({}, {"urom_c1_eps": None}):
+        tuned = apply_scalars(PWLModelSpec(**_spec_kwargs(**meta)), identity)
+        assert _emit_tuned_body(tuned) == "EMITTED"
+        spec_, args, kwargs = calls[-1]
+        assert spec_ is tuned and args == () and kwargs == {}
+
+    # Canonical key: finite epsilon forwarded as c1_eps only.
+    tuned = apply_scalars(
+        PWLModelSpec(**_spec_kwargs(urom_c1_eps=0.35)), identity)
+    assert _emit_tuned_body(tuned) == "EMITTED"
+    spec_, args, kwargs = calls[-1]
+    assert spec_ is tuned and args == ()
+    assert kwargs == {"c1_eps": 0.35}
+
+    # Legacy key + non-float input: int is coerced to float, string slots stay
+    # unset.
+    tuned = apply_scalars(PWLModelSpec(**_spec_kwargs(c1_eps=2)), identity)
+    assert _emit_tuned_body(tuned) == "EMITTED"
+    spec_, args, kwargs = calls[-1]
+    assert spec_ is tuned and args == ()
+    assert kwargs == {"c1_eps": 2.0}
+    assert isinstance(kwargs["c1_eps"], float)

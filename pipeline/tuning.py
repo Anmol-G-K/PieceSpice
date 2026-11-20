@@ -647,6 +647,25 @@ def apply_scalars(spec: PWLModelSpec, theta: Mapping[str, float]) -> PWLModelSpe
     return tuned
 
 
+def _emit_tuned_body(spec: PWLModelSpec) -> str:
+    """Emit a tuned Tier-2 body, forwarding the C1 hinge width explicitly.
+
+    ``build_tier2_subcircuit`` takes ``c1_eps``, ``name`` and ``subckt_name``
+    as keyword-only parameters. Routing the epsilon through a dynamically
+    built ``**kwargs`` makes a type checker treat it as assignable to the
+    string parameters, so the two cases are spelled out here: no epsilon uses
+    the closed Tier-2 C0 emitter, and a finite value is forwarded only as
+    ``c1_eps``. Kept out of the DPT adapter so the branch can be pinned
+    offline, without a live simulation.
+    """
+    from models.netlist_builder import build_tier2_subcircuit
+
+    eps = spec.metadata.get("urom_c1_eps", spec.metadata.get("c1_eps"))
+    if eps is None:
+        return build_tier2_subcircuit(spec)
+    return build_tier2_subcircuit(spec, c1_eps=float(eps))
+
+
 def make_dpt_simulator(
     vendor: str,
     spec: PWLModelSpec,
@@ -674,7 +693,6 @@ def make_dpt_simulator(
         raise ValueError(f"method must be one of {sorted(_METHOD_OPTIONS)}")
 
     from config.yaml_io import load_input
-    from models.netlist_builder import build_tier2_subcircuit
     from simulation.engine import SpiceEngine, TranDirective
     from simulation.netlist_text import NetlistBuilder
     from simulation.testbenches.double_pulse import (
@@ -699,14 +717,11 @@ def make_dpt_simulator(
 
     def simulate(theta: Mapping[str, float]) -> ConditionResult:
         tuned = apply_scalars(spec, theta)
-        eps = tuned.metadata.get("urom_c1_eps", tuned.metadata.get("c1_eps"))
-        emit_kwargs = {} if eps is None else {"c1_eps": float(eps)}
         digest = hashlib.sha1(
             repr(dict(_normalise_theta(theta))).encode("ascii")
         ).hexdigest()[:12]
         lib = out_path / f"{spec.device_name}_PIECESPICE_T2_tune_{digest}.lib"
-        lib.write_text(build_tier2_subcircuit(tuned, **emit_kwargs),
-                       encoding="ascii")
+        lib.write_text(_emit_tuned_body(tuned), encoding="ascii")
 
         nb = NetlistBuilder(f"TUNE_DPT_{vendor}_{digest}")
         nb.include(lib)
