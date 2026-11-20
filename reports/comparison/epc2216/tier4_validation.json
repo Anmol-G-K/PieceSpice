@@ -1,0 +1,1605 @@
+{
+  "schema": "piecespice.tier4/1.0",
+  "vendor": "epc2216",
+  "methods": [
+    "PLECS-style ideal switch (P-SEM)",
+    "measured conduction/switching loss LUT (P-TC)"
+  ],
+  "waveform_gate": "retired_by_design",
+  "generation": {
+    "mode": "live",
+    "live_benches_executed": true,
+    "note": "Live generation ran the emitted DPT and, where the golden case is not contract-excluded, the adaptive speed bench; unavailable or incomplete runs stay N/A."
+  },
+  "emission": {
+    "status": "emitted",
+    "reason": null,
+    "finite_device_values": true,
+    "ascii": true
+  },
+  "emitted_lib": "reports\\models\\epc2216_PIECESPICE_T4.lib",
+  "subcircuit": "epc2216_PIECESPICE_T4",
+  "pin_roles": [
+    "drain",
+    "gate",
+    "source"
+  ],
+  "conditions": {
+    "vbus_v": 11.0,
+    "i_switch_a": 10.0,
+    "vgs_on_v": 5.0,
+    "temperature_c": 25.0,
+    "t_end_s": 1.4e-05,
+    "golden_i_peak_a": 13.239307403564453
+  },
+  "energy_comparison": {
+    "e_on_uj": {
+      "golden": 1.0914983705530676,
+      "tier4": 1.0914983705530676,
+      "abs_error": 0.0,
+      "rel_error_pct": 0.0,
+      "status": "measured",
+      "independent_energy_gate": false,
+      "source_shared": true,
+      "kind": "source_self_consistency",
+      "shared_source": "reports/comparison/epc2216/dpt_metrics.json#golden_metrics",
+      "disclosure": "LUT reproduces its own golden DPT crossing; not an independent converter validation (no converter bench was built).",
+      "source": {
+        "point": {
+          "vbus_v": 11.0,
+          "current_a": 10.0,
+          "l_load_h": 5.5e-06,
+          "vbus_rule": "dpt.vbus",
+          "current_rule": "dpt.i_load_target",
+          "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+        },
+        "e_on_uj": 1.0914983705530676,
+        "e_off_uj": 15.627365907947942,
+        "status": "measured",
+        "reason": "recorded vendor golden DPT metrics at identical config conditions",
+        "source": "reports/comparison/epc2216/dpt_metrics.json#golden_metrics",
+        "conditions": {
+          "vgs_on": 5.0,
+          "t1_on": 1e-06,
+          "t1_width": 5e-06,
+          "t2_on": 1e-05,
+          "t2_width": 2e-06,
+          "edge_time": 2e-08,
+          "t_end": 1.4e-05,
+          "max_step": 2e-09,
+          "vbus": 11.0,
+          "i_load_target": 10.0,
+          "l_load": 5.5e-06,
+          "temperature": 25.0,
+          "vbus_v": 11.0,
+          "current_a": 10.0,
+          "l_load_h": 5.5e-06,
+          "vbus_rule": "dpt.vbus",
+          "current_rule": "dpt.i_load_target",
+          "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+        },
+        "guard": {
+          "repeats": 3,
+          "iterations": null,
+          "trace_points": null,
+          "t_last_s": null,
+          "golden_trace_points": 7418,
+          "note": "piecespice.dpt/1.0 records repeats and energies; per-run points are in tier3_validation.json, iterations N/A for the recorded golden run",
+          "condition_check": {
+            "rule": "exact equality on every recorded condition key; keys absent from the recorded artifact are reported, not assumed to match",
+            "matched": [
+              {
+                "key": "edge_time",
+                "recorded": 2e-08,
+                "expected": 2e-08
+              },
+              {
+                "key": "i_load_target",
+                "recorded": 10.0,
+                "expected": 10.0
+              },
+              {
+                "key": "l_load",
+                "recorded": 5.5e-06,
+                "expected": 5.5e-06
+              },
+              {
+                "key": "max_step",
+                "recorded": 2e-09,
+                "expected": 2e-09
+              },
+              {
+                "key": "t1_on",
+                "recorded": 1e-06,
+                "expected": 1e-06
+              },
+              {
+                "key": "t1_width",
+                "recorded": 5e-06,
+                "expected": 5e-06
+              },
+              {
+                "key": "t2_on",
+                "recorded": 1e-05,
+                "expected": 1e-05
+              },
+              {
+                "key": "t2_width",
+                "recorded": 2e-06,
+                "expected": 2e-06
+              },
+              {
+                "key": "t_end",
+                "recorded": 1.4e-05,
+                "expected": 1.4e-05
+              },
+              {
+                "key": "vbus",
+                "recorded": 11.0,
+                "expected": 11.0
+              },
+              {
+                "key": "vgs_on",
+                "recorded": 5.0,
+                "expected": 5.0
+              }
+            ],
+            "mismatched": [],
+            "not_recorded": [
+              {
+                "key": "temperature",
+                "expected": 25.0
+              }
+            ],
+            "match": true
+          }
+        },
+        "wall_clock_s": 1.1044578999990335
+      }
+    },
+    "e_off_uj": {
+      "golden": 15.627365907947942,
+      "tier4": 15.627365907947942,
+      "abs_error": 0.0,
+      "rel_error_pct": 0.0,
+      "status": "measured",
+      "independent_energy_gate": false,
+      "source_shared": true,
+      "kind": "source_self_consistency",
+      "shared_source": "reports/comparison/epc2216/dpt_metrics.json#golden_metrics",
+      "disclosure": "LUT reproduces its own golden DPT crossing; not an independent converter validation (no converter bench was built).",
+      "source": {
+        "point": {
+          "vbus_v": 11.0,
+          "current_a": 10.0,
+          "l_load_h": 5.5e-06,
+          "vbus_rule": "dpt.vbus",
+          "current_rule": "dpt.i_load_target",
+          "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+        },
+        "e_on_uj": 1.0914983705530676,
+        "e_off_uj": 15.627365907947942,
+        "status": "measured",
+        "reason": "recorded vendor golden DPT metrics at identical config conditions",
+        "source": "reports/comparison/epc2216/dpt_metrics.json#golden_metrics",
+        "conditions": {
+          "vgs_on": 5.0,
+          "t1_on": 1e-06,
+          "t1_width": 5e-06,
+          "t2_on": 1e-05,
+          "t2_width": 2e-06,
+          "edge_time": 2e-08,
+          "t_end": 1.4e-05,
+          "max_step": 2e-09,
+          "vbus": 11.0,
+          "i_load_target": 10.0,
+          "l_load": 5.5e-06,
+          "temperature": 25.0,
+          "vbus_v": 11.0,
+          "current_a": 10.0,
+          "l_load_h": 5.5e-06,
+          "vbus_rule": "dpt.vbus",
+          "current_rule": "dpt.i_load_target",
+          "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+        },
+        "guard": {
+          "repeats": 3,
+          "iterations": null,
+          "trace_points": null,
+          "t_last_s": null,
+          "golden_trace_points": 7418,
+          "note": "piecespice.dpt/1.0 records repeats and energies; per-run points are in tier3_validation.json, iterations N/A for the recorded golden run",
+          "condition_check": {
+            "rule": "exact equality on every recorded condition key; keys absent from the recorded artifact are reported, not assumed to match",
+            "matched": [
+              {
+                "key": "edge_time",
+                "recorded": 2e-08,
+                "expected": 2e-08
+              },
+              {
+                "key": "i_load_target",
+                "recorded": 10.0,
+                "expected": 10.0
+              },
+              {
+                "key": "l_load",
+                "recorded": 5.5e-06,
+                "expected": 5.5e-06
+              },
+              {
+                "key": "max_step",
+                "recorded": 2e-09,
+                "expected": 2e-09
+              },
+              {
+                "key": "t1_on",
+                "recorded": 1e-06,
+                "expected": 1e-06
+              },
+              {
+                "key": "t1_width",
+                "recorded": 5e-06,
+                "expected": 5e-06
+              },
+              {
+                "key": "t2_on",
+                "recorded": 1e-05,
+                "expected": 1e-05
+              },
+              {
+                "key": "t2_width",
+                "recorded": 2e-06,
+                "expected": 2e-06
+              },
+              {
+                "key": "t_end",
+                "recorded": 1.4e-05,
+                "expected": 1.4e-05
+              },
+              {
+                "key": "vbus",
+                "recorded": 11.0,
+                "expected": 11.0
+              },
+              {
+                "key": "vgs_on",
+                "recorded": 5.0,
+                "expected": 5.0
+              }
+            ],
+            "mismatched": [],
+            "not_recorded": [
+              {
+                "key": "temperature",
+                "expected": 25.0
+              }
+            ],
+            "match": true
+          }
+        },
+        "wall_clock_s": 1.1044578999990335
+      }
+    }
+  },
+  "energy_gate_disclosure": "LUT reproduces its own golden DPT crossing; not an independent converter validation (no converter bench was built).",
+  "efficiency": {
+    "p_cond_w": 2.054725066461962,
+    "p_switch_w": 1.8576515865001122,
+    "p_total_w": 3.9123766529620743,
+    "f_sw_hz": 111111.11111111111,
+    "status": "output_power_required",
+    "energy": {
+      "vbus_v": 11.0,
+      "current_a": 10.0,
+      "e_on_uj": 1.0914983705530676,
+      "e_off_uj": 15.627365907947942,
+      "status": "measured",
+      "method": "exact_grid_node",
+      "indices": {
+        "vbus": [
+          0,
+          0
+        ],
+        "current": [
+          0,
+          0
+        ]
+      },
+      "source": {
+        "point": {
+          "vbus_v": 11.0,
+          "current_a": 10.0,
+          "l_load_h": 5.5e-06,
+          "vbus_rule": "dpt.vbus",
+          "current_rule": "dpt.i_load_target",
+          "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+        },
+        "e_on_uj": 1.0914983705530676,
+        "e_off_uj": 15.627365907947942,
+        "status": "measured",
+        "reason": "recorded vendor golden DPT metrics at identical config conditions",
+        "source": "reports/comparison/epc2216/dpt_metrics.json#golden_metrics",
+        "conditions": {
+          "vgs_on": 5.0,
+          "t1_on": 1e-06,
+          "t1_width": 5e-06,
+          "t2_on": 1e-05,
+          "t2_width": 2e-06,
+          "edge_time": 2e-08,
+          "t_end": 1.4e-05,
+          "max_step": 2e-09,
+          "vbus": 11.0,
+          "i_load_target": 10.0,
+          "l_load": 5.5e-06,
+          "temperature": 25.0,
+          "vbus_v": 11.0,
+          "current_a": 10.0,
+          "l_load_h": 5.5e-06,
+          "vbus_rule": "dpt.vbus",
+          "current_rule": "dpt.i_load_target",
+          "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+        },
+        "guard": {
+          "repeats": 3,
+          "iterations": null,
+          "trace_points": null,
+          "t_last_s": null,
+          "golden_trace_points": 7418,
+          "note": "piecespice.dpt/1.0 records repeats and energies; per-run points are in tier3_validation.json, iterations N/A for the recorded golden run",
+          "condition_check": {
+            "rule": "exact equality on every recorded condition key; keys absent from the recorded artifact are reported, not assumed to match",
+            "matched": [
+              {
+                "key": "edge_time",
+                "recorded": 2e-08,
+                "expected": 2e-08
+              },
+              {
+                "key": "i_load_target",
+                "recorded": 10.0,
+                "expected": 10.0
+              },
+              {
+                "key": "l_load",
+                "recorded": 5.5e-06,
+                "expected": 5.5e-06
+              },
+              {
+                "key": "max_step",
+                "recorded": 2e-09,
+                "expected": 2e-09
+              },
+              {
+                "key": "t1_on",
+                "recorded": 1e-06,
+                "expected": 1e-06
+              },
+              {
+                "key": "t1_width",
+                "recorded": 5e-06,
+                "expected": 5e-06
+              },
+              {
+                "key": "t2_on",
+                "recorded": 1e-05,
+                "expected": 1e-05
+              },
+              {
+                "key": "t2_width",
+                "recorded": 2e-06,
+                "expected": 2e-06
+              },
+              {
+                "key": "t_end",
+                "recorded": 1.4e-05,
+                "expected": 1.4e-05
+              },
+              {
+                "key": "vbus",
+                "recorded": 11.0,
+                "expected": 11.0
+              },
+              {
+                "key": "vgs_on",
+                "recorded": 5.0,
+                "expected": 5.0
+              }
+            ],
+            "mismatched": [],
+            "not_recorded": [
+              {
+                "key": "temperature",
+                "expected": 25.0
+              }
+            ],
+            "match": true
+          }
+        },
+        "wall_clock_s": 1.1044578999990335
+      }
+    },
+    "note": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output).",
+    "efficiency": null,
+    "p_out_w": null,
+    "reason": "No explicit converter useful output power was supplied; Vbus*Iload is bus input power, not output. Efficiency is N/A. PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output)."
+  },
+  "efficiency_gate": {
+    "status": "output_power_required",
+    "efficiency": null,
+    "reason": "No explicit converter useful output power was supplied; Vbus*Iload is bus input power, not output. Efficiency is N/A. PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output).",
+    "p_bus_in_w": 110.0,
+    "p_bus_in_role": "config-derived DC bus input power; never used as p_out or as converter output",
+    "p_cond_w": 2.054725066461962,
+    "p_switch_w": 1.8576515865001122,
+    "f_sw_hz": 111111.11111111111,
+    "thermal_note": "PLECS P-TC: the dissipated thermal power does not correspond to the electrical power consumed by the device; thermal losses are injected into a thermal network and need an explicit output-power definition for efficiency. The emitted ideal switch has no loss element, so every efficiency figure here is an offline estimate, not simulated electrical power.",
+    "source": "https://docs.plexim.com/plecs/5.0/thermal-modeling/thermal-concepts"
+  },
+  "dpt_run": {
+    "executed": true,
+    "completed": true,
+    "trace_points": 7089,
+    "golden_trace_points": 7418.0,
+    "iterations": 14358,
+    "t_last_s": 1.4e-05,
+    "t_end_s": 1.4e-05,
+    "wall_clock_s": 0.9702377999929013,
+    "error": null,
+    "spice_log_tail": "Total elapsed time: 0.387 seconds.\nTotal iterations: 14358\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_53c1tsyt\\tran.net\n"
+  },
+  "speedup": {
+    "solver_speedup": 1.21160409556314,
+    "wall_speedup": 1.0907258918366116,
+    "golden_iterations": 16514.0,
+    "tier4_iterations": 6296.0,
+    "golden_points": 4047.0,
+    "tier4_points": 2597.0,
+    "end_time_s": 0.000176,
+    "end_time_s_source": "run_inductive_benchmark bench schedule (.tran stop); not a measured trace endpoint",
+    "t_last_s": null,
+    "t_last_source": "run_inductive_benchmark discards per-run time vectors; no measured trace endpoint is exposed, so t_last is N/A",
+    "measured_trace_endpoint_available": false,
+    "completion_basis": "count similarity is not required; lower counts are expected for faster models; aborted runs are rejected by positive iterations/points and no error. Both arms must also be full-schedule run_inductive_benchmark records: end_time_s equals the scheduled 20-pulse .tran stop and repeats == 3. The configured .tran stop is schedule metadata, not a measured trace endpoint.",
+    "status": "measured",
+    "max_step_s": 1e-07,
+    "case": "long_100ns"
+  },
+  "runtime": {
+    "recorded_baseline": {
+      "case": "long_100ns",
+      "golden": {
+        "wall_clock_s": 1.0515818999992916,
+        "solver_elapsed_s": 0.402,
+        "iterations": 16514.0,
+        "trace_points": 4047.0,
+        "end_time_s": 0.000176,
+        "max_step": 1e-07
+      },
+      "tier2_rom": {
+        "wall_clock_s": 1.0800316000004386,
+        "solver_elapsed_s": 0.389,
+        "iterations": 12206.0,
+        "trace_points": 3550.0,
+        "end_time_s": 0.000176,
+        "max_step": 1e-07
+      },
+      "golden_completed": true,
+      "source": "reports/comparison/speedup_benchmark.json",
+      "note": "Recorded golden/Tier-2 context only; not a Tier-4 timing and never used as a Tier-4 speedup."
+    },
+    "golden_cap": {
+      "max_step_s": 1e-07,
+      "reason": "vendor stalls under adaptive step; use long_100ns",
+      "source": "reports/comparison/speedup_benchmark.json cases.long_100ns"
+    },
+    "measured": {
+      "golden": {
+        "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\SpiceModels\\EPC2216_V0_PSPICE.net",
+        "subcircuit": "EPC2216",
+        "n_pulses": 20,
+        "max_step": 1e-07,
+        "end_time_s": 0.000176,
+        "repeats": 3,
+        "wall_clock_s": 0.916935300003388,
+        "solver_elapsed_s": 0.355,
+        "iterations": 16514.0,
+        "trace_points": 4047.0,
+        "trace_names": 12.0
+      },
+      "tier4": {
+        "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\epc2216_PIECESPICE_T4.lib",
+        "subcircuit": "epc2216_PIECESPICE_T4",
+        "n_pulses": 20,
+        "max_step": 1e-07,
+        "end_time_s": 0.000176,
+        "repeats": 3,
+        "wall_clock_s": 0.840665199997602,
+        "solver_elapsed_s": 0.293,
+        "iterations": 6296.0,
+        "trace_points": 2597.0,
+        "trace_names": 11.0
+      }
+    }
+  },
+  "lut": {
+    "schema": "piecespice.loss_lut/1.0",
+    "vendor": "epc2216",
+    "temperature_c": 25.0,
+    "vbus_points": [
+      11.0,
+      12.0
+    ],
+    "current_points": [
+      10.0,
+      25.0
+    ],
+    "e_on_uj": [
+      [
+        1.0914983705530676,
+        4.191986084371385
+      ],
+      [
+        null,
+        4.609493094210358
+      ]
+    ],
+    "e_off_uj": [
+      [
+        15.627365907947942,
+        37.97516358148749
+      ],
+      [
+        null,
+        41.499510211350035
+      ]
+    ],
+    "r_on_ohms": [
+      0.02054725066461962,
+      0.02244101910022746
+    ],
+    "v_on_v": null,
+    "vth_v": 1.3038702077826494,
+    "vgs_on_v": 5.0,
+    "coss_f": 6.312804283666123e-11,
+    "r_off_ohms": 215195414.93400708,
+    "source": {
+      "schema": "piecespice.loss_lut/1.0",
+      "method": "clamped-inductive golden DPT E_on/E_off at config-derived (Vbus, load) nodes; Curve-3 r_on, Curve-7 Vth, Curve-4 Coss and Vgs=0 DC-sweep Roff",
+      "config": {
+        "file": "config/inputs/epc2216.yaml",
+        "sha256": "6359926ccc4443fe94230aaa7662b3a76907f45602a2fffc94127122192a752b",
+        "bytes": 3304
+      },
+      "config_fields": {
+        "dpt": {
+          "vbus": 11.0,
+          "vgs_on": 5.0,
+          "i_load_target": 10.0,
+          "l_load": 5.5e-06,
+          "t1_width": 5e-06,
+          "t2_on": 1e-05,
+          "t2_width": 2e-06,
+          "edge_time": 2e-08,
+          "t_end": 1.4e-05,
+          "max_step": 2e-09
+        },
+        "conditions": {
+          "Vbus": 12.0,
+          "Id_load": 25.0,
+          "Vgs_fixed": 5.0,
+          "Vgs_sweep": [
+            2.5,
+            3.5,
+            4.0,
+            4.5,
+            5.0,
+            6.0
+          ],
+          "temperature": 25.0
+        }
+      },
+      "grid": {
+        "vbus_points": [
+          11.0,
+          12.0
+        ],
+        "current_points": [
+          10.0,
+          25.0
+        ],
+        "rules": {
+          "vbus": "exact config values dpt.vbus and conditions.Vbus, sorted unique",
+          "current": "exact config values dpt.i_load_target and conditions.Id_load, sorted unique",
+          "l_load": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)",
+          "temperature": "conditions.temperature",
+          "vgs_on": "dpt.vgs_on (DPT gate drive)",
+          "kind": "project_decision",
+          "rationale": "no new numeric grid value is introduced; unmeasured crossings stay NaN instead of being interpolated into a measurement"
+        },
+        "kind": "project_decision"
+      },
+      "r_on": {
+        "source_file": {
+          "file": "config/outputs/epc2216/curve3_rds_on.yaml",
+          "available": true
+        },
+        "measured_key": "extracted.curve_id / extracted.curve_rds_mohm",
+        "gate_drive_v": 5.0,
+        "gate_drive_rule": "conditions.Vgs_fixed (Curve-3 extraction drive)",
+        "method": "linear interpolation of measured curve; no extrapolation",
+        "unit_conversion": "mOhm / 1000 -> Ohm",
+        "kind": "measured",
+        "finite_guard": "currents outside the measured Curve-3 range stay NaN with a gap; never write NaN into a SPICE .MODEL",
+        "curve_id_range_a": [
+          2.4932258129119873,
+          46.09913635253906
+        ],
+        "reference_rds_on_at_Id_load_ohms": 0.02244101910022746,
+        "reference_condition_a": 25.0
+      },
+      "vth": {
+        "source_file": {
+          "file": "config/outputs/epc2216/curve7_threshold_voltage.yaml",
+          "available": true
+        },
+        "measured_key": "extracted.vth_v",
+        "kind": "measured"
+      },
+      "coss_f": {
+        "kind": "measured",
+        "file": "config/outputs/epc2216/curve4_capacitances.yaml",
+        "key": "extracted.coss_f",
+        "value_f": 6.312804283666123e-11,
+        "ref_voltage_v": 7.5,
+        "ref_voltage_key": "extracted.cap_ref_vds",
+        "temperature_c": 25.0,
+        "temperature_key": "conditions.temperature",
+        "unit": "F",
+        "rule": "measured small-signal Coss at the Curve-4 cap_ref_Vds reference; solver-stabilizing linear C only, not a voltage-dependent/waveform-fidelity model"
+      },
+      "r_off_ohms": {
+        "bench": "simulation/testbenches/static_sweep.StaticSweepTestbench.run_output_characteristics",
+        "vgs_v": 0.0,
+        "vgs_rule": "Vgs=0 off-state vendor DC sweep (Tier-4 stabilization contract)",
+        "vbus_v": 11.0,
+        "vbus_rule": "config dpt.vbus",
+        "vds_sweep_max_v": 11.0,
+        "vds_points": 101,
+        "vendor_file": {
+          "file": "SpiceModels/EPC2216_V0_PSPICE.net",
+          "available": true,
+          "sha256": "7db90752523496df18c1d4f375e6442a9499ff784a2586627ec1c6f1635f3cc1",
+          "bytes": 3584
+        },
+        "config_sha256": "6359926ccc4443fe94230aaa7662b3a76907f45602a2fffc94127122192a752b",
+        "method": "Roff = Vbus / Ioff; Ioff is the final finite I(Vds) sample of a Vgs=0 vendor DC sweep over Vds 0..config dpt.vbus",
+        "rule": "measured off-state resistance replaces the hardcoded ideal Roff; NaN means emitter fallback with disclosure",
+        "fallback": {
+          "source": "project_decision",
+          "note": "r_off_ohms is NaN: no measurable vendor Vgs=0 sweep. The emitter falls back to a project-decision Roff with a loud comment and JSON disclosure; no number is invented in the LUT."
+        },
+        "kind": "measured",
+        "value_ohms": 215195414.93400708,
+        "ioff_a": 5.1116330723743886e-08,
+        "final_sample_vds_v": 11.0,
+        "sweep_points": 101
+      },
+      "nodes": {
+        "11.0|10.0": {
+          "point": {
+            "vbus_v": 11.0,
+            "current_a": 10.0,
+            "l_load_h": 5.5e-06,
+            "vbus_rule": "dpt.vbus",
+            "current_rule": "dpt.i_load_target",
+            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+          },
+          "e_on_uj": 1.0914983705530676,
+          "e_off_uj": 15.627365907947942,
+          "status": "measured",
+          "reason": "recorded vendor golden DPT metrics at identical config conditions",
+          "source": "reports/comparison/epc2216/dpt_metrics.json#golden_metrics",
+          "conditions": {
+            "vgs_on": 5.0,
+            "t1_on": 1e-06,
+            "t1_width": 5e-06,
+            "t2_on": 1e-05,
+            "t2_width": 2e-06,
+            "edge_time": 2e-08,
+            "t_end": 1.4e-05,
+            "max_step": 2e-09,
+            "vbus": 11.0,
+            "i_load_target": 10.0,
+            "l_load": 5.5e-06,
+            "temperature": 25.0,
+            "vbus_v": 11.0,
+            "current_a": 10.0,
+            "l_load_h": 5.5e-06,
+            "vbus_rule": "dpt.vbus",
+            "current_rule": "dpt.i_load_target",
+            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+          },
+          "guard": {
+            "repeats": 3,
+            "iterations": null,
+            "trace_points": null,
+            "t_last_s": null,
+            "golden_trace_points": 7418,
+            "note": "piecespice.dpt/1.0 records repeats and energies; per-run points are in tier3_validation.json, iterations N/A for the recorded golden run",
+            "condition_check": {
+              "rule": "exact equality on every recorded condition key; keys absent from the recorded artifact are reported, not assumed to match",
+              "matched": [
+                {
+                  "key": "edge_time",
+                  "recorded": 2e-08,
+                  "expected": 2e-08
+                },
+                {
+                  "key": "i_load_target",
+                  "recorded": 10.0,
+                  "expected": 10.0
+                },
+                {
+                  "key": "l_load",
+                  "recorded": 5.5e-06,
+                  "expected": 5.5e-06
+                },
+                {
+                  "key": "max_step",
+                  "recorded": 2e-09,
+                  "expected": 2e-09
+                },
+                {
+                  "key": "t1_on",
+                  "recorded": 1e-06,
+                  "expected": 1e-06
+                },
+                {
+                  "key": "t1_width",
+                  "recorded": 5e-06,
+                  "expected": 5e-06
+                },
+                {
+                  "key": "t2_on",
+                  "recorded": 1e-05,
+                  "expected": 1e-05
+                },
+                {
+                  "key": "t2_width",
+                  "recorded": 2e-06,
+                  "expected": 2e-06
+                },
+                {
+                  "key": "t_end",
+                  "recorded": 1.4e-05,
+                  "expected": 1.4e-05
+                },
+                {
+                  "key": "vbus",
+                  "recorded": 11.0,
+                  "expected": 11.0
+                },
+                {
+                  "key": "vgs_on",
+                  "recorded": 5.0,
+                  "expected": 5.0
+                }
+              ],
+              "mismatched": [],
+              "not_recorded": [
+                {
+                  "key": "temperature",
+                  "expected": 25.0
+                }
+              ],
+              "match": true
+            }
+          },
+          "wall_clock_s": 1.1044578999990335
+        },
+        "11.0|25.0": {
+          "point": {
+            "vbus_v": 11.0,
+            "current_a": 25.0,
+            "l_load_h": 2.2e-06,
+            "vbus_rule": "run.v_bus",
+            "current_rule": "run.i_load",
+            "l_load_rule": "run.l_load"
+          },
+          "e_on_uj": 4.191986084371385,
+          "e_off_uj": 37.97516358148749,
+          "status": "measured",
+          "reason": "golden DPT switching energy from metrics.loss.compute_switching_energy",
+          "source": "simulation/testbenches/double_pulse.run_double_pulse",
+          "conditions": {
+            "vbus_v": 11.0,
+            "current_a": 25.0,
+            "vgs_on_v": 5.0,
+            "l_load_h": 2.2e-06,
+            "t2_on_s": 1e-05
+          },
+          "guard": {
+            "trace_points": 7596,
+            "reference_points": 7418,
+            "t_last_s": 1.4e-05,
+            "t_end_s": 1.4e-05,
+            "iterations": null,
+            "iterations_note": "DoublePulseRun does not expose the solver log; iterations N/A",
+            "rule": "t_last >= 0.999*t_end and trace_points >= 0.5*reference_points",
+            "golden_metrics": {
+              "e_on_uj": 4.191986084371385,
+              "e_off_uj": 37.97516358148749
+            }
+          },
+          "wall_clock_s": 1.3004835000028834
+        },
+        "12.0|10.0": {
+          "point": {
+            "vbus_v": 12.0,
+            "current_a": 10.0,
+            "l_load_h": 6.000000000000001e-06,
+            "vbus_rule": "conditions.Vbus",
+            "current_rule": "dpt.i_load_target",
+            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+          },
+          "e_on_uj": null,
+          "e_off_uj": null,
+          "status": "not_evaluable",
+          "reason": "LTSpiceError: LTspice timed out after 300s (tran)",
+          "source": "simulation/testbenches/double_pulse.run_double_pulse",
+          "conditions": {
+            "vgs_on": 5.0,
+            "t1_on": 1e-06,
+            "t1_width": 5e-06,
+            "t2_on": 1e-05,
+            "t2_width": 2e-06,
+            "edge_time": 2e-08,
+            "t_end": 1.4e-05,
+            "max_step": 2e-09,
+            "vbus": 12.0,
+            "i_load_target": 10.0,
+            "l_load": 6.000000000000001e-06,
+            "temperature": 25.0,
+            "vbus_v": 12.0,
+            "current_a": 10.0,
+            "l_load_h": 6.000000000000001e-06,
+            "vbus_rule": "conditions.Vbus",
+            "current_rule": "dpt.i_load_target",
+            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+          },
+          "guard": {},
+          "wall_clock_s": null
+        },
+        "12.0|25.0": {
+          "point": {
+            "vbus_v": 12.0,
+            "current_a": 25.0,
+            "l_load_h": 2.4000000000000003e-06,
+            "vbus_rule": "run.v_bus",
+            "current_rule": "run.i_load",
+            "l_load_rule": "run.l_load"
+          },
+          "e_on_uj": 4.609493094210358,
+          "e_off_uj": 41.499510211350035,
+          "status": "measured",
+          "reason": "golden DPT switching energy from metrics.loss.compute_switching_energy",
+          "source": "simulation/testbenches/double_pulse.run_double_pulse",
+          "conditions": {
+            "vbus_v": 12.0,
+            "current_a": 25.0,
+            "vgs_on_v": 5.0,
+            "l_load_h": 2.4000000000000003e-06,
+            "t2_on_s": 1e-05
+          },
+          "guard": {
+            "trace_points": 7250,
+            "reference_points": 7418,
+            "t_last_s": 1.4e-05,
+            "t_end_s": 1.4e-05,
+            "iterations": null,
+            "iterations_note": "DoublePulseRun does not expose the solver log; iterations N/A",
+            "rule": "t_last >= 0.999*t_end and trace_points >= 0.5*reference_points",
+            "golden_metrics": {
+              "e_on_uj": 4.609493094210358,
+              "e_off_uj": 41.499510211350035
+            }
+          },
+          "wall_clock_s": 1.0275395000062417
+        }
+      },
+      "gaps": [
+        {
+          "point": {
+            "vbus_v": 12.0,
+            "current_a": 10.0,
+            "l_load_h": 6.000000000000001e-06,
+            "vbus_rule": "conditions.Vbus",
+            "current_rule": "dpt.i_load_target",
+            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+          },
+          "metric": "e_on_uj,e_off_uj",
+          "status": "not_evaluable",
+          "reason": "LTSpiceError: LTspice timed out after 300s (tran)",
+          "source": "simulation/testbenches/double_pulse.run_double_pulse",
+          "guard": {}
+        }
+      ],
+      "golden_evaluable": false,
+      "dpt_crossing_evaluable": true,
+      "waveform_gate": "retired_by_design",
+      "interpolation": {
+        "status": "grid_interpolation",
+        "finite_nodes": 3,
+        "vbus_points": 2,
+        "current_points": 2,
+        "rule": "Bilinear interpolation only where all four corners are finite; no extrapolation; otherwise NaN."
+      },
+      "data_limitations": [
+        {
+          "kind": "data_limitation",
+          "name": "single_temperature_single_measured_node",
+          "temperature_c": 25.0,
+          "finite_nodes": 3,
+          "interpolation_status": "grid_interpolation",
+          "rule": "E_on/E_off and r_on are measured only at conditions.temperature = 25 C; the LUT has no temperature axis and is valid only at that condition. It is a measured data slice, not a physical guarantee at other junction temperatures. The measured grid has 3 finite node(s) (capability 'grid_interpolation'); off-node queries are NaN. Losses are evaluated offline and injected thermally, not electrical power consumed by the emitted switch (PLECS P-TC).",
+          "basis": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output)."
+        }
+      ],
+      "thermal_loss_note": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output).",
+      "device_value_guard": {
+        "vth_finite": true,
+        "r_on_all_finite": true,
+        "rule": "emitter must refuse to emit .MODEL when vth or the selected r_on is NaN; never write NaN into SPICE",
+        "coss_f_finite": true,
+        "r_off_measured": true,
+        "r_off_note": "r_off_ohms NaN is allowed: emitter falls back to a project-decision Roff with loud comment+JSON disclosure; never write NaN into SPICE"
+      },
+      "decisions": [
+        {
+          "name": "grid_axes",
+          "kind": "project_decision",
+          "rule": "exact config values dpt.vbus and conditions.Vbus, sorted unique; exact config values dpt.i_load_target and conditions.Id_load, sorted unique"
+        },
+        {
+          "name": "interpolation",
+          "kind": "project_decision",
+          "rule": "bilinear interpolation applies only when all four measured corners are finite; no extrapolation is implemented; off-node queries are NaN",
+          "basis": "PLECS P-TC documents linear table interpolation; the recorded grids have one finite measured node per vendor, so no interpolation is currently exercised",
+          "capability": {
+            "status": "grid_interpolation",
+            "finite_nodes": 3,
+            "vbus_points": 2,
+            "current_points": 2,
+            "rule": "Bilinear interpolation only where all four corners are finite; no extrapolation; otherwise NaN."
+          }
+        },
+        {
+          "name": "missing_crossings",
+          "kind": "project_decision",
+          "rule": "NaN/N/A with a source gap; never zero or a filled value"
+        },
+        {
+          "name": "completion_guard",
+          "kind": "project_decision",
+          "rule": "t_last >= 0.999*t_end and trace_points >= 0.5*golden points (reused from pipeline/tier3.py)"
+        },
+        {
+          "name": "thermal_loss_accounting",
+          "kind": "project_decision",
+          "rule": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output).",
+          "basis": "PLECS P-TC notes under Conduction/Switching Losses"
+        },
+        {
+          "name": "solver_stabilization",
+          "kind": "measured_with_fallback",
+          "rule": "emitted Tier-4 switch uses the measured Curve-4 Coss as one active linear C_QOSS and the measured Vgs=0 Roff; C_QOSS only slows drain dV/dt to avoid singular/no-cap steps and adds L-C overshoot, so the DPT waveform gate stays retired. Voltage-dependent capacitors and the body diode remain retired. A NaN Roff falls back to a project-decision emitter value with loud comment+JSON disclosure; no fallback number is invented here.",
+          "basis": "local://tier4_stabilization_contract.md"
+        }
+      ]
+    },
+    "interpolation": {
+      "status": "grid_interpolation",
+      "finite_nodes": 3,
+      "vbus_points": 2,
+      "current_points": 2,
+      "rule": "Bilinear interpolation only where all four corners are finite; no extrapolation; otherwise NaN."
+    },
+    "data_limitations": [
+      {
+        "kind": "data_limitation",
+        "name": "single_temperature_single_measured_node",
+        "temperature_c": 25.0,
+        "finite_nodes": 3,
+        "interpolation_status": "grid_interpolation",
+        "rule": "E_on/E_off and r_on are measured only at conditions.temperature = 25 C; the LUT has no temperature axis and is valid only at that condition. It is a measured data slice, not a physical guarantee at other junction temperatures. The measured grid has 3 finite node(s) (capability 'grid_interpolation'); off-node queries are NaN. Losses are evaluated offline and injected thermally, not electrical power consumed by the emitted switch (PLECS P-TC).",
+        "basis": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output)."
+      }
+    ],
+    "device_values_finite": {
+      "finite": true,
+      "vth_finite": true,
+      "r_on_all_finite": true,
+      "r_on_representative_ohms": 0.02054725066461962,
+      "coss_f_finite": true,
+      "r_off_measured": true,
+      "r_off_note": "r_off_ohms NaN is allowed: emitter falls back to a project-decision Roff with loud comment+JSON disclosure; never write NaN into a SPICE netlist",
+      "rule": "emitter must refuse to emit .MODEL SW(Ron=..., Vt=...) when any selected device value is non-finite; never write NaN into a SPICE netlist"
+    },
+    "thermal_loss_note": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output)."
+  },
+  "solver_stabilization": {
+    "status": "applied",
+    "rationale": "Controlled DPT/adaptive ablations (local://tier4_convergence_rootcause.md) identify the missing drain output capacitance as the primary, sufficient cause of Tier-4 solver timeouts: with only the ideal switch, clamp diode and inductor there is no bounded state variable at the near-step dV/dt, so LTspice never reaches t_end. One measured linear C_QOSS d s <curve4.coss_f> makes every previously failing arm complete; it slows drain dV/dt and adds L-C overshoot. The measured Vgs=0 off-state Roff removes a secondary, vendor-specific 1e12 singularity but is not a common fix. Solver stabilization only.",
+    "root_cause_reference": "local://tier4_convergence_rootcause.md",
+    "waveform_gate": "retired_by_design",
+    "c_qoss": {
+      "value_f": 6.312804283666123e-11,
+      "emitted": true,
+      "emitted_value_f": 6.31280428e-11,
+      "element": "C_QOSS d s 6.31280428e-11",
+      "source": {
+        "kind": "measured",
+        "file": "config/outputs/epc2216/curve4_capacitances.yaml",
+        "key": "extracted.coss_f",
+        "value_f": 6.312804283666123e-11,
+        "ref_voltage_v": 7.5,
+        "ref_voltage_key": "extracted.cap_ref_vds",
+        "temperature_c": 25.0,
+        "temperature_key": "conditions.temperature",
+        "unit": "F",
+        "rule": "measured small-signal Coss at the Curve-4 cap_ref_Vds reference; solver-stabilizing linear C only, not a voltage-dependent/waveform-fidelity model"
+      },
+      "note": "Measured linear output capacitance used only as a bounded drain-node state variable for the solver."
+    },
+    "r_off": {
+      "value_ohms": 215195414.93400708,
+      "emitted_ohms": 215195415.0,
+      "basis": "measured",
+      "source": {
+        "bench": "simulation/testbenches/static_sweep.StaticSweepTestbench.run_output_characteristics",
+        "vgs_v": 0.0,
+        "vgs_rule": "Vgs=0 off-state vendor DC sweep (Tier-4 stabilization contract)",
+        "vbus_v": 11.0,
+        "vbus_rule": "config dpt.vbus",
+        "vds_sweep_max_v": 11.0,
+        "vds_points": 101,
+        "vendor_file": {
+          "file": "SpiceModels/EPC2216_V0_PSPICE.net",
+          "available": true,
+          "sha256": "7db90752523496df18c1d4f375e6442a9499ff784a2586627ec1c6f1635f3cc1",
+          "bytes": 3584
+        },
+        "config_sha256": "6359926ccc4443fe94230aaa7662b3a76907f45602a2fffc94127122192a752b",
+        "method": "Roff = Vbus / Ioff; Ioff is the final finite I(Vds) sample of a Vgs=0 vendor DC sweep over Vds 0..config dpt.vbus",
+        "rule": "measured off-state resistance replaces the hardcoded ideal Roff; NaN means emitter fallback with disclosure",
+        "fallback": {
+          "source": "project_decision",
+          "note": "r_off_ohms is NaN: no measurable vendor Vgs=0 sweep. The emitter falls back to a project-decision Roff with a loud comment and JSON disclosure; no number is invented in the LUT."
+        },
+        "kind": "measured",
+        "value_ohms": 215195414.93400708,
+        "ioff_a": 5.1116330723743886e-08,
+        "final_sample_vds_v": 11.0,
+        "sweep_points": 101
+      },
+      "note": "Measured Vgs=0 DC-sweep off-state resistance used in SW_T4 when finite; otherwise the emitter falls back to the project-decision Roff with a loud comment and this disclosure."
+    },
+    "disclosure": "C_QOSS is a single measured linear output capacitance (curve4.coss_f at cap_ref_Vds), added only to keep the drain node bounded and let the solver reach t_end; it is NOT a voltage-dependent charge model and no waveform fidelity is claimed. It slows drain dV/dt and adds L-C overshoot. The DPT waveform gate remains retired_by_design; dv/dt, ringing and Miller droop stay retired/unclaimed. Voltage-dependent capacitors and the body diode remain retired; loss tables remain comment-only metadata."
+  },
+  "provenance": {
+    "config": "config/inputs/epc2216.yaml",
+    "measured_golden_dpt": "reports/comparison/epc2216/dpt_metrics.json",
+    "recorded_speed_baseline": "reports/comparison/speedup_benchmark.json",
+    "lut_source": {
+      "schema": "piecespice.loss_lut/1.0",
+      "method": "clamped-inductive golden DPT E_on/E_off at config-derived (Vbus, load) nodes; Curve-3 r_on, Curve-7 Vth, Curve-4 Coss and Vgs=0 DC-sweep Roff",
+      "config": {
+        "file": "config/inputs/epc2216.yaml",
+        "sha256": "6359926ccc4443fe94230aaa7662b3a76907f45602a2fffc94127122192a752b",
+        "bytes": 3304
+      },
+      "config_fields": {
+        "dpt": {
+          "vbus": 11.0,
+          "vgs_on": 5.0,
+          "i_load_target": 10.0,
+          "l_load": 5.5e-06,
+          "t1_width": 5e-06,
+          "t2_on": 1e-05,
+          "t2_width": 2e-06,
+          "edge_time": 2e-08,
+          "t_end": 1.4e-05,
+          "max_step": 2e-09
+        },
+        "conditions": {
+          "Vbus": 12.0,
+          "Id_load": 25.0,
+          "Vgs_fixed": 5.0,
+          "Vgs_sweep": [
+            2.5,
+            3.5,
+            4.0,
+            4.5,
+            5.0,
+            6.0
+          ],
+          "temperature": 25.0
+        }
+      },
+      "grid": {
+        "vbus_points": [
+          11.0,
+          12.0
+        ],
+        "current_points": [
+          10.0,
+          25.0
+        ],
+        "rules": {
+          "vbus": "exact config values dpt.vbus and conditions.Vbus, sorted unique",
+          "current": "exact config values dpt.i_load_target and conditions.Id_load, sorted unique",
+          "l_load": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)",
+          "temperature": "conditions.temperature",
+          "vgs_on": "dpt.vgs_on (DPT gate drive)",
+          "kind": "project_decision",
+          "rationale": "no new numeric grid value is introduced; unmeasured crossings stay NaN instead of being interpolated into a measurement"
+        },
+        "kind": "project_decision"
+      },
+      "r_on": {
+        "source_file": {
+          "file": "config/outputs/epc2216/curve3_rds_on.yaml",
+          "available": true
+        },
+        "measured_key": "extracted.curve_id / extracted.curve_rds_mohm",
+        "gate_drive_v": 5.0,
+        "gate_drive_rule": "conditions.Vgs_fixed (Curve-3 extraction drive)",
+        "method": "linear interpolation of measured curve; no extrapolation",
+        "unit_conversion": "mOhm / 1000 -> Ohm",
+        "kind": "measured",
+        "finite_guard": "currents outside the measured Curve-3 range stay NaN with a gap; never write NaN into a SPICE .MODEL",
+        "curve_id_range_a": [
+          2.4932258129119873,
+          46.09913635253906
+        ],
+        "reference_rds_on_at_Id_load_ohms": 0.02244101910022746,
+        "reference_condition_a": 25.0
+      },
+      "vth": {
+        "source_file": {
+          "file": "config/outputs/epc2216/curve7_threshold_voltage.yaml",
+          "available": true
+        },
+        "measured_key": "extracted.vth_v",
+        "kind": "measured"
+      },
+      "coss_f": {
+        "kind": "measured",
+        "file": "config/outputs/epc2216/curve4_capacitances.yaml",
+        "key": "extracted.coss_f",
+        "value_f": 6.312804283666123e-11,
+        "ref_voltage_v": 7.5,
+        "ref_voltage_key": "extracted.cap_ref_vds",
+        "temperature_c": 25.0,
+        "temperature_key": "conditions.temperature",
+        "unit": "F",
+        "rule": "measured small-signal Coss at the Curve-4 cap_ref_Vds reference; solver-stabilizing linear C only, not a voltage-dependent/waveform-fidelity model"
+      },
+      "r_off_ohms": {
+        "bench": "simulation/testbenches/static_sweep.StaticSweepTestbench.run_output_characteristics",
+        "vgs_v": 0.0,
+        "vgs_rule": "Vgs=0 off-state vendor DC sweep (Tier-4 stabilization contract)",
+        "vbus_v": 11.0,
+        "vbus_rule": "config dpt.vbus",
+        "vds_sweep_max_v": 11.0,
+        "vds_points": 101,
+        "vendor_file": {
+          "file": "SpiceModels/EPC2216_V0_PSPICE.net",
+          "available": true,
+          "sha256": "7db90752523496df18c1d4f375e6442a9499ff784a2586627ec1c6f1635f3cc1",
+          "bytes": 3584
+        },
+        "config_sha256": "6359926ccc4443fe94230aaa7662b3a76907f45602a2fffc94127122192a752b",
+        "method": "Roff = Vbus / Ioff; Ioff is the final finite I(Vds) sample of a Vgs=0 vendor DC sweep over Vds 0..config dpt.vbus",
+        "rule": "measured off-state resistance replaces the hardcoded ideal Roff; NaN means emitter fallback with disclosure",
+        "fallback": {
+          "source": "project_decision",
+          "note": "r_off_ohms is NaN: no measurable vendor Vgs=0 sweep. The emitter falls back to a project-decision Roff with a loud comment and JSON disclosure; no number is invented in the LUT."
+        },
+        "kind": "measured",
+        "value_ohms": 215195414.93400708,
+        "ioff_a": 5.1116330723743886e-08,
+        "final_sample_vds_v": 11.0,
+        "sweep_points": 101
+      },
+      "nodes": {
+        "11.0|10.0": {
+          "point": {
+            "vbus_v": 11.0,
+            "current_a": 10.0,
+            "l_load_h": 5.5e-06,
+            "vbus_rule": "dpt.vbus",
+            "current_rule": "dpt.i_load_target",
+            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+          },
+          "e_on_uj": 1.0914983705530676,
+          "e_off_uj": 15.627365907947942,
+          "status": "measured",
+          "reason": "recorded vendor golden DPT metrics at identical config conditions",
+          "source": "reports/comparison/epc2216/dpt_metrics.json#golden_metrics",
+          "conditions": {
+            "vgs_on": 5.0,
+            "t1_on": 1e-06,
+            "t1_width": 5e-06,
+            "t2_on": 1e-05,
+            "t2_width": 2e-06,
+            "edge_time": 2e-08,
+            "t_end": 1.4e-05,
+            "max_step": 2e-09,
+            "vbus": 11.0,
+            "i_load_target": 10.0,
+            "l_load": 5.5e-06,
+            "temperature": 25.0,
+            "vbus_v": 11.0,
+            "current_a": 10.0,
+            "l_load_h": 5.5e-06,
+            "vbus_rule": "dpt.vbus",
+            "current_rule": "dpt.i_load_target",
+            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+          },
+          "guard": {
+            "repeats": 3,
+            "iterations": null,
+            "trace_points": null,
+            "t_last_s": null,
+            "golden_trace_points": 7418,
+            "note": "piecespice.dpt/1.0 records repeats and energies; per-run points are in tier3_validation.json, iterations N/A for the recorded golden run",
+            "condition_check": {
+              "rule": "exact equality on every recorded condition key; keys absent from the recorded artifact are reported, not assumed to match",
+              "matched": [
+                {
+                  "key": "edge_time",
+                  "recorded": 2e-08,
+                  "expected": 2e-08
+                },
+                {
+                  "key": "i_load_target",
+                  "recorded": 10.0,
+                  "expected": 10.0
+                },
+                {
+                  "key": "l_load",
+                  "recorded": 5.5e-06,
+                  "expected": 5.5e-06
+                },
+                {
+                  "key": "max_step",
+                  "recorded": 2e-09,
+                  "expected": 2e-09
+                },
+                {
+                  "key": "t1_on",
+                  "recorded": 1e-06,
+                  "expected": 1e-06
+                },
+                {
+                  "key": "t1_width",
+                  "recorded": 5e-06,
+                  "expected": 5e-06
+                },
+                {
+                  "key": "t2_on",
+                  "recorded": 1e-05,
+                  "expected": 1e-05
+                },
+                {
+                  "key": "t2_width",
+                  "recorded": 2e-06,
+                  "expected": 2e-06
+                },
+                {
+                  "key": "t_end",
+                  "recorded": 1.4e-05,
+                  "expected": 1.4e-05
+                },
+                {
+                  "key": "vbus",
+                  "recorded": 11.0,
+                  "expected": 11.0
+                },
+                {
+                  "key": "vgs_on",
+                  "recorded": 5.0,
+                  "expected": 5.0
+                }
+              ],
+              "mismatched": [],
+              "not_recorded": [
+                {
+                  "key": "temperature",
+                  "expected": 25.0
+                }
+              ],
+              "match": true
+            }
+          },
+          "wall_clock_s": 1.1044578999990335
+        },
+        "11.0|25.0": {
+          "point": {
+            "vbus_v": 11.0,
+            "current_a": 25.0,
+            "l_load_h": 2.2e-06,
+            "vbus_rule": "run.v_bus",
+            "current_rule": "run.i_load",
+            "l_load_rule": "run.l_load"
+          },
+          "e_on_uj": 4.191986084371385,
+          "e_off_uj": 37.97516358148749,
+          "status": "measured",
+          "reason": "golden DPT switching energy from metrics.loss.compute_switching_energy",
+          "source": "simulation/testbenches/double_pulse.run_double_pulse",
+          "conditions": {
+            "vbus_v": 11.0,
+            "current_a": 25.0,
+            "vgs_on_v": 5.0,
+            "l_load_h": 2.2e-06,
+            "t2_on_s": 1e-05
+          },
+          "guard": {
+            "trace_points": 7596,
+            "reference_points": 7418,
+            "t_last_s": 1.4e-05,
+            "t_end_s": 1.4e-05,
+            "iterations": null,
+            "iterations_note": "DoublePulseRun does not expose the solver log; iterations N/A",
+            "rule": "t_last >= 0.999*t_end and trace_points >= 0.5*reference_points",
+            "golden_metrics": {
+              "e_on_uj": 4.191986084371385,
+              "e_off_uj": 37.97516358148749
+            }
+          },
+          "wall_clock_s": 1.3004835000028834
+        },
+        "12.0|10.0": {
+          "point": {
+            "vbus_v": 12.0,
+            "current_a": 10.0,
+            "l_load_h": 6.000000000000001e-06,
+            "vbus_rule": "conditions.Vbus",
+            "current_rule": "dpt.i_load_target",
+            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+          },
+          "e_on_uj": null,
+          "e_off_uj": null,
+          "status": "not_evaluable",
+          "reason": "LTSpiceError: LTspice timed out after 300s (tran)",
+          "source": "simulation/testbenches/double_pulse.run_double_pulse",
+          "conditions": {
+            "vgs_on": 5.0,
+            "t1_on": 1e-06,
+            "t1_width": 5e-06,
+            "t2_on": 1e-05,
+            "t2_width": 2e-06,
+            "edge_time": 2e-08,
+            "t_end": 1.4e-05,
+            "max_step": 2e-09,
+            "vbus": 12.0,
+            "i_load_target": 10.0,
+            "l_load": 6.000000000000001e-06,
+            "temperature": 25.0,
+            "vbus_v": 12.0,
+            "current_a": 10.0,
+            "l_load_h": 6.000000000000001e-06,
+            "vbus_rule": "conditions.Vbus",
+            "current_rule": "dpt.i_load_target",
+            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+          },
+          "guard": {},
+          "wall_clock_s": null
+        },
+        "12.0|25.0": {
+          "point": {
+            "vbus_v": 12.0,
+            "current_a": 25.0,
+            "l_load_h": 2.4000000000000003e-06,
+            "vbus_rule": "run.v_bus",
+            "current_rule": "run.i_load",
+            "l_load_rule": "run.l_load"
+          },
+          "e_on_uj": 4.609493094210358,
+          "e_off_uj": 41.499510211350035,
+          "status": "measured",
+          "reason": "golden DPT switching energy from metrics.loss.compute_switching_energy",
+          "source": "simulation/testbenches/double_pulse.run_double_pulse",
+          "conditions": {
+            "vbus_v": 12.0,
+            "current_a": 25.0,
+            "vgs_on_v": 5.0,
+            "l_load_h": 2.4000000000000003e-06,
+            "t2_on_s": 1e-05
+          },
+          "guard": {
+            "trace_points": 7250,
+            "reference_points": 7418,
+            "t_last_s": 1.4e-05,
+            "t_end_s": 1.4e-05,
+            "iterations": null,
+            "iterations_note": "DoublePulseRun does not expose the solver log; iterations N/A",
+            "rule": "t_last >= 0.999*t_end and trace_points >= 0.5*reference_points",
+            "golden_metrics": {
+              "e_on_uj": 4.609493094210358,
+              "e_off_uj": 41.499510211350035
+            }
+          },
+          "wall_clock_s": 1.0275395000062417
+        }
+      },
+      "gaps": [
+        {
+          "point": {
+            "vbus_v": 12.0,
+            "current_a": 10.0,
+            "l_load_h": 6.000000000000001e-06,
+            "vbus_rule": "conditions.Vbus",
+            "current_rule": "dpt.i_load_target",
+            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+          },
+          "metric": "e_on_uj,e_off_uj",
+          "status": "not_evaluable",
+          "reason": "LTSpiceError: LTspice timed out after 300s (tran)",
+          "source": "simulation/testbenches/double_pulse.run_double_pulse",
+          "guard": {}
+        }
+      ],
+      "golden_evaluable": false,
+      "dpt_crossing_evaluable": true,
+      "waveform_gate": "retired_by_design",
+      "interpolation": {
+        "status": "grid_interpolation",
+        "finite_nodes": 3,
+        "vbus_points": 2,
+        "current_points": 2,
+        "rule": "Bilinear interpolation only where all four corners are finite; no extrapolation; otherwise NaN."
+      },
+      "data_limitations": [
+        {
+          "kind": "data_limitation",
+          "name": "single_temperature_single_measured_node",
+          "temperature_c": 25.0,
+          "finite_nodes": 3,
+          "interpolation_status": "grid_interpolation",
+          "rule": "E_on/E_off and r_on are measured only at conditions.temperature = 25 C; the LUT has no temperature axis and is valid only at that condition. It is a measured data slice, not a physical guarantee at other junction temperatures. The measured grid has 3 finite node(s) (capability 'grid_interpolation'); off-node queries are NaN. Losses are evaluated offline and injected thermally, not electrical power consumed by the emitted switch (PLECS P-TC).",
+          "basis": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output)."
+        }
+      ],
+      "thermal_loss_note": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output).",
+      "device_value_guard": {
+        "vth_finite": true,
+        "r_on_all_finite": true,
+        "rule": "emitter must refuse to emit .MODEL when vth or the selected r_on is NaN; never write NaN into SPICE",
+        "coss_f_finite": true,
+        "r_off_measured": true,
+        "r_off_note": "r_off_ohms NaN is allowed: emitter falls back to a project-decision Roff with loud comment+JSON disclosure; never write NaN into SPICE"
+      },
+      "decisions": [
+        {
+          "name": "grid_axes",
+          "kind": "project_decision",
+          "rule": "exact config values dpt.vbus and conditions.Vbus, sorted unique; exact config values dpt.i_load_target and conditions.Id_load, sorted unique"
+        },
+        {
+          "name": "interpolation",
+          "kind": "project_decision",
+          "rule": "bilinear interpolation applies only when all four measured corners are finite; no extrapolation is implemented; off-node queries are NaN",
+          "basis": "PLECS P-TC documents linear table interpolation; the recorded grids have one finite measured node per vendor, so no interpolation is currently exercised",
+          "capability": {
+            "status": "grid_interpolation",
+            "finite_nodes": 3,
+            "vbus_points": 2,
+            "current_points": 2,
+            "rule": "Bilinear interpolation only where all four corners are finite; no extrapolation; otherwise NaN."
+          }
+        },
+        {
+          "name": "missing_crossings",
+          "kind": "project_decision",
+          "rule": "NaN/N/A with a source gap; never zero or a filled value"
+        },
+        {
+          "name": "completion_guard",
+          "kind": "project_decision",
+          "rule": "t_last >= 0.999*t_end and trace_points >= 0.5*golden points (reused from pipeline/tier3.py)"
+        },
+        {
+          "name": "thermal_loss_accounting",
+          "kind": "project_decision",
+          "rule": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output).",
+          "basis": "PLECS P-TC notes under Conduction/Switching Losses"
+        },
+        {
+          "name": "solver_stabilization",
+          "kind": "measured_with_fallback",
+          "rule": "emitted Tier-4 switch uses the measured Curve-4 Coss as one active linear C_QOSS and the measured Vgs=0 Roff; C_QOSS only slows drain dV/dt to avoid singular/no-cap steps and adds L-C overshoot, so the DPT waveform gate stays retired. Voltage-dependent capacitors and the body diode remain retired. A NaN Roff falls back to a project-decision emitter value with loud comment+JSON disclosure; no fallback number is invented here.",
+          "basis": "local://tier4_stabilization_contract.md"
+        }
+      ]
+    },
+    "official_sources": {
+      "P-SEM": "https://www.plexim.com/products/plecs/electrical/semiconductors",
+      "P-TC": "https://docs.plexim.com/plecs/5.0/thermal-modeling/thermal-concepts",
+      "P-DEMO": "https://docs.plexim.com/plecs-demos/plecs-spice/demo-plecs-spice/"
+    },
+    "decisions": {
+      "golden_speed_policy": "documented 100 ns golden cap from recorded long_100ns case",
+      "gate_note": "Energy/efficiency vs the measured golden DPT is the Tier-4 gate; DPT Vds/Id and tr/tf are retired by design, not silently failed.",
+      "shared_source_note": "The LUT golden crossing and the golden DPT energy column share the same measured DPT; agreement at that point is by construction, not an independent converter-bench validation (M5 unbuilt).",
+      "efficiency_inputs": {
+        "p_out_w": null,
+        "p_bus_in_w": 110.0,
+        "f_sw_hz": 111111.11111111111,
+        "rule": "Vbus*Iload is DC bus input power, not output power; no config field supplies converter output power, so efficiency is N/A. f_sw = 1 / (dpt.t2_on - dpt.t1_on) is config-derived, not assumed.",
+        "kind": "config_derived_input_power_only",
+        "thermal_note": "PLECS P-TC: the dissipated thermal power does not correspond to the electrical power consumed by the device; thermal losses are injected into a thermal network and need an explicit output-power definition for efficiency. The emitted ideal switch has no loss element, so every efficiency figure here is an offline estimate, not simulated electrical power."
+      },
+      "run_constants": {
+        "kind": "project_decision",
+        "source": "pipeline/tier4.py named constants; guard fractions reused from pipeline/tier3.py via loss_lut_bench, bench knobs pinned by the recorded speedup_benchmark.json cases",
+        "values": {
+          "emitted_dpt_t_last_fraction": 0.999,
+          "emitted_dpt_trace_point_fraction": 0.5,
+          "emitted_dpt_timeout_s": 120.0,
+          "speed_n_pulses": 20,
+          "speed_repeats": 3,
+          "speed_timeout_s": 90.0,
+          "clamp_diode_model": ".model DCLAMP D(IS=1e-12 N=1 RS=1e-3 CJO=0)"
+        }
+      },
+      "speed_completion": {
+        "kind": "project_decision",
+        "basis": "count similarity is not required; lower counts are expected for faster models; aborted runs are rejected by positive iterations/points and no error. Both arms must also be full-schedule run_inductive_benchmark records: end_time_s equals the scheduled 20-pulse .tran stop and repeats == 3. The configured .tran stop is schedule metadata, not a measured trace endpoint.",
+        "schedule_proof": "each arm: end_time_s equals the scheduled end recomputed from the 20-pulse run_inductive_benchmark knobs and repeats == 3 (SPEED_REPEATS)",
+        "source": "pipeline/tier4.py::_bench_complete"
+      },
+      "r_on_drive_voltage": {
+        "kind": "measured",
+        "gate_drive_v": 5.0,
+        "rule": "conditions.Vgs_fixed (Curve-3 extraction drive)",
+        "note": "Curve-3 Rds(on) was extracted at conditions.Vgs_fixed; this is NOT dpt.vgs_on. The emitted vgs_on_v comment remains separate gate-drive metadata."
+      },
+      "data_limitations": [
+        {
+          "kind": "data_limitation",
+          "name": "single_temperature_single_measured_node",
+          "temperature_c": 25.0,
+          "finite_nodes": 3,
+          "interpolation_status": "grid_interpolation",
+          "rule": "E_on/E_off and r_on are measured only at conditions.temperature = 25 C; the LUT has no temperature axis and is valid only at that condition. It is a measured data slice, not a physical guarantee at other junction temperatures. The measured grid has 3 finite node(s) (capability 'grid_interpolation'); off-node queries are NaN. Losses are evaluated offline and injected thermally, not electrical power consumed by the emitted switch (PLECS P-TC).",
+          "basis": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output)."
+        }
+      ],
+      "retired_observables": {
+        "documented_by_p_demo": [
+          "Miller gate droop",
+          "diode reverse recovery",
+          "finite SPICE turn-on/off transients"
+        ],
+        "inference": [
+          "dv/dt",
+          "ringing"
+        ],
+        "note": "[INFERENCE] dv/dt and ringing follow from instantaneous switching and absent parasitics; they are not documented observables on the consulted Plexim pages."
+      },
+      "no_tolerance_change": true
+    }
+  },
+  "guards": {
+    "ascii_emission": true,
+    "emission_valid": true,
+    "subcircuit_header_parsed": true,
+    "dpt_completion": true,
+    "speed_completion": true,
+    "waveform_gate": "retired_by_design"
+  }
+}
