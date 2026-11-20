@@ -15,9 +15,28 @@ from pathlib import Path
 import pytest
 
 import pipeline.tier4 as tier4
+from config.yaml_io import load_input
 
 ROOT = Path(__file__).resolve().parent.parent
 VENDORS = ("irfs7730pbf", "csd16412q5a", "epc2216", "cpm2-1200")
+
+
+def _generated_lib(vendor: str) -> Path:
+    """Path to the generated (untracked) Tier-4 ASCII subcircuit."""
+    return ROOT / "reports" / "models" / f"{vendor}_PIECESPICE_T4.lib"
+
+
+def _skip_without_generated_lib(vendor: str) -> None:
+    lib = _generated_lib(vendor)
+    if not lib.is_file():
+        pytest.skip(f"generated Tier-4 lib absent locally: {lib}")
+
+
+def _skip_without_vendor_lib(vendor: str) -> None:
+    vendor_lib = ROOT / load_input(vendor)["library"]
+    if not vendor_lib.is_file():
+        pytest.skip(f"vendor library not present locally: {vendor_lib}")
+
 
 
 def _record(vendor: str) -> dict:
@@ -131,7 +150,8 @@ def test_cpm2_speed_is_na_from_recorded_golden_failure():
 
 @pytest.mark.parametrize("vendor", VENDORS)
 def test_emitted_lib_is_ascii_with_ideal_switch_header(vendor):
-    lib = ROOT / "reports" / "models" / f"{vendor}_PIECESPICE_T4.lib"
+    _skip_without_generated_lib(vendor)
+    lib = _generated_lib(vendor)
     assert lib.exists()
     text = lib.read_text(encoding="ascii")
     assert text.isascii()
@@ -154,8 +174,9 @@ def test_emitted_lib_is_ascii_with_ideal_switch_header(vendor):
 
 @pytest.mark.parametrize("vendor", VENDORS)
 def test_loss_tables_are_metadata_not_active_elements(vendor):
-    text = (ROOT / "reports" / "models" /
-            f"{vendor}_PIECESPICE_T4.lib").read_text(encoding="ascii")
+    _skip_without_generated_lib(vendor)
+    text = _generated_lib(vendor).read_text(encoding="ascii")
+
     for line in text.splitlines():
         if "e_on_uj" in line or "e_off_uj" in line:
             assert line.lstrip().startswith("*"), line
@@ -362,7 +383,9 @@ def test_live_flow_uses_20_pulses_and_matching_step(tmp_path, monkeypatch):
     from approximation.loss_lut import build_lut as real_build_lut
 
     vendor = "epc2216"
+    _skip_without_vendor_lib(vendor)
     _seed_repo(tmp_path, vendor)
+
     monkeypatch.setattr(tier4, "ROOT", tmp_path)
     monkeypatch.setattr(tier4, "build_lut",
                         lambda v, **kw: real_build_lut(v, simulate=False))
@@ -478,7 +501,9 @@ def test_generation_note_reflects_live_or_offline_mode(tmp_path, monkeypatch):
     from approximation.loss_lut import build_lut as real_build_lut
 
     vendor = "epc2216"
+    _skip_without_vendor_lib(vendor)
     _seed_repo(tmp_path, vendor)
+
     monkeypatch.setattr(tier4, "ROOT", tmp_path)
     monkeypatch.setattr(tier4, "build_lut",
                         lambda v, **kw: real_build_lut(v, simulate=False))
@@ -590,7 +615,18 @@ def test_solver_stabilization_provenance_in_offline_record(tmp_path, monkeypatch
     roff_src = roff["source"]
     assert roff_src["vgs_v"] == 0.0
     assert roff_src["vbus_v"] == pytest.approx(rec["conditions"]["vbus_v"])
-    assert roff_src["vendor_file"]["sha256"]
+    vendor_file = roff_src["vendor_file"]
+    assert vendor_file["file"]
+    if vendor_file["available"]:
+        assert vendor_file["sha256"]
+        assert vendor_file["bytes"] > 0
+    else:
+        # A CI checkout has no untracked SpiceModels/** vendor input. The
+        # offline sweep then records the absence explicitly instead of a hash.
+        assert vendor_file["sha256"] is None
+        assert vendor_file["bytes"] is None
+        assert roff_src["kind"] == "not_measured"
+        assert "no live vendor DC sweep" in roff_src["reason"]
     assert roff_src["config_sha256"]
     assert roff_src["fallback"]["source"] == "project_decision"
     # Offline build cannot run the Vgs=0 DC sweep: no fabricated Roff value.

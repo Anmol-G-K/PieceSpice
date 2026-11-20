@@ -432,6 +432,10 @@ def test_coss_f_is_measured_curve4_value_with_full_provenance(vendor, monkeypatc
 
 @pytest.mark.parametrize("vendor", VENDORS)
 def test_offline_r_off_is_nan_with_loud_fallback_disclosure(vendor, monkeypatch):
+    vendor_lib = (Path(__file__).resolve().parents[1]
+                  / load_input(vendor)["library"])
+    if not vendor_lib.is_file():
+        pytest.skip(f"vendor library not present locally: {vendor_lib}")
     monkeypatch.setattr(bench, "run_golden_sweep", _fake_sweep)
     lut = build_lut(vendor, simulate=False)
     assert math.isnan(lut.r_off_ohms)
