@@ -14,6 +14,17 @@ from pipeline import registry
 app = typer.Typer(help="PieceSpice: SPICE to Piecewise-Linear Modeling Pipeline")
 console = Console()
 
+# Tier-4 disclosure (audit D1 / PLECS M5): the LUT is filled from the recorded
+# golden DPT crossing, so a zero error there is by construction.  There is no
+# independent converter-energy gate and no converter bench has been built.
+T4_ENERGY_CAVEAT = (
+    "LUT reproduces its own golden DPT crossing; not an independent "
+    "converter validation")
+T4_GATE_NOTE = (
+    "Tier-4 gate: LUT-vs-recorded-golden-DPT energy at the configured crossing "
+    "and speed on the existing inductive bench; DPT waveform gate retired by "
+    "design; no converter bench built")
+
 
 @app.command()
 def parse(
@@ -89,6 +100,7 @@ class Tier(int, Enum):
 
     CPWL = 2
     TPWL = 3
+    IDEAL_LUT = 4
 
 
 def _num(value, fmt: str = ".4g") -> str:
@@ -118,18 +130,60 @@ def _tier3_summary(record: dict) -> None:
     console.print(f"  emitted lib: {record['emitted_lib']}")
 
 
+def _tier4_summary(record: dict) -> None:
+    """Print DPT-derived Tier-4 energy and inductive-bench speed honestly."""
+    console.print(
+        f"[bold green]Tier-4 ideal-switch + loss-LUT[/bold green] for "
+        f"{record['vendor']}: DPT waveform gate retired by design")
+    console.print(
+        "  energy comparison is LUT-vs-recorded-golden-DPT at the configured "
+        "crossing; speed comes from the existing inductive bench; no "
+        "converter bench built")
+    energy = record.get("energy_comparison") or {}
+    for metric in ("e_on_uj", "e_off_uj"):
+        row = energy.get(metric) or {}
+        console.print(
+            f"  {metric}: golden={_num(row.get('golden'))} uJ "
+            f"tier4={_num(row.get('tier4'))} uJ "
+            f"abs={_num(row.get('abs_error'))} uJ "
+            f"rel={_num(row.get('rel_error_pct'))}%")
+        console.print(
+            f"    [yellow]{row.get('disclosure') or T4_ENERGY_CAVEAT}[/yellow]")
+    top_disclosure = record.get("energy_gate_disclosure")
+    if top_disclosure and str(top_disclosure) != T4_ENERGY_CAVEAT:
+        console.print(f"  [yellow]{top_disclosure}[/yellow]")
+    console.print(
+        "  e_on/e_off relative error is 0 by construction at the recorded "
+        "golden DPT crossing; no independent converter-energy gate")
+    speed = record.get("speedup") or {}
+    console.print(
+        f"  speed status={speed.get('status') or 'N/A'}: "
+        f"solver={_num(speed.get('solver_speedup'))}x "
+        f"wall={_num(speed.get('wall_speedup'))}x "
+        f"iters={_num(speed.get('golden_iterations'), 'd')}/"
+        f"{_num(speed.get('tier4_iterations'), 'd')} "
+        f"points={_num(speed.get('golden_points'), 'd')}/"
+        f"{_num(speed.get('tier4_points'), 'd')} "
+        f"t_last={_num(speed.get('t_last_s'))} s")
+    if record.get("emitted_lib"):
+        console.print(f"  emitted lib: {record['emitted_lib']}")
+
+
 @app.command()
 def fit(
     vendor: str = typer.Argument(..., help="Vendor config stem in config/inputs/"),
     tier: Tier = typer.Option(Tier.CPWL, "--tier",
-                              help="Solver tier: 2 (CPWL) or 3 (TPWL)"),
+                              help="Solver tier: 2 (CPWL), 3 (TPWL) or 4 (ideal LUT)"),
     variant: str = typer.Option(registry.DEFAULT_VARIANT, "--variant",
-                                help="Tier-3 variant (default: v1)"),
+                                help="Tier-3 variant (default: v1; ignored by Tier-4)"),
 ) -> None:
-    """Fit a Tier-2 or Tier-3 subcircuit for VENDOR."""
+    """Fit a Tier-2, Tier-3 or Tier-4 subcircuit for VENDOR."""
     if int(tier) == 2:
         path = registry.fit(vendor, 2)
         console.print(f"[bold green]Tier-2 model fitted:[/bold green] {path}")
+        return
+    if int(tier) == 4:
+        _tier4_summary(registry.validate(vendor, 4))
         return
     record = registry.validate(vendor, 3, variant)
     _tier3_summary(record)
@@ -139,11 +193,14 @@ def fit(
 def validate(
     vendor: str = typer.Argument(..., help="Vendor config stem in config/inputs/"),
     tier: Tier = typer.Option(Tier.CPWL, "--tier",
-                              help="Solver tier: 2 (CPWL) or 3 (TPWL)"),
+                              help="Solver tier: 2 (CPWL), 3 (TPWL) or 4 (ideal LUT)"),
     variant: str = typer.Option(registry.DEFAULT_VARIANT, "--variant",
-                                help="Tier-3 variant (default: v1)"),
+                                help="Tier-3 variant (default: v1; ignored by Tier-4)"),
 ) -> None:
     """Validate VENDOR against the golden model at the selected tier."""
+    if int(tier) == 4:
+        _tier4_summary(registry.validate(vendor, 4))
+        return
     if int(tier) == 3:
         _tier3_summary(registry.validate(vendor, 3, variant))
         return
@@ -169,7 +226,7 @@ def validate(
 def compare(
     vendor: str = typer.Argument(..., help="Vendor config stem in config/inputs/"),
 ) -> None:
-    """Compare recorded golden vs Tier-2 vs Tier-3 DPT metrics."""
+    """Compare recorded DPT metrics and Tier-4 energy/speed for VENDOR."""
     rows = registry.compare_rows(vendor)
     if not rows:
         console.print(
@@ -183,6 +240,26 @@ def compare(
     table.add_column("Tier-3")
     for metric, golden, t2, t3 in rows:
         table.add_row(metric, _num(golden), _num(t2), _num(t3))
+    console.print(table)
+
+    t4_rows = registry.tier4_rows(vendor)
+    console.print(f"[bold]{T4_GATE_NOTE}[/bold]")
+    console.print(
+        f"[yellow]{T4_ENERGY_CAVEAT} (e_on/e_off relative error is 0 by "
+        "construction at the recorded golden DPT crossing; no independent "
+        "converter-energy gate)[/yellow]")
+    if not t4_rows:
+        console.print(
+            f"[yellow]No recorded Tier-4 energy/speed for {vendor}[/yellow]. "
+            "Run `fit <vendor> --tier 4` first.")
+        return
+    table = Table(title=f"Tier-4 energy & speed (waveform gate retired) — {vendor}")
+    table.add_column("Quantity")
+    table.add_column("Golden")
+    table.add_column("Tier-4")
+    table.add_column("Detail")
+    for metric, golden, t4, detail in t4_rows:
+        table.add_row(metric, _num(golden), _num(t4), detail)
     console.print(table)
 
 if __name__ == "__main__":

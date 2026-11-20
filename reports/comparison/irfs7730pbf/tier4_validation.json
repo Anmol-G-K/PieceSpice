@@ -1,0 +1,221 @@
+    "executed": true,
+    "completed": true,
+    "trace_points": 7125,
+    "golden_trace_points": 7114.0,
+    "iterations": 14422,
+    "t_last_s": 1.4e-05,
+    "wall_clock_s": 0.9723696000000928,
+    "error": null,
+    "spice_log_tail": "Total elapsed time: 0.387 seconds.\nTotal iterations: 14422\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_n_txppw8\\tran.net\n"
+    "solver_speedup": 1.1775362318840579,
+    "wall_speedup": 1.0690565099614089,
+    "golden_iterations": 12718.0,
+    "tier4_iterations": 6165.0,
+    "golden_points": 3432.0,
+    "tier4_points": 2247.0,
+    "end_time_s": 0.000176,
+    "t_last_s": null,
+    "t_last_source": "run_inductive_benchmark discards per-run time vectors; no measured trace endpoint is exposed, so t_last is N/A",
+    "completion_basis": "count similarity is not required; lower counts are expected for faster models; aborted runs are rejected by positive iterations/points and no error. Both arms must also be full-schedule run_inductive_benchmark records: end_time_s equals the scheduled 20-pulse .tran stop and repeats == 3. The configured .tran stop is schedule metadata, not a measured trace endpoint.",
+    "status": "measured",
+    "case": "long_adaptive"
+      "golden": {
+        "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\SpiceModels\\irfs7730pbf.spi",
+        "subcircuit": "irfb_s_sl7730pbf",
+        "n_pulses": 20,
+        "max_step": null,
+        "end_time_s": 0.000176,
+        "repeats": 3,
+        "wall_clock_s": 0.8614715000003343,
+        "solver_elapsed_s": 0.325,
+        "iterations": 12718.0,
+        "trace_points": 3432.0,
+        "trace_names": 12.0
+      },
+      "tier4": {
+        "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\irfs7730pbf_PIECESPICE_T4.lib",
+        "subcircuit": "irfs7730pbf_PIECESPICE_T4",
+        "n_pulses": 20,
+        "max_step": null,
+        "end_time_s": 0.000176,
+        "repeats": 3,
+        "wall_clock_s": 0.8058241000107955,
+        "solver_elapsed_s": 0.276,
+        "iterations": 6165.0,
+        "trace_points": 2247.0,
+        "trace_names": 11.0
+      }
+    "coss_f": 1.4115209490764857e-09,
+    "r_off_ohms": 49853763.19144712,
+      "method": "clamped-inductive golden DPT E_on/E_off at config-derived (Vbus, load) nodes; Curve-3 r_on, Curve-7 Vth, Curve-4 Coss and Vgs=0 DC-sweep Roff",
+      "coss_f": {
+        "kind": "measured",
+        "file": "config/outputs/irfs7730pbf/curve4_capacitances.yaml",
+        "key": "extracted.coss_f",
+        "value_f": 1.4115209490764857e-09,
+        "ref_voltage_v": 15.075,
+        "ref_voltage_key": "extracted.cap_ref_vds",
+        "temperature_c": 25.0,
+        "temperature_key": "conditions.temperature",
+        "unit": "F",
+        "rule": "measured small-signal Coss at the Curve-4 cap_ref_Vds reference; solver-stabilizing linear C only, not a voltage-dependent/waveform-fidelity model"
+      },
+      "r_off_ohms": {
+        "bench": "simulation/testbenches/static_sweep.StaticSweepTestbench.run_output_characteristics",
+        "vgs_v": 0.0,
+        "vgs_rule": "Vgs=0 off-state vendor DC sweep (Tier-4 stabilization contract)",
+        "vbus_v": 38.0,
+        "vbus_rule": "config dpt.vbus",
+        "vds_sweep_max_v": 38.0,
+        "vds_points": 101,
+        "vendor_file": {
+          "file": "SpiceModels/irfs7730pbf.spi",
+          "available": true,
+          "sha256": "4d83ae8f941e8fdc0721e063a66088a7eb473cfd7844dbfc0bec4ca35225afcf",
+          "bytes": 1951
+        },
+        "config_sha256": "1974dccc0c613f7d61997e4f56cb5b11529b096a0905e797c2501cf70894e898",
+        "method": "Roff = Vbus / Ioff; Ioff is the final finite I(Vds) sample of a Vgs=0 vendor DC sweep over Vds 0..config dpt.vbus",
+        "rule": "measured off-state resistance replaces the hardcoded ideal Roff; NaN means emitter fallback with disclosure",
+        "fallback": {
+          "source": "project_decision",
+          "note": "r_off_ohms is NaN: no measurable vendor Vgs=0 sweep. The emitter falls back to a project-decision Roff with a loud comment and JSON disclosure; no number is invented in the LUT."
+        },
+        "kind": "measured",
+        "value_ohms": 49853763.19144712,
+        "ioff_a": 7.622293196618557e-07,
+        "final_sample_vds_v": 38.0,
+        "sweep_points": 101
+      },
+        "rule": "emitter must refuse to emit .MODEL when vth or the selected r_on is NaN; never write NaN into SPICE",
+        "coss_f_finite": true,
+        "r_off_measured": true,
+        "r_off_note": "r_off_ohms NaN is allowed: emitter falls back to a project-decision Roff with loud comment+JSON disclosure; never write NaN into SPICE"
+          "basis": "PLECS P-TC documents linear table interpolation; the recorded grids have one finite measured node per vendor, so no interpolation is currently exercised",
+        },
+        {
+          "name": "solver_stabilization",
+          "kind": "measured_with_fallback",
+          "rule": "emitted Tier-4 switch uses the measured Curve-4 Coss as one active linear C_QOSS and the measured Vgs=0 Roff; C_QOSS only slows drain dV/dt to avoid singular/no-cap steps and adds L-C overshoot, so the DPT waveform gate stays retired. Voltage-dependent capacitors and the body diode remain retired. A NaN Roff falls back to a project-decision emitter value with loud comment+JSON disclosure; no fallback number is invented here.",
+          "basis": "local://tier4_stabilization_contract.md"
+      "coss_f_finite": true,
+      "r_off_measured": true,
+      "r_off_note": "r_off_ohms NaN is allowed: emitter falls back to a project-decision Roff with loud comment+JSON disclosure; never write NaN into a SPICE netlist",
+  "solver_stabilization": {
+    "status": "applied",
+    "rationale": "Controlled DPT/adaptive ablations (local://tier4_convergence_rootcause.md) identify the missing drain output capacitance as the primary, sufficient cause of Tier-4 solver timeouts: with only the ideal switch, clamp diode and inductor there is no bounded state variable at the near-step dV/dt, so LTspice never reaches t_end. One measured linear C_QOSS d s <curve4.coss_f> makes every previously failing arm complete; it slows drain dV/dt and adds L-C overshoot. The measured Vgs=0 off-state Roff removes a secondary, vendor-specific 1e12 singularity but is not a common fix. Solver stabilization only.",
+    "root_cause_reference": "local://tier4_convergence_rootcause.md",
+    "waveform_gate": "retired_by_design",
+    "c_qoss": {
+      "value_f": 1.4115209490764857e-09,
+      "emitted": true,
+      "emitted_value_f": 1.41152095e-09,
+      "element": "C_QOSS d s 1.41152095e-09",
+      "source": {
+        "kind": "measured",
+        "file": "config/outputs/irfs7730pbf/curve4_capacitances.yaml",
+        "key": "extracted.coss_f",
+        "value_f": 1.4115209490764857e-09,
+        "ref_voltage_v": 15.075,
+        "ref_voltage_key": "extracted.cap_ref_vds",
+        "temperature_c": 25.0,
+        "temperature_key": "conditions.temperature",
+        "unit": "F",
+        "rule": "measured small-signal Coss at the Curve-4 cap_ref_Vds reference; solver-stabilizing linear C only, not a voltage-dependent/waveform-fidelity model"
+      },
+      "note": "Measured linear output capacitance used only as a bounded drain-node state variable for the solver."
+    },
+    "r_off": {
+      "value_ohms": 49853763.19144712,
+      "emitted_ohms": 49853763.2,
+      "basis": "measured",
+      "source": {
+        "bench": "simulation/testbenches/static_sweep.StaticSweepTestbench.run_output_characteristics",
+        "vgs_v": 0.0,
+        "vgs_rule": "Vgs=0 off-state vendor DC sweep (Tier-4 stabilization contract)",
+        "vbus_v": 38.0,
+        "vbus_rule": "config dpt.vbus",
+        "vds_sweep_max_v": 38.0,
+        "vds_points": 101,
+        "vendor_file": {
+          "file": "SpiceModels/irfs7730pbf.spi",
+          "available": true,
+          "sha256": "4d83ae8f941e8fdc0721e063a66088a7eb473cfd7844dbfc0bec4ca35225afcf",
+          "bytes": 1951
+        },
+        "config_sha256": "1974dccc0c613f7d61997e4f56cb5b11529b096a0905e797c2501cf70894e898",
+        "method": "Roff = Vbus / Ioff; Ioff is the final finite I(Vds) sample of a Vgs=0 vendor DC sweep over Vds 0..config dpt.vbus",
+        "rule": "measured off-state resistance replaces the hardcoded ideal Roff; NaN means emitter fallback with disclosure",
+        "fallback": {
+          "source": "project_decision",
+          "note": "r_off_ohms is NaN: no measurable vendor Vgs=0 sweep. The emitter falls back to a project-decision Roff with a loud comment and JSON disclosure; no number is invented in the LUT."
+        },
+        "kind": "measured",
+        "value_ohms": 49853763.19144712,
+        "ioff_a": 7.622293196618557e-07,
+        "final_sample_vds_v": 38.0,
+        "sweep_points": 101
+      },
+      "note": "Measured Vgs=0 DC-sweep off-state resistance used in SW_T4 when finite; otherwise the emitter falls back to the project-decision Roff with a loud comment and this disclosure."
+    },
+    "disclosure": "C_QOSS is a single measured linear output capacitance (curve4.coss_f at cap_ref_Vds), added only to keep the drain node bounded and let the solver reach t_end; it is NOT a voltage-dependent charge model and no waveform fidelity is claimed. It slows drain dV/dt and adds L-C overshoot. The DPT waveform gate remains retired_by_design; dv/dt, ringing and Miller droop stay retired/unclaimed. Voltage-dependent capacitors and the body diode remain retired; loss tables remain comment-only metadata."
+  },
+      "method": "clamped-inductive golden DPT E_on/E_off at config-derived (Vbus, load) nodes; Curve-3 r_on, Curve-7 Vth, Curve-4 Coss and Vgs=0 DC-sweep Roff",
+      "coss_f": {
+        "kind": "measured",
+        "file": "config/outputs/irfs7730pbf/curve4_capacitances.yaml",
+        "key": "extracted.coss_f",
+        "value_f": 1.4115209490764857e-09,
+        "ref_voltage_v": 15.075,
+        "ref_voltage_key": "extracted.cap_ref_vds",
+        "temperature_c": 25.0,
+        "temperature_key": "conditions.temperature",
+        "unit": "F",
+        "rule": "measured small-signal Coss at the Curve-4 cap_ref_Vds reference; solver-stabilizing linear C only, not a voltage-dependent/waveform-fidelity model"
+      },
+      "r_off_ohms": {
+        "bench": "simulation/testbenches/static_sweep.StaticSweepTestbench.run_output_characteristics",
+        "vgs_v": 0.0,
+        "vgs_rule": "Vgs=0 off-state vendor DC sweep (Tier-4 stabilization contract)",
+        "vbus_v": 38.0,
+        "vbus_rule": "config dpt.vbus",
+        "vds_sweep_max_v": 38.0,
+        "vds_points": 101,
+        "vendor_file": {
+          "file": "SpiceModels/irfs7730pbf.spi",
+          "available": true,
+          "sha256": "4d83ae8f941e8fdc0721e063a66088a7eb473cfd7844dbfc0bec4ca35225afcf",
+          "bytes": 1951
+        },
+        "config_sha256": "1974dccc0c613f7d61997e4f56cb5b11529b096a0905e797c2501cf70894e898",
+        "method": "Roff = Vbus / Ioff; Ioff is the final finite I(Vds) sample of a Vgs=0 vendor DC sweep over Vds 0..config dpt.vbus",
+        "rule": "measured off-state resistance replaces the hardcoded ideal Roff; NaN means emitter fallback with disclosure",
+        "fallback": {
+          "source": "project_decision",
+          "note": "r_off_ohms is NaN: no measurable vendor Vgs=0 sweep. The emitter falls back to a project-decision Roff with a loud comment and JSON disclosure; no number is invented in the LUT."
+        },
+        "kind": "measured",
+        "value_ohms": 49853763.19144712,
+        "ioff_a": 7.622293196618557e-07,
+        "final_sample_vds_v": 38.0,
+        "sweep_points": 101
+      },
+        "rule": "emitter must refuse to emit .MODEL when vth or the selected r_on is NaN; never write NaN into SPICE",
+        "coss_f_finite": true,
+        "r_off_measured": true,
+        "r_off_note": "r_off_ohms NaN is allowed: emitter falls back to a project-decision Roff with loud comment+JSON disclosure; never write NaN into SPICE"
+          "basis": "PLECS P-TC documents linear table interpolation; the recorded grids have one finite measured node per vendor, so no interpolation is currently exercised",
+        },
+        {
+          "name": "solver_stabilization",
+          "kind": "measured_with_fallback",
+          "rule": "emitted Tier-4 switch uses the measured Curve-4 Coss as one active linear C_QOSS and the measured Vgs=0 Roff; C_QOSS only slows drain dV/dt to avoid singular/no-cap steps and adds L-C overshoot, so the DPT waveform gate stays retired. Voltage-dependent capacitors and the body diode remain retired. A NaN Roff falls back to a project-decision emitter value with loud comment+JSON disclosure; no fallback number is invented here.",
+          "basis": "local://tier4_stabilization_contract.md"
+      "speed_completion": {
+        "kind": "project_decision",
+        "basis": "count similarity is not required; lower counts are expected for faster models; aborted runs are rejected by positive iterations/points and no error. Both arms must also be full-schedule run_inductive_benchmark records: end_time_s equals the scheduled 20-pulse .tran stop and repeats == 3. The configured .tran stop is schedule metadata, not a measured trace endpoint.",
+        "schedule_proof": "each arm: end_time_s equals the scheduled end recomputed from the 20-pulse run_inductive_benchmark knobs and repeats == 3 (SPEED_REPEATS)",
+        "source": "pipeline/tier4.py::_bench_complete"
+      },
+    "dpt_completion": true,
+    "speed_completion": true,

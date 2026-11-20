@@ -15,7 +15,7 @@
 
 [![Infineon](https://img.shields.io/badge/supported-Infineon%20%2F%20IR-0A8276?labelColor=1a1a1a)](#validated-devices) [![TI](https://img.shields.io/badge/supported-Texas%20Instruments-CC0000?labelColor=1a1a1a)](#validated-devices) [![EPC](https://img.shields.io/badge/supported-EPC%20GaN-006FBA?labelColor=1a1a1a)](#validated-devices) [![Wolfspeed](https://img.shields.io/badge/supported-Wolfspeed%20SiC-58238C?labelColor=1a1a1a)](#validated-devices)
 
-*Vendor `.lib` in → validated Tier-2 CPWL **or** Tier-3 TPWL macromodel out*
+*Vendor `.lib` in → validated Tier-2 CPWL, Tier-3 TPWL or Tier-4 ideal-switch + LUT out*
 
 </div>
 
@@ -26,7 +26,7 @@
 **PieceSpice** bridges the simulation gap between full physics SPICE models
 (high fidelity, hours of compute, convergence failures) and system-level
 ideal-switch tools (instant, but no ringing/losses). It automatically
-distills vendor MOSFET subcircuits into one of **three selectable model options**:
+distills vendor MOSFET subcircuits into one of **four selectable model options**:
 
 - **Tier-2 — CPWL macromodel.** Continuous piecewise-linear channel with a
   `tanh` saturation knee plus charge-defined capacitors, emitted as a small
@@ -39,6 +39,14 @@ distills vendor MOSFET subcircuits into one of **three selectable model options*
   Tier-2 channel with SIMPLIS-style PWL charge tables, holding Tier-2 static
   parity with mixed waveform fidelity (TI Vds REGRESSED vs `v1`). Neither is a
   global speed tier: the guarded 20-pulse adaptive ≥5× result is TI-only.
+- **Tier-4 — ideal-switch fast tier (dual-tier addition).** Standard-SPICE
+  ideal switch plus a measured conduction/switching loss LUT kept as comments
+  for offline post-processing. The DPT waveform gate is retired by design:
+  no dv/dt, Miller droop, ringing or reverse-recovery fidelity is claimed.
+  Solver stabilization uses a measured linear Curve-4 Coss and a measured
+  Vgs=0 off-state Roff; energy rows are source self-consistency and
+  efficiency is N/A without an explicit converter output power. Speed is
+  measured on the existing inductive bench only; no converter bench exists.
 
 | | Fidelity | Speed | Robustness |
 |---|---|---|---|
@@ -46,20 +54,24 @@ distills vendor MOSFET subcircuits into one of **three selectable model options*
 | **PieceSpice Tier-2 (CPWL)** | **●●●●○ (2.04–8.49 % static rel-RMSE; ≤ 4.13 % endpoint)** | **●●○○○ (~1× at matched conditions; not significant)** | **●●●●● (C⁰ PWL + tanh knee)** |
 | **PieceSpice Tier-3 (TPWL)** | **●●●●○ (0.61–4.24 % static fit rel-RMSE)** | **●●○○○ (0.0988–0.570× measured; slower than golden)** | **●●●○○ (anchored on captured trajectory)** |
 | **PieceSpice Tier-3 `simplis` (PWL charge)** | **●●●○○ (2.04–8.49 % static rel-RMSE, Tier-2 parity; DPT Vds 2.79–11.26 %; TI Vds REGRESSED vs v1)** | **●●○○○ (20-pulse adaptive solver 0.961–5.079×; ≥5× TI-only)** | **●●●○○ (guarded 20-pulse runs; four completed DPTs)** |
+| **PieceSpice Tier-4 (ideal switch + LUT)** | **●●○○○ (DPT waveform gate retired by design)** | **●●●○○ (guarded inductive-bench solver 1.178–6.594×; EPC golden 100 ns cap; CPM2 N/A)** | **●●●○○ (DPT 4/4 complete, speed 3/4 measured)** |
 | PLECS / Ideal | ●○○○○ | ●●●●● | ●●●●● |
 
-**Measured status — honest:** Three options are selectable: Tier-2 CPWL,
-Tier-3 v1 TPWL and Tier-3 `simplis` (PWL charge tables). At matched 2-pulse,
-forced 2 ns-step DPT conditions, neither established tier shows a significant
-speedup against the vendor golden: Tier-2 solver 0.875–1.173×, Tier-3 v1
-0.0988–0.570× (IRFS / TI / EPC / CPM2); Tier-3 v1 is slower on every device.
-The `simplis` variant holds Tier-2 static parity within ±0.0002 pp, has mixed
-waveform fidelity (TI Vds REGRESSED +3.699 pp vs v1), and its guarded
-20-pulse adaptive solver / wall speedups are 0.961× / 0.941×, 5.079× / 3.070×,
-1.080× / 1.059× and 1.124× / 1.066× (same vendor order). Only TI exceeds 5×,
-driven by the golden's stiffness; the other three goldens already ride the
-adaptive-step ceiling. Tier-3 v1 speed was audited closed on 2026-11-20;
-all three options hold their recorded fidelity. See
+**Measured status — honest:** Four options are selectable: Tier-2 CPWL,
+Tier-3 v1 TPWL, Tier-3 `simplis` (PWL charge tables) and Tier-4 (ideal switch
+plus loss LUT). At matched 2-pulse, forced 2 ns-step DPT conditions, neither
+established waveform-resolving tier shows a significant speedup against the
+vendor golden: Tier-2 solver 0.875–1.173×, Tier-3 v1 0.0988–0.570×
+(IRFS / TI / EPC / CPM2); Tier-3 v1 is slower on every device. The `simplis`
+variant holds Tier-2 static parity within ±0.0002 pp, has mixed waveform
+fidelity (TI Vds REGRESSED +3.699 pp vs v1), and its guarded 20-pulse adaptive
+solver / wall speedups are 0.961× / 0.941×, 5.079× / 3.070×, 1.080× / 1.059×
+and 1.124× / 1.066× (same vendor order). Only TI exceeds 5×, driven by the
+golden's stiffness; the other three goldens already ride the adaptive-step
+ceiling. Tier-3 v1 speed was audited closed on 2026-11-20; Tier-4 is a separate,
+hardened fast tier whose inductive-bench speed and honest scope are tabulated
+below. All four options hold their recorded scope (Tier-4's waveform gate is
+retired by design, not passed). See
 [Measured Results](#-measured-results) for the tables and conditions of validity.
 
 Everything is emitted as a **standard SPICE subcircuit** — no proprietary
@@ -196,7 +208,8 @@ uv run python -m cli.main parse SpiceModels/EPC2216_V0_PSPICE.net
 
 ### Select the Solver Tier
 
-The `fit`, `validate` and `compare` commands choose the tier explicitly:
+The `fit`, `validate` and `compare` commands choose the tier explicitly
+(`--tier 4` is variant-free; `--variant` is ignored there):
 
 ```bash
 uv run python -m cli.main fit csd16412q5a --tier 2                 # Tier-2 CPWL (default)
@@ -204,19 +217,24 @@ uv run python -m cli.main fit csd16412q5a --tier 3                 # Tier-3 TPWL
 uv run python -m cli.main fit csd16412q5a --tier 3 --variant alt   # named Tier-3 variant
 uv run python -m cli.main validate csd16412q5a --tier 2            # golden vs Tier-2
 uv run python -m cli.main validate csd16412q5a --tier 3             # golden vs Tier-3
-uv run python -m cli.main compare csd16412q5a                       # golden vs Tier-2 vs Tier-3
+uv run python -m cli.main fit csd16412q5a --tier 4                  # Tier-4 build + record
+uv run python -m cli.main validate csd16412q5a --tier 4             # Tier-4 energy/speed summary
+uv run python -m cli.main compare csd16412q5a                       # golden vs T2 vs T3 + T4 rows
 ```
 
 Tier-2 emits `reports/models/<vendor>_PIECESPICE_T2.lib`; Tier-3 emits
 `<vendor>_PIECESPICE_T3.lib` for the default variant and
 `<vendor>_PIECESPICE_T3_<variant>.lib` for named variants. Multiple Tier-3
-variants per vendor are the norm, and the registry lists them.
+variants per vendor are the norm, and the registry lists them. Tier-4 emits
+`reports/models/<vendor>_PIECESPICE_T4.lib`; its summary and `compare` rows
+print DPT-source energy self-consistency and guarded inductive-bench speed,
+with `N/A` wherever a bench did not complete — never DPT waveform fidelity.
 
 Outputs land in:
 
 ```text
 config/outputs/<vendor>/        extracted curve data (YAML)
-reports/models/                 synthesized Tier-2 (.T2) and Tier-3 (.T3) .lib files
+reports/models/                 synthesized Tier-2 (.T2), Tier-3 (.T3) and Tier-4 (.T4) .lib files
 reports/comparison/<vendor>/    golden-vs-model metrics and validation JSONs
 figures/<vendor>/tier2|tier3/   golden-vs-tier DPT figures
 ```
@@ -243,7 +261,7 @@ automatically from the YAML pin map.
 | EPC | EPC2216 | GaN eGaN (behavioral) | ✅ 7/7 curves |
 | Wolfspeed | CPM2-1200-0025B | SiC bare die (Tj port) | ✅ 7/7 curves |
 
-All three selectable options are exercised on all four devices; measured figures follow.
+All four selectable options are exercised on all four devices; measured figures follow.
 
 ---
 
@@ -372,6 +390,52 @@ methodology note are in
 [§15 of the candidates doc](docs/plans/tier3_method_candidates.md#15-characterization-results-2026-11-20).
 *AES-STD100 caveat above applies.*
 
+**Tier-4 — hardened fast converter tier (dual-tier addition; measured
+2026-11-20).** The emitted ASCII subcircuit is a standard-SPICE ideal switch
+(`S_SW` + `.MODEL SW_T4`) with measured Curve-3 `Ron` and Curve-7 `Vth`; the
+conduction/switching loss LUT is **comment-only metadata for offline
+post-processing** (PLECS P-TC role), not an active electrical loss element or
+thermal RC network. The DPT waveform gate is **retired by design**: no dv/dt,
+Miller droop, ringing or reverse-recovery fidelity is claimed. One measured
+linear Curve-4 Coss at `cap_ref_Vds` plus a measured Vgs=0 DC-sweep `Roff`
+are emitted as solver stabilizers only — they bound the drain node so the
+solver reaches `t_end`, but they slow drain dV/dt and add L-C overshoot; they
+do not restore waveform fidelity. No tolerance, step-size or simulator change
+is claimed, and no PLECS/SIMPLIS step-count speed is attributed to the emitted
+switch.
+
+**Conditions of validity (Tier-4).** The vendor golden at LTspice defaults is
+the sole reference. Energy nodes come from each vendor's recorded golden
+2-pulse DPT crossing (2 ns forced, 14 us). Speed is the existing 20-pulse,
+176 us adaptive clamped-inductive bench (median of 3 repeats, golden vs
+Tier-4), with EPC's golden alone at its documented 100 ns cap; N/A is reported
+whenever a bench does not complete. Completion guards: emitted DPT on **4/4**
+devices (`t_last = 1.4e-5 s`, positive iterations, ≥50 % of golden trace
+points); speed on **3/4** (no error, positive iterations/points, full-schedule
+`.tran` stop, 3 repeats). CPM2's recorded golden adaptive run failed
+(`no raw output`, `rc=1`), so its ratio is N/A, not zero. The bench discards
+per-run time vectors, so speed `t_last` is N/A and `end_time_s` is schedule
+metadata, not a measured trace endpoint. *AES-STD100 caveat above applies:
+golden-vs-model figures, not datasheet ratings.*
+
+| Device (Vbus / Id) | Solver speedup | Wall speedup | Golden → Tier-4 iterations | Golden → Tier-4 points | Case |
+|---|---:|---:|---|---|---|
+| IRFS7730PBF (38 V / 100 A) | 1.178× | 1.069× | 12,718 → 6,165 | 3,432 → 2,247 | long_adaptive |
+| CSD16412Q5A / TI (12.5 V / 10 A) | **6.594×** | 3.496× | 131,558 → 6,201 | 44,050 → 2,296 | long_adaptive |
+| EPC2216 (11 V / 10 A) | 1.212× | 1.091× | 16,514 → 6,296 | 4,047 → 2,597 | long_100ns (golden 100 ns cap) |
+| CPM2-1200 (20 V / 20 A) | N/A | N/A | N/A | N/A | golden adaptive failure (contract-excluded) |
+
+**Tier-4 energy/efficiency scope.** E_on/E_off relative error is 0 % **by
+construction**: the LUT value and the compared "golden" value share the same
+`dpt_metrics.json#golden_metrics` crossing (`source_shared: true`,
+`independent_energy_gate: false`, `kind: source_self_consistency`). Those rows
+are source self-consistency, not an independent converter validation — no
+converter bench was built. Efficiency is N/A on all four devices
+(`output_power_required`): E_on/E_off/r_on are evaluated offline, and
+Vbus×Iload is DC bus input power, not converter output power. TI's 6.594×
+comes from the stiff golden (131,558 golden vs 6,201 Tier-4 iterations) and is
+not presented as a portable speed class. No unmeasured superlative is claimed.
+
 **DPT timing and energy — golden / Tier-3 / Tier-2.** `tr`, `tf` in ns;
 `e_on`, `e_off` in µJ. All Tier-3 crossings now exist on every device
 (the earlier IRFS N/A cells were a second-pulse turn-on failure, fixed
@@ -433,11 +497,11 @@ PieceSpice/
 │       ├── tier2/        # golden-vs-Tier-2 DPT figures
 │       └── tier3/        # golden-vs-Tier-3 DPT figures
 ├── metrics/              # Static/switching/loss/comparison metrics
-├── models/               # netlist_builder (Tier-2) +
-│                         # tpwl_netlist_builder (Tier-3)
+├── models/               # netlist_builder (Tier-2), tpwl_netlist_builder
+│                         # (Tier-3), tier4_ideal_switch_builder (Tier-4)
 ├── notebooks/            # 01 extraction · 02 approximation · 03 DPT · 05 validation
 ├── parser/               # Subcircuit/pin parser (dialect transpiler retired)
-├── pipeline/             # run_all_curves · fit_pwl_model · tier3 ·
+├── pipeline/             # run_all_curves · fit_pwl_model · tier3 · tier4 ·
 │                         # registry (tier registry for the CLI)
 ├── reporting/            # Single-file HTML report generator
 ├── simulation/           # LTspice engine + benches (static/cap/gate-charge/
@@ -449,6 +513,11 @@ PieceSpice/
 
 The former `tier3/` package has been folded into the paths above — there are
 no re-export shims.
+
+Tier-4 is variant-free: `models/tier4_ideal_switch_builder.py` emits
+`reports/models/<vendor>_PIECESPICE_T4.lib` and the guarded record lands in
+`reports/comparison/<vendor>/tier4_validation.json`. Its loss LUT is comment
+metadata only; no converter bench or T4 figures directory exists.
 
 ---
 
@@ -507,14 +576,23 @@ its own test module, `tests/test_tier3.py`.
       parity and reaches 5.079× solver / 3.070× wall on TI in the 20-pulse
       adaptive bench; the other three sit at the measured golden ceiling
       (~1×), with TI Vds REGRESSED vs v1.
+- [x] **Tier-4 — ideal-switch + loss-LUT fast tier** *(hardened dual-tier addition)*
+      DPT completion **4/4**; guarded inductive-bench speed **3/4**
+      (solver/wall: IRFS 1.178× / 1.069×, TI 6.594× / 3.496×,
+      EPC 1.212× / 1.091× at the golden 100 ns cap; CPM2 N/A on golden
+      adaptive failure). Waveform gate retired by design; energy rows are
+      DPT-source self-consistency, efficiency N/A without converter output
+      power, and no converter bench was built.
 - [x] **M4** — Switching Dynamics & Double Pulse Testbench
       *(metrics, resistive-load subset and inductive DPT)*
 - [ ] **M5** — Switched-Mode Converter Benchmark & Speedup Evaluation
-      *(DPT-topology runtime benchmark only; no converter benchmark exists.
-      Neither established tier shows a significant matched-condition speedup;
-      the 20-pulse adaptive TI win is 4.86× solver / 3.39× wall for Tier-2
-      and 5.079× / 3.070× for `simplis` (TI-only), and Tier-3 v1 speed was
-      audited closed on 2026-11-20 — see Measured Results.)*
+      *(partial, not complete: Tier-4 adds measured inductive-bench speed —
+      IRFS 1.178×, TI 6.594×, EPC 1.212× solver; CPM2 N/A — but **no
+      converter bench exists**. Tier-4 energy rows are DPT-source
+      self-consistency and efficiency is N/A without an explicit converter
+      output power. The established tiers' matched-condition and adaptive
+      numbers are in Measured Results; Tier-3 v1 speed was audited closed
+      2026-11-20.)*
 - [x] **M6** — Automated HTML Reporting & CLI Polish
       *(the report renders only metrics it is given)*
 
