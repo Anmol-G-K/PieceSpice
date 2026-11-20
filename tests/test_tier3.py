@@ -244,3 +244,195 @@ def test_simplis_linear_cgs_emits_plain_capacitor():
     text_pwl = build_simplis_subcircuit(_simplis_spec())
     cgs_pwl = [x for x in text_pwl.splitlines() if x.startswith("CGS ")]
     assert len(cgs_pwl) == 1 and "Q={" in cgs_pwl[0]
+
+
+def test_simplis_emits_rgs_and_truthful_extrapolation_comment():
+    text = build_simplis_subcircuit(_simplis_spec())
+    lines = text.splitlines()
+    assert len([x for x in lines if x.startswith("RGS gi ss 1e7")]) == 1
+    assert "lookups end-clamp" not in " ".join(lines)
+    assert any("extrapolate linearly with the last segment" in x
+               for x in lines)
+    tier2 = build_simplis_subcircuit(_simplis_spec(), charge_mode="tier2")
+    t2_lines = tier2.splitlines()
+    assert any(x.startswith("C_QOSS ") for x in t2_lines)
+    assert any(x.startswith("C_ISS ") for x in t2_lines)
+    assert any(x.startswith("C_RSS ") for x in t2_lines)
+    assert not any(x.split() and x.split()[0] in ("CGS", "CDS", "CDG")
+                   for x in t2_lines)
+    assert len([x for x in t2_lines if x.startswith("RGS gi ss 1e7")]) == 1
+    try:
+        build_simplis_subcircuit(_simplis_spec(), charge_mode="bogus")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("unknown charge_mode must fail")
+
+
+from pipeline.tier3_simplis import (  # noqa: E402
+    _cap_curve_to_vbus,
+    _fidelity_metrics,
+    _fit_anchored_charge,
+    _on_state_breakpoint,
+    _select_charge_candidate,
+)
+
+
+def test_simplis_charge_fit_anchors_at_zero_and_meets_budget():
+    v = np.linspace(0.1, 25.0, 40)
+    c = 1e-9 * (1 + 3 * np.exp(-((v - 5) / 0.5) ** 2)
+                + 3 * np.exp(-((v - 12) / 0.4) ** 2))
+    fit = _fit_anchored_charge(v, c, 0.005)
+    assert fit.pairs[0] == (0.0, 0.0)
+    assert np.isclose(fit.q_full[1] / fit.v_full[1], c[0])
+    assert np.isclose(fit.pairs[-1][0], v[-1])
+    assert fit.max_abs_error_c <= fit.error_budget_c
+    assert len(fit.pairs) > 5  # the old 5-point cap would have truncated
+
+
+def test_simplis_forced_on_state_breakpoint_replaces_lower_points():
+    v = np.linspace(0.1, 12.5, 30)
+    c = np.full_like(v, 2e-10)
+    bp = _on_state_breakpoint(
+        [0.0, 10.0, 10.0, 10.0],
+        [12.5, 0.5, 0.1725, 0.1], vgs_on=10.0, vbus=12.5)
+    assert np.isclose(bp["measured_v"], 0.5)
+    assert not bp["clamped_to_vbus"]
+    fit = _fit_anchored_charge(
+        v, c, 0.005, forced_v=bp["used_v"],
+        forbid_below=bp["used_v"])
+    volts = [p[0] for p in fit.pairs]
+    assert any(np.isclose(x, bp["used_v"]) for x in volts)
+    assert min(volts[1:]) >= bp["used_v"] - 1e-12
+    assert fit.max_abs_error_c <= fit.error_budget_c
+
+    clamped = _on_state_breakpoint(
+        [0.0, 10.0], [38.9, 38.9], vgs_on=10.0, vbus=38.0)
+    assert clamped["clamped_to_vbus"] and clamped["used_v"] == 38.0
+    grid, curves = _cap_curve_to_vbus(
+        np.array([0.1, 10.0, 60.0]), (np.ones(3),), 38.0)
+    assert np.isclose(grid[-1], 38.0) and curves[0][-1] == 1.0
+
+
+def _candidate(vds, id_, tr, tf, e_on, e_off) -> dict:
+    comparison = {
+        key: {"tier3_rel_err_pct": err}
+        for key, err in (("tr_ns", tr), ("tf_ns", tf),
+                         ("e_on_uj", e_on), ("e_off_uj", e_off))}
+    return {"fidelity": _fidelity_metrics(
+        {"vds_rel_rmse_pct": vds, "id_rel_rmse_pct": id_}, comparison),
+        "dpt_run": {"completed": True}}
+
+
+def test_simplis_candidate_selection_requires_strict_all_metric_gain():
+    base = _candidate(6.0, 0.05, 29.0, 47.0, 51.0, 1.3)
+    better = _candidate(3.8, 0.045, 20.0, 35.2, 29.1, 1.25)
+    cands = {"tables": base, "tier2": better}
+    assert _select_charge_candidate(cands)[0] == "tier2"
+    tied = {**better, "fidelity": {
+        **better["fidelity"],
+        "abs_rel_err_pct": {**better["fidelity"]["abs_rel_err_pct"],
+                            "e_off_uj": 1.3}}}
+    assert _select_charge_candidate(
+        {"tables": base, "tier2": tied})[0] == "tables"
+    failed = _candidate(None, 0.045, 35.6, 35.2, 29.1, 1.25)
+    assert _select_charge_candidate(
+        {"tables": base, "tier2": failed})[0] == "tables"
+
+from pipeline.tier3_simplis import _select_channel_candidate  # noqa: E402
+from models.hybrid_channel import fit_hybrid_channel  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+
+
+_HYBRID_NOTE_PREFIXES = (
+    "* Hybrid channel:", "* fit meta:", "* fit stop criterion:",
+    "* measured limitation:",
+)
+
+
+def test_simplis_hybrid_fit_replaces_only_gch_and_keeps_provenance():
+    spec = _simplis_spec()
+    fit = fit_hybrid_channel(spec.vgs_values, spec.breakpoints_vds,
+                             spec.breakpoints_id, rel_tolerance=0.005)
+    base = build_simplis_subcircuit(spec, charge_mode="tier2")
+    hybrid = build_simplis_subcircuit(
+        spec, charge_mode="tier2", channel_fit=fit)
+    assert base.isascii() and hybrid.isascii()
+
+    base_lines = base.splitlines()
+    hybrid_lines = hybrid.splitlines()
+    assert sum(line.startswith(_HYBRID_NOTE_PREFIXES)
+               for line in hybrid_lines) == len(_HYBRID_NOTE_PREFIXES)
+    body = [line for line in hybrid_lines
+            if not line.startswith(_HYBRID_NOTE_PREFIXES)]
+    assert len(body) == len(base_lines)
+    changed = [(a, b) for a, b in zip(base_lines, body) if a != b]
+    assert len(changed) == 1, changed
+    old, new = changed[0]
+    assert old.startswith("G_CH di ss VALUE")
+    assert new == f"G_CH di ss VALUE={fit.expression}"
+    for prefix in ("RG ", "RD ", "RS ", "D_BODY ",
+                   "C_QOSS ", "C_ISS ", "C_RSS "):
+        assert [x for x in base_lines if x.startswith(prefix)] == [
+            x for x in body if x.startswith(prefix)]
+    header = "\n".join(hybrid_lines[:10])
+    assert "hinge_c" in header
+    assert "local://hybrid_channel_feasibility.md" in header
+    assert str(fit.meta["n_knees"]) in header
+
+
+def test_simplis_hybrid_rejects_non_ascii_expression():
+    bad = SimpleNamespace(expression="V(gi,ss)*\u00e9", meta={},
+                          max_abs_fit_error_a=0.0)
+    try:
+        build_simplis_subcircuit(_simplis_spec(), channel_fit=bad)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("non-ASCII hybrid expression must fail")
+
+
+def test_simplis_channel_selection_rejects_regressing_hybrid_dpt():
+    base_tables = _candidate(6.0, 0.05, 29.0, 47.0, 51.0, 1.3)
+    base_tier2 = _candidate(5.0, 0.04, 25.0, 40.0, 45.0, 1.2)
+    # Measured feasibility outcome: static fit improves, DPT Vds regresses.
+    cands = {
+        "tables": base_tables, "tier2": base_tier2,
+        "hybrid_tables": _candidate(11.20, 0.17, 30.0, 48.0, 52.0, 1.35),
+        "hybrid_tier2": _candidate(7.10, 0.10, 26.0, 41.0, 46.0, 1.25),
+    }
+    choice, reason, evidence = _select_channel_candidate(cands)
+    assert choice == "tier2"
+    assert "vds_rmse_pct" in reason and "hybrid_tables" in reason
+    for mode in ("hybrid_tables", "hybrid_tier2"):
+        row = evidence["pairs"][mode]["metrics"]["vds_rmse_pct"]
+        assert row["tier2_channel"] < row["hybrid"]
+        assert not row["strict_gain"]
+    # Charge selection is unchanged by the extra channel candidates.
+    assert _select_charge_candidate(cands)[0] == "tier2"
+    # A missing hybrid candidate can never be selected.
+    assert _select_channel_candidate(
+        {"tables": base_tables, "tier2": base_tier2})[0] == "tier2"
+
+    # Even a strict fidelity win is rejected if adaptive speed was not measured.
+    winning = {
+        **cands,
+        "hybrid_tables": _candidate(3.0, 0.02, 10.0, 20.0, 20.0, 1.0),
+        "hybrid_tier2": _candidate(2.5, 0.02, 9.0, 19.0, 19.0, 1.0),
+    }
+    choice, reason, _ = _select_channel_candidate(winning)
+    assert choice == "tier2" and "adaptive" in reason
+
+    # Positive control: fidelity gain plus measured, no-worse adaptive speed.
+    speed = {
+        "tables": {"completed": True, "solver_speedup": 1.0,
+                   "wall_speedup": 1.0},
+        "tier2": {"completed": True, "solver_speedup": 1.1,
+                  "wall_speedup": 1.05},
+        "hybrid_tables": {"completed": True, "solver_speedup": 1.2,
+                          "wall_speedup": 1.1},
+        "hybrid_tier2": {"completed": True, "solver_speedup": 1.3,
+                         "wall_speedup": 1.2},
+    }
+    assert _select_channel_candidate(
+        winning, adaptive_results=speed)[0] == "hybrid"

@@ -7,8 +7,8 @@ the charge section, so no channel/diode/parasitic logic is duplicated here.
 The new content is the documented SIMPLIS Level-2 three-capacitor set:
 
     CGS  gi ss   from Ciss - Crss   (X axis Vgs; LINEAR when nearly linear)
-    CDS  di ss   from Coss - Crss   (X axis Vds; 4-segment (V,Q) table)
-    CDG  di gi   from Crss          (X axis Vdg; 4-segment (V,Q) table)
+    CDS  di ss   from Coss - Crss   (X axis Vds; measured PWL V-Q table)
+    CDG  di gi   from Crss          (X axis Vdg; measured PWL V-Q table)
 
 Every capacitor is charge conserving (``Q=``) and every ramp uses DELTA
 slopes, per the repository invariant (absolute slopes diverged 21x in audit).
@@ -20,18 +20,22 @@ Sources for the pinned constants / semantics (see local://simplis_plecs_spec.md)
 * S-APPB "MOSFET - Level 2: Model Structure": CDS/CDG are 4-segment PWL
   because those nonlinearities are critical for switching transitions;
   "in most devices the gate capacitance is quite linear" and is tested.
-* The interior breakpoints are OUR greedy rule (``pwl_charge_segments``);
-  SIMPLIS does not document its extraction rule for those points.
+* Interior breakpoints are OUR greedy rule (``pwl_charge_segments`` in the
+  producer); SIMPLIS does not document its extraction rule. The producer
+  fits until the repo's 0.5% charge budget is met, not to a segment cap.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Sequence, Tuple
+from typing import TYPE_CHECKING, List, Sequence, Tuple
 
 import numpy as np
 
 from common.types import PWLModelSpec
 from models.netlist_builder import build_tier2_subcircuit, _fmt
+
+if TYPE_CHECKING:
+    from models.hybrid_channel import HybridChannelFit
 
 # Documented SIMPLIS Level-2 defaults [S-MOS Capacitor Models; S-APPB Level 2].
 # A table with NSEG segments has NSEG+1 (V,Q) point pairs.
@@ -50,6 +54,11 @@ _T2_CHARGE_START = "* --- charge-conserving capacitances (Curve 4, plan 2.3) ---
 _T2_DIODE_START = "* --- body diode (Curve 6) ---"
 
 MIN_PAIRS = 2  # a capacitor needs two (V,Q) points to have a slope
+
+# Official documented Level-2 gate-source bleed: 10 MOhm [S-MOS, Level 0/2
+# Model tables; local://simplis_plecs_spec.md line 103]. It is a resistor,
+# not a fitted value, and is emitted in both charge candidates.
+RGS_LINE = "RGS gi ss 1e7"
 
 
 @dataclass(frozen=True)
@@ -154,17 +163,38 @@ def _pairs(v, q) -> List[Tuple[float, float]]:
     return pairs
 
 
-def build_simplis_subcircuit(spec: PWLModelSpec) -> str:
+def build_simplis_subcircuit(
+    spec: PWLModelSpec, charge_mode: str = "tables", *,
+    channel_fit: "HybridChannelFit | None" = None,
+) -> str:
     """Emit the Level-2 charge-table Tier-3 subcircuit (ASCII).
 
-    Fails loudly on unpopulated charge tables: an emitted model with fake
-    capacitors would be worse than a failed build (anti-fake guard).
+    ``charge_mode="tables"`` emits the CGS/CDS/CDG V-Q tables measured by
+    the pipeline. ``charge_mode="tier2"`` keeps the closed Tier-2 charge
+    block verbatim; channel/diode/parasitics are identical in both and the
+    caller measures both candidates before selecting one.
+
+    ``channel_fit`` is an optional measured ``HybridChannelFit``: it replaces
+    ONLY the single Tier-2 ``G_CH`` line with the fit's ASCII VALUE expression.
+    Charge, diode and parasitics stay byte-identical; the emitted header
+    records the fit provenance and its measured DPT limitation (a static fit
+    gain does not imply transient fidelity).
+
+    Fails loudly on unpopulated charge tables in tables mode: an emitted
+    model with fake capacitors would be worse than a failed build
+    (anti-fake guard).
     """
-    cgs_pairs = _pairs(spec.q_iss_vs_v, spec.q_iss_charge_c)
-    cds_pairs = _pairs(spec.q_oss_vs_v, spec.q_oss_charge_c)
-    cdg_pairs = _pairs(spec.q_rss_vs_v, spec.q_rss_charge_c)
-    decision = cgs_linearity_decision(
-        [p[0] for p in cgs_pairs], [p[1] for p in cgs_pairs])
+    if charge_mode not in ("tables", "tier2"):
+        raise ValueError("charge_mode must be 'tables' or 'tier2'")
+    if charge_mode == "tables":
+        cgs_pairs = _pairs(spec.q_iss_vs_v, spec.q_iss_charge_c)
+        cds_pairs = _pairs(spec.q_oss_vs_v, spec.q_oss_charge_c)
+        cdg_pairs = _pairs(spec.q_rss_vs_v, spec.q_rss_charge_c)
+        decision = cgs_linearity_decision(
+            [p[0] for p in cgs_pairs], [p[1] for p in cgs_pairs])
+    else:
+        cgs_pairs = cds_pairs = cdg_pairs = None
+        decision = None
 
     # Reuse the closed Tier-2 emitter verbatim, then replace only its charge
     # section. Any structure change there must be reflected by these anchors
@@ -184,47 +214,90 @@ def build_simplis_subcircuit(spec: PWLModelSpec) -> str:
     t2_name = f"{spec.device_name}_PIECESPICE_T2"
     name = f"{spec.device_name}_PIECESPICE_T3_simplis"
 
-    charge: List[str] = [
-        "* --- SIMPLIS Level-2 three-capacitor charge model (AC Curve 4) ---",
-        "* CGS=Ciss-Crss, CDS=Coss-Crss, CDG=Crss (single AC sweep at Vgs=0)",
-        f"* CGS linearity test: {'LINEAR' if decision.is_linear else 'PWL'} "
-        f"(chord deviation {decision.chord_deviation:.4g} vs "
-        f"rel_tol {decision.rel_tolerance:g})",
-        "* CGS X axis is Vgs; table comes from the AC curve swept over Vds "
-        "at Vgs=0",
-        "* CDG X axis is drain-to-gate V(di,gi); with Vgs=0 in the AC sweep "
-        "v_DG=v_DS",
-        "* Outside the AC sweep range LTspice table()/Q= lookups end-clamp "
-        "at the table endpoints (repo-verified); no charge data is claimed "
-        "beyond the sweep",
-    ]
-    if decision.is_linear:
-        c_lin = ((cgs_pairs[-1][1] - cgs_pairs[0][1]) /
-                 (cgs_pairs[-1][0] - cgs_pairs[0][0]))
-        charge.append(f"* CGS is nearly linear: C={c_lin:.6e} F")
-        charge.append(f"CGS gi ss {_fmt(c_lin)}")
-    else:
+    if charge_mode == "tables":
+        charge: List[str] = [
+            "* --- SIMPLIS Level-2 three-capacitor charge model (AC Curve 4) ---",
+            "* CGS=Ciss-Crss, CDS=Coss-Crss, CDG=Crss (single AC sweep at Vgs=0)",
+            f"* CGS linearity test: {'LINEAR' if decision.is_linear else 'PWL'} "
+            f"(chord deviation {decision.chord_deviation:.4g} vs "
+            f"rel_tol {decision.rel_tolerance:g})",
+            "* CGS X axis is Vgs; table comes from the AC curve swept over Vds "
+            "at Vgs=0",
+            "* CDG X axis is drain-to-gate V(di,gi); with Vgs=0 in the AC sweep "
+            "v_DG=v_DS",
+            "* Q= chains: constant (C=0) below the first breakpoint; above the "
+            "last breakpoint they extrapolate linearly with the last segment "
+            "slope (no table() end-clamp)",
+        ]
+        if decision.is_linear:
+            c_lin = ((cgs_pairs[-1][1] - cgs_pairs[0][1]) /
+                     (cgs_pairs[-1][0] - cgs_pairs[0][0]))
+            charge.append(f"* CGS is nearly linear: C={c_lin:.6e} F")
+            charge.append(f"CGS gi ss {_fmt(c_lin)}")
+        else:
+            charge.extend(_emit_cap(
+                "CGS", "gi", "ss", "V(gi,ss)", cgs_pairs,
+                "gate-source charge, greedy rule for interior points"))
         charge.extend(_emit_cap(
-            "CGS", "gi", "ss", "V(gi,ss)", cgs_pairs,
-            "gate-source charge, greedy rule for interior points"))
-    charge.extend(_emit_cap(
-        "CDS", "di", "ss", "V(di,ss)", cds_pairs,
-        "drain-source charge, 4-segment SIMPLIS default"))
-    charge.extend(_emit_cap(
-        "CDG", "di", "gi", "V(di,gi)", cdg_pairs,
-        "drain-gate charge on the Vdg axis, 4-segment SIMPLIS default"))
-    charge.append("")
+            "CDS", "di", "ss", "V(di,ss)", cds_pairs,
+            "drain-source charge, measured breakpoints"))
+        charge.extend(_emit_cap(
+            "CDG", "di", "gi", "V(di,gi)", cdg_pairs,
+            "drain-gate charge on the Vdg axis, measured breakpoints"))
+        charge.append("* RGS: documented Level-2 gate-source bleed (10 MOhm)")
+        charge.append(RGS_LINE)
+        charge.append("")
+    else:
+        # Keep the closed Tier-2 charge block byte-for-byte, adding only the
+        # documented Level-2 RGS. This is the measured comparison candidate.
+        charge = list(lines[i0:i1])
+        j = next(i for i, line in enumerate(charge)
+                 if line.startswith("C_RSS "))
+        charge[j + 1:j + 1] = [
+            "* RGS: documented Level-2 gate-source bleed (10 MOhm)",
+            RGS_LINE,
+        ]
 
+    # Optional hybrid channel. Replace ONLY the Tier-2 G_CH line; every other
+    # line (charge, diode, parasitics) must remain byte-identical.
+    hybrid_note: List[str] = []
+    if channel_fit is not None:
+        expression = channel_fit.expression
+        if not isinstance(expression, str) or not expression or not expression.isascii():
+            raise ValueError("channel_fit.expression must be a non-empty ASCII string")
+        meta = getattr(channel_fit, "meta", {})
+        note = [
+            "* Hybrid channel: measured hinge_c fit; only the Tier-2 G_CH line is replaced",
+            f"* fit meta: kind={meta.get('kind')}, n_knees={meta.get('n_knees')}, "
+            f"rel_tolerance={meta.get('rel_tolerance')}, "
+            f"achieved_rel_rmse={meta.get('achieved_rel_rmse')}, "
+            f"max_abs_fit_error_a={getattr(channel_fit, 'max_abs_fit_error_a', None)}",
+            f"* fit stop criterion: {meta.get('stop_criterion')}",
+            f"* measured limitation: {meta.get('known_limitation')}",
+        ]
+        if not all(line.isascii() for line in note):
+            raise ValueError("hybrid channel fit meta is not ASCII")
+        hybrid_note = note
+
+    gch_seen = 0
     out: List[str] = []
     for line in lines[:i0]:
         if line == f"* PieceSpice Tier 2 CPWL Model for {spec.device_name}":
             out.append(
                 f"* PieceSpice Tier 3 SIMPLIS Level-2 charge-table model "
                 f"for {spec.device_name}")
+            out.extend(hybrid_note)
         elif line == f".SUBCKT {t2_name} d g s":
             out.append(f".SUBCKT {name} d g s")
+        elif line.startswith("G_CH "):
+            gch_seen += 1
+            out.append(f"G_CH di ss VALUE={channel_fit.expression}"
+                       if channel_fit is not None else line)
         else:
             out.append(line)
+    if gch_seen != 1:
+        raise RuntimeError(
+            f"Tier-2 emitter has {gch_seen} G_CH lines; expected exactly one")
     out.extend(charge)
     for line in lines[i1:]:
         if line == f".ENDS {t2_name}":
