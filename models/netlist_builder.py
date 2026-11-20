@@ -9,9 +9,9 @@ behavior with PWL/behavioral elements instead of stiff physics:
       RS  s  ss {r_source}                  * source parasitic
 
       G_CH  di ss VALUE = { ... tanh-knee channel ... }   <- Curves 1+2
-      B_QOSS di ss Q = { PWL charge table }               <- Curve 4
+      C_QOSS di ss Q = { PWL charge table }               <- Curve 4
       C_ISS  gi ss Q = { PWL charge table }               <- Curve 4
-      B_QRSS gi di Q = { PWL charge table }               <- Curve 4
+      C_RSS  gi di Q = { PWL charge table }               <- Curve 4
       D_BODY ss di <PWL/exponential from Curve 6>
 
     .ENDS
@@ -29,7 +29,12 @@ from typing import List
 
 import numpy as np
 
-from approximation.smoother import fit_tanh_knee_ls, fit_tanh_plateau
+from approximation.smoother import (
+    emit_qoss_expr,
+    emit_transfer_ramp,
+    fit_tanh_knee_ls,
+    fit_tanh_plateau,
+)
 from common.types import PWLModelSpec, PWL_META_KEYS
 
 
@@ -74,23 +79,8 @@ def _fmt(x: float) -> str:
     return f"{x:.6e}"
 
 
-def _ramp_chain(xs: List[float], ys: List[float], term: str) -> str:
-    """C0 PWL through (xs, ys) as chained soft-abs ramps with delta slopes."""
-    expr = f"{_fmt(ys[0])}"
-    prev_slope = 0.0
-    for i in range(1, len(xs)):
-        dv = xs[i] - xs[i - 1]
-        slope = (ys[i] - ys[i - 1]) / dv if dv else 0.0
-        delta = slope - prev_slope
-        if abs(delta) > 0 or i == 1:
-            coeff = slope if i == 1 else delta
-            expr += (f" + {coeff:.6e}*(({term}-{xs[i - 1]:.6e})"
-                     f"+abs(({term})-{xs[i - 1]:.6e}))/2")
-        prev_slope = slope
-    return expr
-
-
-def _channel_expression(spec: PWLModelSpec, vgs_term: str) -> str:
+def _channel_expression(spec: PWLModelSpec, vgs_term: str, *,
+                        eps: float = 0.0) -> str:
     """Behavioral channel current: PWL(Vgs) drive * tanh(Vds/vds_sat(Vgs)).
 
     The topology is unchanged from the original Tier-2 emitter (PWL transfer,
@@ -103,7 +93,16 @@ def _channel_expression(spec: PWLModelSpec, vgs_term: str) -> str:
     scaled by 1/tanh(Vmax/s); a fitted plateau is blended in at a fixed 25 %
     only when its ratio to the extracted endpoint lies in [0.7, 1.3], a rule
     that excludes unreliable near-zero curves without device-specific tuning.
+    eps is a smoothness-only option for the two PWL(Vgs) ramps: it is fed to
+    the shared delta-slope chain and leaves the fitted knee width, plateau
+    blend and Vth anchor untouched. eps = 0 is the closed Tier-2 emitter.
     """
+    if (len(spec.breakpoints_vds) < 2 or not spec.vgs_values
+            or not spec.breakpoints_id):
+        raise ValueError(
+            f"{spec.device_name}: channel needs >=2 Vds breakpoints and "
+            f">=1 Vgs curve (got {len(spec.breakpoints_vds)} Vds, "
+            f"{len(spec.vgs_values)} Vgs)")
     vd = np.asarray(spec.breakpoints_vds, dtype=float)
     vmax = float(vd[-1])
     span = vmax - float(vd[0])
@@ -139,28 +138,42 @@ def _channel_expression(spec: PWLModelSpec, vgs_term: str) -> str:
         iv = [0.0, 0.0] + id_vals
         sv = [sat_vals[0], sat_vals[0]] + sat_vals
 
-    amp = _ramp_chain(xs, iv, vgs_term)
-    sat = _ramp_chain(xs, sv, vgs_term)
+    amp = emit_transfer_ramp(xs, iv, eps, term=vgs_term)
+    sat = emit_transfer_ramp(xs, sv, eps, term=vgs_term)
     return f"({amp})*tanh(V(di,ss)/({sat}))"
 
 
-def build_tier2_subcircuit(spec: PWLModelSpec) -> str:
+def build_tier2_subcircuit(spec: PWLModelSpec, *,
+                           c1_eps: float | None = None,
+                           name: str | None = None,
+                           subckt_name: str | None = None) -> str:
     """Emit an executable Tier-2 CPWL MOSFET subcircuit.
 
     Ports: d (drain) g (gate) s (source) - positional order fixed and
     documented; Tj thermal port not yet synthesized (M5 scope).
+
+    c1_eps is an opt-in C1 hinge width [V] in the grid's units: None means 0
+    (the closed Tier-2 C0 emitter). Callers supply a data-derived width from
+    approximation.smoother.eps_from_grid - this builder has no magic eps. It
+    touches only the two ramp sites (channel Vgs and Qoss Vds); D_BODY,
+    parasitics and the three charge elements stay unchanged.
+
+    name/subckt_name override the emitted .SUBCKT name (and the D_BD model
+    suffix); both default to None, which keeps the closed Tier-2 name.
+    subckt_name wins when both are supplied.
     """
     meta = _resolve_metadata(spec)
-    name = f"{spec.device_name}_PIECESPICE_T2"
+    subckt = subckt_name or name or f"{spec.device_name}_PIECESPICE_T2"
+    eps = 0.0 if c1_eps is None else float(c1_eps)
 
-    channel = _channel_expression(spec, vgs_term="V(gi,ss)")
+    channel = _channel_expression(spec, vgs_term="V(gi,ss)", eps=eps)
 
     lines: List[str] = []
     ap = lines.append
     ap(f"* PieceSpice Tier 2 CPWL Model for {spec.device_name}")
     ap(f"* Generated from fitted PWLModelSpec (K={len(spec.vgs_values)} "
        f"Vgs curves, {len(spec.breakpoints_vds)} Vds breakpoints)")
-    ap(f".SUBCKT {name} d g s")
+    ap(f".SUBCKT {subckt} d g s")
     ap(f"* Pins: 1=Drain(d) 2=Gate(g) 3=Source(s)")
     ap("")
     ap("* --- parasitics ---")
@@ -177,19 +190,11 @@ def build_tier2_subcircuit(spec: PWLModelSpec) -> str:
     qoss_v = spec.q_oss_vs_v
     qoss_q = spec.q_oss_charge_c
     if len(qoss_v) >= 2:
-        ap("* Output charge Qoss(Vds) as chained soft-abs ramps:")
-        expr_qoss = f"{_fmt(qoss_q[0])}"
-        prev_slope = 0.0
-        for i in range(1, len(qoss_v)):
-            dv = qoss_v[i] - qoss_v[i - 1]
-            dq = qoss_q[i] - qoss_q[i - 1]
-            slope = dq / dv if dv else 0.0
-            delta = slope - prev_slope   # DELTA, not absolute (audit bug)
-            if abs(delta) > 0:
-                expr_qoss += (
-                    f" + {delta:.6e}*((V(di,ss)-({_fmt(qoss_v[i - 1])}))"
-                    f"+abs((V(di,ss)-({_fmt(qoss_v[i - 1])}))))/2")
-            prev_slope = slope
+        ap("* Output charge Qoss(Vds) as chained delta ramps:")
+        # One shared delta-slope chain: Q(0)=0 is anchored by the helper.
+        # At eps=0 this is numerically identical to the closed emitter; only
+        # redundant parentheses around formatted breakpoints are normalised.
+        expr_qoss = emit_qoss_expr(qoss_v, qoss_q, eps)
         ap(f"C_QOSS di ss Q = {{{expr_qoss}}}")
     else:
         c_lin = float(meta.get("c_oss_lin", 500e-12))
@@ -214,16 +219,16 @@ def build_tier2_subcircuit(spec: PWLModelSpec) -> str:
                      0.5)
         n_est = min(n_est, 4.0)
         is_est = max(i_lo * np.exp(-vsd[np.argmin(isd)] / (vt * n_est)), 1e-15)
-        ap(f".MODEL D_BD_{name} D(IS={_fmt(is_est)} N={n_est:.3f} "
+        ap(f".MODEL D_BD_{subckt} D(IS={_fmt(is_est)} N={n_est:.3f} "
            f"RS={_fmt(max(float(spec.rds_on), 1e-4))})")
-        ap(f"D_BODY ss di D_BD_{name}")
+        ap(f"D_BODY ss di D_BD_{subckt}")
     else:
         ap("* body-diode samples unavailable; ideal diode fallback")
         ap(".MODEL D_IDEAL D(IS=1e-12)")
         ap("D_BODY ss di D_IDEAL")
     ap("")
 
-    ap(f".ENDS {name}")
+    ap(f".ENDS {subckt}")
     return "\n".join(lines)
 
 
@@ -231,5 +236,9 @@ class NetlistBuilder:
     """Synthesizes executable Tier-2 SPICE subcircuits (Tier 1/3 future)."""
 
     @staticmethod
-    def build_tier2_subcircuit(spec: PWLModelSpec) -> str:
-        return build_tier2_subcircuit(spec)
+    def build_tier2_subcircuit(spec: PWLModelSpec, *,
+                               c1_eps: float | None = None,
+                               name: str | None = None,
+                               subckt_name: str | None = None) -> str:
+        return build_tier2_subcircuit(
+            spec, c1_eps=c1_eps, name=name, subckt_name=subckt_name)

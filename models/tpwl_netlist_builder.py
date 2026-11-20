@@ -43,6 +43,7 @@ import numpy as np
 from scipy.optimize import least_squares
 
 from config.yaml_io import load_input, load_output
+from approximation.smoother import hyp_expr, hyp_value
 from approximation.static_curves import load_output_family
 from approximation.tpwl_deim import TPWLTerminalModel, paper_weights
 
@@ -50,6 +51,11 @@ _PORT = {"drain": "d", "gate": "g", "source": "s", "tj": "tj"}
 _VSAT_DEFAULT = 0.2        # low-Vds saturation scale [V], measured on TI/IRFS/CPM2
 _VSAT_BY_VENDOR = {"epc2216": 0.5}  # EPC stalls at 0.2 V; 0.5 V completes
 _QOSS_FIT_POINTS = 160
+
+# V=0 regularisation of the landed two-exponential Qoss guard (not a hinge
+# width). C1 hinge widths are data-derived via eps_from_grid and supplied to
+# the Tier-2 emitter through c1_eps; no new magic width is introduced here.
+_QOSS_V0_EPS = 1e-3
 _HIGH_VDS_HEADROOM = 1.10
 
 
@@ -188,7 +194,7 @@ def emitted_channel(model: TPWLTerminalModel, u: np.ndarray) -> np.ndarray:
     x = out * gate * u[1] / (u[1] + saturation_scale(model))
     pol = emission_policy(model)
     if pol.soft_clamp:
-        return 0.5 * (x + np.sqrt(x * x + pol.soft_eps ** 2))
+        return hyp_value(x, pol.soft_eps)
     return np.maximum(0.0, x)
 
 
@@ -205,6 +211,10 @@ def _qoss_expr(model: TPWLTerminalModel) -> str:
     """Monotone drain charge: smooth two-exponential fit or dense table."""
     from approximation.charge_model import integrate_charge
     charge = integrate_charge(model.coss_v, model.coss_c)
+    if charge.v.size < 2 or charge.q.size != charge.v.size:
+        raise ValueError(
+            f"{model.vendor}: Coss charge table has "
+            f"{charge.v.size} usable point(s); need >=2")
     if emission_policy(model).smooth_qoss:
         v = np.linspace(0.0, float(charge.v[-1]), _QOSS_FIT_POINTS)
         q = np.interp(v, charge.v, charge.q)
@@ -223,8 +233,7 @@ def _qoss_expr(model: TPWLTerminalModel) -> str:
             max_nfev=5000)
         a, b, t1, t2 = (float(r.x[0]), float(r.x[1]),
                         float(np.exp(r.x[2])), float(np.exp(r.x[3])))
-        eps = 1e-3
-        vs = (f"(0.5*(V(d,s)+sqrt(V(d,s)*V(d,s)+{_f(eps * eps)})))")
+        vs = hyp_expr("V(d,s)", _QOSS_V0_EPS)
         return (f"({_f(a)}*(1-exp(-{vs}/{_f(t1)}))"
                 f"+{_f(b)}*(1-exp(-{vs}/{_f(t2)})))")
     v = np.linspace(0.0, float(charge.v[-1]), _QOSS_FIT_POINTS)
@@ -241,6 +250,10 @@ def emit_subcircuit(model: TPWLTerminalModel, *,
     g, d = grid_axes(model)
     table = grid_channel(model, g, d)
     tv, tf = transfer_curve(model)
+    if tv.size < 2:
+        raise ValueError(
+            f"{model.vendor}: curve2 transfer characteristic has "
+            f"{tv.size} point(s); need >=2")
 
     def rows(vals: np.ndarray) -> str:
         return ",".join(
@@ -257,7 +270,7 @@ def emit_subcircuit(model: TPWLTerminalModel, *,
          f"*V(d,s)/(V(d,s)+{_f(vsat)})")
     pol = emission_policy(model)
     if pol.soft_clamp:
-        channel = f"(0.5*({x}+sqrt({x}*{x}+{_f(pol.soft_eps ** 2)})))"
+        channel = hyp_expr(x, pol.soft_eps)
     else:
         channel = f"max(0,{x})"
 

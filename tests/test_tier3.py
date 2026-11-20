@@ -10,6 +10,7 @@ from approximation.tpwl_deim import (
     deim_indices,
     paper_weights,
 )
+from approximation.smoother import hyp_expr
 
 
 def test_deim_indices_are_distinct_and_interpolatory():
@@ -81,17 +82,33 @@ def test_grid_axes_are_deterministic_and_cover_dpt():
 
 
 def test_emission_is_ascii_and_uses_flat_tables_without_weights():
-    text = emitter.emit_subcircuit(_toy_model(), name="TOY_T3")
+    model = _toy_model()
+    text = emitter.emit_subcircuit(model, name="TOY_T3")
     assert text.isascii()
     assert text.startswith(".subckt TOY_T3 d g s\n")
     assert text.rstrip().endswith(".ends")
-    assert "G_CH d s VALUE={(0.5*(" in text
+
+    gch = next(line for line in text.splitlines()
+               if line.startswith("G_CH "))
+    assert gch.startswith("G_CH d s VALUE={")
+    value = gch[len("G_CH d s VALUE={"):]
+    assert value.endswith("}")
+    value = value[:-1]
+
+    # Flat channel: nested V(d,s) tables (transfer x channel) times the
+    # analytic Vds factor, with no B-source intermediates or weight nodes.
     assert "table(V(d,s)," in text
     assert "V(d,s)/(V(d,s)+2.000000000e-01)" in text
     assert "QOSS d s Q={table(limit(V(d,s)" in text
-    # No B-source intermediates, no per-cell weight nodes, no C_QD.
     assert "\nB" not in text and "C_QD" not in text
+    assert "weight" not in text.lower()
     assert "exp(" not in text and "sqrt(" in text
+
+    # Softplus is the shared C1 hyperbola-smoothed hinge
+    # 0.5*(x + sqrt(x*x + eps^2)), not the old literal softplus form.
+    env = hyp_expr("@", emitter.emission_policy(model).soft_eps).split("@")
+    assert value.startswith(env[0])       # 0.5*((...
+    assert value.endswith(env[-1])        # ...)+eps^2))
 
 
 def test_emitted_channel_clamps_negative_drain_voltage():
@@ -436,3 +453,208 @@ def test_simplis_channel_selection_rejects_regressing_hybrid_dpt():
     }
     assert _select_channel_candidate(
         winning, adaptive_results=speed)[0] == "hybrid"
+
+
+# ---- T1: Tier-3 sites call the T0 hyp/sqrt helpers (unified spec 4.1) -----
+
+def test_tier3_emitter_calls_shared_hyp_expr(monkeypatch):
+    """R11 drift guard: soft clamp and Qoss guard own no fourth hyp copy."""
+    model = _toy_model()
+    monkeypatch.setattr(emitter, "hyp_expr",
+                        lambda x, eps=0.0: f"SHARED_HYP({x})")
+    text = emitter.emit_subcircuit(model, name="TOY_T3")
+    assert "SHARED_HYP(" in text
+    assert text.isascii()
+
+    ir = _toy_model()
+    ir.vendor = "irfs7730pbf"       # smooth_qoss policy hits the Qoss site
+    ir_text = emitter.emit_subcircuit(ir, name="IR_T3")
+    assert "SHARED_HYP(V(d,s))" in ir_text
+
+
+def test_tier3_smooth_qoss_guard_uses_shared_hyp_text():
+    ir = _toy_model()
+    ir.vendor = "irfs7730pbf"
+    text = emitter.emit_subcircuit(ir, name="IR_T3")
+    assert hyp_expr("V(d,s)", emitter._QOSS_V0_EPS) in text
+    assert text.isascii()
+
+
+def test_tier3_numeric_mirror_uses_shared_hyp_value(monkeypatch):
+    """The numpy mirror is the T0 helper, not a local clamp duplicate."""
+    model = _toy_model()
+    u = np.vstack([np.array([10.0, 10.0]), np.array([0.0, 10.0])])
+    baseline = emitter.emitted_channel(model, u)
+    calls = []
+
+    def spy(x, eps=0.0):
+        calls.append(eps)
+        return np.zeros_like(np.asarray(x, dtype=float))
+
+    monkeypatch.setattr(emitter, "hyp_value", spy)
+    replaced = emitter.emitted_channel(model, u)
+    assert calls == [emitter.emission_policy(model).soft_eps]
+    assert not np.allclose(replaced, baseline)
+
+
+def test_tier3_emission_adds_no_internal_nodes():
+    """Flat channel/Qoss emission keeps only the three semantic ports."""
+    text = emitter.emit_subcircuit(_toy_model(), name="TOY_T3")
+    lines = text.splitlines()
+    assert lines[0] == ".subckt TOY_T3 d g s"
+    assert lines[-1] == ".ends"
+    elements = lines[1:-1]
+    assert len(elements) == 2
+    assert elements[0].startswith("C") and " Q={" in elements[0]
+    assert elements[1].startswith("G_CH d s VALUE={")
+    nodes: set[str] = set()
+    for line in elements:
+        nodes.update(line.split()[:3][1:3])
+    assert nodes == {"d", "s"}
+    assert text.isascii()
+
+
+# ---- B: ANN guard-width provenance (static grid, DPT-safe) ----------------
+import sys  # noqa: E402
+import pytest  # noqa: E402
+from common.types import CurveData  # noqa: E402
+from approximation import ann_channel as ann_channel_mod  # noqa: E402
+from approximation.ann_channel import DptPoints  # noqa: E402
+from approximation.ann_charge import AnnChargeFit  # noqa: E402
+from approximation.smoother import eps_from_grid  # noqa: E402
+from models.ann_netlist_builder import (  # noqa: E402
+    build_ann_subcircuit, emit_ann_channel,
+)
+from pipeline import ann_fit as ann_fit_mod  # noqa: E402
+
+
+class _FakeLeastSquaresResult:
+    """Deterministic optimizer stand-in: guard width is the unit under test."""
+
+    def __init__(self, x):
+        self.x = np.asarray(x, float)
+        self.cost = 0.0
+        self.nfev = 1
+        self.njev = 1
+        self.status = 1
+        self.message = "deterministic test result"
+
+
+def _stub_optimizer(monkeypatch):
+    monkeypatch.setattr(
+        ann_channel_mod, "least_squares",
+        lambda residual, p0, **kw: _FakeLeastSquaresResult(p0))
+
+
+def _ann_static_families(n: int = 21):
+    vds = np.linspace(0.0, 10.0, n)
+    out = []
+    for vgs in (2.0, 4.0, 6.0):
+        id_ = (vgs - 1.0) * (1.0 - np.exp(-vds))
+        out.append(CurveData(
+            name=f"curve1_vgs_{vgs:g}", x_name="Vds", x_unit="V",
+            y_name="Id", y_unit="A", x_data=list(vds), y_data=list(id_),
+            family_param="Vgs", family_value=vgs,
+            metadata={"source": f"synthetic:curve_id_vgs_{vgs:g}"}))
+    return out
+
+
+def test_ann_guard_width_uses_static_grid_not_dense_dpt(monkeypatch):
+    """Dense DPT plateau samples must not collapse the low-VDS hinge."""
+    _stub_optimizer(monkeypatch)
+    fams = _ann_static_families()
+    dense = 10.0 + np.linspace(0.0, 1e-4, 30)
+    dpt = DptPoints(np.full_like(dense, 8.0), dense, np.full_like(dense, 20.0),
+                    {"source": "dpt_trajectory", "status": "ok",
+                     "sample_indices": list(range(100, 130))})
+    fit = ann_channel_mod.fit_channel_iv(fams + [dpt], 1.0, 2.0, neurons=2)
+
+    expected = eps_from_grid(np.unique(fams[0].to_numpy()[0]).tolist())
+    collapsed = eps_from_grid(np.unique(np.concatenate(
+        [c.to_numpy()[0] for c in fams] + [dense])).tolist())
+    assert expected > 0.1                      # static grid scale
+    assert collapsed < 1e-3                    # the defect being guarded
+    assert fit.coefficients["guard_width"] == pytest.approx(expected)
+    assert fit.diagnostics["guard_width_v"] == pytest.approx(expected)
+    gw_prov = fit.provenance["guard_width"]
+    assert gw_prov["dpt_points_excluded"] == dense.size
+    assert "Curve-1 static Vds grid" in gw_prov["source"]
+    dpt_prov = fit.provenance["curves"]["dpt_high_vi"][0]
+    assert dpt_prov["sample_indices"] == list(range(100, 130))
+
+
+def test_ann_emitter_uses_fit_guard_width(monkeypatch):
+    """The emitted tanh blend and header carry the fit's guard width."""
+    _stub_optimizer(monkeypatch)
+    fit = ann_channel_mod.fit_channel_iv(
+        _ann_static_families(), 1.0, 2.0, neurons=2, guard_width=0.075,
+        guard_width_provenance={"source": "explicit static grid",
+                                "n_grid_points": 101})
+    assert fit.coefficients["guard_width"] == pytest.approx(0.075)
+    assert fit.provenance["guard_width"]["source"] == "explicit static grid"
+    assert "/(7.500000e-02)" in emit_ann_channel(fit)
+
+    tables = {n: {"v": [0.0, 1.0], "q": [0.0, 1e-9]}
+              for n in ("oss", "iss", "rss")}
+    charge = AnnChargeFit(tables, None, "isru", 2, {}, {})
+    text = build_ann_subcircuit(_simplis_spec(), fit, charge)
+    assert "* Guard width: 7.500000e-02 V" in text
+    assert text.isascii()
+
+
+def test_ann_dpt_provenance_records_retained_sample_indices(monkeypatch):
+    """sample_indices are the real captured-trajectory indices, not []."""
+    module = type(sys)("simulation.testbenches.dpt_trajectory")
+    n = 12
+    vgs = np.linspace(0.0, 10.0, n)
+    vds = np.linspace(5.0, 12.0, n)
+    ids = np.ones(n)
+    module.capture_trajectory = lambda vendor, timeout_s: SimpleNamespace(
+        input=np.vstack([vgs, vds]),
+        output=np.vstack([ids, np.zeros(n)]),
+        pin_roles=["d", "g", "s"])
+    monkeypatch.setitem(sys.modules,
+                        "simulation.testbenches.dpt_trajectory", module)
+    dpt, prov = ann_fit_mod._dpt_points("TOY", 10.0)
+    assert dpt is not None and prov["status"] == "ok"
+    assert prov["sample_indices"] == [8, 9, 10, 11]
+    assert dpt.provenance["sample_indices"] == prov["sample_indices"]
+
+
+def test_ann_fit_record_uses_actual_q0_used(monkeypatch):
+    """q0_offset is the measured log-Q0, not the unset caller override."""
+    fams = _ann_static_families()
+    captured: dict = {}
+
+    def _fit(inputs, v_th, v_sat, **kwargs):
+        captured["width"] = kwargs.get("guard_width")
+        captured["prov"] = kwargs.get("guard_width_provenance")
+        return SimpleNamespace(
+            activation="isru", neurons=2, loss_weights={"id": 1.0},
+            diagnostics={"derivative_terms": ["gm"]},
+            train_range={"vds": [0.0, 10.0]}, out_of_range_check="pass",
+            provenance={})
+
+    charge_prov = {"q0_used": {"oss": 1.5e-8, "iss": 2.5e-10, "rss": 1.0e-8},
+                   "derivative_terms": ["dq"]}
+    charge = SimpleNamespace(q0=None, provenance=charge_prov)
+    monkeypatch.setattr(ann_fit_mod, "load_input",
+                        lambda v: {"device": "TOY", "conditions": {}})
+    monkeypatch.setattr(ann_fit_mod, "_channel_families",
+                        lambda v, c: (fams, 10.0))
+    monkeypatch.setattr(ann_fit_mod, "_extract", lambda v, b: {"vth_v": 1.0})
+    monkeypatch.setattr(ann_fit_mod, "_charge_curves", lambda v, c: (None, None, {}))
+    monkeypatch.setattr(ann_fit_mod, "_dpt_points",
+                        lambda v, m: (None, {"status": "disabled",
+                                             "sample_indices": []}))
+    monkeypatch.setattr(ann_fit_mod, "fit_channel_iv", _fit)
+    monkeypatch.setattr(ann_fit_mod, "fit_charge_qv", lambda c, p: charge)
+
+    out = ann_fit_mod.ann_fit_for_vendor("TOY", include_dpt_points=False)
+    record = out["record"]
+    assert record["q0_offset"] == pytest.approx(1.5e-8)
+    assert record["q0_offset_by_table"] == charge_prov["q0_used"]
+    assert "q_oss entry" in record["q0_offset_source"]
+    assert captured["width"] == pytest.approx(0.25)
+    assert out["provenance"]["guard_width"] == captured["prov"]
+    assert out["provenance"]["dpt_high_vi"]["sample_indices"] == []

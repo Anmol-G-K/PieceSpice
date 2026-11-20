@@ -15,7 +15,7 @@
 
 [![Infineon](https://img.shields.io/badge/supported-Infineon%20%2F%20IR-0A8276?labelColor=1a1a1a)](#validated-devices) [![TI](https://img.shields.io/badge/supported-Texas%20Instruments-CC0000?labelColor=1a1a1a)](#validated-devices) [![EPC](https://img.shields.io/badge/supported-EPC%20GaN-006FBA?labelColor=1a1a1a)](#validated-devices) [![Wolfspeed](https://img.shields.io/badge/supported-Wolfspeed%20SiC-58238C?labelColor=1a1a1a)](#validated-devices)
 
-*Vendor `.lib` in → validated Tier-2 CPWL, Tier-3 TPWL or Tier-4 ideal-switch + LUT out*
+*Vendor `.lib` in → validated Tier-2 CPWL, Tier-3 TPWL / unified one-ROM (urom) or Tier-4 ideal-switch + LUT out*
 
 </div>
 
@@ -39,6 +39,13 @@ distills vendor MOSFET subcircuits into one of **four selectable model options**
   Tier-2 channel with SIMPLIS-style PWL charge tables, holding Tier-2 static
   parity with mixed waveform fidelity (TI Vds REGRESSED vs `v1`). Neither is a
   global speed tier: the guarded 20-pulse adaptive ≥5× result is TI-only.
+- **Unified one-ROM — `--tier 3 --variant urom`.** One canonical closed C0
+  channel/charge emitter (the closed Tier-2 form) reused unchanged as the
+  fidelity-preserving path, emitted as ASCII `<vendor>_PIECSPICE_UROM.lib`.
+  In the final equal-sandbox validation it is **accepted on TI and EPC**
+  (scoped speedup, not global) and **rejected on IRFS and CPM2** on measured
+  DPT waveform bars. The ANN candidate was measured and rejected on all four;
+  a fixed-topology tuning API exists but tuning was off in the final run.
 - **Tier-4 — ideal-switch fast tier (dual-tier addition).** Standard-SPICE
   ideal switch plus a measured conduction/switching loss LUT kept as comments
   for offline post-processing. The DPT waveform gate is retired by design:
@@ -54,6 +61,7 @@ distills vendor MOSFET subcircuits into one of **four selectable model options**
 | **PieceSpice Tier-2 (CPWL)** | **●●●●○ (2.04–8.49 % static rel-RMSE; ≤ 4.13 % endpoint)** | **●●○○○ (~1× at matched conditions; not significant)** | **●●●●● (C⁰ PWL + tanh knee)** |
 | **PieceSpice Tier-3 (TPWL)** | **●●●●○ (0.61–4.24 % static fit rel-RMSE)** | **●●○○○ (0.0988–0.570× measured; slower than golden)** | **●●●○○ (anchored on captured trajectory)** |
 | **PieceSpice Tier-3 `simplis` (PWL charge)** | **●●●○○ (2.04–8.49 % static rel-RMSE, Tier-2 parity; DPT Vds 2.79–11.26 %; TI Vds REGRESSED vs v1)** | **●●○○○ (20-pulse adaptive solver 1.0433–5.4338×, CPM2 N/A; ≥5× TI-only)** | **●●●○○ (guarded 20-pulse runs; four completed 2-pulse DPTs)** |
+| **PieceSpice unified one-ROM (C0, urom)** | **●●●●○ (static rel-RMSE back at Tier-2 bars 2.0394–8.4935 %; DPT gate fails on IRFS/CPM2)** | **●●○○○ (TI 5.207× solver / 3.011× wall; EPC 1.017× / 1.009×; scoped, not global)** | **●●●○○ (one declared method, per-vendor verdicts)** |
 | **PieceSpice Tier-4 (ideal switch + LUT)** | **●●○○○ (DPT waveform gate retired by design)** | **●●●○○ (guarded inductive-bench solver 1.178–6.594×; EPC golden 100 ns cap; CPM2 N/A)** | **●●●○○ (DPT 4/4 complete, speed 3/4 measured)** |
 | PLECS / Ideal | ●○○○○ | ●●●●● | ●●●●● |
 
@@ -74,6 +82,12 @@ hardened fast tier whose inductive-bench speed and honest scope are tabulated
 below. All four options hold their recorded scope (Tier-4's waveform gate is
 retired by design, not passed). See
 [Measured Results](#-measured-results) for the tables and conditions of validity.
+
+The unified one-ROM candidate (`--tier 3 --variant urom`) closes that split
+only partially: the same canonical C0 emitter is accepted on TI/EPC and
+rejected on IRFS/CPM2 on measured DPT bars, so one ROM holds fidelity and
+scoped speed on two of four devices — the project goal is partially achieved,
+not universal.
 
 Everything is emitted as a **standard SPICE subcircuit** — no proprietary
 solver, no special runtime. Drop the generated `.lib` into any SPICE flow
@@ -101,6 +115,7 @@ LTspice 26) and simulate against the golden model.
                                     ▼
           Tier-2 → reports/models/<device>_PIECESPICE_T2.lib
           Tier-3 → reports/models/<device>_PIECESPICE_T3[_<variant>].lib
+          Tier-3 urom → reports/models/<device>_PIECSPICE_UROM.lib
 ```
 
 `*` analysis-only (notebook 02 / `metrics.compare`); the Tier-2 emitted model
@@ -216,6 +231,8 @@ The `fit`, `validate` and `compare` commands choose the tier explicitly
 uv run python -m cli.main fit csd16412q5a --tier 2                 # Tier-2 CPWL (default)
 uv run python -m cli.main fit csd16412q5a --tier 3                 # Tier-3 TPWL, default variant
 uv run python -m cli.main fit csd16412q5a --tier 3 --variant alt   # named Tier-3 variant
+uv run python -m cli.main fit csd16412q5a --tier 3 --variant urom  # unified one-ROM
+uv run python -m cli.main validate csd16412q5a --tier 3 --variant urom  # G0-G6 + scoped speed
 uv run python -m cli.main validate csd16412q5a --tier 2            # golden vs Tier-2
 uv run python -m cli.main validate csd16412q5a --tier 3             # golden vs Tier-3
 uv run python -m cli.main fit csd16412q5a --tier 4                  # Tier-4 build + record
@@ -231,11 +248,15 @@ variants per vendor are the norm, and the registry lists them. Tier-4 emits
 print DPT-source energy self-consistency and guarded inductive-bench speed,
 with `N/A` wherever a bench did not complete — never DPT waveform fidelity.
 
+The `urom` Tier-3 variant emits `<vendor>_PIECSPICE_UROM.lib` (ASCII); it
+carries the final four-vendor G0-G6 validation record in
+`reports/comparison/<vendor>/unified_validation.json`.
+
 Outputs land in:
 
 ```text
 config/outputs/<vendor>/        extracted curve data (YAML)
-reports/models/                 synthesized Tier-2 (.T2), Tier-3 (.T3) and Tier-4 (.T4) .lib files
+reports/models/                 Tier-2 (.T2), Tier-3 (.T3 / .UROM), Tier-4 (.T4) .lib files
 reports/comparison/<vendor>/    golden-vs-model metrics and validation JSONs
 figures/<vendor>/tier2|tier3/   golden-vs-tier DPT figures
 ```
@@ -262,7 +283,7 @@ automatically from the YAML pin map.
 | EPC | EPC2216 | GaN eGaN (behavioral) | ✅ 7/7 curves |
 | Wolfspeed | CPM2-1200-0025B | SiC bare die (Tj port) | ✅ 7/7 curves |
 
-All four selectable options are exercised on all four devices; measured figures follow.
+All four selectable options plus the unified one-ROM variant are exercised on all four devices; measured figures follow.
 
 ---
 
@@ -480,6 +501,47 @@ computed at the matched bench in the 2026-11-19 analysis (not stored in a
 JSON), is Vds 12.31 / 3.81 / 4.29 / 3.65 % and Id 0.57 / 0.04 / 0.05 /
 0.21 % (IRFS / TI / EPC / CPM2); the same edge-timing limit applies.
 
+**Unified one-ROM — final equal-sandbox result (`--tier 3 --variant urom`,
+2026-11-20).** A single canonical closed C0 Tier-2 channel/charge emitter is
+reused unchanged as the fidelity-preserving path (ANN candidate measured and
+rejected; a fixed-topology tuning API exists with tuning off in the final
+run). The emitted model is ASCII `<vendor>_PIECSPICE_UROM.lib`; the full
+G0-G6 record is `reports/comparison/<vendor>/unified_validation.json`.
+
+**Conditions of validity (unified one-ROM).** Golden and ROM share the same
+LTspice 26 core, bench, `.tran`/`.options`, default trap method and 25 °C;
+only the DUT differs (`deck_diff_only_dut=true`, `tolerance_overrides=[]`).
+Fidelity gates use the recorded forced-2 ns / 14 µs DPT against the closed
+Tier-2 control bars; speed is the 20-pulse, 176 µs adaptive clamped-inductive
+bench, median of 3 interleaved repeats, with `t_last = 1.76e-4 s` on both
+arms, positive iterations/points and a ≥50 % point-completion guard; EPC uses
+a 100 ns cap on both arms. An aborted run is a failure, never a speedup.
+Figures below are golden-vs-model measurements at these conditions, not
+datasheet ratings, and are bound to this one declared method
+(`global_claim=false`, `min_default_gear=null`, no portability screen).
+
+| Device (Vbus / Id) | Verdict | Static rel-RMSE | Solver / wall speedup | Iterations golden → urom | Points golden → urom | G3 DPT Vds / Id vs bar |
+|---|---|---|---|---|---|---|
+| CSD16412Q5A / TI (12.5 V / 10 A) | **accept** (G0-G6 all pass) | 8.4935 % | **5.207× / 3.011×** | 131,558 → 10,195 | 44,050 → 2,868 | 3.815 / 0.045 vs 5.583 / 0.048 |
+| EPC2216 (11 V / 10 A; 100 ns cap both arms) | **accept** (G0-G6 all pass) | 2.0394 % | 1.017× / 1.009× | 16,514 → 12,206 | 4,047 → 3,550 | 4.290 / 0.046 vs 4.894 / 0.049 |
+| IRFS7730PBF (38 V / 100 A) | reject (G3 only) | 7.0683 % | 1.029× / 0.956× | 12,718 → 9,274 | 3,432 → 2,556 | **12.313 / 0.572 vs 8.529 / 0.532 (both breach)** |
+| CPM2-1200 (20 V / 20 A) | reject (G3 only) | 3.4287 % | 1.131× / 1.119× | 12,492 → 9,214 | 3,092 → 2,523 | **3.649 / 0.215 vs 2.675 / 0.261 (Vds breach only)** |
+
+Static rel-RMSE returns exactly to the recorded Tier-2 bars
+(7.0683 / 8.4935 / 2.0394 / 3.4287 %, IRFS / TI / EPC / CPM2) and the worst
+endpoint stays ≤4.13 % on every C0 row. All C0 rows pass G0, G1, G2, G4, G5
+and G6; only IRFS and CPM2 fail G3, on the measured waveform bars above.
+The ANN channel candidate is rejected by G1/G2/G4 on all four devices (IRFS
+also G3); its isolated EPC ANN G3 “pass” rests on 2 compared points against
+a 7-point golden capture and is a compare-window artifact — it must never be
+quoted as ANN waveform fidelity. `fidelity_scope` reports
+`waveform_gate_retired=false` and `energy_only_claim=false`. No global or
+portable claim is made: `urom` is one declared method, verdicts are per
+vendor and `global_claim=false`. One ROM therefore holds fidelity and scoped
+speed only on TI/EPC — the project goal is partially achieved, not universal
+across all four vendors. TI's gain is a golden-stiffness artifact of this
+scoped bench; EPC's is marginal (≈1.7 % solver, ≈0.85 % wall).
+
 **Test suite.**
 
 | Command | Passed | Skipped |
@@ -599,6 +661,15 @@ its own test module, `tests/test_tier3.py`.
       adaptive failure). Waveform gate retired by design; energy rows are
       DPT-source self-consistency, efficiency N/A without converter output
       power, and no converter bench was built.
+- [x] **Unified one-ROM — `--tier 3 --variant urom`** *(final equal-sandbox
+      result, 2026-11-20)*: one canonical closed C0 channel/charge emitter,
+      ASCII `<vendor>_PIECSPICE_UROM.lib`. `accept` on TI (5.207× solver /
+      3.011× wall) and EPC (1.017× / 1.009×, 100 ns cap both arms);
+      `reject` on IRFS and CPM2 on measured G3 DPT bars only. Static
+      rel-RMSE back at the Tier-2 bars; ANN candidate rejected on all four;
+      tuning API present but off. Per-vendor scope with `global_claim=false`:
+      one ROM holds fidelity and scoped speed on TI/EPC only — partially
+      achieved, not universal.
 - [x] **M4** — Switching Dynamics & Double Pulse Testbench
       *(metrics, resistive-load subset and inductive DPT)*
 - [ ] **M5** — Switched-Mode Converter Benchmark & Speedup Evaluation

@@ -1,0 +1,1495 @@
+{
+  "schema": "piecespice.unified/1.0",
+  "vendor": "epc2216",
+  "variant": "urom",
+  "emitted_lib": "reports/models/epc2216_PIECSPICE_UROM.lib",
+  "channel_basis": "ann",
+  "c1_variant": null,
+  "method": "trap/default",
+  "equal_sandbox": {
+    "deck_diff_only_dut": true,
+    "effective_options_dumped": true,
+    "effective_options": {
+      "golden": [],
+      "rom": [],
+      "declared": []
+    },
+    "tolerance_overrides": [],
+    "libraries_inlined_both_arms": true,
+    "temperature_both_arms": 25.0,
+    "expected_temperature": 25.0,
+    "speed_deck_effective_options": {
+      "golden": [],
+      "rom": [],
+      "declared": []
+    }
+  },
+  "data_provenance": {
+    "curves": [
+      "curve1_output_characteristics.yaml",
+      "curve2_transfer_characteristic.yaml",
+      "curve3_rds_on.yaml",
+      "curve4_capacitances.yaml",
+      "curve5_gate_charge.yaml",
+      "curve6_body_diode.yaml",
+      "curve7_threshold_voltage.yaml"
+    ],
+    "dpt_high_vi": {
+      "source": "dpt_trajectory",
+      "vendor": "epc2216",
+      "conditions": {
+        "config": "config/inputs/epc2216.yaml#dpt"
+      },
+      "sample_indices": []
+    },
+    "external_source_status": "conditional_until_url_and_section_pinned",
+    "guard_width": {
+      "value": 0.07499999999999929,
+      "rule": "approximation.smoother.eps_from_grid (median positive spacing, capped at half minimum)",
+      "source": "curve1_output_characteristics:curve_id_vgs_6_v:Vds axis",
+      "family": "curve1_vgs_6",
+      "n_grid_points": 101,
+      "dpt_points_excluded": true
+    }
+  },
+  "ann_fit": {
+    "activation": "isru",
+    "neurons": 10,
+    "loss_weights": {
+      "id": 1.0,
+      "gm": 0.3,
+      "gds": 0.3,
+      "gm2": 0.1,
+      "gds2": 0.1
+    },
+    "gm_gds_q_derivative_terms": [
+      "gm",
+      "gds",
+      "gm2",
+      "gds2",
+      "dq",
+      "d2q"
+    ],
+    "train_range": {
+      "vgs": [
+        2.5,
+        6.0
+      ],
+      "vds": [
+        0.15,
+        15.0
+      ],
+      "vgs_center": 2.5,
+      "vgs_scale": 3.5,
+      "vds_center": 0.15,
+      "vds_scale": 14.85
+    },
+    "q0_offset": 4.734603212749592e-10,
+    "q0_offset_by_table": {
+      "oss": 4.734603212749592e-10,
+      "iss": 1.5843339294910118e-12,
+      "rss": 1.5346734533983847e-10
+    },
+    "q0_offset_source": "approximation.ann_charge.fit_charge_qv provenance.q0_used (log-Q0 offsets actually used per table); q0_offset is the q_oss entry; charge_fit.q0 is the caller override (None here)",
+    "guard_width_v": 0.07499999999999929,
+    "out_of_range_check": "pass",
+    "status": "measured"
+  },
+  "c1": {
+    "status": "measured",
+    "monotone_q": true,
+    "q_zero": 0.0,
+    "q_zero_anchored": true,
+    "charge_fit_error_pct": 0.04031570539361954,
+    "charge_fit_basis": "numeric mirror of the emitted delta-slope ramp chain against the source charge tables and the channel saturation-width ramp",
+    "q_max": 9.46295319917681e-10,
+    "v_max": 15.000000000000004,
+    "eps_by_table": {
+      "q_oss": 0.011608477080555554,
+      "transfer_vds": 0.07499999999999929,
+      "transfer_vgs": 0.25
+    },
+    "emitted_eps_by_table": {
+      "q_oss": 0.011608477080555554,
+      "transfer_vds": 0.07499999999999929,
+      "transfer_vgs": 0.25
+    },
+    "eps_rule": "median_positive_grid_spacing_cap_half_min_segment",
+    "c0_bit_identical_at_eps0": null,
+    "c0_ab_note": "not measured here; run_unified A/Bs the tier2 C0 fallback against canonical build_tier2_subcircuit",
+    "breakpoint_crossings": {
+      "q_oss": 1,
+      "q_iss": 22,
+      "q_rss": 18
+    },
+    "per_table": {
+      "q_oss": {
+        "status": "measured",
+        "charge_fit_error_pct": 0.04031570539361954,
+        "breakpoint_crossings": 1,
+        "eps": 0.011608477080555554,
+        "q_max": 9.46295319917681e-10
+      },
+      "q_iss": {
+        "status": "measured",
+        "charge_fit_error_pct": 2.8293137556845647e-14,
+        "breakpoint_crossings": 22,
+        "eps": 0.0,
+        "q_max": 2.9236086343944126e-09
+      },
+      "q_rss": {
+        "status": "measured",
+        "charge_fit_error_pct": 3.5149315128894524e-14,
+        "breakpoint_crossings": 18,
+        "eps": 0.0,
+        "q_max": 1.4708334456868322e-10
+      }
+    },
+    "c_ds_scaling_excluded": true
+  },
+  "tuning": {
+    "mode": "off",
+    "theta": {
+      "A_GD": null,
+      "O_GD": null,
+      "A_GS": null,
+      "A_RGI": null
+    },
+    "bounds": {
+      "A_GD": [
+        0.5,
+        2.0
+      ],
+      "O_GD": [
+        0.0,
+        1.470833445686832e-10
+      ],
+      "A_GS": [
+        0.5,
+        2.0
+      ],
+      "A_RGI": [
+        0.5,
+        2.0
+      ]
+    },
+    "weights": {},
+    "conditions": [
+      {
+        "name": "recorded_golden_fit",
+        "emp": {
+          "td_on_ns": 8.279633410423578,
+          "tr_ns": 0.8455906106561757,
+          "td_off_ns": 6.954277428144817,
+          "e_on_uj": 1.0914983705530676,
+          "e_oss_uj": 0.006968404344309858,
+          "dv_dt_max_v_per_ns": 3556.2034081685165,
+          "di_dt_max_a_per_ns": 3.7103491330864697
+        },
+        "held_out": false,
+        "completed": true,
+        "condition": {
+          "vbus": 11.0,
+          "vgs_on": 5.0,
+          "i_load_target": 10.0,
+          "l_load": 5.5e-06,
+          "temperature": 25.0
+        },
+        "emp_source": "reports/comparison/epc2216/dpt_metrics.json",
+        "split": "fit metrics of the recorded golden DPT"
+      },
+      {
+        "name": "recorded_golden_heldout",
+        "emp": {
+          "tf_ns": 1.2274909896712498,
+          "e_off_uj": 15.627365907947942,
+          "i_peak_a": 13.239307403564453
+        },
+        "held_out": true,
+        "completed": true,
+        "condition": {
+          "vbus": 11.0,
+          "vgs_on": 5.0,
+          "i_load_target": 10.0,
+          "l_load": 5.5e-06,
+          "temperature": 25.0
+        },
+        "emp_source": "reports/comparison/epc2216/dpt_metrics.json",
+        "split": "held-out metrics of the recorded golden DPT"
+      }
+    ],
+    "golden_completion_flags": [
+      false,
+      false
+    ],
+    "held_out_scores": {},
+    "verdict": "infeasible",
+    "max_evals": 80,
+    "emp_split": "disjoint recorded golden-metric arms; no proxy condition"
+  },
+  "gates": {
+    "G0": {
+      "pass": true,
+      "status": "measured",
+      "detail": {
+        "deck_diff_only_dut": true,
+        "effective_options_dumped": true,
+        "effective_options": {
+          "golden": [],
+          "rom": [],
+          "declared": []
+        },
+        "tolerance_overrides": [],
+        "libraries_inlined_both_arms": true,
+        "temperature_both_arms": 25.0,
+        "expected_temperature": 25.0,
+        "speed_deck_effective_options": {
+          "golden": [],
+          "rom": [],
+          "declared": []
+        }
+      }
+    },
+    "G1_static": {
+      "pass": false,
+      "status": "measured",
+      "detail": {
+        "rel_rmse_pct": 3.2254362086553043,
+        "bar_pct": 2.0394,
+        "estimator": "mean(per_curve_peak_rel_rmse_pct)",
+        "band_pp": 0.05,
+        "worst_endpoint_pct": 3.571245382394878,
+        "endpoint_bar_pct": 4.13,
+        "span_normalised_pct": 2.8286762374286702,
+        "peak_normalised_pct": 2.8286760815242316
+      }
+    },
+    "G2_derivative": {
+      "pass": false,
+      "status": "measured",
+      "detail": {
+        "pass": false,
+        "status": "measured",
+        "reason": "gate_cutoff_anchor",
+        "emit": "ann",
+        "gm_min": 0.0,
+        "gm_max": 16.66029401961714,
+        "gds_min": -0.19870778874286543,
+        "gds_max": 42.18173811039892,
+        "charge_derivative_non_negative": true,
+        "vds_zero_anchor": true,
+        "vth_zero_anchor": null,
+        "cutoff_probe_vgs": 1.3038702077826494,
+        "out_of_range_check": "pass",
+        "activation": "isru",
+        "neurons": 10
+      }
+    },
+    "G3_dpt_waveform": {
+      "pass": true,
+      "status": "measured",
+      "detail": {
+        "golden": {
+          "status": "measured",
+          "pass": true,
+          "vds_rel_rmse_pct": 0.0,
+          "id_rel_rmse_pct": 0.0,
+          "bars_vds_id_pct": [
+            4.894,
+            0.049
+          ],
+          "compare_points": 7
+        },
+        "urom": {
+          "status": "measured",
+          "pass": true,
+          "vds_rel_rmse_pct": 0.0,
+          "id_rel_rmse_pct": 5.110578626954521e-06,
+          "bars_vds_id_pct": [
+            4.894,
+            0.049
+          ],
+          "compare_points": 2
+        }
+      }
+    },
+    "G4_timing_energy": {
+      "pass": false,
+      "status": "measured",
+      "detail": {
+        "pass": false,
+        "status": "measured",
+        "rows": {
+          "td_on_ns": {
+            "status": "measured",
+            "value": 8.133228276322281,
+            "bar": 8.279633410423578,
+            "band": [
+              7.8656517399023995,
+              8.693615080944758
+            ],
+            "pass": true
+          },
+          "tr_ns": {
+            "status": "measured",
+            "value": 0.7722081228020313,
+            "bar": 0.8455906106561757,
+            "band": [
+              0.8033110801233669,
+              0.8878701411889844
+            ],
+            "pass": false
+          },
+          "td_off_ns": {
+            "status": "measured",
+            "value": 7.059053021631439,
+            "bar": 6.954277428144817,
+            "band": [
+              6.606563556737576,
+              7.301991299552058
+            ],
+            "pass": true
+          },
+          "tf_ns": {
+            "status": "measured",
+            "value": 0.9064354210711008,
+            "bar": 1.2274909896712498,
+            "band": [
+              1.1661164401876873,
+              1.2888655391548123
+            ],
+            "pass": false
+          },
+          "e_on_uj": {
+            "status": "measured",
+            "value": 1.06214585469078,
+            "bar": 1.0914983705530676,
+            "band": [
+              1.0369234520254142,
+              1.146073289080721
+            ],
+            "pass": true
+          },
+          "e_off_uj": {
+            "status": "measured",
+            "value": 15.585471557637304,
+            "bar": 15.627365907947942,
+            "band": [
+              14.845997612550544,
+              16.40873420334534
+            ],
+            "pass": true
+          }
+        },
+        "band_source": "reports/comparison/<vendor>/dpt_metrics.json#golden_metrics (spec 6 G4 fallback decision; emit=ann); README DPT timing and energy table",
+        "band_rel": 0.05
+      }
+    },
+    "G5_speed": {
+      "pass": true,
+      "status": "measured",
+      "detail": {
+        "scoped_row_valid": true,
+        "method_label": "trap/default",
+        "n_pulses": 20,
+        "completion": {
+          "golden": true,
+          "urom": true
+        },
+        "global_claim": false,
+        "min_default_gear": null
+      }
+    },
+    "G6_charge": {
+      "pass": true,
+      "status": "measured",
+      "detail": {
+        "monotone_q": true,
+        "q_zero_anchored": true,
+        "charge_fit_error_pct": 0.04031570539361954,
+        "budget_pct": 0.5,
+        "breakpoint_crossings": {
+          "q_oss": 1,
+          "q_iss": 22,
+          "q_rss": 18
+        },
+        "c_ds_scaling_excluded": true,
+        "tuning_verdict": "infeasible"
+      }
+    },
+    "all_pass": false
+  },
+  "runtime": {
+    "iterations": {
+      "golden": 16514.0,
+      "urom": 15372.0
+    },
+    "points": {
+      "golden": 4047.0,
+      "urom": 3739.0
+    },
+    "t_last": {
+      "golden": 0.000176,
+      "urom": 0.000176
+    },
+    "repeats": 3,
+    "solver_time_s": {
+      "golden": 0.36,
+      "urom": 0.466
+    },
+    "wall_time_s": {
+      "golden": 0.9039864999940619,
+      "urom": 1.0436687000037637
+    },
+    "median": {
+      "solver": {
+        "golden": 0.36,
+        "urom": 0.466
+      },
+      "wall": {
+        "golden": 0.9039864999940619,
+        "urom": 1.0436687000037637
+      }
+    },
+    "min": {
+      "solver": {
+        "golden": 0.347,
+        "urom": 0.457
+      }
+    },
+    "max": {
+      "solver": {
+        "golden": 0.36,
+        "urom": 0.484
+      }
+    },
+    "completion": {
+      "golden": true,
+      "urom": true
+    }
+  },
+  "speed_adaptive_20": {
+    "n_pulses": 20,
+    "max_step": 1e-07,
+    "method_label": "trap/default",
+    "solver_speedup": 0.7725321888412017,
+    "wall_speedup": 0.8661623175925482,
+    "t_last": {
+      "golden": 0.000176,
+      "urom": 0.000176
+    },
+    "iterations": {
+      "golden": 16514.0,
+      "urom": 15372.0
+    },
+    "points": {
+      "golden": 4047.0,
+      "urom": 3739.0
+    },
+    "global_claim": false,
+    "min_default_gear": null,
+    "completion_basis": "iterations > 0; trace points >= 50 percent of median; t_last >= 0.999 x scheduled end; 3 interleaved repeats; aborts are failures"
+  },
+  "fidelity_scope": {
+    "waveform_gate_retired": false,
+    "energy_only_claim": false
+  },
+  "spice_log_tail": "LTspice 26.1.1 for Windows\nCircuit: C:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_ewqjgrdl\\tran.net\nStart Time: Fri Nov 20 23:28:05 2026\nsolver = Normal\nMaximum thread count: 16\ntnom = 27\ntemp = 25\nmethod = modified trap\nAsciiRawFile = true\nCompress1stOrder = true\nCompress2ndOrder = true\nDirect Newton iteration succeeded in finding operating point.\nTotal elapsed time: 0.484 seconds.\nTotal iterations: 15372\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_ewqjgrdl\\tran.net\n\n",
+  "dpt_run": {
+    "completed": true,
+    "iterations": 19341,
+    "trace_points": 7224,
+    "golden_trace_points": 7,
+    "t_last": 1.4e-05,
+    "waveform": {
+      "vds_rel_rmse_pct": 0.0,
+      "id_rel_rmse_pct": 5.110578626954521e-06,
+      "compare_points": 2
+    },
+    "metrics": {
+      "td_on_ns": 8.133228276322281,
+      "tr_ns": 0.7722081228020313,
+      "td_off_ns": 7.059053021631439,
+      "tf_ns": 0.9064354210711008,
+      "dv_dt_max_v_per_ns": 1120.9172582400001,
+      "di_dt_max_a_per_ns": 1.4011827819135536,
+      "e_on_uj": 1.06214585469078,
+      "e_off_uj": 15.585471557637304,
+      "e_oss_uj": null,
+      "i_peak_a": 13.172782897949219,
+      "wall_clock_s": 1.1308140000037383
+    },
+    "log_tail": "LTspice 26.1.1 for Windows\nCircuit: C:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_vapt41t7\\tran.net\nStart Time: Fri Nov 20 23:28:08 2026\nsolver = Normal\nMaximum thread count: 16\ntnom = 27\ntemp = 25\nmethod = modified trap\nAsciiRawFile = true\nCompress1stOrder = true\nCompress2ndOrder = true\nDirect Newton iteration succeeded in finding operating point.\nTotal elapsed time: 0.581 seconds.\nTotal iterations: 19341\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_vapt41t7\\tran.net\n\n",
+    "error": null
+  },
+  "dpt_waveform": {
+    "vds_rel_rmse_pct": 0.0,
+    "id_rel_rmse_pct": 5.110578626954521e-06,
+    "compare_points": 2
+  },
+  "dpt_comparison": {
+    "golden": {
+      "completed": true,
+      "iterations": 23036,
+      "trace_points": 7418,
+      "golden_trace_points": 7,
+      "t_last": 1.4e-05,
+      "waveform": {
+        "vds_rel_rmse_pct": 0.0,
+        "id_rel_rmse_pct": 0.0,
+        "compare_points": 7
+      },
+      "metrics": {
+        "td_on_ns": 8.279633475267339,
+        "tr_ns": 0.8455905640608933,
+        "td_off_ns": 6.954277439093564,
+        "tf_ns": 1.2274909471485018,
+        "dv_dt_max_v_per_ns": 3556.2035609600002,
+        "di_dt_max_a_per_ns": 3.7103491330864697,
+        "e_on_uj": 1.0914983705530676,
+        "e_off_uj": 15.627365907947942,
+        "e_oss_uj": null,
+        "i_peak_a": 13.239307403564453,
+        "wall_clock_s": 1.0718550000019604
+      },
+      "log_tail": "LTspice 26.1.1 for Windows\nCircuit: C:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_ev_jfdwf\\tran.net\nStart Time: Fri Nov 20 23:28:07 2026\nsolver = Normal\nMaximum thread count: 16\ntnom = 27\ntemp = 25\nmethod = modified trap\nAsciiRawFile = true\nCompress1stOrder = true\nCompress2ndOrder = true\nDirect Newton iteration succeeded in finding operating point.\nTotal elapsed time: 0.458 seconds.\nTotal iterations: 23036\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_ev_jfdwf\\tran.net\n\n",
+      "error": null
+    },
+    "urom": {
+      "completed": true,
+      "iterations": 19341,
+      "trace_points": 7224,
+      "golden_trace_points": 7,
+      "t_last": 1.4e-05,
+      "waveform": {
+        "vds_rel_rmse_pct": 0.0,
+        "id_rel_rmse_pct": 5.110578626954521e-06,
+        "compare_points": 2
+      },
+      "metrics": {
+        "td_on_ns": 8.133228276322281,
+        "tr_ns": 0.7722081228020313,
+        "td_off_ns": 7.059053021631439,
+        "tf_ns": 0.9064354210711008,
+        "dv_dt_max_v_per_ns": 1120.9172582400001,
+        "di_dt_max_a_per_ns": 1.4011827819135536,
+        "e_on_uj": 1.06214585469078,
+        "e_off_uj": 15.585471557637304,
+        "e_oss_uj": null,
+        "i_peak_a": 13.172782897949219,
+        "wall_clock_s": 1.1308140000037383
+      },
+      "log_tail": "LTspice 26.1.1 for Windows\nCircuit: C:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_vapt41t7\\tran.net\nStart Time: Fri Nov 20 23:28:08 2026\nsolver = Normal\nMaximum thread count: 16\ntnom = 27\ntemp = 25\nmethod = modified trap\nAsciiRawFile = true\nCompress1stOrder = true\nCompress2ndOrder = true\nDirect Newton iteration succeeded in finding operating point.\nTotal elapsed time: 0.581 seconds.\nTotal iterations: 19341\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_vapt41t7\\tran.net\n\n",
+      "error": null
+    }
+  },
+  "static": {
+    "full_sweep_rel_rmse_pct": 3.2254362086553043,
+    "span_normalised_rmse_pct": 2.8286762374286702,
+    "peak_normalised_rmse_pct": 2.8286760815242316,
+    "worst_endpoint_rel_error_pct": 3.571245382394878,
+    "per_curve_peak_rel_rmse_pct": [
+      6.60366492068834,
+      4.069745969137011,
+      3.1759850140829147,
+      2.481367148965549,
+      1.9271217715514866,
+      1.0947324275065209
+    ],
+    "per_curve_span_rel_rmse_pct": [
+      6.6036650409287425,
+      4.069746060452512,
+      3.1759851272635267,
+      2.4813673475938143,
+      1.9271223871888052,
+      1.0947487828777402
+    ],
+    "gated_estimator": "mean(per_curve_peak_rel_rmse_pct)",
+    "provenance": {
+      "gated_estimator": "mean(per_curve_peak_rel_rmse_pct)",
+      "per_curve_peak_definition": "compute_curve_error(...).peak_rmse_pct (RMSE / max|golden| * 100)",
+      "kind": "measured",
+      "source": "docs/fidelity_speed_research.md:89-100; notebooks/05_comprehensive_validation_report.ipynb:2245; reports/comparison/<vendor>/full_sweep_comparison.json (rel_rmse_pct == peak_rmse_pct per row)",
+      "diagnostics_not_gated": [
+        "span_normalised_rmse_pct",
+        "peak_normalised_rmse_pct"
+      ]
+    },
+    "n_curves": 6
+  },
+  "equal_sandbox_detail": {
+    "dpt_decks": {
+      "deck_diff_only_dut": true,
+      "effective_options_dumped": true,
+      "effective_options": {
+        "golden": [],
+        "rom": [],
+        "declared": []
+      },
+      "tolerance_overrides": [],
+      "libraries_inlined_both_arms": true,
+      "temperature_both_arms": 25.0,
+      "expected_temperature": 25.0,
+      "speed_deck_effective_options": {
+        "golden": [],
+        "rom": [],
+        "declared": []
+      }
+    },
+    "speed_decks": {
+      "deck_diff_only_dut": true,
+      "effective_options_dumped": true,
+      "effective_options": {
+        "golden": [],
+        "rom": [],
+        "declared": []
+      },
+      "tolerance_overrides": [],
+      "libraries_inlined_both_arms": true,
+      "temperature_both_arms": 25.0,
+      "expected_temperature": 25.0
+    },
+    "timing_energy_bars_source": "reports/comparison/<vendor>/dpt_metrics.json#golden_metrics (spec 6 G4 fallback decision; emit=ann); README DPT timing and energy table"
+  },
+  "urom_provenance": {
+    "static_bars_pct": {
+      "source": "local://unified_rom_spec.md sections 1.4 and 6; README measured table",
+      "kind": "measured"
+    },
+    "static_score_estimator": {
+      "source": "docs/fidelity_speed_research.md:89-100; notebooks/05_comprehensive_validation_report.ipynb:2245; reports/comparison/<vendor>/full_sweep_comparison.json (rel_rmse_pct == peak_rmse_pct per row)",
+      "kind": "measured",
+      "rationale": "G1 gates the arithmetic mean of per-curve peak-normalised rel RMSE; median and span values stay in the record as diagnostics"
+    },
+    "dpt_bars_pct": {
+      "source": "local://unified_rom_spec.md section 1.4; reports/comparison/<vendor>/tier3_validation_simplis.json",
+      "kind": "measured"
+    },
+    "timing_energy_bars": {
+      "source": "reports/comparison/<vendor>/dpt_metrics.json#golden_metrics for emit=ann, #tier2_metrics for emit=tier2 (spec 6 fallback decision); README DPT timing and energy table",
+      "kind": "measured",
+      "ann_column": "golden_metrics",
+      "tier2_column": "tier2_metrics"
+    },
+    "speed_n_pulses": {
+      "source": "local://unified_rom_spec.md section 4.6 (speed_adaptive_20)",
+      "kind": "project_decision",
+      "rationale": "20 pulses is the pinned adaptive row; a 2-pulse default row must never be compared to it"
+    },
+    "speed_repeats": {
+      "source": "local://unified_rom_spec.md section 1.3 item 7 (at least 3 interleaved repeats)",
+      "kind": "project_decision"
+    },
+    "dpt_t_last_fraction": {
+      "source": "local://unified_rom_spec.md section 1.3 item 5 (DPT completion guard)",
+      "kind": "project_decision"
+    },
+    "dpt_trace_point_fraction": {
+      "source": "local://unified_rom_spec.md section 1.3 item 5 (at least 50 percent of golden points)",
+      "kind": "project_decision"
+    },
+    "g1_band_pp": {
+      "source": "local://unified_rom_spec.md section 6 G1 (proposed band)",
+      "kind": "project_decision"
+    },
+    "endpoint_bar_pct": {
+      "source": "local://unified_rom_spec.md section 1.4 (worst endpoint <= 4.13 percent)",
+      "kind": "measured"
+    },
+    "charge_budget_pct": {
+      "source": "local://unified_rom_spec.md section 1.4 (charge-fit error <= 0.5 percent Q(Vmax))",
+      "kind": "measured"
+    },
+    "tuning_max_evals": {
+      "source": "pipeline/unified_rom.py:TUNING_MAX_EVALS",
+      "kind": "project_decision",
+      "rationale": "bounded derivative-free search over four named fields; not an emitter default"
+    },
+    "tuning_bounds": {
+      "source": "pipeline/fitting.py:_tuning_bounds(c_rss_lin, Vds_cap_max); config/inputs/<vendor>.yaml#conditions.Vds_cap_max; curve4 c_eq_energy -> metadata c_rss_lin",
+      "kind": "source_derived",
+      "rationale": "O_GD is capped at one full Q_RSS at the top of the measured curve-4 sweep; Qoss is frozen and never used for this gate-side bound"
+    },
+    "timing_band": {
+      "source": "local://unified_rom_spec.md section 6 G4 (no worse than the recorded table); reports/comparison/<vendor>/dpt_metrics.json#golden_metrics (emit=ann) or #tier2_metrics (emit=tier2, spec 6 fallback decision)",
+      "kind": "project_decision",
+      "rationale": "5 percent band around each recorded timing/energy bar: a much smaller delay is not an improvement when the device never turns on; missing bars stay not_measured"
+    },
+    "zero_current_anchor": {
+      "source": "local://unified_rom_spec.md section 2.3 (VDS=0 and Vth cutoff guards); models/netlist_builder.py:_channel_expression",
+      "kind": "project_decision",
+      "rationale": "1 percent of the swept peak current is a structural G2 anchor tolerance, not a measured device current"
+    },
+    "tuning_golden_emp": {
+      "source": "reports/comparison/<vendor>/dpt_metrics.json#golden_metrics; reports/comparison/<vendor>/tier3_validation_simplis.json#runtime.golden,dpt_run",
+      "kind": "measured",
+      "rationale": "golden metrics are cached once; completion uses recorded iterations, trace points and t_last. Non-completing conditions are never scored"
+    },
+    "tuning_candidate_libs": {
+      "source": "pipeline/tuning.py:make_dpt_simulator; spec section 5 (no permanent candidate artifacts)",
+      "kind": "project_decision",
+      "rationale": "candidate netlists live in a TemporaryDirectory owned by the tuning run and are removed when tuning returns"
+    },
+    "adaptive_max_step": {
+      "source": "config/inputs/<vendor>.yaml#dpt.max_step; local://unified_rom_spec.md section 3.3 (EPC 100 ns cap on both arms)",
+      "kind": "source_derived"
+    },
+    "temperature": {
+      "source": "config/inputs/<vendor>.yaml#conditions.temperature",
+      "kind": "source_derived"
+    },
+    "eps_rule": {
+      "source": "approximation/smoother.py:eps_from_grid; local://unified_c1_study.md P7",
+      "kind": "source_derived",
+      "rationale": "per-table widths: q_oss for the Qoss Vds chain, transfer_vgs for the channel Vgs amp/sat ramps; transfer_vds is the Vds-grid diagnostic (the tanh knee is fitted, not a Vds ramp)"
+    },
+    "tier2_fallbacks": {
+      "source": "models/netlist_builder.py _META_DEFAULTS; AGENTS.md Traps (2026-11-18 gate-cap fix)",
+      "kind": "disclosed_fallback",
+      "rationale": "inherited from the closed Tier-2 emitter; gate-cap equivalents are evaluated at Cap_ref_Vds so the 4.5 nF / 7.5 pF / 1.5 Ohm fallbacks are not selected"
+    },
+    "external_sources": {
+      "status": "conditional_until_url_and_section_pinned",
+      "source": "local://unified_rom_spec.md section 2.3 (Yang/Tung figures CONDITIONAL)"
+    },
+    "gate_charge_tables": {
+      "source": "curve4 c_eq_charge*3 / c_eq_energy*0.15 on the curve-4 Vds grid",
+      "kind": "source_derived",
+      "rationale": "closed Tier-2 linear gate-side scalar, tabulated so apply_scalars can add O_GD*V without a hidden fallback"
+    }
+  },
+  "verdict": "reject",
+  "emitted_lib_ascii": "* PieceSpice unified ROM (T2 ANN candidate) for epc2216\n* Channel: guarded one-hidden-layer ANN; charge: log-scale Q nets\n* Parasitics, D_BODY and semantic pins from the closed Tier-2 builder\n* Guard width: 7.500000e-02 V (static Curve-1 Vds grid, eps_from_grid)\n.SUBCKT epc2216_PIECSPICE_UROM d g s\n* Pins: 1=Drain(d) 2=Gate(g) 3=Source(s)\n\n* --- parasitics ---\nRG g gi 1.500000e+00\nRD d di 1.000000e-04\nRS s ss 1.000000e-04\n\n* --- channel: tanh-knee behavioral source (Curves 1+2) ---\nG_CH di ss VALUE = {((((V(di,ss))*exp((-9.778657e-01+4.335123e-01*(((3.350545e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-2.663119e+00*6.060606e-02+8.268270e-01))/sqrt(1+((3.350545e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-2.663119e+00*6.060606e-02+8.268270e-01))*((3.350545e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-2.663119e+00*6.060606e-02+8.268270e-01))))+1.668865e+01*(((-1.509744e-01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-8.606716e+01*6.060606e-02+5.333470e+00))/sqrt(1+((-1.509744e-01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-8.606716e+01*6.060606e-02+5.333470e+00))*((-1.509744e-01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-8.606716e+01*6.060606e-02+5.333470e+00))))+-6.887371e+01*(((4.044525e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.951236e+01*6.060606e-02+-1.019707e+00))/sqrt(1+((4.044525e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.951236e+01*6.060606e-02+-1.019707e+00))*((4.044525e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.951236e+01*6.060606e-02+-1.019707e+00))))+4.530423e+01*(((3.501986e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.776517e+01*6.060606e-02+-1.066566e+00))/sqrt(1+((3.501986e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.776517e+01*6.060606e-02+-1.066566e+00))*((3.501986e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.776517e+01*6.060606e-02+-1.066566e+00))))+1.528375e+00*(((1.046730e+01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+2.230011e+01*6.060606e-02+1.287588e+00))/sqrt(1+((1.046730e+01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+2.230011e+01*6.060606e-02+1.287588e+00))*((1.046730e+01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+2.230011e+01*6.060606e-02+1.287588e+00))))+4.276311e+00*(((1.348414e+01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.520569e-01*6.060606e-02+2.758954e+00))/sqrt(1+((1.348414e+01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.520569e-01*6.060606e-02+2.758954e+00))*((1.348414e+01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.520569e-01*6.060606e-02+2.758954e+00))))+-4.744484e+00*(((-7.112908e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.868047e-01*6.060606e-02+-1.555435e-01))/sqrt(1+((-7.112908e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.868047e-01*6.060606e-02+-1.555435e-01))*((-7.112908e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.868047e-01*6.060606e-02+-1.555435e-01))))+6.637693e+00*(((5.945305e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+3.312928e+01*6.060606e-02+-2.269395e+00))/sqrt(1+((5.945305e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+3.312928e+01*6.060606e-02+-2.269395e+00))*((5.945305e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+3.312928e+01*6.060606e-02+-2.269395e+00))))+-1.025423e+01*(((-2.338199e+00*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-1.237624e-02*6.060606e-02+-1.585287e+00))/sqrt(1+((-2.338199e+00*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-1.237624e-02*6.060606e-02+-1.585287e+00))*((-2.338199e+00*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-1.237624e-02*6.060606e-02+-1.585287e+00))))+-2.045328e+01*(((-1.447367e-01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-8.276007e+01*6.060606e-02+5.097724e+00))/sqrt(1+((-1.447367e-01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-8.276007e+01*6.060606e-02+5.097724e+00))*((-1.447367e-01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-8.276007e+01*6.060606e-02+5.097724e+00))))))*(0.5*(1+tanh(1.000000e+01*((V(gi,ss))-(1.303870e+00)))))))+((0.5*(1+tanh(((V(di,ss))-(1.050000e+00))/(7.500000e-02)))))*((((V(di,ss))*exp((-9.778657e-01+4.335123e-01*(((3.350545e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-2.663119e+00*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+8.268270e-01))/sqrt(1+((3.350545e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-2.663119e+00*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+8.268270e-01))*((3.350545e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-2.663119e+00*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+8.268270e-01))))+1.668865e+01*(((-1.509744e-01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-8.606716e+01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+5.333470e+00))/sqrt(1+((-1.509744e-01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-8.606716e+01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+5.333470e+00))*((-1.509744e-01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-8.606716e+01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+5.333470e+00))))+-6.887371e+01*(((4.044525e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.951236e+01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+-1.019707e+00))/sqrt(1+((4.044525e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.951236e+01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+-1.019707e+00))*((4.044525e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.951236e+01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+-1.019707e+00))))+4.530423e+01*(((3.501986e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.776517e+01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+-1.066566e+00))/sqrt(1+((3.501986e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.776517e+01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+-1.066566e+00))*((3.501986e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.776517e+01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+-1.066566e+00))))+1.528375e+00*(((1.046730e+01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+2.230011e+01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+1.287588e+00))/sqrt(1+((1.046730e+01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+2.230011e+01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+1.287588e+00))*((1.046730e+01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+2.230011e+01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+1.287588e+00))))+4.276311e+00*(((1.348414e+01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.520569e-01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+2.758954e+00))/sqrt(1+((1.348414e+01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.520569e-01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+2.758954e+00))*((1.348414e+01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.520569e-01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+2.758954e+00))))+-4.744484e+00*(((-7.112908e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.868047e-01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+-1.555435e-01))/sqrt(1+((-7.112908e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.868047e-01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+-1.555435e-01))*((-7.112908e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.868047e-01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+-1.555435e-01))))+6.637693e+00*(((5.945305e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+3.312928e+01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+-2.269395e+00))/sqrt(1+((5.945305e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+3.312928e+01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+-2.269395e+00))*((5.945305e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+3.312928e+01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+-2.269395e+00))))+-1.025423e+01*(((-2.338199e+00*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-1.237624e-02*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+-1.585287e+00))/sqrt(1+((-2.338199e+00*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-1.237624e-02*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+-1.585287e+00))*((-2.338199e+00*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-1.237624e-02*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+-1.585287e+00))))+-2.045328e+01*(((-1.447367e-01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-8.276007e+01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+5.097724e+00))/sqrt(1+((-1.447367e-01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-8.276007e+01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+5.097724e+00))*((-1.447367e-01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-8.276007e+01*((V(di,ss))-(1.500000e-01))/(1.485000e+01)+5.097724e+00))))))*(0.5*(1+tanh(1.000000e+01*((V(gi,ss))-(1.303870e+00)))))))-(((V(di,ss))*exp((-9.778657e-01+4.335123e-01*(((3.350545e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-2.663119e+00*6.060606e-02+8.268270e-01))/sqrt(1+((3.350545e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-2.663119e+00*6.060606e-02+8.268270e-01))*((3.350545e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-2.663119e+00*6.060606e-02+8.268270e-01))))+1.668865e+01*(((-1.509744e-01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-8.606716e+01*6.060606e-02+5.333470e+00))/sqrt(1+((-1.509744e-01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-8.606716e+01*6.060606e-02+5.333470e+00))*((-1.509744e-01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-8.606716e+01*6.060606e-02+5.333470e+00))))+-6.887371e+01*(((4.044525e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.951236e+01*6.060606e-02+-1.019707e+00))/sqrt(1+((4.044525e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.951236e+01*6.060606e-02+-1.019707e+00))*((4.044525e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.951236e+01*6.060606e-02+-1.019707e+00))))+4.530423e+01*(((3.501986e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.776517e+01*6.060606e-02+-1.066566e+00))/sqrt(1+((3.501986e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.776517e+01*6.060606e-02+-1.066566e+00))*((3.501986e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.776517e+01*6.060606e-02+-1.066566e+00))))+1.528375e+00*(((1.046730e+01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+2.230011e+01*6.060606e-02+1.287588e+00))/sqrt(1+((1.046730e+01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+2.230011e+01*6.060606e-02+1.287588e+00))*((1.046730e+01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+2.230011e+01*6.060606e-02+1.287588e+00))))+4.276311e+00*(((1.348414e+01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.520569e-01*6.060606e-02+2.758954e+00))/sqrt(1+((1.348414e+01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.520569e-01*6.060606e-02+2.758954e+00))*((1.348414e+01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.520569e-01*6.060606e-02+2.758954e+00))))+-4.744484e+00*(((-7.112908e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.868047e-01*6.060606e-02+-1.555435e-01))/sqrt(1+((-7.112908e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.868047e-01*6.060606e-02+-1.555435e-01))*((-7.112908e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+1.868047e-01*6.060606e-02+-1.555435e-01))))+6.637693e+00*(((5.945305e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+3.312928e+01*6.060606e-02+-2.269395e+00))/sqrt(1+((5.945305e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+3.312928e+01*6.060606e-02+-2.269395e+00))*((5.945305e-02*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+3.312928e+01*6.060606e-02+-2.269395e+00))))+-1.025423e+01*(((-2.338199e+00*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-1.237624e-02*6.060606e-02+-1.585287e+00))/sqrt(1+((-2.338199e+00*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-1.237624e-02*6.060606e-02+-1.585287e+00))*((-2.338199e+00*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-1.237624e-02*6.060606e-02+-1.585287e+00))))+-2.045328e+01*(((-1.447367e-01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-8.276007e+01*6.060606e-02+5.097724e+00))/sqrt(1+((-1.447367e-01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-8.276007e+01*6.060606e-02+5.097724e+00))*((-1.447367e-01*((V(gi,ss))-(2.500000e+00))/(3.500000e+00)+-8.276007e+01*6.060606e-02+5.097724e+00))))))*(0.5*(1+tanh(1.000000e+01*((V(gi,ss))-(1.303870e+00)))))))))}\n\n* --- charge-conserving capacitances (ANN Q nets) ---\nC_QOSS di ss Q = {-3.664102e-13 + 6.312804e-11*0.5*(((V(di,ss)-0.000000e+00))+sqrt(((V(di,ss)-0.000000e+00))*((V(di,ss)-0.000000e+00))+1.347567e-04)) + -2.584939e-26*0.5*(((V(di,ss)-4.285714e+00))+sqrt(((V(di,ss)-4.285714e+00))*((V(di,ss)-4.285714e+00))+1.347567e-04)) + 5.169879e-26*0.5*(((V(di,ss)-5.357143e+00))+sqrt(((V(di,ss)-5.357143e+00))*((V(di,ss)-5.357143e+00))+1.347567e-04))}\nC_ISS gi ss Q = {-5.402121e-13 + 9.292346e-11*0.5*(((V(gi,ss)-0.000000e+00))+sqrt(((V(gi,ss)-0.000000e+00))*((V(gi,ss)-0.000000e+00))+1.347567e-04)) + -1.292470e-26*0.5*(((V(gi,ss)-4.838710e-01))+sqrt(((V(gi,ss)-4.838710e-01))*((V(gi,ss)-4.838710e-01))+1.347567e-04)) + -3.877409e-26*0.5*(((V(gi,ss)-6.451613e-01))+sqrt(((V(gi,ss)-6.451613e-01))*((V(gi,ss)-6.451613e-01))+1.347567e-04)) + 1.292470e-26*0.5*(((V(gi,ss)-8.064516e-01))+sqrt(((V(gi,ss)-8.064516e-01))*((V(gi,ss)-8.064516e-01))+1.347567e-04)) + 5.169879e-26*0.5*(((V(gi,ss)-9.677419e-01))+sqrt(((V(gi,ss)-9.677419e-01))*((V(gi,ss)-9.677419e-01))+1.347567e-04)) + 3.877409e-26*0.5*(((V(gi,ss)-1.129032e+00))+sqrt(((V(gi,ss)-1.129032e+00))*((V(gi,ss)-1.129032e+00))+1.347567e-04)) + -1.680211e-25*0.5*(((V(gi,ss)-1.290323e+00))+sqrt(((V(gi,ss)-1.290323e+00))*((V(gi,ss)-1.290323e+00))+1.347567e-04)) + 1.292470e-25*0.5*(((V(gi,ss)-1.451613e+00))+sqrt(((V(gi,ss)-1.451613e+00))*((V(gi,ss)-1.451613e+00))+1.347567e-04)) + 3.877409e-26*0.5*(((V(gi,ss)-1.612903e+00))+sqrt(((V(gi,ss)-1.612903e+00))*((V(gi,ss)-1.612903e+00))+1.347567e-04)) + -1.680211e-25*0.5*(((V(gi,ss)-1.774194e+00))+sqrt(((V(gi,ss)-1.774194e+00))*((V(gi,ss)-1.774194e+00))+1.347567e-04)) + 1.292470e-25*0.5*(((V(gi,ss)-1.935484e+00))+sqrt(((V(gi,ss)-1.935484e+00))*((V(gi,ss)-1.935484e+00))+1.347567e-04)) + 6.462349e-26*0.5*(((V(gi,ss)-2.258065e+00))+sqrt(((V(gi,ss)-2.258065e+00))*((V(gi,ss)-2.258065e+00))+1.347567e-04)) + -6.462349e-26*0.5*(((V(gi,ss)-2.419355e+00))+sqrt(((V(gi,ss)-2.419355e+00))*((V(gi,ss)-2.419355e+00))+1.347567e-04)) + -2.584939e-25*0.5*(((V(gi,ss)-2.741935e+00))+sqrt(((V(gi,ss)-2.741935e+00))*((V(gi,ss)-2.741935e+00))+1.347567e-04)) + 2.584939e-25*0.5*(((V(gi,ss)-2.903226e+00))+sqrt(((V(gi,ss)-2.903226e+00))*((V(gi,ss)-2.903226e+00))+1.347567e-04)) + 3.231174e-25*0.5*(((V(gi,ss)-3.064516e+00))+sqrt(((V(gi,ss)-3.064516e+00))*((V(gi,ss)-3.064516e+00))+1.347567e-04)) + 4.945623e-10*0.5*(((V(gi,ss)-3.225806e+00))+sqrt(((V(gi,ss)-3.225806e+00))*((V(gi,ss)-3.225806e+00))+1.347567e-04)) + 6.499885e-10*0.5*(((V(gi,ss)-3.387097e+00))+sqrt(((V(gi,ss)-3.387097e+00))*((V(gi,ss)-3.387097e+00))+1.347567e-04)) + -1.134150e-09*0.5*(((V(gi,ss)-3.548387e+00))+sqrt(((V(gi,ss)-3.548387e+00))*((V(gi,ss)-3.548387e+00))+1.347567e-04)) + 1.641437e-24*0.5*(((V(gi,ss)-3.709677e+00))+sqrt(((V(gi,ss)-3.709677e+00))*((V(gi,ss)-3.709677e+00))+1.347567e-04)) + -9.952017e-25*0.5*(((V(gi,ss)-3.870968e+00))+sqrt(((V(gi,ss)-3.870968e+00))*((V(gi,ss)-3.870968e+00))+1.347567e-04)) + -6.462349e-25*0.5*(((V(gi,ss)-4.032258e+00))+sqrt(((V(gi,ss)-4.032258e+00))*((V(gi,ss)-4.032258e+00))+1.347567e-04)) + 6.462349e-25*0.5*(((V(gi,ss)-4.193548e+00))+sqrt(((V(gi,ss)-4.193548e+00))*((V(gi,ss)-4.193548e+00))+1.347567e-04)) + 6.462349e-25*0.5*(((V(gi,ss)-4.354839e+00))+sqrt(((V(gi,ss)-4.354839e+00))*((V(gi,ss)-4.354839e+00))+1.347567e-04)) + -5.816114e-25*0.5*(((V(gi,ss)-4.516129e+00))+sqrt(((V(gi,ss)-4.516129e+00))*((V(gi,ss)-4.516129e+00))+1.347567e-04)) + 5.816114e-25*0.5*(((V(gi,ss)-4.677419e+00))+sqrt(((V(gi,ss)-4.677419e+00))*((V(gi,ss)-4.677419e+00))+1.347567e-04)) + -1.292470e-24*0.5*(((V(gi,ss)-4.838710e+00))+sqrt(((V(gi,ss)-4.838710e+00))*((V(gi,ss)-4.838710e+00))+1.347567e-04))}\nC_RSS gi di Q = {-1.187681e-13 + 2.046231e-11*0.5*(((V(gi,di)-0.000000e+00))+sqrt(((V(gi,di)-0.000000e+00))*((V(gi,di)-0.000000e+00))+1.347567e-04)) + -6.462349e-27*0.5*(((V(gi,di)-2.142857e+00))+sqrt(((V(gi,di)-2.142857e+00))*((V(gi,di)-2.142857e+00))+1.347567e-04)) + 1.615587e-26*0.5*(((V(gi,di)-3.214286e+00))+sqrt(((V(gi,di)-3.214286e+00))*((V(gi,di)-3.214286e+00))+1.347567e-04)) + -1.292470e-26*0.5*(((V(gi,di)-4.285714e+00))+sqrt(((V(gi,di)-4.285714e+00))*((V(gi,di)-4.285714e+00))+1.347567e-04)) + -6.462349e-27*0.5*(((V(gi,di)-5.357143e+00))+sqrt(((V(gi,di)-5.357143e+00))*((V(gi,di)-5.357143e+00))+1.347567e-04)) + 6.462349e-27*0.5*(((V(gi,di)-6.428571e+00))+sqrt(((V(gi,di)-6.428571e+00))*((V(gi,di)-6.428571e+00))+1.347567e-04))}\n\n* --- body diode (Curve 6) ---\n.MODEL D_BD_epc2216_PIECSPICE_UROM D(IS=1.000000e-15 N=1.587 RS=3.135334e-02)\nD_BODY ss di D_BD_epc2216_PIECSPICE_UROM\n\n.ENDS epc2216_PIECSPICE_UROM",
+  "tier2_fallback_control": {
+    "schema": "piecespice.unified/1.0",
+    "vendor": "epc2216",
+    "variant": "urom",
+    "emitted_lib": "reports/models/epc2216_PIECSPICE_UROM.lib",
+    "channel_basis": "tier2",
+    "c1_variant": null,
+    "method": "trap/default",
+    "equal_sandbox": {
+      "deck_diff_only_dut": true,
+      "effective_options_dumped": true,
+      "effective_options": {
+        "golden": [],
+        "rom": [],
+        "declared": []
+      },
+      "tolerance_overrides": [],
+      "libraries_inlined_both_arms": true,
+      "temperature_both_arms": 25.0,
+      "expected_temperature": 25.0,
+      "speed_deck_effective_options": {
+        "golden": [],
+        "rom": [],
+        "declared": []
+      }
+    },
+    "data_provenance": {
+      "curves": [
+        "curve1_output_characteristics.yaml",
+        "curve2_transfer_characteristic.yaml",
+        "curve3_rds_on.yaml",
+        "curve4_capacitances.yaml",
+        "curve5_gate_charge.yaml",
+        "curve6_body_diode.yaml",
+        "curve7_threshold_voltage.yaml"
+      ],
+      "dpt_high_vi": {
+        "source": "dpt_trajectory",
+        "vendor": "epc2216",
+        "conditions": {
+          "config": "config/inputs/epc2216.yaml#dpt"
+        },
+        "sample_indices": []
+      },
+      "external_source_status": "conditional_until_url_and_section_pinned",
+      "guard_width": null
+    },
+    "ann_fit": {
+      "activation": null,
+      "neurons": null,
+      "loss_weights": {},
+      "gm_gds_q_derivative_terms": [],
+      "train_range": {},
+      "q0_offset": null,
+      "q0_offset_by_table": {},
+      "q0_offset_source": null,
+      "out_of_range_check": null,
+      "guard_width_v": null,
+      "status": "not_applicable"
+    },
+    "c1": {
+      "status": "measured",
+      "monotone_q": true,
+      "q_zero": 0.0,
+      "q_zero_anchored": true,
+      "charge_fit_error_pct": 3.5149315128894524e-14,
+      "charge_fit_basis": "numeric mirror of the emitted delta-slope ramp chain against the source charge tables and the channel saturation-width ramp",
+      "q_max": 9.46295319917681e-10,
+      "v_max": 15.000000000000004,
+      "eps_by_table": {
+        "q_oss": 0.011608477080555554,
+        "transfer_vds": 0.07499999999999929,
+        "transfer_vgs": 0.25
+      },
+      "emitted_eps_by_table": {},
+      "eps_rule": "median_positive_grid_spacing_cap_half_min_segment",
+      "c0_bit_identical_at_eps0": true,
+      "c0_ab_note": "A/B against canonical build_tier2_subcircuit(c1_eps=None) at the same UROM subckt name",
+      "breakpoint_crossings": {
+        "q_oss": 1,
+        "q_iss": 22,
+        "q_rss": 18,
+        "channel_saturation": 2
+      },
+      "per_table": {
+        "q_oss": {
+          "status": "measured",
+          "charge_fit_error_pct": 2.1853130707255975e-14,
+          "breakpoint_crossings": 1,
+          "eps": 0.0,
+          "q_max": 9.46295319917681e-10
+        },
+        "q_iss": {
+          "status": "measured",
+          "charge_fit_error_pct": 2.8293137556845647e-14,
+          "breakpoint_crossings": 22,
+          "eps": 0.0,
+          "q_max": 2.9236086343944126e-09
+        },
+        "q_rss": {
+          "status": "measured",
+          "charge_fit_error_pct": 3.5149315128894524e-14,
+          "breakpoint_crossings": 18,
+          "eps": 0.0,
+          "q_max": 1.4708334456868322e-10
+        },
+        "channel_saturation": {
+          "status": "measured",
+          "charge_fit_error_pct": 1.810054296701644e-14,
+          "breakpoint_crossings": 2,
+          "eps": 0.0,
+          "q_max": 1.2267289734327318,
+          "baseline_v": 0.75
+        }
+      },
+      "c_ds_scaling_excluded": true
+    },
+    "tuning": {
+      "mode": "off",
+      "theta": {
+        "A_GD": null,
+        "O_GD": null,
+        "A_GS": null,
+        "A_RGI": null
+      },
+      "bounds": {
+        "A_GD": [
+          0.5,
+          2.0
+        ],
+        "O_GD": [
+          0.0,
+          1.470833445686832e-10
+        ],
+        "A_GS": [
+          0.5,
+          2.0
+        ],
+        "A_RGI": [
+          0.5,
+          2.0
+        ]
+      },
+      "weights": {},
+      "conditions": [
+        {
+          "name": "recorded_golden_fit",
+          "emp": {
+            "td_on_ns": 8.279633410423578,
+            "tr_ns": 0.8455906106561757,
+            "td_off_ns": 6.954277428144817,
+            "e_on_uj": 1.0914983705530676,
+            "e_oss_uj": 0.006968404344309858,
+            "dv_dt_max_v_per_ns": 3556.2034081685165,
+            "di_dt_max_a_per_ns": 3.7103491330864697
+          },
+          "held_out": false,
+          "completed": true,
+          "condition": {
+            "vbus": 11.0,
+            "vgs_on": 5.0,
+            "i_load_target": 10.0,
+            "l_load": 5.5e-06,
+            "temperature": 25.0
+          },
+          "emp_source": "reports/comparison/epc2216/dpt_metrics.json",
+          "split": "fit metrics of the recorded golden DPT"
+        },
+        {
+          "name": "recorded_golden_heldout",
+          "emp": {
+            "tf_ns": 1.2274909896712498,
+            "e_off_uj": 15.627365907947942,
+            "i_peak_a": 13.239307403564453
+          },
+          "held_out": true,
+          "completed": true,
+          "condition": {
+            "vbus": 11.0,
+            "vgs_on": 5.0,
+            "i_load_target": 10.0,
+            "l_load": 5.5e-06,
+            "temperature": 25.0
+          },
+          "emp_source": "reports/comparison/epc2216/dpt_metrics.json",
+          "split": "held-out metrics of the recorded golden DPT"
+        }
+      ],
+      "golden_completion_flags": [
+        false,
+        false
+      ],
+      "held_out_scores": {},
+      "verdict": "infeasible",
+      "max_evals": 80,
+      "emp_split": "disjoint recorded golden-metric arms; no proxy condition"
+    },
+    "gates": {
+      "G0": {
+        "pass": true,
+        "status": "measured",
+        "detail": {
+          "deck_diff_only_dut": true,
+          "effective_options_dumped": true,
+          "effective_options": {
+            "golden": [],
+            "rom": [],
+            "declared": []
+          },
+          "tolerance_overrides": [],
+          "libraries_inlined_both_arms": true,
+          "temperature_both_arms": 25.0,
+          "expected_temperature": 25.0,
+          "speed_deck_effective_options": {
+            "golden": [],
+            "rom": [],
+            "declared": []
+          }
+        }
+      },
+      "G1_static": {
+        "pass": true,
+        "status": "measured",
+        "detail": {
+          "rel_rmse_pct": 2.039413541857248,
+          "bar_pct": 2.0394,
+          "estimator": "mean(per_curve_peak_rel_rmse_pct)",
+          "band_pp": 0.05,
+          "worst_endpoint_pct": 0.558908236095348,
+          "endpoint_bar_pct": 4.13,
+          "span_normalised_pct": 1.8299358804050048,
+          "peak_normalised_pct": 1.8299357768187883
+        }
+      },
+      "G2_derivative": {
+        "pass": true,
+        "status": "measured",
+        "detail": {
+          "pass": true,
+          "status": "measured",
+          "reason": "finite gm/gds; monotone Q; Vds=0 and gate-cutoff anchors near zero; ANN probe not applicable to closed C0",
+          "emit": "tier2",
+          "gm_min": 1.1130530760968113e-23,
+          "gm_max": 17.014616012573242,
+          "gds_min": 0.0,
+          "gds_max": 48.23490974163793,
+          "charge_derivative_non_negative": true,
+          "vds_zero_anchor": true,
+          "vth_zero_anchor": true,
+          "cutoff_probe_vgs": 1.3038702077826494,
+          "out_of_range_check": "not_applicable",
+          "activation": null,
+          "neurons": null
+        }
+      },
+      "G3_dpt_waveform": {
+        "pass": true,
+        "status": "measured",
+        "detail": {
+          "golden": {
+            "status": "measured",
+            "pass": true,
+            "vds_rel_rmse_pct": 0.0,
+            "id_rel_rmse_pct": 0.0,
+            "bars_vds_id_pct": [
+              4.894,
+              0.049
+            ],
+            "compare_points": 7418
+          },
+          "urom": {
+            "status": "measured",
+            "pass": true,
+            "vds_rel_rmse_pct": 4.289962508485992,
+            "id_rel_rmse_pct": 0.04633057218555238,
+            "bars_vds_id_pct": [
+              4.894,
+              0.049
+            ],
+            "compare_points": 7169
+          }
+        }
+      },
+      "G4_timing_energy": {
+        "pass": true,
+        "status": "measured",
+        "detail": {
+          "pass": true,
+          "status": "measured",
+          "rows": {
+            "td_on_ns": {
+              "status": "measured",
+              "value": 8.510593085202828,
+              "bar": 8.51059303501782,
+              "band": [
+                8.08506338326693,
+                8.93612268676871
+              ],
+              "pass": true
+            },
+            "tr_ns": {
+              "status": "measured",
+              "value": 0.837817173036465,
+              "bar": 0.8378172211750414,
+              "band": [
+                0.7959263601162894,
+                0.8797080822337935
+              ],
+              "pass": true
+            },
+            "td_off_ns": {
+              "status": "measured",
+              "value": 7.0494886012646925,
+              "bar": 7.049488582885772,
+              "band": [
+                6.697014153741483,
+                7.401963012030061
+              ],
+              "pass": true
+            },
+            "tf_ns": {
+              "status": "measured",
+              "value": 1.342868355596672,
+              "bar": 1.3428684081228792,
+              "band": [
+                1.2757249877167354,
+                1.410011828529023
+              ],
+              "pass": true
+            },
+            "e_on_uj": {
+              "status": "measured",
+              "value": 1.1489460307901267,
+              "bar": 1.1489460307901267,
+              "band": [
+                1.0914987292506204,
+                1.206393332329633
+              ],
+              "pass": true
+            },
+            "e_off_uj": {
+              "status": "measured",
+              "value": 15.413235527544533,
+              "bar": 15.413235527544533,
+              "band": [
+                14.642573751167307,
+                16.18389730392176
+              ],
+              "pass": true
+            }
+          },
+          "band_source": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics (spec 6 G4 fallback decision; emit=tier2); README DPT timing and energy table",
+          "band_rel": 0.05
+        }
+      },
+      "G5_speed": {
+        "pass": true,
+        "status": "measured",
+        "detail": {
+          "scoped_row_valid": true,
+          "method_label": "trap/default",
+          "n_pulses": 20,
+          "completion": {
+            "golden": true,
+            "urom": true
+          },
+          "global_claim": false,
+          "min_default_gear": null
+        }
+      },
+      "G6_charge": {
+        "pass": true,
+        "status": "measured",
+        "detail": {
+          "monotone_q": true,
+          "q_zero_anchored": true,
+          "charge_fit_error_pct": 3.5149315128894524e-14,
+          "budget_pct": 0.5,
+          "breakpoint_crossings": {
+            "q_oss": 1,
+            "q_iss": 22,
+            "q_rss": 18,
+            "channel_saturation": 2
+          },
+          "c_ds_scaling_excluded": true,
+          "tuning_verdict": "infeasible"
+        }
+      },
+      "all_pass": true
+    },
+    "runtime": {
+      "iterations": {
+        "golden": 16514.0,
+        "urom": 12206.0
+      },
+      "points": {
+        "golden": 4047.0,
+        "urom": 3550.0
+      },
+      "t_last": {
+        "golden": 0.000176,
+        "urom": 0.000176
+      },
+      "repeats": 3,
+      "solver_time_s": {
+        "golden": 0.356,
+        "urom": 0.35
+      },
+      "wall_time_s": {
+        "golden": 0.8977107999962755,
+        "urom": 0.8901219999970635
+      },
+      "median": {
+        "solver": {
+          "golden": 0.356,
+          "urom": 0.35
+        },
+        "wall": {
+          "golden": 0.8977107999962755,
+          "urom": 0.8901219999970635
+        }
+      },
+      "min": {
+        "solver": {
+          "golden": 0.353,
+          "urom": 0.342
+        }
+      },
+      "max": {
+        "solver": {
+          "golden": 0.359,
+          "urom": 0.355
+        }
+      },
+      "completion": {
+        "golden": true,
+        "urom": true
+      }
+    },
+    "speed_adaptive_20": {
+      "n_pulses": 20,
+      "max_step": 1e-07,
+      "method_label": "trap/default",
+      "solver_speedup": 1.0171428571428571,
+      "wall_speedup": 1.0085255728981386,
+      "t_last": {
+        "golden": 0.000176,
+        "urom": 0.000176
+      },
+      "iterations": {
+        "golden": 16514.0,
+        "urom": 12206.0
+      },
+      "points": {
+        "golden": 4047.0,
+        "urom": 3550.0
+      },
+      "global_claim": false,
+      "min_default_gear": null,
+      "completion_basis": "iterations > 0; trace points >= 50 percent of median; t_last >= 0.999 x scheduled end; 3 interleaved repeats; aborts are failures"
+    },
+    "fidelity_scope": {
+      "waveform_gate_retired": false,
+      "energy_only_claim": false
+    },
+    "spice_log_tail": "LTspice 26.1.1 for Windows\nCircuit: C:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_g217l262\\tran.net\nStart Time: Fri Nov 20 23:21:18 2026\nsolver = Normal\nMaximum thread count: 16\ntnom = 27\ntemp = 25\nmethod = modified trap\nAsciiRawFile = true\nCompress1stOrder = true\nCompress2ndOrder = true\nDirect Newton iteration succeeded in finding operating point.\nTotal elapsed time: 0.355 seconds.\nTotal iterations: 12206\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_g217l262\\tran.net\n\n",
+    "dpt_run": {
+      "completed": true,
+      "iterations": 18576,
+      "trace_points": 7169,
+      "golden_trace_points": 7418,
+      "t_last": 1.4e-05,
+      "waveform": {
+        "vds_rel_rmse_pct": 4.289962508485992,
+        "id_rel_rmse_pct": 0.04633057218555238,
+        "compare_points": 7169
+      },
+      "metrics": {
+        "td_on_ns": 8.510593085202828,
+        "tr_ns": 0.837817173036465,
+        "td_off_ns": 7.0494886012646925,
+        "tf_ns": 1.342868355596672,
+        "dv_dt_max_v_per_ns": 175.831023616,
+        "di_dt_max_a_per_ns": 0.1449314523649215,
+        "e_on_uj": 1.1489460307901267,
+        "e_off_uj": 15.413235527544533,
+        "e_oss_uj": null,
+        "i_peak_a": 13.227612495422363,
+        "wall_clock_s": 1.0523975000105565
+      },
+      "log_tail": "LTspice 26.1.1 for Windows\nCircuit: C:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_43jfnquk\\tran.net\nStart Time: Fri Nov 20 23:21:21 2026\nsolver = Normal\nMaximum thread count: 16\ntnom = 27\ntemp = 25\nmethod = modified trap\nAsciiRawFile = true\nCompress1stOrder = true\nCompress2ndOrder = true\nDirect Newton iteration succeeded in finding operating point.\nTotal elapsed time: 0.460 seconds.\nTotal iterations: 18576\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_43jfnquk\\tran.net\n\n",
+      "error": null
+    },
+    "dpt_waveform": {
+      "vds_rel_rmse_pct": 4.289962508485992,
+      "id_rel_rmse_pct": 0.04633057218555238,
+      "compare_points": 7169
+    },
+    "dpt_comparison": {
+      "golden": {
+        "completed": true,
+        "iterations": 23036,
+        "trace_points": 7418,
+        "golden_trace_points": 7418,
+        "t_last": 1.4e-05,
+        "waveform": {
+          "vds_rel_rmse_pct": 0.0,
+          "id_rel_rmse_pct": 0.0,
+          "compare_points": 7418
+        },
+        "metrics": {
+          "td_on_ns": 8.279633475267339,
+          "tr_ns": 0.8455905640608933,
+          "td_off_ns": 6.954277439093564,
+          "tf_ns": 1.2274909471485018,
+          "dv_dt_max_v_per_ns": 3556.2035609600002,
+          "di_dt_max_a_per_ns": 3.7103491330864697,
+          "e_on_uj": 1.0914983705530676,
+          "e_off_uj": 15.627365907947942,
+          "e_oss_uj": null,
+          "i_peak_a": 13.239307403564453,
+          "wall_clock_s": 1.0636413999891374
+        },
+        "log_tail": "LTspice 26.1.1 for Windows\nCircuit: C:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_810zlc1a\\tran.net\nStart Time: Fri Nov 20 23:21:20 2026\nsolver = Normal\nMaximum thread count: 16\ntnom = 27\ntemp = 25\nmethod = modified trap\nAsciiRawFile = true\nCompress1stOrder = true\nCompress2ndOrder = true\nDirect Newton iteration succeeded in finding operating point.\nTotal elapsed time: 0.452 seconds.\nTotal iterations: 23036\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_810zlc1a\\tran.net\n\n",
+        "error": null
+      },
+      "urom": {
+        "completed": true,
+        "iterations": 18576,
+        "trace_points": 7169,
+        "golden_trace_points": 7418,
+        "t_last": 1.4e-05,
+        "waveform": {
+          "vds_rel_rmse_pct": 4.289962508485992,
+          "id_rel_rmse_pct": 0.04633057218555238,
+          "compare_points": 7169
+        },
+        "metrics": {
+          "td_on_ns": 8.510593085202828,
+          "tr_ns": 0.837817173036465,
+          "td_off_ns": 7.0494886012646925,
+          "tf_ns": 1.342868355596672,
+          "dv_dt_max_v_per_ns": 175.831023616,
+          "di_dt_max_a_per_ns": 0.1449314523649215,
+          "e_on_uj": 1.1489460307901267,
+          "e_off_uj": 15.413235527544533,
+          "e_oss_uj": null,
+          "i_peak_a": 13.227612495422363,
+          "wall_clock_s": 1.0523975000105565
+        },
+        "log_tail": "LTspice 26.1.1 for Windows\nCircuit: C:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_43jfnquk\\tran.net\nStart Time: Fri Nov 20 23:21:21 2026\nsolver = Normal\nMaximum thread count: 16\ntnom = 27\ntemp = 25\nmethod = modified trap\nAsciiRawFile = true\nCompress1stOrder = true\nCompress2ndOrder = true\nDirect Newton iteration succeeded in finding operating point.\nTotal elapsed time: 0.460 seconds.\nTotal iterations: 18576\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_43jfnquk\\tran.net\n\n",
+        "error": null
+      }
+    },
+    "static": {
+      "full_sweep_rel_rmse_pct": 2.039413541857248,
+      "span_normalised_rmse_pct": 1.8299358804050048,
+      "peak_normalised_rmse_pct": 1.8299357768187883,
+      "worst_endpoint_rel_error_pct": 0.558908236095348,
+      "per_curve_peak_rel_rmse_pct": [
+        3.607660982091033,
+        2.1593055882650676,
+        1.9317651458730642,
+        1.7281064077645125,
+        1.5487986606370887,
+        1.2608444665127239
+      ],
+      "per_curve_span_rel_rmse_pct": [
+        3.6076610477798003,
+        2.1593056367147923,
+        1.931765214714183,
+        1.7281065460958267,
+        1.548799155415503,
+        1.260863303608238
+      ],
+      "gated_estimator": "mean(per_curve_peak_rel_rmse_pct)",
+      "provenance": {
+        "gated_estimator": "mean(per_curve_peak_rel_rmse_pct)",
+        "per_curve_peak_definition": "compute_curve_error(...).peak_rmse_pct (RMSE / max|golden| * 100)",
+        "kind": "measured",
+        "source": "docs/fidelity_speed_research.md:89-100; notebooks/05_comprehensive_validation_report.ipynb:2245; reports/comparison/<vendor>/full_sweep_comparison.json (rel_rmse_pct == peak_rmse_pct per row)",
+        "diagnostics_not_gated": [
+          "span_normalised_rmse_pct",
+          "peak_normalised_rmse_pct"
+        ]
+      },
+      "n_curves": 6
+    },
+    "equal_sandbox_detail": {
+      "dpt_decks": {
+        "deck_diff_only_dut": true,
+        "effective_options_dumped": true,
+        "effective_options": {
+          "golden": [],
+          "rom": [],
+          "declared": []
+        },
+        "tolerance_overrides": [],
+        "libraries_inlined_both_arms": true,
+        "temperature_both_arms": 25.0,
+        "expected_temperature": 25.0,
+        "speed_deck_effective_options": {
+          "golden": [],
+          "rom": [],
+          "declared": []
+        }
+      },
+      "speed_decks": {
+        "deck_diff_only_dut": true,
+        "effective_options_dumped": true,
+        "effective_options": {
+          "golden": [],
+          "rom": [],
+          "declared": []
+        },
+        "tolerance_overrides": [],
+        "libraries_inlined_both_arms": true,
+        "temperature_both_arms": 25.0,
+        "expected_temperature": 25.0
+      },
+      "timing_energy_bars_source": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics (spec 6 G4 fallback decision; emit=tier2); README DPT timing and energy table"
+    },
+    "urom_provenance": {
+      "static_bars_pct": {
+        "source": "local://unified_rom_spec.md sections 1.4 and 6; README measured table",
+        "kind": "measured"
+      },
+      "static_score_estimator": {
+        "source": "docs/fidelity_speed_research.md:89-100; notebooks/05_comprehensive_validation_report.ipynb:2245; reports/comparison/<vendor>/full_sweep_comparison.json (rel_rmse_pct == peak_rmse_pct per row)",
+        "kind": "measured",
+        "rationale": "G1 gates the arithmetic mean of per-curve peak-normalised rel RMSE; median and span values stay in the record as diagnostics"
+      },
+      "dpt_bars_pct": {
+        "source": "local://unified_rom_spec.md section 1.4; reports/comparison/<vendor>/tier3_validation_simplis.json",
+        "kind": "measured"
+      },
+      "timing_energy_bars": {
+        "source": "reports/comparison/<vendor>/dpt_metrics.json#golden_metrics for emit=ann, #tier2_metrics for emit=tier2 (spec 6 fallback decision); README DPT timing and energy table",
+        "kind": "measured",
+        "ann_column": "golden_metrics",
+        "tier2_column": "tier2_metrics"
+      },
+      "speed_n_pulses": {
+        "source": "local://unified_rom_spec.md section 4.6 (speed_adaptive_20)",
+        "kind": "project_decision",
+        "rationale": "20 pulses is the pinned adaptive row; a 2-pulse default row must never be compared to it"
+      },
+      "speed_repeats": {
+        "source": "local://unified_rom_spec.md section 1.3 item 7 (at least 3 interleaved repeats)",
+        "kind": "project_decision"
+      },
+      "dpt_t_last_fraction": {
+        "source": "local://unified_rom_spec.md section 1.3 item 5 (DPT completion guard)",
+        "kind": "project_decision"
+      },
+      "dpt_trace_point_fraction": {
+        "source": "local://unified_rom_spec.md section 1.3 item 5 (at least 50 percent of golden points)",
+        "kind": "project_decision"
+      },
+      "g1_band_pp": {
+        "source": "local://unified_rom_spec.md section 6 G1 (proposed band)",
+        "kind": "project_decision"
+      },
+      "endpoint_bar_pct": {
+        "source": "local://unified_rom_spec.md section 1.4 (worst endpoint <= 4.13 percent)",
+        "kind": "measured"
+      },
+      "charge_budget_pct": {
+        "source": "local://unified_rom_spec.md section 1.4 (charge-fit error <= 0.5 percent Q(Vmax))",
+        "kind": "measured"
+      },
+      "tuning_max_evals": {
+        "source": "pipeline/unified_rom.py:TUNING_MAX_EVALS",
+        "kind": "project_decision",
+        "rationale": "bounded derivative-free search over four named fields; not an emitter default"
+      },
+      "tuning_bounds": {
+        "source": "pipeline/fitting.py:_tuning_bounds(c_rss_lin, Vds_cap_max); config/inputs/<vendor>.yaml#conditions.Vds_cap_max; curve4 c_eq_energy -> metadata c_rss_lin",
+        "kind": "source_derived",
+        "rationale": "O_GD is capped at one full Q_RSS at the top of the measured curve-4 sweep; Qoss is frozen and never used for this gate-side bound"
+      },
+      "timing_band": {
+        "source": "local://unified_rom_spec.md section 6 G4 (no worse than the recorded table); reports/comparison/<vendor>/dpt_metrics.json#golden_metrics (emit=ann) or #tier2_metrics (emit=tier2, spec 6 fallback decision)",
+        "kind": "project_decision",
+        "rationale": "5 percent band around each recorded timing/energy bar: a much smaller delay is not an improvement when the device never turns on; missing bars stay not_measured"
+      },
+      "zero_current_anchor": {
+        "source": "local://unified_rom_spec.md section 2.3 (VDS=0 and Vth cutoff guards); models/netlist_builder.py:_channel_expression",
+        "kind": "project_decision",
+        "rationale": "1 percent of the swept peak current is a structural G2 anchor tolerance, not a measured device current"
+      },
+      "tuning_golden_emp": {
+        "source": "reports/comparison/<vendor>/dpt_metrics.json#golden_metrics; reports/comparison/<vendor>/tier3_validation_simplis.json#runtime.golden,dpt_run",
+        "kind": "measured",
+        "rationale": "golden metrics are cached once; completion uses recorded iterations, trace points and t_last. Non-completing conditions are never scored"
+      },
+      "tuning_candidate_libs": {
+        "source": "pipeline/tuning.py:make_dpt_simulator; spec section 5 (no permanent candidate artifacts)",
+        "kind": "project_decision",
+        "rationale": "candidate netlists live in a TemporaryDirectory owned by the tuning run and are removed when tuning returns"
+      },
+      "adaptive_max_step": {
+        "source": "config/inputs/<vendor>.yaml#dpt.max_step; local://unified_rom_spec.md section 3.3 (EPC 100 ns cap on both arms)",
+        "kind": "source_derived"
+      },
+      "temperature": {
+        "source": "config/inputs/<vendor>.yaml#conditions.temperature",
+        "kind": "source_derived"
+      },
+      "eps_rule": {
+        "source": "approximation/smoother.py:eps_from_grid; local://unified_c1_study.md P7",
+        "kind": "source_derived",
+        "rationale": "per-table widths: q_oss for the Qoss Vds chain, transfer_vgs for the channel Vgs amp/sat ramps; transfer_vds is the Vds-grid diagnostic (the tanh knee is fitted, not a Vds ramp)"
+      },
+      "tier2_fallbacks": {
+        "source": "models/netlist_builder.py _META_DEFAULTS; AGENTS.md Traps (2026-11-18 gate-cap fix)",
+        "kind": "disclosed_fallback",
+        "rationale": "inherited from the closed Tier-2 emitter; gate-cap equivalents are evaluated at Cap_ref_Vds so the 4.5 nF / 7.5 pF / 1.5 Ohm fallbacks are not selected"
+      },
+      "external_sources": {
+        "status": "conditional_until_url_and_section_pinned",
+        "source": "local://unified_rom_spec.md section 2.3 (Yang/Tung figures CONDITIONAL)"
+      },
+      "gate_charge_tables": {
+        "source": "curve4 c_eq_charge*3 / c_eq_energy*0.15 on the curve-4 Vds grid",
+        "kind": "source_derived",
+        "rationale": "closed Tier-2 linear gate-side scalar, tabulated so apply_scalars can add O_GD*V without a hidden fallback"
+      }
+    },
+    "verdict": "accept",
+    "emitted_lib_ascii": "* PieceSpice Tier 2 CPWL Model for epc2216\n* Generated from fitted PWLModelSpec (K=6 Vgs curves, 101 Vds breakpoints)\n.SUBCKT epc2216_PIECSPICE_UROM d g s\n* Pins: 1=Drain(d) 2=Gate(g) 3=Source(s)\n\n* --- parasitics ---\nRG g gi 1.500000e+00\nRD d di 1.000000e-04\nRS s ss 1.000000e-04\n\n* --- channel: tanh-knee behavioral source (Curves 1+2) ---\nG_CH di ss VALUE = {((0.000000e+00 + 0.000000e+00*((V(gi,ss)-0.000000e+00)+abs((V(gi,ss))-0.000000e+00))/2 + 8.105756e+00*((V(gi,ss)-1.303870e+00)+abs((V(gi,ss))-1.303870e+00))/2 + 8.946918e+00*((V(gi,ss)-2.500000e+00)+abs((V(gi,ss))-2.500000e+00))/2 + -1.471861e+00*((V(gi,ss)-3.500000e+00)+abs((V(gi,ss))-3.500000e+00))/2 + -8.889284e-01*((V(gi,ss)-4.000000e+00)+abs((V(gi,ss))-4.000000e+00))/2 + -8.221689e-01*((V(gi,ss)-4.500000e+00)+abs((V(gi,ss))-4.500000e+00))/2 + -1.114913e+00*((V(gi,ss)-5.000000e+00)+abs((V(gi,ss))-5.000000e+00))/2)*tanh(V(di,ss)/(7.500000e-01 + 0.000000e+00*((V(gi,ss)-0.000000e+00)+abs((V(gi,ss))-0.000000e+00))/2 + 2.481059e-02*((V(gi,ss)-2.500000e+00)+abs((V(gi,ss))-2.500000e+00))/2 + 1.821850e-01*((V(gi,ss)-3.500000e+00)+abs((V(gi,ss))-3.500000e+00))/2 + -1.462195e-02*((V(gi,ss)-4.000000e+00)+abs((V(gi,ss))-4.000000e+00))/2 + -1.298460e-02*((V(gi,ss)-4.500000e+00)+abs((V(gi,ss))-4.500000e+00))/2 + -1.684985e-02*((V(gi,ss)-5.000000e+00)+abs((V(gi,ss))-5.000000e+00))/2)))}\n\n* --- charge-conserving capacitances (Curve 4, plan 2.3) ---\n* Output charge Qoss(Vds) as chained delta ramps:\nC_QOSS di ss Q = {0.000000e+00 + 6.979392e-11*((V(di,ss)-1.000000e-01)+abs((V(di,ss))-1.000000e-01))/2 + -6.300005e-14*((V(di,ss)-1.232170e-01)+abs((V(di,ss))-1.232170e-01))/2 + -7.677750e-14*((V(di,ss)-1.518242e-01)+abs((V(di,ss))-1.518242e-01))/2 + -9.285355e-14*((V(di,ss)-1.870731e-01)+abs((V(di,ss))-1.870731e-01))/2 + -1.110268e-13*((V(di,ss)-2.305058e-01)+abs((V(di,ss))-2.305058e-01))/2 + -1.306569e-13*((V(di,ss)-2.840222e-01)+abs((V(di,ss))-2.840222e-01))/2 + -1.505868e-13*((V(di,ss)-3.499636e-01)+abs((V(di,ss))-3.499636e-01))/2 + -1.693957e-13*((V(di,ss)-4.312144e-01)+abs((V(di,ss))-4.312144e-01))/2 + -1.861892e-13*((V(di,ss)-5.313293e-01)+abs((V(di,ss))-5.313293e-01))/2 + -2.017809e-13*((V(di,ss)-6.546878e-01)+abs((V(di,ss))-6.546878e-01))/2 + -2.194181e-13*((V(di,ss)-8.066863e-01)+abs((V(di,ss))-8.066863e-01))/2 + -2.439339e-13*((V(di,ss)-9.939743e-01)+abs((V(di,ss))-9.939743e-01))/2 + -2.794438e-13*((V(di,ss)-1.224745e+00)+abs((V(di,ss))-1.224745e+00))/2 + -3.271820e-13*((V(di,ss)-1.509093e+00)+abs((V(di,ss))-1.509093e+00))/2 + -3.851111e-13*((V(di,ss)-1.859459e+00)+abs((V(di,ss))-1.859459e+00))/2 + -4.494599e-13*((V(di,ss)-2.291169e+00)+abs((V(di,ss))-2.291169e+00))/2 + -5.171933e-13*((V(di,ss)-2.823108e+00)+abs((V(di,ss))-2.823108e+00))/2 + -5.884712e-13*((V(di,ss)-3.478548e+00)+abs((V(di,ss))-3.478548e+00))/2 + -6.681565e-13*((V(di,ss)-4.286161e+00)+abs((V(di,ss))-4.286161e+00))/2 + -7.652446e-13*((V(di,ss)-5.281277e+00)+abs((V(di,ss))-5.281277e+00))/2 + -8.894020e-13*((V(di,ss)-6.507428e+00)+abs((V(di,ss))-6.507428e+00))/2 + -1.042010e-12*((V(di,ss)-8.018255e+00)+abs((V(di,ss))-8.018255e+00))/2 + -1.172932e-12*((V(di,ss)-9.879849e+00)+abs((V(di,ss))-9.879849e+00))/2 + -8.073641e-13*((V(di,ss)-1.217365e+01)+abs((V(di,ss))-1.217365e+01))/2}\nC_ISS gi ss 1.949072e-10\nC_RSS gi di 9.805556e-12\n\n* --- body diode (Curve 6) ---\n.MODEL D_BD_epc2216_PIECSPICE_UROM D(IS=1.000000e-15 N=1.587 RS=3.135334e-02)\nD_BODY ss di D_BD_epc2216_PIECSPICE_UROM\n\n.ENDS epc2216_PIECSPICE_UROM"
+  }
+}

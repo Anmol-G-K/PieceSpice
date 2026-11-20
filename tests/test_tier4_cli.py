@@ -127,7 +127,7 @@ def test_tier4_registered_with_variant_free_library_name():
     assert registry.lib_path(VENDOR, 3, "simplis").name == (
         f"{VENDOR}_PIECESPICE_T3_simplis.lib")
     assert registry.variants_for(VENDOR) == (
-        registry.DEFAULT_VARIANT, "simplis")
+        registry.DEFAULT_VARIANT, "simplis", registry.UNIFIED_VARIANT)
 
 
 def test_registry_fit_and_validate_call_tier4_without_variant(monkeypatch):

@@ -1,6 +1,7 @@
 """Live LTspice engine tests (T2.1). Fast: each <2 s."""
 
 import os
+import shutil
 import sys
 sys.path.insert(0, ".")
 
@@ -33,6 +34,82 @@ def test_render_directives():
     card = render_directive(DCDirective("Vds", 0.0, 10.0, 0.1))
     assert card.startswith(".dc Vds") and "10" in card
     assert render_directive(OPDirective()) == ".op"
+
+
+# --- offline netlist-preparation tests (no LTspice executable needed) -------
+
+def _offline_engine(temperature=25.0):
+    """Engine instance that never resolves or executes a real LTspice binary."""
+    eng = object.__new__(SpiceEngine)
+    eng.ltspice_exe = "LTspice.exe"
+    eng.timeout_s = 1.0
+    eng.temperature = float(temperature)
+    eng.keep_files = True
+    return eng
+
+
+def _active_temp_cards(netlist_text):
+    """Return active `.temp` lines in prepared netlist text."""
+    cards = []
+    for ln in netlist_text.splitlines():
+        s = ln.strip()
+        if not s or s.startswith("*") or s.startswith(";"):
+            continue
+        low = s.lower()
+        if low.startswith(".temp"):
+            rest = low[len(".temp"):]
+            if rest == "" or not (rest[0].isalnum() or rest[0] == "_"):
+                cards.append(s)
+    return cards
+
+
+def _prepare(text, temperature=25.0):
+    """Prepare a netlist through the engine and return the written text."""
+    workdir, path = _offline_engine(temperature)._prepare_workdir(text, "unit")
+    try:
+        return path.read_text(encoding="ascii")
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+_NO_TEMP = "* dpt deck\nV1 in 0 5\nR1 in 0 1k\n.tran 0 1m\n.end\n"
+
+
+@pytest.mark.parametrize("card", [
+    ".temp 25",
+    ".TEMP 25",
+    "   .temp 85",
+    "\t.Temp 25",
+    ".temp 25 ; explicit deck temperature",
+])
+def test_explicit_temp_card_is_not_duplicated(card):
+    net = _NO_TEMP.replace("R1 in 0 1k", f"R1 in 0 1k\n{card}")
+    assert _active_temp_cards(_prepare(net, temperature=25.0)) == [card.strip()]
+
+
+def test_temp_card_injected_when_absent():
+    assert _active_temp_cards(_prepare(_NO_TEMP, temperature=25.0)) == \
+        [".temp 25"]
+
+
+def test_temp_card_omitted_at_ltspice_default():
+    assert _active_temp_cards(_prepare(_NO_TEMP, temperature=27.0)) == []
+
+
+@pytest.mark.parametrize("comment", [
+    "*.temp 25",
+    "; .temp 25",
+    "* note: this deck used .temp 25 before",
+    "; trailing .temp 85 note",
+])
+def test_commented_temp_is_not_a_directive(comment):
+    net = _NO_TEMP.replace("V1 in 0 5", f"{comment}\nV1 in 0 5")
+    assert len(_active_temp_cards(_prepare(net, temperature=25.0))) == 1
+
+
+def test_longer_dot_card_is_not_a_temp_directive():
+    net = _NO_TEMP.replace("V1 in 0 5", ".temperature 25\nV1 in 0 5")
+    assert len(_active_temp_cards(_prepare(net, temperature=25.0))) == 1
 
 
 @pytest.mark.skipif(os.environ.get("PIECESPICE_LIVE", "1") != "1",

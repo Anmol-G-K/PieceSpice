@@ -13,15 +13,21 @@ Entry point:
 from __future__ import annotations
 
 import logging
+import math
 from pathlib import Path
 from typing import Dict
 
 import numpy as np
 
-from common.types import PWLModelSpec, trim_trailing_invalid
+from common.types import (
+    PWLModelSpec,
+    UNIFIED_TUNING_IDENTITY,
+    UNIFIED_TUNING_PROVENANCE,
+    trim_trailing_invalid,
+)
 from config.yaml_io import load_input, load_output
 from pipeline.curves import _cap_ref_vds
-from simulation.engine import SpiceEngine, DCDirective
+from simulation.engine import DCDirective, SpiceEngine
 from simulation.netlist_text import NetlistBuilder
 
 
@@ -46,22 +52,46 @@ def _fit_transfer(vendor: str, cond: dict):
     d = _curve(vendor, "curve2_transfer_characteristic")["extracted"]
     vgs = _arr(d["curve_vgs"])
     i_d = _arr(d["curve_id"])
+    if vgs.size != i_d.size or vgs.size == 0:
+        raise ValueError(f"{vendor}: curve2 has no usable Vgs/Id samples")
     mask = i_d > max(1e-7, 0.001 * i_d.max())
+    if not np.any(mask):
+        raise ValueError(f"{vendor}: curve2 has no conducting region")
     return vgs[mask], i_d[mask], float(d.get("v_plateau_v", vgs[mask][0]))
 
 
-def fit_pwl_model(
-    vendor: str,
-    rel_tol: float = _FIT_REL_TOL,
-    out_dir: str | Path = "reports/models",
-) -> Path:
-    """Fit a Tier-2 PWL model for *vendor* and emit its subcircuit .lib."""
+def _tuning_bounds(vds_cap_max: float, c_rss_lin: float) -> Dict[str, tuple]:
+    """Per-field theta brackets from source data, not fitted WOL constants.
+
+    The multiplier bracket is a one-octave project decision around the
+    mathematical identity (see UNIFIED_TUNING_PROVENANCE). The O_GD bracket
+    is capped at one full Q_RSS at the top of the measured Coss sweep,
+    ``c_rss_lin * Vds_cap_max``: both source values are read from this
+    vendor's curve-4 extraction and config YAML. WOL Table 3 final numbers
+    are scale hints used only to check the bracket, never defaults here.
+    """
+    qgd_ref = max(float(c_rss_lin) * float(vds_cap_max), float(c_rss_lin))
+    if not math.isfinite(qgd_ref) or qgd_ref <= 0.0:
+        raise ValueError("cannot derive a positive O_GD bound from curve 4")
+    return {
+        "A_GD": (0.5, 2.0),
+        "O_GD": (0.0, qgd_ref),
+        "A_GS": (0.5, 2.0),
+        "A_RGI": (0.5, 2.0),
+    }
+
+
+def build_pwl_spec(vendor: str) -> PWLModelSpec:
+    """Assemble the producer spec (curves -> scalars -> metadata).
+
+    Additive T3 change: the spec now carries the T0 ``theta`` /
+    ``theta_bounds`` / ``urom_provenance`` metadata keys. Every curve-derived
+    scalar and breakpoint is exactly the closed Tier-2 value, so the emitted
+    netlist is unchanged (the builder ignores unknown metadata keys).
+    """
     cfg = load_input(vendor)
     device = cfg["device"]
     cond = cfg["conditions"]
-
-    out_path = Path(out_dir)
-    out_path.mkdir(parents=True, exist_ok=True)
 
     # ---- Curve 1: output family -> shared Vds grid + Id rows ----------------
     c1 = _curve(vendor, "curve1_output_characteristics")["extracted"]
@@ -81,6 +111,8 @@ def fit_pwl_model(
             ref_len = len(y)
         rows.append(np.interp(
             np.linspace(0, float(cond["Vds_sweep_max"]), ref_len), xs, y))
+    if ref_len is None or ref_len < 2:
+        raise ValueError(f"{vendor}: curve1 has no usable Vgs family")
     breakpoints_vds = list(np.linspace(
         0.0, float(cond["Vds_sweep_max"]), ref_len))
     breakpoints_id = [list(map(float, r)) for r in rows]
@@ -92,7 +124,13 @@ def fit_pwl_model(
         rx = _arr(c3["curve_id"])
         ry = _arr(c3["curve_rds_mohm"]) * 1e-3
         if len(rx):
-            rds_on = float(np.median(ry[ry > 0]))
+            pos = ry[ry > 0]
+            if pos.size:
+                rds_on = float(np.median(pos))
+            else:
+                _LOGGER.warning(
+                    "%s: curve3 has no positive Rds samples; "
+                    "0.005 Ohm fallback kept", vendor)
     except FileNotFoundError:
         _LOGGER.warning("%s: curve3 missing; Rds(on) fallback used", vendor)
 
@@ -143,6 +181,35 @@ def fit_pwl_model(
     except FileNotFoundError:
         pass
 
+    c_iss_lin = (cq if cq is not None else 1500e-12) * 3.0
+    c_oss_lin = cq if cq is not None else 500e-12
+    c_rss_lin = (ce if ce is not None else 50e-12) * 0.15
+    theta = dict(UNIFIED_TUNING_IDENTITY)
+    meta = {
+        "r_gate": 1.5,
+        "r_source": 1e-4,
+        "r_drain": 1e-4,
+        "c_iss_lin": c_iss_lin,
+        "c_oss_lin": c_oss_lin,
+        "c_rss_lin": c_rss_lin,
+        "theta": dict(theta),
+        "urom_tuning_theta": dict(theta),
+        "theta_bounds": _tuning_bounds(float(cond["Vds_cap_max"]), c_rss_lin),
+        "urom_provenance": {
+            **UNIFIED_TUNING_PROVENANCE,
+            "r_gate": "1.5 Ohm documented emitter fallback "
+                      "(models/netlist_builder.py:_META_DEFAULTS); "
+                      "project_decision unchanged from closed Tier 2",
+            "r_source": "1e-4 Ohm closed Tier-2 producer scalar",
+            "r_drain": "1e-4 Ohm closed Tier-2 producer scalar",
+            "c_iss_lin": "curve4 c_eq_charge * 3.0; closed Tier-2 rule "
+                         "(AGENTS.md Traps), 1500 pF fallback when absent",
+            "c_oss_lin": "curve4 c_eq_charge; 500 pF fallback when absent",
+            "c_rss_lin": "curve4 c_eq_energy * 0.15; closed Tier-2 rule, "
+                         "50 pF fallback when absent",
+            "Vds_cap_max": f"config/inputs/{vendor}.yaml:conditions.Vds_cap_max",
+        },
+    }
     spec = PWLModelSpec(
         device_name=device,
         tier=2,
@@ -155,20 +222,25 @@ def fit_pwl_model(
         v_th=v_th,
         body_diode_vsd=b_vsd,
         body_diode_isd=b_isd,
-        metadata={
-            "r_gate": 1.5,
-            "r_source": 1e-4,
-            "r_drain": 1e-4,
-            "c_iss_lin": (cq if cq is not None else 1500e-12) * 3.0,
-            "c_oss_lin": cq if cq is not None else 500e-12,
-            "c_rss_lin": (ce if ce is not None else 50e-12) * 0.15,
-        },
+        metadata=meta,
     )
+    return spec
+
+
+def fit_pwl_model(
+    vendor: str,
+    rel_tol: float = _FIT_REL_TOL,
+    out_dir: str | Path = "reports/models",
+) -> Path:
+    """Fit a Tier-2 PWL model for *vendor* and emit its subcircuit .lib."""
+    spec = build_pwl_spec(vendor)
+    out_path = Path(out_dir)
+    out_path.mkdir(parents=True, exist_ok=True)
 
     from models.netlist_builder import build_tier2_subcircuit
     netlist = build_tier2_subcircuit(spec)
 
-    lib_out = out_path / f"{device}_PIECESPICE_T2.lib"
+    lib_out = out_path / f"{spec.device_name}_PIECESPICE_T2.lib"
     lib_out.write_text(netlist, encoding="ascii")
     _LOGGER.info("%s: Tier-2 model written to %s", vendor, lib_out)
     return lib_out
@@ -209,8 +281,14 @@ def compare_tier2_vs_golden(vendor: str, lib_path: Path | None = None):
 
 
 def compare_tier2_vs_golden_full(vendor: str, lib_path: Path | None = None,
-                                 n_points: int = 41):
-    """Full-sweep Tier-2 vs golden comparison across every Vgs curve."""
+                                 n_points: int = 41, *,
+                                 subckt_name: str | None = None):
+    """Full-sweep Tier-2 vs golden comparison across every Vgs curve.
+
+    subckt_name overrides the instance name when the lib stem differs from
+    its .SUBCKT header (the unified <vendor>_PIECSPICE_UROM.lib case).
+    None keeps the historical lib-stem behaviour.
+    """
     cfg = load_input(vendor)
     cond = cfg["conditions"]
 
@@ -218,7 +296,7 @@ def compare_tier2_vs_golden_full(vendor: str, lib_path: Path | None = None,
         lib_path = Path("reports/models") / \
             f"{cfg['device']}_PIECESPICE_T2.lib"
     lib_path = Path(lib_path)
-    name = lib_path.stem
+    name = subckt_name or lib_path.stem
 
     c1 = load_output(vendor, "curve1_output_characteristics")["extracted"]
     prefix = "curve_id_vgs_"

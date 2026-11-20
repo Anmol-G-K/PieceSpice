@@ -2,14 +2,16 @@
 
 from enum import Enum
 from pathlib import Path
+
 import typer
 from rich.console import Console
 from rich.table import Table
+
 from parser.netlist import NetlistParser
 from parser.preprocessor import normalize_pspice_netlist
-from simulation.testbenches.static_sweep import StaticSweepTestbench
-from reporting.html_report import generate_html_report
 from pipeline import registry
+from reporting.html_report import generate_html_report
+from simulation.testbenches.static_sweep import StaticSweepTestbench
 
 app = typer.Typer(help="PieceSpice: SPICE to Piecewise-Linear Modeling Pipeline")
 console = Console()
@@ -110,6 +112,11 @@ def _num(value, fmt: str = ".4g") -> str:
     return format(value, fmt)
 
 
+def _yn(value) -> str:
+    """Render a tri-state gate flag without turning missing data into a pass."""
+    return {True: "yes", False: "no", None: "N/A"}.get(value, "N/A")
+
+
 def _tier3_summary(record: dict) -> None:
     """Print the measured Tier-3 DPT facts, including the anti-fake counts."""
     dpt = record["dpt_run"]
@@ -169,21 +176,61 @@ def _tier4_summary(record: dict) -> None:
         console.print(f"  emitted lib: {record['emitted_lib']}")
 
 
+def _unified_summary(record: dict) -> None:
+    """Print the unified G0-G6 record with method label and guard counts."""
+    gates = record.get("gates") or {}
+    console.print(
+        f"[bold green]Unified one-ROM[/bold green] for "
+        f"{record.get('vendor')}: variant={record.get('variant')} "
+        f"basis={record.get('channel_basis')} method={record.get('method')}")
+    console.print(
+        f"  verdict={record.get('verdict') or 'N/A'} "
+        f"all_pass={_yn(gates.get('all_pass'))}")
+    for name in ("G0", "G1_static", "G2_derivative", "G3_dpt_waveform",
+                 "G4_timing_energy", "G5_speed", "G6_charge"):
+        gate = gates.get(name) or {}
+        console.print(
+            f"  {name}: pass={_yn(gate.get('pass'))} "
+            f"status={gate.get('status') or 'N/A'}")
+    speed = record.get("speed_adaptive_20") or {}
+    console.print(
+        "  speed row: "
+        f"n_pulses={_num(speed.get('n_pulses'), 'd')} "
+        f"max_step={_num(speed.get('max_step'))} "
+        f"method={speed.get('method_label') or 'N/A'} "
+        f"solver={_num(speed.get('solver_speedup'))}x "
+        f"wall={_num(speed.get('wall_speedup'))}x "
+        f"global_claim={_yn(speed.get('global_claim'))}")
+    runtime = record.get("runtime") or {}
+    for arm in ("golden", "urom"):
+        console.print(
+            f"  {arm}: iterations={_num((runtime.get('iterations') or {}).get(arm), 'd')} "
+            f"points={_num((runtime.get('points') or {}).get(arm), 'd')} "
+            f"t_last={_num((runtime.get('t_last') or {}).get(arm))} s "
+            f"complete={_yn((runtime.get('completion') or {}).get(arm))}")
+    console.print(f"  repeats={_num(runtime.get('repeats'), 'd')}")
+    if record.get("emitted_lib"):
+        console.print(f"  emitted lib: {record['emitted_lib']}")
+
+
 @app.command()
 def fit(
     vendor: str = typer.Argument(..., help="Vendor config stem in config/inputs/"),
     tier: Tier = typer.Option(Tier.CPWL, "--tier",
-                              help="Solver tier: 2 (CPWL), 3 (TPWL) or 4 (ideal LUT)"),
+                              help="Solver tier: 2 (CPWL), 3 (TPWL/urom) or 4 (ideal LUT)"),
     variant: str = typer.Option(registry.DEFAULT_VARIANT, "--variant",
-                                help="Tier-3 variant (default: v1; ignored by Tier-4)"),
+                                help="Tier-3 variant: v1 (default), simplis, urom (unified); ignored by Tier-4"),
 ) -> None:
     """Fit a Tier-2, Tier-3 or Tier-4 subcircuit for VENDOR."""
-    if int(tier) == 2:
+    if tier == 2:
         path = registry.fit(vendor, 2)
         console.print(f"[bold green]Tier-2 model fitted:[/bold green] {path}")
         return
-    if int(tier) == 4:
+    if tier == 4:
         _tier4_summary(registry.validate(vendor, 4))
+        return
+    if tier == 3 and variant == registry.UNIFIED_VARIANT:
+        _unified_summary(registry.validate(vendor, 3, variant))
         return
     record = registry.validate(vendor, 3, variant)
     _tier3_summary(record)
@@ -193,15 +240,18 @@ def fit(
 def validate(
     vendor: str = typer.Argument(..., help="Vendor config stem in config/inputs/"),
     tier: Tier = typer.Option(Tier.CPWL, "--tier",
-                              help="Solver tier: 2 (CPWL), 3 (TPWL) or 4 (ideal LUT)"),
+                              help="Solver tier: 2 (CPWL), 3 (TPWL/urom) or 4 (ideal LUT)"),
     variant: str = typer.Option(registry.DEFAULT_VARIANT, "--variant",
-                                help="Tier-3 variant (default: v1; ignored by Tier-4)"),
+                                help="Tier-3 variant: v1 (default), simplis, urom (unified); ignored by Tier-4"),
 ) -> None:
     """Validate VENDOR against the golden model at the selected tier."""
-    if int(tier) == 4:
+    if tier == 4:
         _tier4_summary(registry.validate(vendor, 4))
         return
-    if int(tier) == 3:
+    if tier == 3:
+        if variant == registry.UNIFIED_VARIANT:
+            _unified_summary(registry.validate(vendor, 3, variant))
+            return
         _tier3_summary(registry.validate(vendor, 3, variant))
         return
     lib = registry.lib_path(vendor, 2)
@@ -226,11 +276,13 @@ def validate(
 def compare(
     vendor: str = typer.Argument(..., help="Vendor config stem in config/inputs/"),
 ) -> None:
-    """Compare recorded DPT metrics and Tier-4 energy/speed for VENDOR."""
+    """Compare recorded DPT, Tier-4 energy/speed and unified-ROM for VENDOR."""
+    from pipeline.unified_rom import compare_unified
+    unified = compare_unified(vendor)
     rows = registry.compare_rows(vendor)
-    if not rows:
+    if not rows and not unified.get("present"):
         console.print(
-            f"[bold red]No recorded DPT metrics for {vendor}[/bold red]. "
+            f"[bold red]No recorded metrics for {vendor}[/bold red]. "
             "Run the tier fits/validations first.")
         raise typer.Exit(1)
     table = Table(title=f"Golden vs Tier-2 vs Tier-3 — {vendor}")
@@ -252,15 +304,23 @@ def compare(
         console.print(
             f"[yellow]No recorded Tier-4 energy/speed for {vendor}[/yellow]. "
             "Run `fit <vendor> --tier 4` first.")
+    else:
+        table = Table(title=f"Tier-4 energy & speed (waveform gate retired) — {vendor}")
+        table.add_column("Quantity")
+        table.add_column("Golden")
+        table.add_column("Tier-4")
+        table.add_column("Detail")
+        for metric, golden, t4, detail in t4_rows:
+            table.add_row(metric, _num(golden), _num(t4), detail)
+        console.print(table)
+
+    if not unified.get("present"):
+        console.print(
+            "[yellow]No recorded unified validation for "
+            f"{vendor}[/yellow]. Run `fit <vendor> --tier 3 --variant urom` first.")
         return
-    table = Table(title=f"Tier-4 energy & speed (waveform gate retired) — {vendor}")
-    table.add_column("Quantity")
-    table.add_column("Golden")
-    table.add_column("Tier-4")
-    table.add_column("Detail")
-    for metric, golden, t4, detail in t4_rows:
-        table.add_row(metric, _num(golden), _num(t4), detail)
-    console.print(table)
+    console.print("[bold]Unified one-ROM (recorded only; never recomputed)[/bold]")
+    _unified_summary(unified)
 
 if __name__ == "__main__":
     app()

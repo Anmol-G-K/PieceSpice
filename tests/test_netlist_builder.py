@@ -1,8 +1,11 @@
 """Tests for Tier-2 subcircuit synthesis (M3.5) and fitting pipeline (M3.6)."""
 
+import math
+
 import numpy as np
 import pytest
 
+from approximation.smoother import eps_from_grid, emit_qoss_expr
 from common.types import PWLModelSpec
 from models.netlist_builder import build_tier2_subcircuit
 
@@ -115,3 +118,103 @@ def test_fit_pwl_model_generates_lib(tmp_path):
     text = lib.read_text(encoding="ascii")
     assert ".SUBCKT" in text and ".ENDS" in text
     assert "G_CH" in text and "C_QOSS" in text
+
+
+# ---------------------------------------------------------------------------
+# T1 C1 emitter A/B (unified spec 4.1; C1 study P1/P3) - offline only.
+# ---------------------------------------------------------------------------
+
+def _line_with(text: str, prefix: str) -> str:
+    return next(line for line in text.splitlines()
+                if line.startswith(prefix))
+
+
+def _qoss_expression(text: str) -> str:
+    line = _line_with(text, "C_QOSS")
+    return line.split("Q = {", 1)[1].rsplit("}", 1)[0]
+
+
+def _eval_spice(expr: str, vds: float) -> float:
+    """Numerically evaluate one emitted Q= expression at a drain voltage."""
+    substituted = expr.replace("V(di,ss)", f"({vds!r})")
+    return float(eval(substituted, {"sqrt": math.sqrt, "abs": abs}))
+
+
+def _emitter_nodes(text: str) -> set[str]:
+    """Internal/external nodes named on R/C/G/D element lines only."""
+    nodes: set[str] = set()
+    for line in text.splitlines():
+        parts = line.split()
+        if parts and parts[0][:1] in {"R", "C", "G", "D"} and len(parts) >= 3:
+            nodes.update(parts[1:3])
+    return nodes
+
+
+def test_default_c1_eps_is_unchanged_legacy_c0(sample_spec):
+    """No Tier-2 default change: None and 0.0 emit identical C0 text."""
+    base = build_tier2_subcircuit(sample_spec)
+    assert base == build_tier2_subcircuit(sample_spec, c1_eps=None)
+    assert base == build_tier2_subcircuit(sample_spec, c1_eps=0.0)
+    assert "abs(" in _line_with(base, "G_CH")
+    assert "abs(" in _line_with(base, "C_QOSS")
+    assert "sqrt(" not in base
+
+
+def test_c1_eps_changes_only_the_two_ramp_lines(sample_spec):
+    eps = eps_from_grid(sample_spec.q_oss_vs_v)
+    assert eps == pytest.approx(12.5)   # median spacing 25, capped at 12.5
+    base = build_tier2_subcircuit(sample_spec)
+    text = build_tier2_subcircuit(sample_spec, c1_eps=eps)
+    assert text.isascii()
+    base_lines, new_lines = base.splitlines(), text.splitlines()
+    assert len(base_lines) == len(new_lines)
+    changed = {new_lines[i].split()[0]
+               for i, (a, b) in enumerate(zip(base_lines, new_lines)) if a != b}
+    assert changed == {"G_CH", "C_QOSS"}
+    for prefix in ("RG ", "RD ", "RS ", "D_BODY ", ".MODEL", ".SUBCKT",
+                   ".ENDS"):
+        assert _line_with(base, prefix) == _line_with(text, prefix)
+    # Both ramp sites come from the shared T0 helper, not local copies.
+    q = emit_qoss_expr(sample_spec.q_oss_vs_v,
+                       sample_spec.q_oss_charge_c, eps)
+    assert _line_with(text, "C_QOSS") == f"C_QOSS di ss Q = {{{q}}}"
+    assert "sqrt(" in _line_with(text, "G_CH")
+    assert "sqrt(" in _line_with(text, "C_QOSS")
+
+
+def test_emitted_qoss_is_anchored_at_zero_with_c1_eps(sample_spec):
+    eps = eps_from_grid(sample_spec.q_oss_vs_v)
+    text = build_tier2_subcircuit(sample_spec, c1_eps=eps)
+    q0 = _eval_spice(_qoss_expression(text), 0.0)
+    qmax = max(sample_spec.q_oss_charge_c)
+    # Only %.6e coefficient rounding remains; no eps/2 charge is injected.
+    assert abs(q0) < 1e-6 * qmax
+
+
+def test_emitted_qoss_delta_slopes_rebuild_table_at_eps_zero(sample_spec):
+    text = build_tier2_subcircuit(sample_spec)
+    expr = _qoss_expression(text)
+    for v, q in zip(sample_spec.q_oss_vs_v, sample_spec.q_oss_charge_c):
+        assert _eval_spice(expr, v) == pytest.approx(q, rel=1e-5)
+    grid = np.linspace(min(sample_spec.q_oss_vs_v),
+                       max(sample_spec.q_oss_vs_v), 25)
+    values = [_eval_spice(expr, float(v)) for v in grid]
+    qmax = max(sample_spec.q_oss_charge_c)
+    assert np.all(np.diff(values) >= -1e-6 * qmax)
+
+
+def test_c1_eps_adds_no_nodes_and_keeps_semantic_pins(sample_spec):
+    base_nodes = _emitter_nodes(build_tier2_subcircuit(sample_spec))
+    assert base_nodes == {"d", "g", "s", "gi", "di", "ss"}
+    for eps in (0.0, 0.5, 12.5):
+        text = build_tier2_subcircuit(sample_spec, c1_eps=eps)
+        assert _emitter_nodes(text) == base_nodes
+        assert ".SUBCKT TestDev_PIECESPICE_T2 d g s" in text
+        assert ".ENDS TestDev_PIECESPICE_T2" in text
+        assert text.isascii()
+
+
+@pytest.mark.parametrize("bad", [-0.1, float("nan"), float("inf")])
+def test_c1_eps_rejects_invalid_widths(sample_spec, bad):
+    with pytest.raises(ValueError):
+        build_tier2_subcircuit(sample_spec, c1_eps=bad)

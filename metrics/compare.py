@@ -16,14 +16,36 @@ specific. Plotting follows house rules: EAST legends, 300 dpi, eng units.
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import matplotlib.pyplot as plt
 
 from common.types import CurveData
 from metrics.static import compute_curve_error
+
+
+# Canonical G1 static estimator.  The pinned 41-point full-sweep bars were
+# scored as the arithmetic mean of per-curve peak-normalised relative RMSE
+# (RMSE / max|golden|), never a median or a span-normalised value.  Exported
+# so the validation record and its tests share one source of truth with
+# urom_provenance["static_score_estimator"] in pipeline/unified_rom.py.
+STATIC_SCORE_PROVENANCE: Dict[str, Any] = {
+    "gated_estimator": "mean(per_curve_peak_rel_rmse_pct)",
+    "per_curve_peak_definition": (
+        "compute_curve_error(...).peak_rmse_pct (RMSE / max|golden| * 100)"),
+    "kind": "measured",
+    "source": (
+        "docs/fidelity_speed_research.md:89-100; "
+        "notebooks/05_comprehensive_validation_report.ipynb:2245; "
+        "reports/comparison/<vendor>/full_sweep_comparison.json "
+        "(rel_rmse_pct == peak_rmse_pct per row)"),
+    "diagnostics_not_gated": [
+        "span_normalised_rmse_pct", "peak_normalised_rmse_pct",
+    ],
+}
 
 
 # ---------------------------------------------------------------------------
@@ -137,6 +159,56 @@ def build_report(
         cc.passed = cc.rel_rmse_pct <= target_rel_rmse_pct
         report.curves.append(cc)
     return report
+
+
+def recorded_static_summary(
+    curve_pairs: Sequence[Tuple[np.ndarray, np.ndarray]],
+) -> Dict[str, Any]:
+    """G1 static scorecard: the canonical recorded-bar estimator, with provenance.
+
+    The pinned full-sweep bar is the arithmetic mean of per-curve
+    peak-normalised rel RMSE (docs/fidelity_speed_research.md:89-100,
+    notebooks/05_comprehensive_validation_report.ipynb:2245; every row of
+    reports/comparison/<vendor>/full_sweep_comparison.json stores
+    ``rel_rmse_pct == peak_rmse_pct``).  Per-curve values come directly from
+    the shared ``compute_curve_error`` implementation
+    (``relative_rmse_pct`` / ``peak_rmse_pct``), so this scorecard cannot drift
+    from the canonical metric definition.  The identity and traced source of
+    the gated estimator are exported as ``STATIC_SCORE_PROVENANCE`` and
+    attached to every returned record.
+    Span-normalised and peak-median values stay in the record as diagnostics
+    (AGENTS.md:120-121) but are never gated.  Endpoint error uses the golden
+    span as denominator so a near-zero golden endpoint cannot print 1e7 %.
+
+    Curves with no samples are skipped; all-empty input reports null
+    statistics rather than a fabricated zero.
+    """
+    peak: List[float] = []
+    span: List[float] = []
+    endpoint: List[float] = []
+    n_curves = 0
+    for golden, candidate in curve_pairs:
+        g = np.asarray(golden, dtype=float)
+        s = np.asarray(candidate, dtype=float)
+        if not g.size or not s.size:
+            continue
+        n_curves += 1
+        curve_error = compute_curve_error(g, s)
+        span.append(curve_error.relative_rmse_pct)
+        peak.append(curve_error.peak_rmse_pct)
+        endpoint.append(
+            100.0 * abs(s[-1] - g[-1]) / (float(np.ptp(g)) or 1.0))
+    return {
+        "full_sweep_rel_rmse_pct": float(np.mean(peak)) if peak else None,
+        "span_normalised_rmse_pct": float(np.median(span)) if span else None,
+        "peak_normalised_rmse_pct": float(np.median(peak)) if peak else None,
+        "worst_endpoint_rel_error_pct": max(endpoint) if endpoint else None,
+        "per_curve_peak_rel_rmse_pct": peak,
+        "per_curve_span_rel_rmse_pct": span,
+        "gated_estimator": STATIC_SCORE_PROVENANCE["gated_estimator"],
+        "provenance": deepcopy(STATIC_SCORE_PROVENANCE),
+        "n_curves": n_curves,
+    }
 
 
 # ---------------------------------------------------------------------------

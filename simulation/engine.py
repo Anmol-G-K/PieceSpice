@@ -302,6 +302,29 @@ class SpiceEngine:
             out.append(card_line)
         return "\n".join(out) + "\n"
 
+    @staticmethod
+    def _has_temp_directive(netlist_text: str) -> bool:
+        """True when the deck already declares an active `.temp` card.
+
+        LTspice aborts when a netlist sets the temperature twice, so the
+        engine must not inject a card into a deck that already carries one
+        (unified DPT decks have explicit `.temp` cards for sandbox parity).
+        Matching is case-insensitive and tolerates leading whitespace and
+        trailing inline comments; lines commented out with '*' or ';' and
+        longer dot-cards such as `.temperature` are not directives.
+        """
+        prefix = ".temp"
+        for ln in netlist_text.splitlines():
+            s = ln.strip()
+            if not s or s.startswith("*") or s.startswith(";"):
+                continue
+            low = s.lower()
+            if low.startswith(prefix):
+                rest = low[len(prefix):]
+                if rest == "" or not (rest[0].isalnum() or rest[0] == "_"):
+                    return True
+        return False
+
     def _temperature_cards(self) -> list[str]:
         """LTspice default temp is 27 C; emit a card when we differ."""
         return [f".temp {self.temperature:g}"] \
@@ -314,7 +337,9 @@ class SpiceEngine:
         # everything so the written netlist is self-contained.
         netlist_text = _inline_includes(netlist_text)
         body = netlist_text.rstrip()
-        cards = "\n".join(self._temperature_cards())
+        cards = ""
+        if not self._has_temp_directive(netlist_text):
+            cards = "\n".join(self._temperature_cards())
         if cards:
             # temperature card must precede .end
             lines_ = body.splitlines()
