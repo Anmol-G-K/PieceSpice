@@ -8,7 +8,6 @@ from rich.console import Console
 from rich.table import Table
 
 from parser.netlist import NetlistParser
-from parser.preprocessor import normalize_pspice_netlist
 from pipeline import registry
 from reporting.html_report import generate_html_report
 from simulation.testbenches.static_sweep import StaticSweepTestbench
@@ -105,16 +104,46 @@ class Tier(int, Enum):
     IDEAL_LUT = 4
 
 
+class Basis(str, Enum):
+    """UROM channel basis accepted by --basis (canonical C0 or ANN candidate)."""
+    TIER2 = "tier2"
+    ANN = "ann"
+
+
 def _num(value, fmt: str = ".4g") -> str:
-    """Render a measured number, or N/A when it was not recorded."""
+    """Render a measured number, or N/A when it was not recorded.
+
+    Recorded counts (iterations, points, pulses) are often floats because they
+    are medians.  The 'd' format rejects floats, so integral floats are
+    rendered without a decimal suffix and any other numeric value falls back
+    to the default numeric format instead of raising.  The default '.4g'
+    rendering is unchanged.
+    """
     if value is None or (isinstance(value, float) and value != value):
         return "N/A"
-    return format(value, fmt)
+    if fmt == "d" and isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    try:
+        return format(value, fmt)
+    except (ValueError, TypeError):
+        return format(value, ".4g")
 
 
 def _yn(value) -> str:
     """Render a tri-state gate flag without turning missing data into a pass."""
     return {True: "yes", False: "no", None: "N/A"}.get(value, "N/A")
+
+
+def _validation_record(vendor: str, tier: int,
+                       variant: str = registry.DEFAULT_VARIANT,
+                       basis: str = "tier2") -> dict:
+    """Return a dict validation record; Tier-2's tuple route is excluded."""
+    record = registry.validate(vendor, tier, variant, basis=basis)
+    if not isinstance(record, dict):
+        raise TypeError(
+            f"tier {tier} validation returned {type(record).__name__}, "
+            "expected a record dict")
+    return record
 
 
 def _tier3_summary(record: dict) -> None:
@@ -177,12 +206,25 @@ def _tier4_summary(record: dict) -> None:
 
 
 def _unified_summary(record: dict) -> None:
-    """Print the unified G0-G6 record with method label and guard counts."""
+    """Print the unified G0-G6 record with its selected artifact identity."""
     gates = record.get("gates") or {}
+    basis = record.get("emit") or record.get("channel_basis")
+    tuning = (record.get("tuning_mode")
+              or (record.get("tuning") or {}).get("mode"))
+    c1 = record.get("c1_variant") or "C0"
     console.print(
         f"[bold green]Unified one-ROM[/bold green] for "
         f"{record.get('vendor')}: variant={record.get('variant')} "
-        f"basis={record.get('channel_basis')} method={record.get('method')}")
+        f"basis={basis} method={record.get('method')} "
+        f"tuning={tuning} c1_variant={c1}")
+    identity = record.get("artifact_identity") or {}
+    if identity:
+        console.print(
+            f"  identity: status={identity.get('status') or 'N/A'} "
+            f"sha256={identity.get('actual_sha256') or 'N/A'} "
+            f"reasons={identity.get('reasons') or []}")
+    elif record.get("emitted_lib_sha256"):
+        console.print(f"  identity: sha256={record['emitted_lib_sha256']}")
     console.print(
         f"  verdict={record.get('verdict') or 'N/A'} "
         f"all_pass={_yn(gates.get('all_pass'))}")
@@ -220,6 +262,10 @@ def fit(
                               help="Solver tier: 2 (CPWL), 3 (TPWL/urom) or 4 (ideal LUT)"),
     variant: str = typer.Option(registry.DEFAULT_VARIANT, "--variant",
                                 help="Tier-3 variant: v1 (default), simplis, urom (unified); ignored by Tier-4"),
+    basis: Basis = typer.Option(
+        Basis.TIER2, "--basis",
+        help="UROM channel basis for --variant urom: tier2 (canonical C0, "
+             "default) or ann (measured/rejected candidate)"),
 ) -> None:
     """Fit a Tier-2, Tier-3 or Tier-4 subcircuit for VENDOR."""
     if tier == 2:
@@ -227,13 +273,13 @@ def fit(
         console.print(f"[bold green]Tier-2 model fitted:[/bold green] {path}")
         return
     if tier == 4:
-        _tier4_summary(registry.validate(vendor, 4))
+        _tier4_summary(_validation_record(vendor, 4))
         return
     if tier == 3 and variant == registry.UNIFIED_VARIANT:
-        _unified_summary(registry.validate(vendor, 3, variant))
+        _unified_summary(_validation_record(
+            vendor, 3, variant, basis=basis.value))
         return
-    record = registry.validate(vendor, 3, variant)
-    _tier3_summary(record)
+    _tier3_summary(_validation_record(vendor, 3, variant))
 
 
 @app.command()
@@ -243,16 +289,21 @@ def validate(
                               help="Solver tier: 2 (CPWL), 3 (TPWL/urom) or 4 (ideal LUT)"),
     variant: str = typer.Option(registry.DEFAULT_VARIANT, "--variant",
                                 help="Tier-3 variant: v1 (default), simplis, urom (unified); ignored by Tier-4"),
+    basis: Basis = typer.Option(
+        Basis.TIER2, "--basis",
+        help="UROM channel basis for --variant urom: tier2 (canonical C0, "
+             "default) or ann (measured/rejected candidate)"),
 ) -> None:
     """Validate VENDOR against the golden model at the selected tier."""
     if tier == 4:
-        _tier4_summary(registry.validate(vendor, 4))
+        _tier4_summary(_validation_record(vendor, 4))
         return
     if tier == 3:
         if variant == registry.UNIFIED_VARIANT:
-            _unified_summary(registry.validate(vendor, 3, variant))
+            _unified_summary(_validation_record(
+                vendor, 3, variant, basis=basis.value))
             return
-        _tier3_summary(registry.validate(vendor, 3, variant))
+        _tier3_summary(_validation_record(vendor, 3, variant))
         return
     lib = registry.lib_path(vendor, 2)
     if not lib.exists():
@@ -275,10 +326,14 @@ def validate(
 @app.command()
 def compare(
     vendor: str = typer.Argument(..., help="Vendor config stem in config/inputs/"),
+    basis: Basis = typer.Option(
+        Basis.TIER2, "--basis",
+        help="UROM basis whose canonical record is compared: tier2 (default) "
+             "or ann"),
 ) -> None:
     """Compare recorded DPT, Tier-4 energy/speed and unified-ROM for VENDOR."""
     from pipeline.unified_rom import compare_unified
-    unified = compare_unified(vendor)
+    unified = compare_unified(vendor, emit=basis.value)
     rows = registry.compare_rows(vendor)
     if not rows and not unified.get("present"):
         console.print(

@@ -26,7 +26,7 @@ import math
 import re
 import time
 from pathlib import Path
-
+from typing import Any
 from config.yaml_io import load_input
 from approximation.loss_lut import build_lut
 from models.tier4_ideal_switch_builder import build_tier4_subcircuit
@@ -73,6 +73,13 @@ SPEED_COMPLETION_BASIS = (
     "schedule metadata, not a measured trace endpoint."
 )
 
+# Mandatory method label on every Tier-4 speed row (research G0 item 1 / gate
+# 1: "method declared in every row"). The recorded benchmark rows use the
+# LTspice default/trap integrator on BOTH arms; matched-Gear numbers live only
+# as a separate declared diagnostic in the research synthesis and must never
+# replace or be blended into these rows. Prose/metadata only: no solver knob.
+SPEED_METHOD = "LTspice default/trap (both arms)"
+
 GOLDEN_METRICS_SUFFIX = "#golden_metrics"
 ENERGY_GATE_DISCLOSURE = (
     "LUT reproduces its own golden DPT crossing; not an independent "
@@ -87,6 +94,16 @@ THERMAL_LOSS_NOTE = (
     "power."
 )
 
+# The 1 / (dpt.t2_on - dpt.t1_on) value is the DPT bench pulse repetition
+# interval, not a measured converter switching frequency. Reported only so
+# p_switch is a labelled linear scaling diagnostic; no converter is modelled.
+F_SW_BASIS_NOTE = (
+    "f_sw = 1 / (dpt.t2_on - dpt.t1_on) is an illustrative offline frequency "
+    "from the DPT pulse repetition interval (a bench schedule choice), NOT a "
+    "measured converter switching frequency; p_switch scales linearly with "
+    "it and remains a diagnostic only."
+)
+
 OFFICIAL_SOURCES = {
     "P-SEM": "https://www.plexim.com/products/plecs/electrical/semiconductors",
     "P-TC": "https://docs.plexim.com/plecs/5.0/thermal-modeling/thermal-concepts",
@@ -97,7 +114,8 @@ OFFICIAL_SOURCES = {
 # failure claim: older recorded text cited a golden abort (no raw output /
 # rc=1, research section 2), while the current recorded baseline artifact
 # holds a completed adaptive golden arm.  Both readings are disclosed in
-# vendor_scope_notes.  Prose/metadata only: no number, guard or tolerance.
+# vendor_scope_notes at the record root.  Prose/metadata only: no number,
+# guard or tolerance.
 GOLDEN_SPEED_EXCLUSIONS = {
     "cpm2-1200": (
         "CPM2-1200 golden adaptive speed is contract-excluded (VM-10 vendor "
@@ -106,7 +124,7 @@ GOLDEN_SPEED_EXCLUSIONS = {
         "('no raw output / rc=1'); the current "
         "reports/comparison/speedup_benchmark.json instead holds a completed "
         "adaptive golden arm. That artifact conflict is disclosed in "
-        "vendor_scope_notes; no ratio is derived and the status stays N/A."
+        "vendor_scope_notes (record root); no ratio is derived and the status stays N/A."
     ),
 }
 
@@ -156,11 +174,11 @@ SOLVER_STABILIZATION_RATIONALE = (
     "identify the missing drain output capacitance as the primary, sufficient "
     "cause of Tier-4 solver timeouts: with only the ideal switch, clamp diode "
     "and inductor there is no bounded state variable at the near-step dV/dt, "
-    "so LTspice never reaches t_end. One measured linear C_QOSS d s "
-    "<curve4.coss_f> makes every previously failing arm complete; it slows "
-    "drain dV/dt and adds L-C overshoot. The measured Vgs=0 off-state Roff "
-    "removes a secondary, vendor-specific 1e12 singularity but is not a "
-    "common fix. Solver stabilization only."
+    "so LTspice never reaches t_end. One measured linear C_QOSS using the "
+    "vendor Curve-4 Coss at cap_ref_Vds makes every previously failing arm "
+    "complete; it slows drain dV/dt and adds L-C overshoot. The measured "
+    "Vgs=0 off-state Roff removes a secondary, vendor-specific 1e12 "
+    "singularity but is not a common fix. Solver stabilization only."
 )
 SOLVER_STABILIZATION_DISCLOSURE = (
     "C_QOSS is a single measured linear output capacitance (curve4.coss_f at "
@@ -360,23 +378,20 @@ def _energy_comparison(lut, dpt_record: dict, vbus: float,
         ref = _num(golden.get(metric))
         evaluable = (golden_ok and tier4 is not None and ref is not None
                      and predicted.get("status") in MEASURED_LUT_STATUS)
-        row = {"golden": ref, "tier4": tier4}
-        if evaluable:
-            row.update({
-                "abs_error": abs(tier4 - ref),
-                "rel_error_pct": 100.0 * (tier4 - ref) / abs(ref) if ref else None,
-                "status": "measured",
-            })
+        row: dict[str, Any] = {"golden": ref, "tier4": tier4}
+        if evaluable and tier4 is not None and ref is not None:
+            row["abs_error"] = abs(tier4 - ref)
+            row["rel_error_pct"] = (
+                100.0 * (tier4 - ref) / abs(ref) if ref else None)
+            row["status"] = "measured"
         else:
-            row.update({
-                "abs_error": None,
-                "rel_error_pct": None,
-                "status": "N/A",
-                "reason": (
-                    f"LUT status {predicted.get('status')!r} is not a measured "
-                    "crossing, or the golden DPT is not evaluable"
-                ),
-            })
+            row["abs_error"] = None
+            row["rel_error_pct"] = None
+            row["status"] = "N/A"
+            row["reason"] = (
+                f"LUT status {predicted.get('status')!r} is not a measured "
+                "crossing, or the golden DPT is not evaluable"
+            )
         row.update(disclosure)
         row["source"] = predicted.get("source")
         rows[metric] = row
@@ -459,7 +474,7 @@ def _run_emitted_dpt(lib: Path, sub_name: str, pin_roles: list[str],
 def _dpt_guard(result, log: str, dpt: dict, golden_points, wall: float) -> dict:
     """Completion guard for the emitted DPT; aborted runs are never complete."""
     time_trace = result.get("time")
-    n = int(len(time_trace))
+    n = len(time_trace)
     t_last = float(time_trace[-1]) if n else None
     iterations = None
     match = re.search(r"Total iterations:\s*(\d+)", log or "")
@@ -513,6 +528,7 @@ def _speedup_row(golden: dict, tier4: dict, complete: bool,
         "status": "measured" if complete else "N/A",
         "max_step_s": policy["golden_max_step"],
         "case": policy["case"],
+        "method": SPEED_METHOD,
     }
     if complete:
         gs, ts = _num(golden.get("solver_elapsed_s")), _num(tier4.get("solver_elapsed_s"))
@@ -612,6 +628,7 @@ def run_vendor(vendor: str, *, live: bool = True) -> dict:
         "completion_basis": SPEED_COMPLETION_BASIS,
         "status": "N/A",
         "max_step_s": policy["golden_max_step"], "case": policy["case"],
+        "method": SPEED_METHOD,
     }
     measured_runtime = {"golden": None, "tier4": None}
     if (live and emission["status"] == "emitted"
@@ -655,7 +672,8 @@ def run_vendor(vendor: str, *, live: bool = True) -> dict:
     # Vbus*Iload is DC bus INPUT power, never converter output power.  No
     # config field supplies a measured converter output, so the LUT returns
     # N/A with an explicit reason; only the separately computed loss terms
-    # are reported.  f_sw is config-derived (1 / DPT pulse period), labeled.
+    # are reported.  f_sw is 1 / (a DPT bench pulse repetition interval): an
+    # illustrative offline frequency, NOT a measured converter f_sw (F_SW_BASIS_NOTE).
     pulse_period = dpt["t2_on"] - dpt["t1_on"]
     p_bus_in_w = vbus * i_switch
     f_sw_hz = 1.0 / pulse_period if pulse_period > 0 else None
@@ -677,6 +695,7 @@ def run_vendor(vendor: str, *, live: bool = True) -> dict:
         "p_cond_w": _num(eff_dict.get("p_cond_w")),
         "p_switch_w": _num(eff_dict.get("p_switch_w")),
         "f_sw_hz": f_sw_hz,
+        "f_sw_basis": F_SW_BASIS_NOTE,
         "thermal_note": THERMAL_LOSS_NOTE,
         "source": OFFICIAL_SOURCES["P-TC"],
     }
@@ -768,8 +787,7 @@ def run_vendor(vendor: str, *, live: bool = True) -> dict:
                     "rule": ("Vbus*Iload is DC bus input power, not output "
                              "power; no config field supplies converter "
                              "output power, so efficiency is N/A. "
-                             "f_sw = 1 / (dpt.t2_on - dpt.t1_on) is "
-                             "config-derived, not assumed."),
+                             + F_SW_BASIS_NOTE),
                     "kind": "config_derived_input_power_only",
                     "thermal_note": THERMAL_LOSS_NOTE,
                 },
@@ -848,10 +866,11 @@ def run_vendor(vendor: str, *, live: bool = True) -> dict:
                 },
                 "no_tolerance_change": True,
             },
-        # Vendor-specific scope disclosure (VM-10); absent for other vendors.
+        },
+        # Vendor-specific scope disclosure (VM-10); a RECORD-ROOT key so it
+        # matches the documented pointer in GOLDEN_SPEED_EXCLUSIONS.
         **({"vendor_scope_notes": VENDOR_SPEED_SCOPE_NOTES[vendor]}
            if vendor in VENDOR_SPEED_SCOPE_NOTES else {}),
-        },
         "guards": {
             "ascii_emission": bool(emission["ascii"]),
             "emission_valid": emission["status"] == "emitted",

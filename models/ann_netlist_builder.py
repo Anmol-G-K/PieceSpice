@@ -118,21 +118,30 @@ def _resolve_eps(c1_eps) -> float:
 
 
 def build_ann_subcircuit(spec, channel_fit: AnnChannelFit,
-                         charge_fit: AnnChargeFit, *, c1_eps=None) -> str:
-    """Emit ``.SUBCKT <name>_PIECSPICE_UROM d g s``.
+                         charge_fit: AnnChargeFit, *, c1_eps=None,
+                         name: str | None = None,
+                         subckt_name: str | None = None) -> str:
+    """Emit ``.SUBCKT <subckt> d g s``.
 
     Parasitics, D_BODY model and pin order are copied from the closed Tier-2
     emitter (single source of truth); G_CH and the three Q= charge elements
     are replaced with the ANN bases.  ``c1_eps=None`` keeps the C0 ramp and is
     byte-identical in form to the legacy charge chain at %.6e precision.
+
+    ``name``/``subckt_name`` override the emitted name (and the D_BD model
+    suffix and ``.ENDS`` name); both default to None, which keeps the
+    canonical ``<device>_PIECSPICE_UROM`` name.  ``subckt_name`` wins when
+    both are supplied, matching the closed Tier-2 builder convention.
     """
     if not isinstance(channel_fit, AnnChannelFit):
         raise TypeError("channel_fit must be an AnnChannelFit")
     if not isinstance(charge_fit, AnnChargeFit):
         raise TypeError("charge_fit must be an AnnChargeFit")
     eps = _resolve_eps(c1_eps)
+    # The Tier-2 builder emits its closed T2 name; replacing it across the
+    # header and body updates the .SUBCKT, D_BD model suffix and .ENDS.
     old = f"{spec.device_name}_PIECESPICE_T2"
-    new = f"{spec.device_name}_PIECSPICE_UROM"
+    new = (subckt_name or name or f"{spec.device_name}_PIECSPICE_UROM")
 
     t2 = build_tier2_subcircuit(spec)
     lines = t2.splitlines()
@@ -149,12 +158,12 @@ def build_ann_subcircuit(spec, channel_fit: AnnChannelFit,
     channel = emit_ann_channel(channel_fit)
     gw = float(channel_fit.coefficients["guard_width"])
     q_lines: List[str] = ["* --- charge-conserving capacitances (ANN Q nets) ---"]
-    for name in ("oss", "iss", "rss"):
-        if name not in charge_fit.tables:
-            raise ValueError(f"charge_fit is missing the {name!r} table")
-        table = charge_fit.tables[name]
-        expr = delta_ramp_chain(_TERMS[name], table["v"], table["q"], eps)
-        element, nodes = _ELEMENTS[name]
+    for table_name in ("oss", "iss", "rss"):
+        if table_name not in charge_fit.tables:
+            raise ValueError(f"charge_fit is missing the {table_name!r} table")
+        table = charge_fit.tables[table_name]
+        expr = delta_ramp_chain(_TERMS[table_name], table["v"], table["q"], eps)
+        element, nodes = _ELEMENTS[table_name]
         q_lines.append(f"{element} {nodes} Q = {{{expr}}}")
     q_lines.append("")
 

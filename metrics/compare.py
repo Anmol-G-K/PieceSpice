@@ -23,7 +23,6 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import matplotlib.pyplot as plt
 
-from common.types import CurveData
 from metrics.static import compute_curve_error
 
 
@@ -63,7 +62,7 @@ class CurveComparison:
     rel_rmse_pct: float            # RMSE / span(golden) * 100
     max_rel_error_pct: float       # L-inf / span(golden) * 100
     mape_pct: float                # mean |err|/|golden| where |golden|>eps
-    r_squared: float
+    r_squared: Optional[float]
     passed: bool                   # within tolerance?
     peak_rmse_pct: float = 0.0      # RMSE / max|golden| * 100
     x_unit: str = "V"
@@ -89,7 +88,7 @@ class ComparisonReport:
     def summary_line(self) -> str:
         if not self.curves:
             return "no curves compared"
-        w = self.worst
+        w = max(self.curves, key=lambda c: c.rel_rmse_pct)
         return (f"{sum(c.passed for c in self.curves)}/{len(self.curves)} "
                 f"curves within {self.target_rel_rmse_pct:.0f}% "
                 f"rel-RMSE target; worst = {w.name} "
@@ -267,18 +266,16 @@ def plot_residuals(
     EDA-standard way to show WHERE a compact model errs, not just how much.
     """
     fig, ax = plt.subplots(figsize=(10.5, 5.8), layout="constrained")
+    unit = "% of span" if normalize_to == "span" else (
+        "% of max" if normalize_to == "max" else "A")
     for name, x, yg, yc in pairs:
         resid = yc - yg
         if normalize_to == "span":
             denom = max(float(yg.max() - yg.min()), 1e-30)
             resid = resid / denom * 100.0
-            unit = "% of span"
         elif normalize_to == "max":
             denom = max(abs(float(yg.max())), 1e-30)
             resid = resid / denom * 100.0
-            unit = "% of max"
-        else:
-            unit = "A"
         ax.plot(x, resid, lw=1.8, marker="", label=f"{name}")
     ax.axhline(0.0, color="k", lw=0.8)
     ax.set_xlabel("Vds [V]")
@@ -308,7 +305,7 @@ def plot_scorecard_bars(
     ypos = np.arange(len(names))[::-1]
     fig, ax = plt.subplots(figsize=(10.5, max(3.2, 0.7 * len(names) + 1.6)),
                            layout="constrained")
-    bars = ax.barh(ypos, vals, color=colors, edgecolor="0.25", height=0.62)
+    ax.barh(ypos, vals, color=colors, edgecolor="0.25", height=0.62)
     for y, v in zip(ypos, vals):
         ax.text(v + max(vals) * 0.01, y, f"{v:.2f}%",
                 va="center", fontsize=10)
@@ -368,13 +365,17 @@ def report_to_rows(report: ComparisonReport) -> List[Dict]:
         {
             "curve": c.name,
             "points": c.n_points,
-            "rmse": round(c.rmse, 6),
+            # Absolute errors stay unrounded: rounding these to 6 decimals
+            # collapsed a 2e-8 A RMSE to 0.0 next to a double-digit relative
+            # error.  Relative percentages keep their 3-decimal rounding.
+            "rmse": c.rmse,
             "rel_rmse_pct": round(c.rel_rmse_pct, 3),
             "peak_rmse_pct": round(c.peak_rmse_pct, 3),
-            "max_err": round(c.max_abs_error, 6),
+            "max_err": c.max_abs_error,
             "max_rel_pct": round(c.max_rel_error_pct, 3),
             "mape_pct": round(c.mape_pct, 3),
-            "r_squared": round(c.r_squared, 6),
+            "r_squared": (round(c.r_squared, 6)
+                          if c.r_squared is not None else None),
             "pass": c.passed,
         }
         for c in report.curves

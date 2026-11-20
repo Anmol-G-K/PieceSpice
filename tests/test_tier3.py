@@ -1,9 +1,10 @@
 """Unit tests for the paper-defined parts of the Tier-3 TPWL terminal model."""
 import numpy as np
+import pytest
 
 from config.yaml_io import load_input
 from models import tpwl_netlist_builder as emitter
-from pipeline.tier3 import _log_iterations
+from pipeline.tier3 import _log_iterations, _waveform_errors
 from approximation.tpwl_deim import (
     WEIGHT_EXPONENT,
     TPWLTerminalModel,
@@ -172,6 +173,41 @@ def test_saturation_scale_override_is_vendor_specific():
     assert emitter.saturation_scale(epc) == 0.5
 
 
+def test_emission_fails_closed_for_unregistered_vendor():
+    model = _toy_model()
+    model.vendor = "not_registered_vendor"
+    with pytest.raises(ValueError, match="no measured TPWL emission policy"):
+        emitter.emission_policy(model)
+    with pytest.raises(ValueError):
+        emitter.saturation_scale(model)
+    with pytest.raises(ValueError):
+        emitter.emit_subcircuit(model)
+
+
+def test_waveform_errors_uses_common_golden_grid():
+    from types import SimpleNamespace
+
+    tg = np.linspace(0.0, 10.0, 101)
+    traj = SimpleNamespace(
+        time=tg,
+        input=np.vstack([np.zeros_like(tg), np.full_like(tg, 5.0)]),
+        output=np.vstack([np.full_like(tg, 2.0), np.zeros_like(tg)]))
+    tr = np.linspace(0.0, 10.0, 1001)
+    run = SimpleNamespace(time=tr, v_ds=np.full_like(tr, 5.0),
+                          i_d=np.full_like(tr, 2.0))
+    err = _waveform_errors(run, traj)
+    assert err["compare_points"] == 101      # golden grid, not 1001 ROM samples
+    assert err["vds_rel_rmse_pct"] == pytest.approx(0.0)
+    assert err["id_rel_rmse_pct"] == pytest.approx(0.0)
+    assert err["current_definition"] == "I(Lload)-I(Dclamp)"
+
+    short = SimpleNamespace(time=tr[tr <= 5.0],
+                            v_ds=np.full_like(tr[tr <= 5.0], 5.0),
+                            i_d=np.full_like(tr[tr <= 5.0], 2.0))
+    partial = _waveform_errors(short, traj)
+    assert partial["compare_points"] == 51
+
+
 # ---- SIMPLIS Level-2 charge-table variant (offline, no LTspice) ------------
 from common.types import PWLModelSpec
 from models.simplis_netlist_builder import (
@@ -228,7 +264,7 @@ def test_simplis_charge_ramp_terms_are_monotonic():
 
 
 def test_simplis_emission_is_ascii_and_ports_match_tier2():
-    text = build_simplis_subcircuit(_simplis_spec())
+    text = build_simplis_subcircuit(_simplis_spec(), cgs_axis="vgs")
     assert text.isascii()
     lines = text.splitlines()
     assert ".SUBCKT TOY_PIECESPICE_T3_simplis d g s" in lines
@@ -258,13 +294,13 @@ def test_simplis_linear_cgs_emits_plain_capacitor():
     text = build_simplis_subcircuit(_simplis_spec(linear_cgs=True))
     cgs_lines = [x for x in text.splitlines() if x.startswith("CGS ")]
     assert len(cgs_lines) == 1 and "Q=" not in cgs_lines[0]
-    text_pwl = build_simplis_subcircuit(_simplis_spec())
+    text_pwl = build_simplis_subcircuit(_simplis_spec(), cgs_axis="vgs")
     cgs_pwl = [x for x in text_pwl.splitlines() if x.startswith("CGS ")]
     assert len(cgs_pwl) == 1 and "Q={" in cgs_pwl[0]
 
 
 def test_simplis_emits_rgs_and_truthful_extrapolation_comment():
-    text = build_simplis_subcircuit(_simplis_spec())
+    text = build_simplis_subcircuit(_simplis_spec(), cgs_axis="vgs")
     lines = text.splitlines()
     assert len([x for x in lines if x.startswith("RGS gi ss 1e7")]) == 1
     assert "lookups end-clamp" not in " ".join(lines)
@@ -287,11 +323,13 @@ def test_simplis_emits_rgs_and_truthful_extrapolation_comment():
 
 
 from pipeline.tier3_simplis import (  # noqa: E402
+    _CHANNEL_RULE,
     _cap_curve_to_vbus,
     _fidelity_metrics,
     _fit_anchored_charge,
     _on_state_breakpoint,
     _select_charge_candidate,
+    _table_error,
 )
 
 
@@ -305,6 +343,73 @@ def test_simplis_charge_fit_anchors_at_zero_and_meets_budget():
     assert np.isclose(fit.pairs[-1][0], v[-1])
     assert fit.max_abs_error_c <= fit.error_budget_c
     assert len(fit.pairs) > 5  # the old 5-point cap would have truncated
+
+
+def test_simplis_charge_fit_uses_voltage_axis_not_indices():
+    """Greedy breakpoints are voltages; an index axis blows the Q budget."""
+    v = np.linspace(0.1, 60.0, 40)
+    c = 1e-9 * (1 + 3 * np.exp(-((v - 5.0) / 0.5) ** 2)
+                + 4 * np.exp(-((v - 22.0) / 1.2) ** 2))
+    fit = _fit_anchored_charge(v, c, 0.005)
+    volts = np.array([p[0] for p in fit.pairs], dtype=float)
+
+    # Every breakpoint is an actual va voltage. The 60 V endpoint is far
+    # outside the 0..len(va)-1 index range, so an index can never emit it.
+    assert np.all(np.isin(volts, fit.v_full))
+    assert volts[0] == 0.0
+    assert np.isclose(volts[-1], 60.0)
+    assert volts[-1] > len(fit.v_full) - 1
+    assert np.all(np.diff(volts) > 0)
+
+    # Error is measured on the full voltage axis, inside the unchanged budget.
+    assert _table_error(fit, fit.pairs) <= fit.error_budget_c
+    assert fit.max_abs_error_c <= fit.error_budget_c
+
+    # Counterfactual: the same breakpoints interpreted as np.interp indices
+    # (the regression operand) cannot meet the 0.5% budget on the volts axis.
+    idx = np.searchsorted(fit.v_full, volts)
+    index_axis_err = float(np.max(np.abs(
+        fit.q_full - np.interp(fit.v_full, idx, fit.q_full[idx]))))
+    assert index_axis_err > fit.error_budget_c
+
+
+def test_simplis_charge_fit_forced_breakpoint_stays_on_voltage_axis():
+    """forced_v/forbid_below still select voltage breakpoints."""
+    v = np.linspace(0.1, 40.0, 60)
+    c = 1e-9 * (1 + 3 * np.exp(-((v - 20.0) / 0.8) ** 2)
+                + 4 * np.exp(-((v - 32.0) / 1.0) ** 2))
+    forced = 12.0
+    fit = _fit_anchored_charge(v, c, 0.005,
+                               forced_v=forced, forbid_below=forced)
+    volts = np.array([p[0] for p in fit.pairs], dtype=float)
+
+    assert np.any(np.isclose(volts, forced))
+    assert np.all(volts[1:] >= forced - 1e-12)
+    assert np.all(np.isin(volts, fit.v_full))
+    assert _table_error(fit, fit.pairs) <= fit.error_budget_c
+
+
+def test_simplis_cgs_pwl_fails_closed_on_vds_axis():
+    """A Vds-swept table must not be emitted as PWL on the Vgs axis."""
+    with pytest.raises(ValueError, match="axis"):
+        build_simplis_subcircuit(_simplis_spec())
+    with pytest.raises(ValueError, match="cgs_axis"):
+        build_simplis_subcircuit(_simplis_spec(), cgs_axis="drain")
+    declared = build_simplis_subcircuit(_simplis_spec(), cgs_axis="vgs")
+    assert any(line.startswith("CGS gi ss Q={")
+               for line in declared.splitlines())
+    # LINEAR vendors are unchanged by the new axis declaration.
+    linear = build_simplis_subcircuit(_simplis_spec(linear_cgs=True))
+    cgs_lines = [x for x in linear.splitlines() if x.startswith("CGS ")]
+    assert len(cgs_lines) == 1 and "Q=" not in cgs_lines[0]
+
+
+def test_simplis_charge_fit_bound_reports_achieved_error_ratio():
+    """An unmeetable budget raises with the achieved ratio, never hangs."""
+    v = np.array([0.1, 1.0, 2.0, 5.0])
+    c = np.array([1e-9, 2.5e-9, 1.2e-9, 0.5e-9])
+    with pytest.raises(RuntimeError, match="error ratio"):
+        _fit_anchored_charge(v, c, -1.0)
 
 
 def test_simplis_forced_on_state_breakpoint_replaces_lower_points():
@@ -402,7 +507,8 @@ def test_simplis_hybrid_rejects_non_ascii_expression():
     bad = SimpleNamespace(expression="V(gi,ss)*\u00e9", meta={},
                           max_abs_fit_error_a=0.0)
     try:
-        build_simplis_subcircuit(_simplis_spec(), channel_fit=bad)
+        build_simplis_subcircuit(_simplis_spec(), cgs_axis="vgs",
+                                 channel_fit=bad)
     except ValueError:
         pass
     else:
@@ -453,6 +559,22 @@ def test_simplis_channel_selection_rejects_regressing_hybrid_dpt():
     }
     assert _select_channel_candidate(
         winning, adaptive_results=speed)[0] == "hybrid"
+
+
+def test_simplis_channel_gate_is_explicitly_fidelity_first():
+    """No adaptive measurement exists at selection time; none is claimed."""
+    assert "FIDELITY-FIRST" in _CHANNEL_RULE
+    assert "deferred" in _CHANNEL_RULE
+    winning = {
+        "tables": _candidate(6.0, 0.05, 29.0, 47.0, 51.0, 1.3),
+        "tier2": _candidate(5.0, 0.04, 25.0, 40.0, 45.0, 1.2),
+        "hybrid_tables": _candidate(3.0, 0.02, 10.0, 20.0, 20.0, 1.0),
+        "hybrid_tier2": _candidate(2.5, 0.02, 9.0, 19.0, 19.0, 1.0),
+    }
+    choice, reason, evidence = _select_channel_candidate(winning)
+    assert choice == "tier2" and "deferred" in reason
+    assert all("deferred" in row["status"]
+               for row in evidence["adaptive"].values())
 
 
 # ---- T1: Tier-3 sites call the T0 hyp/sqrt helpers (unified spec 4.1) -----
@@ -516,7 +638,6 @@ def test_tier3_emission_adds_no_internal_nodes():
 
 # ---- B: ANN guard-width provenance (static grid, DPT-safe) ----------------
 import sys  # noqa: E402
-import pytest  # noqa: E402
 from common.types import CurveData  # noqa: E402
 from approximation import ann_channel as ann_channel_mod  # noqa: E402
 from approximation.ann_channel import DptPoints  # noqa: E402
@@ -609,10 +730,13 @@ def test_ann_dpt_provenance_records_retained_sample_indices(monkeypatch):
     vgs = np.linspace(0.0, 10.0, n)
     vds = np.linspace(5.0, 12.0, n)
     ids = np.ones(n)
-    module.capture_trajectory = lambda vendor, timeout_s: SimpleNamespace(
-        input=np.vstack([vgs, vds]),
-        output=np.vstack([ids, np.zeros(n)]),
-        pin_roles=["d", "g", "s"])
+    def _capture(vendor, timeout_s, require_complete=False):
+        return SimpleNamespace(
+            input=np.vstack([vgs, vds]),
+            output=np.vstack([ids, np.zeros(n)]),
+            pin_roles=["d", "g", "s"])
+
+    module.capture_trajectory = _capture
     monkeypatch.setitem(sys.modules,
                         "simulation.testbenches.dpt_trajectory", module)
     dpt, prov = ann_fit_mod._dpt_points("TOY", 10.0)

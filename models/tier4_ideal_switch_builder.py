@@ -308,9 +308,13 @@ def build_tier4_subcircuit(lut: "LossLUT", *,
     ap("* data_limitation: E_on/E_off and r_on are measured only at this")
     ap(f"*   conditions.temperature = {_num(temp_c)} C; the LUT has no temperature")
     ap("*   axis and is valid only there.  It is a measured data slice, not a")
-    ap("*   physical guarantee at other junction temperatures.  The current")
-    ap("*   config-derived grid has one finite measured node per vendor, so")
-    ap("*   off-node queries are NaN.  Losses are evaluated offline.")
+    ap("*   physical guarantee at other junction temperatures.")
+    _grid_provenance = getattr(lut, "grid_provenance", None)
+    if callable(_grid_provenance):
+        ap(f"*   {_grid_provenance()}")
+    else:
+        ap("*   Grid provenance unavailable (no interpolation capability).")
+    ap("*   Losses are evaluated offline.")
     ap("*   They are not electrical power consumed by this switch (P-TC:")
     ap("*   Conduction Losses / Switching Losses notes).")
     ap(f"* vth_v = {_num(vth)} (config/outputs/<vendor>/curve7_threshold_voltage.yaml)")

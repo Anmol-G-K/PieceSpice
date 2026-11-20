@@ -15,7 +15,6 @@ from __future__ import annotations
 import logging
 import math
 from pathlib import Path
-from typing import Dict
 
 import numpy as np
 
@@ -28,18 +27,12 @@ from common.types import (
 from config.yaml_io import load_input, load_output
 from pipeline.curves import _cap_ref_vds
 from simulation.engine import DCDirective, SpiceEngine
-from simulation.netlist_text import NetlistBuilder
 
 
 _LOGGER = logging.getLogger(__name__)
 
-# Fitting tolerances (plan §2.1: typically <1% RMSE; 2% per-curve leaves
-# margin for the <5% end-to-end goal).
-_FIT_REL_TOL = 0.02
-_MAX_SEGMENTS = 6
 
-
-def _curve(vendor: str, tb: str) -> Dict:
+def _curve(vendor: str, tb: str) -> dict:
     return load_output(vendor, tb)
 
 
@@ -47,20 +40,7 @@ def _arr(xs) -> np.ndarray:
     return np.asarray(xs, dtype=float)
 
 
-def _fit_transfer(vendor: str, cond: dict):
-    """Curve 2 -> conducting-region vgs/id + plateau estimate."""
-    d = _curve(vendor, "curve2_transfer_characteristic")["extracted"]
-    vgs = _arr(d["curve_vgs"])
-    i_d = _arr(d["curve_id"])
-    if vgs.size != i_d.size or vgs.size == 0:
-        raise ValueError(f"{vendor}: curve2 has no usable Vgs/Id samples")
-    mask = i_d > max(1e-7, 0.001 * i_d.max())
-    if not np.any(mask):
-        raise ValueError(f"{vendor}: curve2 has no conducting region")
-    return vgs[mask], i_d[mask], float(d.get("v_plateau_v", vgs[mask][0]))
-
-
-def _tuning_bounds(vds_cap_max: float, c_rss_lin: float) -> Dict[str, tuple]:
+def _tuning_bounds(vds_cap_max: float, c_rss_lin: float) -> dict[str, tuple]:
     """Per-field theta brackets from source data, not fitted WOL constants.
 
     The multiplier bracket is a one-octave project decision around the
@@ -141,8 +121,8 @@ def build_pwl_spec(vendor: str) -> PWLModelSpec:
     try:
         # Q(Vref)/Vref is zero AT the sweep minimum by construction. Use the
         # same reference as curve extraction (configured point or a quarter
-        # of the sweep span); otherwise cq/ce collapse to 0 and the metadata
-        # silently falls back to hardcoded 4.5 nF / 7.5 pF.
+        # of the sweep span); a reference at/below the sweep minimum makes
+        # the equivalent capacitances zero (caught below).
         cap_ref = _cap_ref_vds(cond)
         from simulation.testbenches.capacitance import CapacitanceTestbench
         lib = Path(cfg["library"]).resolve()
@@ -158,17 +138,41 @@ def build_pwl_spec(vendor: str) -> PWLModelSpec:
         qoss_v = cm.v.tolist()
         qoss_q = cm.q.tolist()
         cq, ce = cm.c_eq_charge, cm.c_eq_energy
+        caps_ok = (cq is not None and cq > 0.0
+                   and ce is not None and ce > 0.0)
+        if cap_ref <= float(cond["Vds_cap_min"]):
+            _LOGGER.warning(
+                "%s: Cap_ref_Vds %.6g <= Vds_cap_min %.6g; Q(Vref)=0 by "
+                "construction. Using documented Tier-2 gate-cap fallbacks "
+                "(4.5 nF C_ISS, 500 pF C_OSS, 7.5 pF C_RSS); never emit "
+                "zero gate capacitance silently",
+                vendor, cap_ref, float(cond["Vds_cap_min"]))
+            cq = ce = None
+        elif not caps_ok:
+            _LOGGER.warning(
+                "%s: curve4 equivalent capacitances are non-positive "
+                "(c_eq_charge=%r F, c_eq_energy=%r F); using documented "
+                "Tier-2 gate-cap fallbacks (4.5 nF C_ISS, 500 pF C_OSS, "
+                "7.5 pF C_RSS)", vendor, cq, ce)
+            cq = ce = None
     except FileNotFoundError:
         _LOGGER.warning("%s: curve4 missing; Qoss table skipped", vendor)
 
     # ---- Curve 7: Vth -----------------------------------------------------------
-    v_th = 0.0
+    # A missing/broken curve7 must not collapse to v_th=0: the emitter would
+    # omit the zero-current anchor and let the channel conduct below
+    # threshold (documented premature-turn-on defect). Fail closed instead.
     try:
         v_th = float(load_output(vendor,
                                  "curve7_threshold_voltage")
                      ["extracted"]["vth_v"])
-    except FileNotFoundError:
-        pass
+    except (FileNotFoundError, KeyError, TypeError, ValueError) as exc:
+        raise ValueError(
+            f"{vendor}: curve7_threshold_voltage['extracted']['vth_v'] is "
+            "required for the Tier-2 Vth conduction anchor; refusing the "
+            "silent v_th=0 fallback because it omits the anchor and lets "
+            "the device turn on before the gate reaches threshold"
+        ) from exc
 
     # ---- Curve 6: body diode ------------------------------------------------------
     b_vsd: list = []
@@ -229,7 +233,6 @@ def build_pwl_spec(vendor: str) -> PWLModelSpec:
 
 def fit_pwl_model(
     vendor: str,
-    rel_tol: float = _FIT_REL_TOL,
     out_dir: str | Path = "reports/models",
 ) -> Path:
     """Fit a Tier-2 PWL model for *vendor* and emit its subcircuit .lib."""
@@ -286,8 +289,7 @@ def compare_tier2_vs_golden_full(vendor: str, lib_path: Path | None = None,
     """Full-sweep Tier-2 vs golden comparison across every Vgs curve.
 
     subckt_name overrides the instance name when the lib stem differs from
-    its .SUBCKT header (the unified <vendor>_PIECSPICE_UROM.lib case).
-    None keeps the historical lib-stem behaviour.
+    its .SUBCKT header. None keeps the historical lib-stem behaviour.
     """
     cfg = load_input(vendor)
     cond = cfg["conditions"]

@@ -433,6 +433,7 @@
     "p_cond_w": 25.195526398235028,
     "p_switch_w": 83.82183512300689,
     "f_sw_hz": 111111.11111111111,
+    "f_sw_basis": "f_sw = 1 / (dpt.t2_on - dpt.t1_on) is an illustrative offline frequency from the DPT pulse repetition interval (a bench schedule choice), NOT a measured converter switching frequency; p_switch scales linearly with it and remains a diagnostic only.",
     "thermal_note": "PLECS P-TC: the dissipated thermal power does not correspond to the electrical power consumed by the device; thermal losses are injected into a thermal network and need an explicit output-power definition for efficiency. The emitted ideal switch has no loss element, so every efficiency figure here is an offline estimate, not simulated electrical power.",
     "source": "https://docs.plexim.com/plecs/5.0/thermal-modeling/thermal-concepts"
   },
@@ -444,13 +445,13 @@
     "iterations": 14422,
     "t_last_s": 1.4e-05,
     "t_end_s": 1.4e-05,
-    "wall_clock_s": 0.9723696000000928,
+    "wall_clock_s": 0.9683698000008008,
     "error": null,
-    "spice_log_tail": "Total elapsed time: 0.387 seconds.\nTotal iterations: 14422\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_n_txppw8\\tran.net\n"
+    "spice_log_tail": "Total elapsed time: 0.385 seconds.\nTotal iterations: 14422\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_5vax8_jr\\tran.net\n"
   },
   "speedup": {
-    "solver_speedup": 1.1775362318840579,
-    "wall_speedup": 1.0690565099614089,
+    "solver_speedup": 1.1895910780669146,
+    "wall_speedup": 1.0951716039800279,
     "golden_iterations": 12718.0,
     "tier4_iterations": 6165.0,
     "golden_points": 3432.0,
@@ -463,7 +464,8 @@
     "completion_basis": "count similarity is not required; lower counts are expected for faster models; aborted runs are rejected by positive iterations/points and no error. Both arms must also be full-schedule run_inductive_benchmark records: end_time_s equals the scheduled 20-pulse .tran stop and repeats == 3. The configured .tran stop is schedule metadata, not a measured trace endpoint.",
     "status": "measured",
     "max_step_s": null,
-    "case": "long_adaptive"
+    "case": "long_adaptive",
+    "method": "LTspice default/trap (both arms)"
   },
   "runtime": {
     "recorded_baseline": {
@@ -501,8 +503,8 @@
         "max_step": null,
         "end_time_s": 0.000176,
         "repeats": 3,
-        "wall_clock_s": 0.8614715000003343,
-        "solver_elapsed_s": 0.325,
+        "wall_clock_s": 0.8554679999942891,
+        "solver_elapsed_s": 0.32,
         "iterations": 12718.0,
         "trace_points": 3432.0,
         "trace_names": 12.0
@@ -514,8 +516,8 @@
         "max_step": null,
         "end_time_s": 0.000176,
         "repeats": 3,
-        "wall_clock_s": 0.8058241000107955,
-        "solver_elapsed_s": 0.276,
+        "wall_clock_s": 0.7811269000085304,
+        "solver_elapsed_s": 0.269,
         "iterations": 6165.0,
         "trace_points": 2247.0,
         "trace_names": 11.0
@@ -790,6 +792,7 @@
       "interpolation": {
         "status": "constant_node",
         "finite_nodes": 1,
+        "complete_cells": 0,
         "vbus_points": 1,
         "current_points": 1,
         "rule": "Single 1x1 measured grid: no interpolation is defined; the only node is a constant measured value and every off-node query is NaN."
@@ -824,10 +827,11 @@
           "name": "interpolation",
           "kind": "project_decision",
           "rule": "bilinear interpolation applies only when all four measured corners are finite; no extrapolation is implemented; off-node queries are NaN",
-          "basis": "PLECS P-TC documents linear table interpolation; the recorded grids have one finite measured node per vendor, so no interpolation is currently exercised",
+          "basis": "PLECS P-TC documents linear table interpolation; The current 1x1 grid has 1 finite measured node(s) (capability 'constant_node'); no 2x2 interpolation cell has all four corners finite, so off-node queries are NaN / insufficient_measured_nodes and no bilinear interpolation is currently exercised.",
           "capability": {
             "status": "constant_node",
             "finite_nodes": 1,
+            "complete_cells": 0,
             "vbus_points": 1,
             "current_points": 1,
             "rule": "Single 1x1 measured grid: no interpolation is defined; the only node is a constant measured value and every off-node query is NaN."
@@ -860,6 +864,7 @@
     "interpolation": {
       "status": "constant_node",
       "finite_nodes": 1,
+      "complete_cells": 0,
       "vbus_points": 1,
       "current_points": 1,
       "rule": "Single 1x1 measured grid: no interpolation is defined; the only node is a constant measured value and every off-node query is NaN."
@@ -889,7 +894,7 @@
   },
   "solver_stabilization": {
     "status": "applied",
-    "rationale": "Controlled DPT/adaptive ablations (local://tier4_convergence_rootcause.md) identify the missing drain output capacitance as the primary, sufficient cause of Tier-4 solver timeouts: with only the ideal switch, clamp diode and inductor there is no bounded state variable at the near-step dV/dt, so LTspice never reaches t_end. One measured linear C_QOSS d s <curve4.coss_f> makes every previously failing arm complete; it slows drain dV/dt and adds L-C overshoot. The measured Vgs=0 off-state Roff removes a secondary, vendor-specific 1e12 singularity but is not a common fix. Solver stabilization only.",
+    "rationale": "Controlled DPT/adaptive ablations (local://tier4_convergence_rootcause.md) identify the missing drain output capacitance as the primary, sufficient cause of Tier-4 solver timeouts: with only the ideal switch, clamp diode and inductor there is no bounded state variable at the near-step dV/dt, so LTspice never reaches t_end. One measured linear C_QOSS using the vendor Curve-4 Coss at cap_ref_Vds makes every previously failing arm complete; it slows drain dV/dt and adds L-C overshoot. The measured Vgs=0 off-state Roff removes a secondary, vendor-specific 1e12 singularity but is not a common fix. Solver stabilization only.",
     "root_cause_reference": "local://tier4_convergence_rootcause.md",
     "waveform_gate": "retired_by_design",
     "c_qoss": {
@@ -1190,6 +1195,7 @@
       "interpolation": {
         "status": "constant_node",
         "finite_nodes": 1,
+        "complete_cells": 0,
         "vbus_points": 1,
         "current_points": 1,
         "rule": "Single 1x1 measured grid: no interpolation is defined; the only node is a constant measured value and every off-node query is NaN."
@@ -1224,10 +1230,11 @@
           "name": "interpolation",
           "kind": "project_decision",
           "rule": "bilinear interpolation applies only when all four measured corners are finite; no extrapolation is implemented; off-node queries are NaN",
-          "basis": "PLECS P-TC documents linear table interpolation; the recorded grids have one finite measured node per vendor, so no interpolation is currently exercised",
+          "basis": "PLECS P-TC documents linear table interpolation; The current 1x1 grid has 1 finite measured node(s) (capability 'constant_node'); no 2x2 interpolation cell has all four corners finite, so off-node queries are NaN / insufficient_measured_nodes and no bilinear interpolation is currently exercised.",
           "capability": {
             "status": "constant_node",
             "finite_nodes": 1,
+            "complete_cells": 0,
             "vbus_points": 1,
             "current_points": 1,
             "rule": "Single 1x1 measured grid: no interpolation is defined; the only node is a constant measured value and every off-node query is NaN."
@@ -1270,7 +1277,7 @@
         "p_out_w": null,
         "p_bus_in_w": 3800.0,
         "f_sw_hz": 111111.11111111111,
-        "rule": "Vbus*Iload is DC bus input power, not output power; no config field supplies converter output power, so efficiency is N/A. f_sw = 1 / (dpt.t2_on - dpt.t1_on) is config-derived, not assumed.",
+        "rule": "Vbus*Iload is DC bus input power, not output power; no config field supplies converter output power, so efficiency is N/A. f_sw = 1 / (dpt.t2_on - dpt.t1_on) is an illustrative offline frequency from the DPT pulse repetition interval (a bench schedule choice), NOT a measured converter switching frequency; p_switch scales linearly with it and remains a diagnostic only.",
         "kind": "config_derived_input_power_only",
         "thermal_note": "PLECS P-TC: the dissipated thermal power does not correspond to the electrical power consumed by the device; thermal losses are injected into a thermal network and need an explicit output-power definition for efficiency. The emitted ideal switch has no loss element, so every efficiency figure here is an offline estimate, not simulated electrical power."
       },
@@ -1298,6 +1305,24 @@
         "gate_drive_v": 10.0,
         "rule": "conditions.Vgs_fixed (Curve-3 extraction drive)",
         "note": "Curve-3 Rds(on) was extracted at conditions.Vgs_fixed; this is NOT dpt.vgs_on. The emitted vgs_on_v comment remains separate gate-drive metadata."
+      },
+      "r_on_selection": {
+        "kind": "measured",
+        "basis": "measured",
+        "source_file": {
+          "file": "config/outputs/irfs7730pbf/curve3_rds_on.yaml",
+          "available": true
+        },
+        "measured_key": "extracted.curve_id / extracted.curve_rds_mohm",
+        "method": "linear interpolation of measured curve; no extrapolation",
+        "rule": "one Curve-3 rds_on value is selected from the measured current grid (nearest point to i_load_a; runtime selection); the choice never invents a resistance",
+        "note": "Duplicates the r_on_ohms selection label already emitted in the lib comment; value and guard unchanged."
+      },
+      "v_hysteresis": {
+        "kind": "project_decision",
+        "source": "models/tier4_ideal_switch_builder.py: zero hysteresis constant, labeled source=project_decision in every lib",
+        "rule": "zero hysteresis so the switch tracks the Curve-7 threshold; no hysteresis measurement was extracted",
+        "note": "Duplicates the vh_v source label already emitted in the lib comment; Vh and the .MODEL are unchanged."
       },
       "data_limitations": [
         {

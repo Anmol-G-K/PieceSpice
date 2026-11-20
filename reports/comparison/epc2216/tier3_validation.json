@@ -157,29 +157,34 @@
   },
   "dpt_run": {
     "completed": true,
-    "trace_points": 9434,
+    "trace_points": 9440,
     "golden_trace_points": 7418,
-    "iterations": 33739,
+    "iterations": 33785,
     "t_last_s": 1.4e-05,
     "error": null,
     "waveform": {
-      "vds_rel_rmse_pct": 4.827818851745259,
-      "id_rel_rmse_pct": 0.7924781547263972,
-      "compare_points": 9434
+      "vds_rel_rmse_pct": 2.846138329471166,
+      "id_rel_rmse_pct": 1.469416634788466,
+      "compare_points": 7418,
+      "current_definition": "I(Lload)-I(Dclamp)"
+    },
+    "current_definitions": {
+      "golden": "I(Lload)-I(Dclamp)",
+      "tier3": "I(Lload)-I(Dclamp)"
     }
   },
   "dpt_comparison": {
     "td_on_ns": {
       "golden": 8.279633410423578,
-      "tier3": 8.774472481076135,
-      "tier3_rel_err_pct": 5.976581886217121,
+      "tier3": 8.774472480550974,
+      "tier3_rel_err_pct": 5.976581879874324,
       "tier2": 8.51059303501782,
       "tier2_rel_err_pct": 2.7894909490011575
     },
     "tr_ns": {
       "golden": 0.8455906106561757,
-      "tier3": 1.4854700217576566,
-      "tier3_rel_err_pct": 75.67248300036546,
+      "tier3": 1.4854702963487973,
+      "tier3_rel_err_pct": 75.6725154736613,
       "tier2": 0.8378172211750414,
       "tier2_rel_err_pct": -0.9192852171220465
     },
@@ -192,71 +197,95 @@
     },
     "tf_ns": {
       "golden": 1.2274909896712498,
-      "tier3": 2.255151110432352,
-      "tier3_rel_err_pct": 83.72037997902802,
+      "tier3": 2.255151191498487,
+      "tier3_rel_err_pct": 83.7203865832423,
       "tier2": 1.3428684081228792,
       "tier2_rel_err_pct": 9.3994513542238
     },
     "dv_dt_max_v_per_ns": {
       "golden": 3556.2034081685165,
-      "tier3": 724.364623872,
-      "tier3_rel_err_pct": -79.63095636745211,
+      "tier3": 724.364034048,
+      "tier3_rel_err_pct": -79.63097295323004,
       "tier2": 175.83101776359916,
       "tier2_rel_err_pct": -95.05565352758734
     },
     "di_dt_max_a_per_ns": {
-      "golden": 3.7103493120000004,
-      "tier3": 1.2344360394196239,
-      "tier3_rel_err_pct": -66.72992390696976,
+      "golden": 2787.3551863569787,
+      "tier3": 1932.1958990072128,
+      "tier3_rel_err_pct": -30.679953941120907,
       "tier2": 0.1449314523649215,
-      "tier2_rel_err_pct": -96.09385962943745
+      "tier2_rel_err_pct": -99.99480039526092
     },
     "e_on_uj": {
-      "golden": 1.0914983705530676,
-      "tier3": 1.2601590755935088,
-      "tier3_rel_err_pct": 15.4522177577764,
+      "golden": 0.39793457485284,
+      "tier3": 0.6155681651818202,
+      "tier3_rel_err_pct": 54.690796950595,
       "tier2": 1.1489460307901267,
-      "tier2_rel_err_pct": 5.263192487218285
+      "tier2_rel_err_pct": 188.7273696222596
     },
     "e_off_uj": {
-      "golden": 15.627365907947942,
-      "tier3": 15.256893289302246,
-      "tier3_rel_err_pct": -2.3706657976010965,
+      "golden": 0.2379373544426174,
+      "tier3": 0.3724492740434839,
+      "tier3_rel_err_pct": 56.532493569985576,
       "tier2": 15.413235527544533,
-      "tier2_rel_err_pct": -1.3702269574074817
+      "tier2_rel_err_pct": 6377.854460326738
     },
     "i_peak_a": {
-      "golden": 13.239307403564453,
-      "tier3": 13.061429977416992,
-      "tier3_rel_err_pct": -1.343555374351158,
+      "golden": 13.239258766176981,
+      "tier3": 13.06142425537287,
+      "tier3_rel_err_pct": -1.3432361580425776,
       "tier2": 13.227612495422363,
-      "tier2_rel_err_pct": -0.08833474278980177
+      "tier2_rel_err_pct": -0.08796769487103757
     }
   },
   "runtime": {
+    "method": "default/trap",
+    "max_step_s": 2e-09,
+    "end_time_s": 1.4e-05,
+    "guard": {
+      "golden": {
+        "t_last_s": 1.4e-05,
+        "iterations": 23036,
+        "trace_points": 7418,
+        "end_time_s": 1.4e-05
+      },
+      "tier3": {
+        "t_last_s": 1.4e-05,
+        "iterations": 33785,
+        "trace_points": 9440,
+        "end_time_s": 1.4e-05
+      }
+    },
     "golden": {
-      "wall_clock_s": 1.0194035999993503,
-      "solver_elapsed_s": 0.449,
+      "wall_clock_s": 1.0244639000011375,
+      "solver_elapsed_s": 0.456,
       "iterations": 23036.0,
-      "trace_points": 7418.0
+      "trace_points": 7418.0,
+      "t_last_s": 1.4e-05
     },
     "tier3": {
-      "wall_clock_s": 1.6951300000000629,
-      "solver_elapsed_s": 1.126,
-      "iterations": 33739.0,
-      "trace_points": 9434.0
+      "wall_clock_s": 1.7680486000026576,
+      "solver_elapsed_s": 1.167,
+      "iterations": 33785.0,
+      "trace_points": 9440.0,
+      "t_last_s": 1.4e-05
     },
     "tier3_bench_completed": true,
-    "solver_speedup": 0.3987566607460036,
+    "solver_speedup": 0.390745501285347,
     "bench_wall_s": {
-      "golden": 3.076010900000256,
-      "tier3": 5.153687800000625
-    }
+      "golden": 3.10986199999752,
+      "tier3": 5.3839925000065705
+    },
+    "scope": "forced 2ns fidelity control; not the adaptive speed claim"
+  },
+  "current_definitions": {
+    "golden": "I(Lload)-I(Dclamp)",
+    "tier3": "I(Lload)-I(Dclamp)"
   },
   "build_seconds": {
-    "capture": 1.0880581999990682,
-    "fit": 32.688626600000134
+    "capture": 1.0887225000042235,
+    "fit": 33.069261700002244
   },
-  "spice_log_tail": "Total elapsed time: 1.177 seconds.\nTotal iterations: 33739\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_st1rtqd6\\tran.net\n",
+  "spice_log_tail": "Total elapsed time: 1.179 seconds.\nTotal iterations: 33785\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_uvqvpu8p\\tran.net\n",
   "emitted_lib": "reports\\models\\epc2216_PIECESPICE_T3.lib"
 }

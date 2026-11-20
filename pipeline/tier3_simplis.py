@@ -36,6 +36,8 @@ from pipeline.registry import ROOT
 from pipeline.tier3 import (
     METRICS,
     _dpt_conditions,
+    _device_current,
+    _DEVICE_CURRENT,
     _log_iterations,
     _rel_err,
     _waveform_errors,
@@ -105,8 +107,14 @@ def _fit_anchored_charge(
     idx = {0, len(va) - 1}
     if forced_idx is not None:
         idx.add(forced_idx)
-    while True:
+    # A table holding every measured point is the perfect-fit limit, so it
+    # also bounds the loop. No fit can spin forever on a noisy sweep.
+    max_iter = len(va)
+    for _ in range(max_iter):
         chosen = sorted(idx)
+        # ``idx`` holds positions into va; np.interp's xp must be the
+        # corresponding VOLTAGES. Passing the positions themselves silently
+        # fits Q(index) and changes every emitted table.
         err = np.abs(qa - np.interp(va, va[chosen], qa[chosen]))
         err[chosen] = 0.0
         if forbid_below is not None:
@@ -115,6 +123,15 @@ def _fit_anchored_charge(
         if err[worst] <= budget:
             break
         idx.add(worst)
+    else:
+        final = sorted(idx)
+        achieved = float(np.max(np.abs(
+            qa - np.interp(va, va[final], qa[final]))))
+        ratio = achieved / budget if budget > 0 else float("inf")
+        raise RuntimeError(
+            f"charge fit missed the {float(rel_tol):.3%} budget after "
+            f"{max_iter} points: achieved {achieved:.6e} C, budget "
+            f"{budget:.6e} C, error ratio {ratio:.4f}")
 
     chosen = sorted(idx)
     vb, qb = va[chosen], qa[chosen]
@@ -218,18 +235,20 @@ def _select_charge_candidate(candidates: dict) -> tuple[str, str]:
 
 
 _CHANNEL_RULE = (
-    "hybrid selected ONLY IF, for both charge modes, it strictly improves "
-    "Vds RMSE, Id RMSE and abs(rel err) of tr/tf/e_on/e_off over the "
-    "corresponding Tier-2-channel candidate on the same forced-2ns DPT "
-    "guard, AND its measured adaptive solver/wall speedup is not worse "
-    "(not measured => rejected, never fabricated). Else Tier-2 channel."
+    "FIDELITY-FIRST ONLY: hybrid is selected ONLY IF, for both charge modes, "
+    "it strictly improves Vds RMSE, Id RMSE and abs(rel err) of "
+    "tr/tf/e_on/e_off over the corresponding Tier-2-channel candidate on "
+    "the same forced-2ns DPT guard. Adaptive speed is NOT measured in this "
+    "selection step and is not fabricated: it is deferred until fidelity "
+    "passes, and a caller holding measured adaptive results may re-evaluate "
+    "with adaptive_results. Else Tier-2 channel."
 )
 
 
 def _select_channel_candidate(
     candidates: dict, *, adaptive_results: dict[str, dict] | None = None
 ) -> tuple[str, str, dict]:
-    """Strict, all-metric hybrid gate; the Tier-2 channel is the default."""
+    """Strict, fidelity-first hybrid gate; Tier-2 channel is the default."""
     speedups = adaptive_results or {}
     pairs = (("tables", "hybrid_tables"), ("tier2", "hybrid_tier2"))
     metrics = ("vds_rmse_pct", "id_rmse_pct")
@@ -293,6 +312,18 @@ def _select_channel_candidate(
                 "hybrid rejected: strict all-metric DPT fidelity gain not "
                 "proven (" + "; ".join(failed) + "); Tier-2 channel retained",
                 evidence)
+    if not speedups:
+        # run_vendor selects before any adaptive bench exists. Say so
+        # explicitly instead of reporting a measurement that never happened.
+        evidence["adaptive"] = {
+            combo: {"status": "adaptive deferred; fidelity-first gate only"}
+            for pair in pairs for combo in pair
+        }
+        return ("tier2",
+                "hybrid strict DPT gain measured, but adaptive speed is "
+                "deferred by the fidelity-first gate (not measured at "
+                "selection time, never fabricated); Tier-2 channel retained",
+                evidence)
     adaptive_ok = True
     adaptive_rows = {}
     for base, hybrid in pairs:
@@ -326,6 +357,7 @@ def _select_channel_candidate(
             "hybrid strictly improves every DPT fidelity metric in both "
             "charge modes and its measured adaptive speedup is not worse",
             evidence)
+
 
 def _adaptive_guard_run(lib, subckt, pins, kw: dict, end: float,
                         temp: float, max_step: float | None) -> dict:
@@ -488,6 +520,8 @@ def _build_spec(
             ref_len = len(y)
         rows.append(np.interp(
             np.linspace(0, float(cond["Vds_sweep_max"]), ref_len), xs, y))
+    if ref_len is None:
+        raise ValueError(f"{vendor}: Curve 1 has no Vgs family rows")
     breakpoints_vds = list(np.linspace(
         0.0, float(cond["Vds_sweep_max"]), ref_len))
     breakpoints_id = [list(map(float, r)) for r in rows]
@@ -547,6 +581,8 @@ def _build_spec(
     # Interior breakpoints: OUR greedy farthest-point rule (SIMPLIS does not
     # document its selection rule). No max_points cap: fit until the repo's
     # 0.5% charge budget is actually met and record what was achieved.
+    if vbus is None:
+        raise ValueError(f"{vendor}: simplis spec build requires DPT Vbus")
     v_fit, (cgs_fit_c, cds_fit_c, cdg_fit_c) = _cap_curve_to_vbus(
         v, (cgs_c, cds_c, cdg_c), vbus)
     on_bp = (_on_state_breakpoint(dpt_vgs, dpt_vds, vgs_on, vbus)
@@ -714,15 +750,16 @@ def _run_emitted_dpt(lib_path: Path, vendor: str):
                                    end_time=dpt["t_end"],
                                    max_step=dpt["max_step"]))
     wall = time.perf_counter() - t0
+    i_d, current_def = _device_current(res)
     run = DoublePulseRun(
         time=np.asarray(res.get("time")),
         v_ds=np.asarray(res.get("V(drain)")),
-        i_d=np.abs(np.asarray(res.get("I(Lload)"), dtype=float)),
+        i_d=i_d,
         v_gs=np.asarray(res.get("V(gate)")),
         v_bus=dpt["vbus"], i_load=dpt["i_load_target"],
         l_load=dpt["l_load"], vgs_on=dpt["vgs_on"],
         wall_clock_s=float(wall), t2_on=dpt["t2_on"])
-    return run, res.log_text
+    return run, res.log_text, current_def
 
 
 def _emitted_static_rmse(vendor: str, lib: Path):
@@ -785,14 +822,16 @@ def run_vendor(vendor: str) -> dict:
     for mode, text in texts.items():
         candidate_libs[mode].write_text(text, encoding="ascii")
 
+    # trajectory output[0] is the fitted device current I(Lload)-I(Dclamp).
     golden_run = DoublePulseRun(
         time=traj.time, v_ds=traj.input[1],
-        i_d=np.abs(traj.result.get("I(Lload)")),
+        i_d=np.abs(np.asarray(traj.output[0], dtype=float)),
         v_gs=traj.input[0], v_bus=dpt["vbus"],
         i_load=dpt["i_load_target"], l_load=dpt["l_load"],
         vgs_on=dpt["vgs_on"], wall_clock_s=capture_wall,
         t2_on=dpt["t2_on"])
     golden = extract_dpt_metrics(golden_run)
+    current_defs = {"golden": _DEVICE_CURRENT, "tier3": None}
 
     # Same forced-2ns DPT bench and completion guard for EVERY candidate.
     candidates = {}
@@ -801,10 +840,12 @@ def run_vendor(vendor: str) -> dict:
                 "golden_trace_points": int(len(traj.time)),
                 "iterations": None, "t_last_s": None,
                 "forced_2ns_wall_s": None,
-                "error": None, "waveform": {}}
+                "error": None, "waveform": {},
+                "current_definition": None}
         wave, rom_metrics, log = {}, {}, ""
         try:
-            run, log = _run_emitted_dpt(candidate_lib, vendor)
+            run, log, current_def = _run_emitted_dpt(candidate_lib, vendor)
+            info["current_definition"] = current_def
             info["forced_2ns_wall_s"] = float(run.wall_clock_s)
             n3 = int(len(run.time))
             it3 = _log_iterations(log)
@@ -860,6 +901,8 @@ def run_vendor(vendor: str) -> dict:
         channel_reason = "hybrid candidate missing; Tier-2 channel retained"
         final = selection
     lib.write_text(texts[final], encoding="ascii")
+    current_defs["tier3"] = candidates[final]["dpt_run"].get(
+        "current_definition")
 
     t1 = time.perf_counter()
     static = _emitted_static_rmse(vendor, lib)
@@ -901,7 +944,9 @@ def run_vendor(vendor: str) -> dict:
 
     adaptive = _run_adaptive_benchmark(vendor, cfg, dpt, lib, temp)
     adaptive["selected_candidate"] = final
-    adaptive["scope"] = "final selected candidate only; no adaptive runs for non-selected candidates"
+    adaptive["scope"] = ("final selected candidate only; no adaptive runs "
+                         "for non-selected candidates; channel gate is "
+                         "fidelity-first, adaptive deferred")
 
     record = {
         "schema": "piecespice.tier3/2.0",
@@ -916,7 +961,7 @@ def run_vendor(vendor: str) -> dict:
             **details,
             "channel": (
                 "hybrid hinge_c (models.hybrid_channel.fit_hybrid_channel); "
-                "strictly gated by measured DPT fidelity and adaptive speed"
+                "fidelity-first gate, adaptive speed deferred"
                 if channel_selection == "hybrid" else
                 "reused models.netlist_builder._channel_expression "
                 "(hybrid rejected by strict gate)"),
@@ -933,6 +978,7 @@ def run_vendor(vendor: str) -> dict:
             "static_rmse_scope": "channel_only_dc_capacitors_are_open",
         },
         "dpt_run": candidates[final]["dpt_run"],
+        "current_definitions": current_defs,
         "dpt_waveform": candidates[final]["waveform"],
         "dpt_comparison": candidates[final]["dpt_comparison"],
         "charge_candidates": {

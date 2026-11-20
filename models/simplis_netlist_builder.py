@@ -83,8 +83,8 @@ class CGSLinearityDecision:
 
 
 def cgs_linearity_decision(
-    v: Sequence[float],
-    q: Sequence[float],
+    v: Sequence[float] | np.ndarray,
+    q: Sequence[float] | np.ndarray,
     rel_tolerance: float = RELTOL,
 ) -> CGSLinearityDecision:
     """Decide LINEAR vs PWL for CGS from the measured Q(V) nonlinearity.
@@ -166,6 +166,7 @@ def _pairs(v, q) -> List[Tuple[float, float]]:
 def build_simplis_subcircuit(
     spec: PWLModelSpec, charge_mode: str = "tables", *,
     channel_fit: "HybridChannelFit | None" = None,
+    cgs_axis: str = "vds",
 ) -> str:
     """Emit the Level-2 charge-table Tier-3 subcircuit (ASCII).
 
@@ -173,6 +174,12 @@ def build_simplis_subcircuit(
     the pipeline. ``charge_mode="tier2"`` keeps the closed Tier-2 charge
     block verbatim; channel/diode/parasitics are identical in both and the
     caller measures both candidates before selecting one.
+
+    ``cgs_axis`` declares the provenance of ``q_iss_*``: ``"vds"`` is the
+    one Vds-swept AC curve at Vgs=0 used by this pipeline (the default),
+    ``"vgs"`` is a genuine gate-voltage sweep. A PWL CGS table is rejected
+    on the Vds axis because the emitter would evaluate it on V(gi,ss);
+    the LINEAR chord is axis-independent and is unchanged.
 
     ``channel_fit`` is an optional measured ``HybridChannelFit``: it replaces
     ONLY the single Tier-2 ``G_CH`` line with the fit's ASCII VALUE expression.
@@ -186,15 +193,27 @@ def build_simplis_subcircuit(
     """
     if charge_mode not in ("tables", "tier2"):
         raise ValueError("charge_mode must be 'tables' or 'tier2'")
+    if cgs_axis not in ("vds", "vgs"):
+        raise ValueError("cgs_axis must be 'vds' or 'vgs'")
     if charge_mode == "tables":
         cgs_pairs = _pairs(spec.q_iss_vs_v, spec.q_iss_charge_c)
         cds_pairs = _pairs(spec.q_oss_vs_v, spec.q_oss_charge_c)
         cdg_pairs = _pairs(spec.q_rss_vs_v, spec.q_rss_charge_c)
         decision = cgs_linearity_decision(
             [p[0] for p in cgs_pairs], [p[1] for p in cgs_pairs])
+        if not decision.is_linear and cgs_axis != "vgs":
+            raise ValueError(
+                "PWL CGS on the Vds->Vgs axis mismatch: q_iss_* comes from "
+                "the Vds-swept AC curve at Vgs=0 but would be emitted on "
+                "V(gi,ss); supply a Vgs-axis table with cgs_axis='vgs' or "
+                "keep the LINEAR chord")
     else:
         cgs_pairs = cds_pairs = cdg_pairs = None
         decision = None
+    if charge_mode == "tables" and (
+            decision is None or cgs_pairs is None
+            or cds_pairs is None or cdg_pairs is None):
+        raise RuntimeError("tables mode requires CGS/CDS/CDG charge tables")
 
     # Reuse the closed Tier-2 emitter verbatim, then replace only its charge
     # section. Any structure change there must be reflected by these anchors
@@ -215,14 +234,20 @@ def build_simplis_subcircuit(
     name = f"{spec.device_name}_PIECESPICE_T3_simplis"
 
     if charge_mode == "tables":
+        assert decision is not None
+        assert cgs_pairs is not None
+        assert cds_pairs is not None
+        assert cdg_pairs is not None
         charge: List[str] = [
             "* --- SIMPLIS Level-2 three-capacitor charge model (AC Curve 4) ---",
             "* CGS=Ciss-Crss, CDS=Coss-Crss, CDG=Crss (single AC sweep at Vgs=0)",
             f"* CGS linearity test: {'LINEAR' if decision.is_linear else 'PWL'} "
             f"(chord deviation {decision.chord_deviation:.4g} vs "
             f"rel_tol {decision.rel_tolerance:g})",
-            "* CGS X axis is Vgs; table comes from the AC curve swept over Vds "
-            "at Vgs=0",
+            "* CGS X axis is Vgs; the LINEAR chord from the Vds AC sweep is "
+            "axis-independent",
+            "* PWL CGS emitted only with a declared Vgs-axis table "
+            "(cgs_axis='vgs')",
             "* CDG X axis is drain-to-gate V(di,gi); with Vgs=0 in the AC sweep "
             "v_DG=v_DS",
             "* Q= chains: constant (C=0) below the first breakpoint; above the "

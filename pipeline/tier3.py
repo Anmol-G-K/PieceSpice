@@ -62,20 +62,21 @@ def _run_emitted_dpt(model, lib_path: Path, vendor: str):
         dpt["vgs_on"]) + ")")
     nb.x_instance("dut", name, model.pin_roles, temperature=temp)
     t0 = time.perf_counter()
-    res = SpiceEngine(timeout_s=120.0).run_transient(
+    res = SpiceEngine(temperature=temp, timeout_s=120.0).run_transient(
         nb.render(), TranDirective(step_time=dpt["max_step"],
                                    end_time=dpt["t_end"],
                                    max_step=dpt["max_step"]))
     wall = time.perf_counter() - t0
+    i_d, current_def = _device_current(res)
     run = DoublePulseRun(
         time=np.asarray(res.get("time")),
         v_ds=np.asarray(res.get("V(drain)")),
-        i_d=np.abs(np.asarray(res.get("I(Lload)"), dtype=float)),
+        i_d=i_d,
         v_gs=np.asarray(res.get("V(gate)")),
         v_bus=dpt["vbus"], i_load=dpt["i_load_target"],
         l_load=dpt["l_load"], vgs_on=dpt["vgs_on"],
         wall_clock_s=float(wall), t2_on=dpt["t2_on"])
-    return run, res.log_text
+    return run, res.log_text, current_def
 
 
 def _rel_err(value, ref) -> float:
@@ -89,23 +90,92 @@ def _log_iterations(log: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
+_DEVICE_CURRENT = "I(Lload)-I(Dclamp)"
+_LOAD_CURRENT = "I(Lload)"
+
+
+def _device_current(result) -> tuple[np.ndarray, str]:
+    """DUT current with clamp subtraction when the raw file carries it.
+
+    capture_trajectory trains on I(Lload)-I(Dclamp) (trajectory output[0]);
+    validation uses the same definition wherever the clamp trace exists so
+    golden and ROM stay like-with-like. The fallback is recorded explicitly.
+    """
+    i_l = np.asarray(result.get("I(Lload)"), dtype=float)
+    i_clamp = result.traces.get("I(Dclamp)")
+    if i_clamp is not None:
+        return (np.abs(i_l - np.asarray(i_clamp, dtype=float)),
+                _DEVICE_CURRENT)
+    return np.abs(i_l), _LOAD_CURRENT
+
+
 def _waveform_errors(run, traj) -> dict:
-    """Relative RMSE of one completed DPT run against the golden capture."""
-    mask = run.time <= traj.time[-1]
-    if not np.any(mask):
-        return {"vds_rel_rmse_pct": None, "id_rel_rmse_pct": None,
-                "compare_points": 0}
-    t = run.time[mask]
-    vds = np.interp(t, traj.time, traj.input[1])
-    ids = np.interp(t, traj.time, np.abs(traj.result.get("I(Lload)")))
+    """Relative RMSE on the common grid; compare_points is that grid's count.
+
+    ROM samples are interpolated onto the overlapping golden time grid, not
+    the other way round: extra ROM samples in flat regions cannot dilute the
+    edge error, and the count is symmetric across variants.
+    """
+    empty = {"vds_rel_rmse_pct": None, "id_rel_rmse_pct": None,
+             "compare_points": 0, "current_definition": _DEVICE_CURRENT}
+    if run.time.size < 2 or traj.time.size < 2:
+        return empty
+    lo = max(float(run.time[0]), float(traj.time[0]))
+    hi = min(float(run.time[-1]), float(traj.time[-1]))
+    if not hi > lo:
+        return empty
+    gmask = (traj.time >= lo) & (traj.time <= hi)
+    rmask = (run.time >= lo) & (run.time <= hi)
+    t = traj.time[gmask]
+    if t.size < 2 or np.count_nonzero(rmask) < 2:
+        return empty
+    vds_rom = np.interp(t, run.time[rmask], run.v_ds[rmask])
+    id_rom = np.interp(t, run.time[rmask], run.i_d[rmask])
+    vds_ref = np.asarray(traj.input[1], dtype=float)[gmask]
+    # trajectory output[0] is the fitted device current: I(Lload)-I(Dclamp).
+    id_ref = np.abs(np.asarray(traj.output[0], dtype=float))[gmask]
     return {
         "vds_rel_rmse_pct": float(100 * np.sqrt(np.mean(
-            (run.v_ds[mask] - vds) ** 2)) / (np.ptp(traj.input[1]) or 1)),
+            (vds_rom - vds_ref) ** 2)) / (np.ptp(traj.input[1]) or 1)),
         "id_rel_rmse_pct": float(100 * np.sqrt(np.mean(
-            (run.i_d[mask] - ids) ** 2)) / (
-                np.ptp(np.abs(traj.result.get("I(Lload)"))) or 1)),
-        "compare_points": int(mask.sum()),
+            (id_rom - id_ref) ** 2)) / (np.ptp(np.abs(traj.output[0])) or 1)),
+        "compare_points": int(t.size),
+        "current_definition": _DEVICE_CURRENT,
     }
+
+
+def _forced_guard_t_last(library: Path, subckt: str, pins: list[str],
+                         kw: dict) -> dict:
+    """One netlist-identical run to read the achieved t_last for the forced row.
+
+    run_inductive_benchmark returns medians but not the final time, so the
+    guard is a separate single run of the same bench/directive. No timing
+    ratio is accepted without both arms reaching the same end time.
+    """
+    end = (1.0e-6 + (kw["n_pulses"] - 1) * kw["pulse_period"]
+           + (kw["first_pulse_width"] if kw["n_pulses"] == 1
+              else kw["pulse_width"]) + 2e-6)
+    temp = kw.get("temperature", 25.0)
+    nb = NetlistBuilder(f"SPEEDUP_DPT_{subckt}")
+    nb.include(library)
+    nb.v_dc("bus", "vbus", "0", kw["vbus"])
+    nb.l("load", "vbus", "drain", kw["l_load"])
+    nb.raw_line("Dclamp drain vbus DCLAMP")
+    nb.raw_line(".model DCLAMP D(IS=1e-12 N=1 RS=1e-3 CJO=0)")
+    nb.raw_line("Vgs gate 0 PWL(" + _pulse_train(
+        1e-6, kw["first_pulse_width"], kw["pulse_width"],
+        kw["pulse_period"], kw["n_pulses"], kw["edge_time"],
+        kw["vgs_on"]) + ")")
+    nb.x_instance("dut", subckt, pins, temperature=temp)
+    directive = TranDirective(step_time=kw["max_step"] or kw["edge_time"],
+                              end_time=end, max_step=kw["max_step"])
+    res = SpiceEngine(temperature=temp,
+                      timeout_s=kw["timeout_s"]).run_transient(
+        nb.render(), directive)
+    t = np.asarray(res.get("time"), dtype=float)
+    return {"t_last_s": float(t[-1]) if t.size else None,
+            "iterations": _log_iterations(res.log_text),
+            "trace_points": int(t.size), "end_time_s": end}
 
 
 def run_vendor(vendor: str, variant: str = DEFAULT_VARIANT) -> dict:
@@ -149,22 +219,26 @@ def run_vendor(vendor: str, variant: str = DEFAULT_VARIANT) -> dict:
     lib.write_text(emit_subcircuit(model), encoding="ascii")
     static_emitted = emitted_static_rmse(model)
     dpt = _dpt_conditions(vendor)
+    # trajectory output[0] is the fitted device current I(Lload)-I(Dclamp).
     golden_run = DoublePulseRun(
         time=traj.time, v_ds=traj.input[1],
-        i_d=np.abs(traj.result.get("I(Lload)")),
+        i_d=np.abs(np.asarray(traj.output[0], dtype=float)),
         v_gs=traj.input[0], v_bus=dpt["vbus"],
         i_load=dpt["i_load_target"], l_load=dpt["l_load"],
         vgs_on=dpt["vgs_on"], wall_clock_s=capture_wall,
         t2_on=dpt["t2_on"])
     golden = extract_dpt_metrics(golden_run)
+    current_defs = {"golden": _DEVICE_CURRENT, "tier3": None}
 
     tier3_run, tier3, log = None, {}, ""
     dpt_info = {"completed": False, "trace_points": 0,
                 "golden_trace_points": int(len(traj.time)),
                 "iterations": None, "t_last_s": None,
-                "error": None, "waveform": {}}
+                "error": None, "waveform": {},
+                "current_definitions": current_defs}
     try:
-        tier3_run, log = _run_emitted_dpt(model, lib, vendor)
+        tier3_run, log, current_def = _run_emitted_dpt(model, lib, vendor)
+        current_defs["tier3"] = current_def
         n3 = int(len(tier3_run.time))
         it3 = _log_iterations(log)
         t_last = float(tier3_run.time[-1]) if n3 else 0.0
@@ -202,6 +276,7 @@ def run_vendor(vendor: str, variant: str = DEFAULT_VARIANT) -> dict:
 
     # runtime medians from the same benchmark that produced the Tier-2 table
     cfg = load_input(vendor)
+    temp = float(cfg["conditions"]["temperature"])
     bench_kw = {
         "vbus": dpt["vbus"], "vgs_on": dpt["vgs_on"],
         "i_load": dpt["i_load_target"], "l_load": dpt["l_load"],
@@ -209,7 +284,8 @@ def run_vendor(vendor: str, variant: str = DEFAULT_VARIANT) -> dict:
         "pulse_width": dpt["t2_width"],
         "pulse_period": dpt["t2_on"] - dpt["t1_on"],
         "n_pulses": 2, "edge_time": dpt["edge_time"],
-        "max_step": dpt["max_step"], "repeats": 3, "timeout_s": 120.0,
+        "max_step": dpt["max_step"], "temperature": temp,
+        "repeats": 3, "timeout_s": 120.0,
     }
     t1 = time.perf_counter()
     golden_time = run_inductive_benchmark(
@@ -226,11 +302,47 @@ def run_vendor(vendor: str, variant: str = DEFAULT_VARIANT) -> dict:
                     "iterations": None, "trace_points": 0,
                     "error": str(exc)[:200]}
     bench_wall_rom = time.perf_counter() - t1
-    # An aborted bench run has few iterations; call it incomplete, not fast.
+    # Completion guard: both arms must reach the same end time, verified by
+    # t_last from a netlist-identical single run, in addition to the existing
+    # iterations/trace-points rejection of aborted benches.
+    guards = {}
+    for label, library, subckt in (
+        ("golden", Path(cfg["library"]).resolve(), cfg["subcircuit"]),
+        ("tier3", lib, f"{model.vendor.upper()}_TPWL_DEIM"),
+    ):
+        try:
+            guards[label] = _forced_guard_t_last(
+                library, subckt, model.pin_roles, bench_kw)
+        except Exception as exc:  # a missing guard is never a speedup
+            guards[label] = {
+                "t_last_s": None,
+                "error": f"{type(exc).__name__}: {exc}"[:200],
+            }
+    end = golden_time.get("end_time_s")
+
+    def _reached_end(label: str) -> bool:
+        value = guards[label].get("t_last_s")
+        return (value is not None and np.isfinite(float(value))
+                and end is not None and float(value) >= 0.999 * float(end))
+
+    t_last_ok = all(_reached_end(label) for label in ("golden", "tier3"))
+    same_end = (end is not None
+                and golden_time.get("end_time_s") == rom_time.get("end_time_s")
+                and all(guards[label].get("end_time_s") == end
+                        for label in ("golden", "tier3")))
+    t_last_g = guards["golden"].get("t_last_s")
+    t_last_r = guards["tier3"].get("t_last_s")
+    same_t_last = (
+        t_last_ok
+        and t_last_g is not None and t_last_r is not None
+        and np.isfinite(float(t_last_g)) and np.isfinite(float(t_last_r))
+        and end is not None
+        and abs(float(t_last_g) - float(t_last_r)) <= 1e-9 * float(end))
     bench_complete = ((rom_time.get("iterations") or 0) >=
                       0.5 * (golden_time["iterations"] or 0)
                       and (rom_time.get("trace_points") or 0) >=
-                      0.5 * (golden_time["trace_points"] or 0))
+                      0.5 * (golden_time["trace_points"] or 0)
+                      and t_last_ok and same_end and same_t_last)
 
     record = {
         "schema": "piecespice.tier3/2.0",
@@ -258,12 +370,18 @@ def run_vendor(vendor: str, variant: str = DEFAULT_VARIANT) -> dict:
         "dpt_run": dpt_info,
         "dpt_comparison": comparison,
         "runtime": {
-            "golden": {k: golden_time.get(k) for k in
-                       ("wall_clock_s", "solver_elapsed_s", "iterations",
-                        "trace_points")},
-            "tier3": {k: rom_time.get(k) for k in
-                      ("wall_clock_s", "solver_elapsed_s", "iterations",
-                       "trace_points")},
+            "method": "default/trap",
+            "max_step_s": dpt["max_step"],
+            "end_time_s": golden_time.get("end_time_s"),
+            "guard": guards,
+            "golden": {**{k: golden_time.get(k) for k in
+                          ("wall_clock_s", "solver_elapsed_s", "iterations",
+                           "trace_points")},
+                       "t_last_s": guards["golden"].get("t_last_s")},
+            "tier3": {**{k: rom_time.get(k) for k in
+                         ("wall_clock_s", "solver_elapsed_s", "iterations",
+                          "trace_points")},
+                      "t_last_s": guards["tier3"].get("t_last_s")},
             "tier3_bench_completed": bench_complete,
             "solver_speedup": (
                 golden_time["solver_elapsed_s"] / rom_time["solver_elapsed_s"]
@@ -271,7 +389,9 @@ def run_vendor(vendor: str, variant: str = DEFAULT_VARIANT) -> dict:
                 else None),
             "bench_wall_s": {"golden": bench_wall_golden,
                              "tier3": bench_wall_rom},
+            "scope": "forced 2ns fidelity control; not the adaptive speed claim",
         },
+        "current_definitions": current_defs,
         "build_seconds": {"capture": capture_wall, "fit": fit_wall},
         "spice_log_tail": "\n".join(log.splitlines()[-6:]),
         "emitted_lib": str(lib.relative_to(ROOT)),

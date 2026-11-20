@@ -222,6 +222,12 @@ data/
 
 
 *.lib
+!reports/models/*_PIECESPICE_T2.lib
+!reports/models/*_PIECESPICE_T3.lib
+!reports/models/*_PIECESPICE_T3_simplis.lib
+!reports/models/*_PIECESPICE_T4.lib
+!reports/models/*_PIECSPICE_UROM.lib
+!reports/models/*_PIECSPICE_UROM_ann_trap-default.lib
 *.zip
 *.7z
 *.tar
@@ -235,4 +241,6 @@ data/
 .ruff_cache/
 reports/pytest_report.html
 reports/models_check/
+# Local cross-session orchestrator state; intentionally not part of the repo.
+docs/SESSION_HANDOFF.md
 simulation/reports/

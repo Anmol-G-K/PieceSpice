@@ -31,12 +31,20 @@ _DPT_MAX_POINTS = 60             # cap on extracted high-V/I training points
 _DPT_TIMEOUT_S = 30.0            # extraction guard; failure is recorded, not hidden
 
 
+def _family_value(curve: CurveData) -> float:
+    """CurveData family values are optional; fit families must declare one."""
+    value = curve.family_value
+    if value is None:
+        raise ValueError(f"{curve.name}: missing family_value")
+    return float(value)
+
+
 def _extract(vendor: str, bench: str) -> Dict[str, Any]:
     return load_output(vendor, bench)["extracted"]
 
 
 def _channel_families(vendor: str, cond: Dict[str, Any]
-                      ) -> Tuple[List[CurveData], np.ndarray]:
+                      ) -> Tuple[List[CurveData], float]:
     """Curve-1 output family as regular-grid CurveData (Vds, Id per Vgs)."""
     c1 = _extract(vendor, "curve1_output_characteristics")
     prefix = "curve_id_vgs_"
@@ -66,7 +74,7 @@ def _v_sat(families: List[CurveData]) -> float:
     constant or fixed volts are embedded (E3's Vsat=2 V is a source hint, not
     a PieceSpice default).
     """
-    top = max(families, key=lambda c: float(c.family_value))
+    top = max(families, key=_family_value)
     x, y = top.to_numpy()
     if x.size < 4:
         return float(x[-1])
@@ -87,7 +95,7 @@ def _static_guard_width(families: List[CurveData]
     grid property (half the grid spacing) and prevents dense DPT trajectory
     samples from collapsing eps_from_grid's half-minimum cap.
     """
-    top = max(families, key=lambda c: float(c.family_value))
+    top = max(families, key=_family_value)
     x, _ = top.to_numpy()
     xs = np.unique(x[np.isfinite(x)])
     width = eps_from_grid(xs.tolist())
@@ -116,13 +124,14 @@ def _charge_curves(vendor: str, cond: Dict[str, Any]
     except (KeyError, TypeError, ValueError):
         vref = 0.25 * (float(cond["Vds_cap_max"])
                        - float(cond["Vds_cap_min"]))
-    meta = {k: (float(c4[k]) if c4.get(k) is not None else None)
+    meta: Dict[str, Any] = {k: (float(c4[k]) if c4.get(k) is not None else None)
             for k in ("ciss_f", "coss_f", "crss_f")}
     meta["cap_ref_vds"] = float(vref)
     meta["source"] = "curve4_capacitances:extracted"
-    coss = float(meta["coss_f"]) if meta["coss_f"] is not None else None
-    if coss is None or coss <= 0.0:
+    coss_value = meta.get("coss_f")
+    if coss_value is None or float(coss_value) <= 0.0:
         raise RuntimeError(f"{vendor}: curve4 has no positive coss_f")
+    coss = float(coss_value)
 
     curve4 = CurveData(
         name="curve4_capacitances_coss",
@@ -150,13 +159,14 @@ def _dpt_points(vendor: str, vds_max: float
     """
     prov: Dict[str, Any] = {
         "source": "dpt_trajectory", "vendor": vendor,
-        "status": "attempted",
-        "sample_indices": [],
+        "status": "attempted", "sample_indices": [],
+        "n_points": 0, "sample_selection": None, "reason": None,
         "external_source_status": "conditional_until_url_and_section_pinned",
     }
     try:
         from simulation.testbenches.dpt_trajectory import capture_trajectory
-        traj = capture_trajectory(vendor, timeout_s=_DPT_TIMEOUT_S)
+        traj = capture_trajectory(vendor, timeout_s=_DPT_TIMEOUT_S,
+                                  require_complete=True)
         vgs = np.asarray(traj.input[0], dtype=float)
         vds = np.asarray(traj.input[1], dtype=float)
         ids = np.asarray(traj.output[0], dtype=float)
@@ -200,7 +210,9 @@ def ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True
     c4, plateau, cap_meta = _charge_curves(vendor, cond)
 
     dpt, dpt_prov = (None, {"source": "dpt_trajectory", "status": "disabled",
-                            "sample_indices": []})
+                            "sample_indices": [], "n_points": 0,
+                            "sample_selection": None,
+                            "reason": "include_dpt_points=False"})
     if include_dpt_points:
         dpt, dpt_prov = _dpt_points(vendor, vmax)
 

@@ -185,12 +185,13 @@ def test_emitted_lib_makes_no_plecs_step_count_claim():
     assert "standard SPICE ideal voltage-controlled switch" in text
 
 
-def test_single_temperature_and_single_node_limits_are_in_lib_comments():
+def test_single_temperature_and_grid_capability_limits_are_in_lib_comments():
     text = build_tier4_subcircuit(_toy_lut())
     assert "data_limitation:" in text
     assert "conditions.temperature = 25 C" in text
     assert "no temperature" in text
-    assert "one finite measured node per vendor" in text
+    assert "finite measured node(s)" in text
+    assert "no 2x2 interpolation cell has all four corners finite" in text
     assert "off-node queries are NaN" in text
     assert "not electrical power consumed by this switch" in text
 

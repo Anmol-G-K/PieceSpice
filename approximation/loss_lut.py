@@ -15,10 +15,11 @@ Unmeasured grid nodes are NaN with a source gap -- never an invented datasheet
 point, a filled-in number, or an extrapolated value.
 
 There is no extrapolation path: an out-of-grid query is always NaN.  The
-config-derived grids currently have one finite measured node per vendor, so
-``interpolation_capability()`` reports them honestly as constant/single-node
-instead of claiming interpolation; the capability is published in
-``source["interpolation"]`` and in ``to_dict()``.
+recorded config-derived grids have 1-3 finite measured nodes and no complete
+2x2 interpolation cell; ``interpolation_capability()`` reports each grid's
+true status (constant_node / single_node / grid_interpolation) and
+``grid_provenance()`` states that limitation without assuming a fixed shape.
+The capability is published in ``source["interpolation"]`` and ``to_dict()``.
 
 PLECS (P-TC) documents interpolation of E_on/E_off(v, i, T) tables and warns
 that dissipated thermal power is not the electrical power consumed by the
@@ -138,6 +139,22 @@ def _measured_node_count(e_on: Any, e_off: Any) -> int:
     )
 
 
+def _complete_cell_count(e_on: Any, e_off: Any) -> int:
+    """Count 2x2 cells whose four corners carry both measured energies."""
+    rows_on, rows_off = list(e_on), list(e_off)
+    cells = 0
+    for i in range(len(rows_on) - 1):
+        for j in range(len(rows_on[i]) - 1):
+            corners = ((i, j), (i + 1, j), (i, j + 1), (i + 1, j + 1))
+            if all(
+                math.isfinite(float(rows_on[a][b]))
+                and math.isfinite(float(rows_off[a][b]))
+                for a, b in corners
+            ):
+                cells += 1
+    return cells
+
+
 def _interpolation_capability(e_on: Any, e_off: Any,
                               n_vbus: int, n_current: int) -> dict[str, Any]:
     """Report what the measured grid can actually support (D7/M4)."""
@@ -158,10 +175,40 @@ def _interpolation_capability(e_on: Any, e_off: Any,
     return {
         "status": status,
         "finite_nodes": finite,
+        "complete_cells": _complete_cell_count(e_on, e_off),
         "vbus_points": n_vbus,
         "current_points": n_current,
         "rule": rule,
     }
+
+
+def interpolation_provenance_text(cap: Mapping[str, Any]) -> str:
+    """Truthful grid provenance derived from interpolation_capability().
+
+    No fixed node count or grid shape is assumed: the sentence follows the
+    measured capability dict, so a grid with several finite nodes but no full
+    2x2 cell is never described as a single-node grid.
+    """
+    finite = cap.get("finite_nodes")
+    complete = cap.get("complete_cells")
+    nv, nc = cap.get("vbus_points"), cap.get("current_points")
+    status = cap.get("status")
+    shape = (f"{nv}x{nc}" if nv is not None and nc is not None
+             else "config-derived")
+    nodes = (f"{finite} finite measured node(s)" if finite is not None
+             else "finite measured nodes")
+    if complete == 0:
+        detail = ("no 2x2 interpolation cell has all four corners finite, so "
+                  "off-node queries are NaN / insufficient_measured_nodes and "
+                  "no bilinear interpolation is currently exercised")
+    elif complete is None:
+        detail = ("bilinear interpolation requires all four measured corners "
+                  "finite; off-node queries without them are NaN")
+    else:
+        detail = (f"{complete} complete 2x2 cell(s) allow bilinear "
+                  "interpolation; other off-node queries are NaN")
+    return (f"The current {shape} grid has {nodes} (capability '{status}'); "
+            f"{detail}.")
 
 
 def _data_limitations(temperature_c: float, e_on: Any, e_off: Any,
@@ -299,6 +346,10 @@ class LossLUT:
         return _interpolation_capability(
             self.e_on_uj, self.e_off_uj,
             len(self.vbus_points), len(self.current_points))
+
+    def grid_provenance(self) -> str:
+        """Capability-derived grid provenance for emitted/JSON comments."""
+        return interpolation_provenance_text(self.interpolation_capability())
 
     def data_limitations(self) -> list[dict[str, Any]]:
         """Measured-data limitations (not project decisions) for JSON/meta."""
@@ -705,6 +756,8 @@ def build_lut(vendor: str, *, config: Mapping[str, Any] | None = None,
         })
 
     cond = cfg["conditions"]
+    capability = _interpolation_capability(
+        e_on, e_off, len(vbus_axis), len(current_axis))
     source: dict[str, Any] = {
         "schema": SCHEMA,
         "method": "clamped-inductive golden DPT E_on/E_off at config-derived "
@@ -735,8 +788,7 @@ def build_lut(vendor: str, *, config: Mapping[str, Any] | None = None,
                                           float(cfg["dpt"]["i_load_target"])), {})
             .get("status") == "measured"),
         "waveform_gate": "retired_by_design",
-        "interpolation": _interpolation_capability(
-            e_on, e_off, len(vbus_axis), len(current_axis)),
+        "interpolation": capability,
         "data_limitations": _data_limitations(
             float(cond["temperature"]), e_on, e_off,
             len(vbus_axis), len(current_axis)),
@@ -759,11 +811,9 @@ def build_lut(vendor: str, *, config: Mapping[str, Any] | None = None,
              "rule": ("bilinear interpolation applies only when all four "
                       "measured corners are finite; no extrapolation is "
                       "implemented; off-node queries are NaN"),
-             "basis": ("PLECS P-TC documents linear table interpolation; the "
-                       "recorded grids have one finite measured node per "
-                       "vendor, so no interpolation is currently exercised"),
-             "capability": _interpolation_capability(
-                 e_on, e_off, len(vbus_axis), len(current_axis))},
+             "basis": ("PLECS P-TC documents linear table interpolation; "
+                       + interpolation_provenance_text(capability)),
+             "capability": capability},
 
             {"name": "missing_crossings", "kind": "project_decision",
              "rule": "NaN/N/A with a source gap; never zero or a filled value"},

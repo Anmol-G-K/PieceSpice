@@ -99,9 +99,14 @@
     "t_last_s": 1.4e-05,
     "error": null,
     "waveform": {
-      "vds_rel_rmse_pct": 16.9582095508409,
-      "id_rel_rmse_pct": 0.5103037894733514,
-      "compare_points": 7376
+      "vds_rel_rmse_pct": 12.693442846743118,
+      "id_rel_rmse_pct": 11.002675951623283,
+      "compare_points": 7114,
+      "current_definition": "I(Lload)-I(Dclamp)"
+    },
+    "current_definitions": {
+      "golden": "I(Lload)-I(Dclamp)",
+      "tier3": "I(Lload)-I(Dclamp)"
     }
   },
   "dpt_comparison": {
@@ -141,58 +146,82 @@
       "tier2_rel_err_pct": 1534.8475201471201
     },
     "di_dt_max_a_per_ns": {
-      "golden": 0.22686931200000002,
-      "tier3": 23.81104122024803,
-      "tier3_rel_err_pct": 10395.487913432746,
+      "golden": 443.4892816651921,
+      "tier3": 80486.72843280456,
+      "tier3_rel_err_pct": 18048.517170605992,
       "tier2": 2.497784249508453,
-      "tier2_rel_err_pct": 1000.9793380554056
+      "tier2_rel_err_pct": -99.4367881360898
     },
     "e_on_uj": {
-      "golden": 157.43281606412236,
-      "tier3": 25.10266520299661,
-      "tier3_rel_err_pct": -84.05499829668784,
+      "golden": 45.43247692932454,
+      "tier3": 3.15362293354054,
+      "tier3_rel_err_pct": -93.05865947294407,
       "tier2": 71.09326472844484,
-      "tier2_rel_err_pct": -54.84215647931461
+      "tier2_rel_err_pct": 56.481155185614504
     },
     "e_off_uj": {
-      "golden": 596.9637000429396,
-      "tier3": 535.3405831516258,
-      "tier3_rel_err_pct": -10.322757796978497,
+      "golden": 77.72046585456407,
+      "tier3": 2.4135523323293007,
+      "tier3_rel_err_pct": -96.89457299851276,
       "tier2": 533.4319489514241,
-      "tier2_rel_err_pct": -10.642481458578748
+      "tier2_rel_err_pct": 586.3468239493303
     },
     "i_peak_a": {
-      "golden": 138.5330810546875,
-      "tier3": 137.3198699951172,
-      "tier3_rel_err_pct": -0.8757554876667933,
+      "golden": 138.53150939941406,
+      "tier3": 137.31979370117188,
+      "tier3_rel_err_pct": -0.8746859855172505,
       "tier2": 136.9910430908203,
-      "tier2_rel_err_pct": -1.1131189403478658
+      "tier2_rel_err_pct": -1.1119970577612617
     }
   },
   "runtime": {
+    "method": "default/trap",
+    "max_step_s": 2e-09,
+    "end_time_s": 1.4e-05,
+    "guard": {
+      "golden": {
+        "t_last_s": 1.4e-05,
+        "iterations": 14825,
+        "trace_points": 7114,
+        "end_time_s": 1.4e-05
+      },
+      "tier3": {
+        "t_last_s": 1.4e-05,
+        "iterations": 20004,
+        "trace_points": 7376,
+        "end_time_s": 1.4e-05
+      }
+    },
     "golden": {
-      "wall_clock_s": 0.9920789999996487,
-      "solver_elapsed_s": 0.43,
+      "wall_clock_s": 0.9808429999975488,
+      "solver_elapsed_s": 0.428,
       "iterations": 14825.0,
-      "trace_points": 7114.0
+      "trace_points": 7114.0,
+      "t_last_s": 1.4e-05
     },
     "tier3": {
-      "wall_clock_s": 1.3290955000011309,
-      "solver_elapsed_s": 0.755,
+      "wall_clock_s": 1.3301371999987168,
+      "solver_elapsed_s": 0.756,
       "iterations": 20004.0,
-      "trace_points": 7376.0
+      "trace_points": 7376.0,
+      "t_last_s": 1.4e-05
     },
     "tier3_bench_completed": true,
-    "solver_speedup": 0.5695364238410596,
+    "solver_speedup": 0.5661375661375662,
     "bench_wall_s": {
-      "golden": 2.9762034000013955,
-      "tier3": 3.9489216999972996
-    }
+      "golden": 2.9821140999993077,
+      "tier3": 4.00195010000607
+    },
+    "scope": "forced 2ns fidelity control; not the adaptive speed claim"
+  },
+  "current_definitions": {
+    "golden": "I(Lload)-I(Dclamp)",
+    "tier3": "I(Lload)-I(Dclamp)"
   },
   "build_seconds": {
-    "capture": 1.143487900000764,
-    "fit": 27.19464169999992
+    "capture": 1.139876799992635,
+    "fit": 27.099286700002267
   },
-  "spice_log_tail": "Total elapsed time: 0.764 seconds.\nTotal iterations: 20004\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_vin13r04\\tran.net\n",
+  "spice_log_tail": "Total elapsed time: 0.759 seconds.\nTotal iterations: 20004\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_k3fvqqv5\\tran.net\n",
   "emitted_lib": "reports\\models\\irfs7730pbf_PIECESPICE_T3.lib"
 }

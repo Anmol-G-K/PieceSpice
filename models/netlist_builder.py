@@ -75,7 +75,7 @@ def _resolve_metadata(spec: PWLModelSpec) -> dict:
 
 
 def _fmt(x: float) -> str:
-    """Format a float for SPICE output (16 significant chars, e-notation)."""
+    """Format a float for SPICE output (7 significant digits, e-notation)."""
     return f"{x:.6e}"
 
 

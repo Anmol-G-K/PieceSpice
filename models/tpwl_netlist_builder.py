@@ -27,8 +27,11 @@ bench (solver options unchanged):
   asymptote but removes its curvature discontinuity.
 * ``C_QD`` remains omitted: fitted drain-charge slopes are negative at the
   blocking point (~-2.5 nF on TI) and produced an exponential blow-up at
-  t ~ 5 ps.  Gate charge is not emitted; it previously made the Jacobian
-  non-symmetric on the ideal driven gate node and stalled LTspice.
+  t ~ 5 ps.  The fitted gate-charge emission experiment is measured and
+  closed: both the dense Qg form and the 0.5%-compressed per-Vgs-row form
+  reached the same 120 s IRFS emitted-DPT / forced-bench timeout guards, so
+  the closed v1 emitter intentionally contains no ``C_QG`` element.  No
+  accuracy or speed claim is made for the removed experiment.
 
 LTspice syntax facts verified in this repository: ``**`` for powers (caret
 is XOR), nested ``table()`` lookups evaluate correctly, and ``limit()`` /
@@ -84,13 +87,23 @@ _POLICY_BY_VENDOR = {
 }
 
 
+def _registered_vendor(model: TPWLTerminalModel) -> None:
+    """Fail closed: emission settings exist only for measured vendors."""
+    if model.vendor not in _POLICY_BY_VENDOR:
+        raise ValueError(
+            f"{model.vendor}: no measured TPWL emission policy; registered "
+            f"vendors: {', '.join(sorted(_POLICY_BY_VENDOR))}")
+
+
 def emission_policy(model: TPWLTerminalModel) -> EmissionPolicy:
     """Policy measured for one vendor's emitted channel and Qoss."""
-    return _POLICY_BY_VENDOR.get(model.vendor, _BASE)
+    _registered_vendor(model)
+    return _POLICY_BY_VENDOR[model.vendor]
 
 
 def saturation_scale(model: TPWLTerminalModel) -> float:
     """Measured low-Vds saturation scale for one vendor's emitted channel."""
+    _registered_vendor(model)
     return float(_VSAT_BY_VENDOR.get(model.vendor, _VSAT_DEFAULT))
 
 
@@ -194,7 +207,7 @@ def emitted_channel(model: TPWLTerminalModel, u: np.ndarray) -> np.ndarray:
     x = out * gate * u[1] / (u[1] + saturation_scale(model))
     pol = emission_policy(model)
     if pol.soft_clamp:
-        return hyp_value(x, pol.soft_eps)
+        return np.asarray(hyp_value(x, pol.soft_eps), dtype=float)
     return np.maximum(0.0, x)
 
 
@@ -210,7 +223,11 @@ def emitted_static_rmse(model: TPWLTerminalModel) -> float:
 def _qoss_expr(model: TPWLTerminalModel) -> str:
     """Monotone drain charge: smooth two-exponential fit or dense table."""
     from approximation.charge_model import integrate_charge
-    charge = integrate_charge(model.coss_v, model.coss_c)
+    coss_v, coss_c = model.coss_v, model.coss_c
+    if coss_v is None or coss_c is None:
+        raise ValueError(
+            f"{model.vendor}: Coss charge table is unavailable")
+    charge = integrate_charge(coss_v, coss_c)
     if charge.v.size < 2 or charge.q.size != charge.v.size:
         raise ValueError(
             f"{model.vendor}: Coss charge table has "
@@ -245,6 +262,7 @@ def _qoss_expr(model: TPWLTerminalModel) -> str:
 def emit_subcircuit(model: TPWLTerminalModel, *,
                     name: str | None = None) -> str:
     """Return a complete ``.subckt`` string for one fitted model."""
+    _registered_vendor(model)
     name = name or f"{model.vendor.upper()}_TPWL_DEIM"
     ports = [_PORT.get(r, r) for r in model.pin_roles]
     g, d = grid_axes(model)

@@ -433,6 +433,7 @@
     "p_cond_w": 11.267828041336092,
     "p_switch_w": 6.924242931379731,
     "f_sw_hz": 111111.11111111111,
+    "f_sw_basis": "f_sw = 1 / (dpt.t2_on - dpt.t1_on) is an illustrative offline frequency from the DPT pulse repetition interval (a bench schedule choice), NOT a measured converter switching frequency; p_switch scales linearly with it and remains a diagnostic only.",
     "thermal_note": "PLECS P-TC: the dissipated thermal power does not correspond to the electrical power consumed by the device; thermal losses are injected into a thermal network and need an explicit output-power definition for efficiency. The emitted ideal switch has no loss element, so every efficiency figure here is an offline estimate, not simulated electrical power.",
     "source": "https://docs.plexim.com/plecs/5.0/thermal-modeling/thermal-concepts"
   },
@@ -444,9 +445,9 @@
     "iterations": 14346,
     "t_last_s": 1.4e-05,
     "t_end_s": 1.4e-05,
-    "wall_clock_s": 1.0713397999934386,
+    "wall_clock_s": 1.0302923999988707,
     "error": null,
-    "spice_log_tail": "Total elapsed time: 0.391 seconds.\nTotal iterations: 14346\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_gx41q2f2\\tran.net\n"
+    "spice_log_tail": "Total elapsed time: 0.382 seconds.\nTotal iterations: 14346\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_x8pq1mcr\\tran.net\n"
   },
   "speedup": {
     "solver_speedup": null,
@@ -464,7 +465,8 @@
     "status": "N/A",
     "max_step_s": null,
     "case": "long_adaptive",
-    "error": "CPM2-1200 golden adaptive speed is contract-excluded (VM-10 vendor turn-off abort; fidelity_speed_research.md section 2, Tier-4 contract section 20). Older recorded text cited a golden failure ('no raw output / rc=1'); the current reports/comparison/speedup_benchmark.json instead holds a completed adaptive golden arm. That artifact conflict is disclosed in vendor_scope_notes; no ratio is derived and the status stays N/A."
+    "method": "LTspice default/trap (both arms)",
+    "error": "CPM2-1200 golden adaptive speed is contract-excluded (VM-10 vendor turn-off abort; fidelity_speed_research.md section 2, Tier-4 contract section 20). Older recorded text cited a golden failure ('no raw output / rc=1'); the current reports/comparison/speedup_benchmark.json instead holds a completed adaptive golden arm. That artifact conflict is disclosed in vendor_scope_notes (record root); no ratio is derived and the status stays N/A."
   },
   "runtime": {
     "recorded_baseline": {
@@ -940,6 +942,7 @@
       "interpolation": {
         "status": "single_node",
         "finite_nodes": 1,
+        "complete_cells": 0,
         "vbus_points": 2,
         "current_points": 2,
         "rule": "Only one finite measured node: bilinear interpolation is impossible; every off-node query is NaN."
@@ -974,10 +977,11 @@
           "name": "interpolation",
           "kind": "project_decision",
           "rule": "bilinear interpolation applies only when all four measured corners are finite; no extrapolation is implemented; off-node queries are NaN",
-          "basis": "PLECS P-TC documents linear table interpolation; the recorded grids have one finite measured node per vendor, so no interpolation is currently exercised",
+          "basis": "PLECS P-TC documents linear table interpolation; The current 2x2 grid has 1 finite measured node(s) (capability 'single_node'); no 2x2 interpolation cell has all four corners finite, so off-node queries are NaN / insufficient_measured_nodes and no bilinear interpolation is currently exercised.",
           "capability": {
             "status": "single_node",
             "finite_nodes": 1,
+            "complete_cells": 0,
             "vbus_points": 2,
             "current_points": 2,
             "rule": "Only one finite measured node: bilinear interpolation is impossible; every off-node query is NaN."
@@ -1010,6 +1014,7 @@
     "interpolation": {
       "status": "single_node",
       "finite_nodes": 1,
+      "complete_cells": 0,
       "vbus_points": 2,
       "current_points": 2,
       "rule": "Only one finite measured node: bilinear interpolation is impossible; every off-node query is NaN."
@@ -1039,7 +1044,7 @@
   },
   "solver_stabilization": {
     "status": "applied",
-    "rationale": "Controlled DPT/adaptive ablations (local://tier4_convergence_rootcause.md) identify the missing drain output capacitance as the primary, sufficient cause of Tier-4 solver timeouts: with only the ideal switch, clamp diode and inductor there is no bounded state variable at the near-step dV/dt, so LTspice never reaches t_end. One measured linear C_QOSS d s <curve4.coss_f> makes every previously failing arm complete; it slows drain dV/dt and adds L-C overshoot. The measured Vgs=0 off-state Roff removes a secondary, vendor-specific 1e12 singularity but is not a common fix. Solver stabilization only.",
+    "rationale": "Controlled DPT/adaptive ablations (local://tier4_convergence_rootcause.md) identify the missing drain output capacitance as the primary, sufficient cause of Tier-4 solver timeouts: with only the ideal switch, clamp diode and inductor there is no bounded state variable at the near-step dV/dt, so LTspice never reaches t_end. One measured linear C_QOSS using the vendor Curve-4 Coss at cap_ref_Vds makes every previously failing arm complete; it slows drain dV/dt and adds L-C overshoot. The measured Vgs=0 off-state Roff removes a secondary, vendor-specific 1e12 singularity but is not a common fix. Solver stabilization only.",
     "root_cause_reference": "local://tier4_convergence_rootcause.md",
     "waveform_gate": "retired_by_design",
     "c_qoss": {
@@ -1500,6 +1505,7 @@
       "interpolation": {
         "status": "single_node",
         "finite_nodes": 1,
+        "complete_cells": 0,
         "vbus_points": 2,
         "current_points": 2,
         "rule": "Only one finite measured node: bilinear interpolation is impossible; every off-node query is NaN."
@@ -1534,10 +1540,11 @@
           "name": "interpolation",
           "kind": "project_decision",
           "rule": "bilinear interpolation applies only when all four measured corners are finite; no extrapolation is implemented; off-node queries are NaN",
-          "basis": "PLECS P-TC documents linear table interpolation; the recorded grids have one finite measured node per vendor, so no interpolation is currently exercised",
+          "basis": "PLECS P-TC documents linear table interpolation; The current 2x2 grid has 1 finite measured node(s) (capability 'single_node'); no 2x2 interpolation cell has all four corners finite, so off-node queries are NaN / insufficient_measured_nodes and no bilinear interpolation is currently exercised.",
           "capability": {
             "status": "single_node",
             "finite_nodes": 1,
+            "complete_cells": 0,
             "vbus_points": 2,
             "current_points": 2,
             "rule": "Only one finite measured node: bilinear interpolation is impossible; every off-node query is NaN."
@@ -1580,7 +1587,7 @@
         "p_out_w": null,
         "p_bus_in_w": 400.0,
         "f_sw_hz": 111111.11111111111,
-        "rule": "Vbus*Iload is DC bus input power, not output power; no config field supplies converter output power, so efficiency is N/A. f_sw = 1 / (dpt.t2_on - dpt.t1_on) is config-derived, not assumed.",
+        "rule": "Vbus*Iload is DC bus input power, not output power; no config field supplies converter output power, so efficiency is N/A. f_sw = 1 / (dpt.t2_on - dpt.t1_on) is an illustrative offline frequency from the DPT pulse repetition interval (a bench schedule choice), NOT a measured converter switching frequency; p_switch scales linearly with it and remains a diagnostic only.",
         "kind": "config_derived_input_power_only",
         "thermal_note": "PLECS P-TC: the dissipated thermal power does not correspond to the electrical power consumed by the device; thermal losses are injected into a thermal network and need an explicit output-power definition for efficiency. The emitted ideal switch has no loss element, so every efficiency figure here is an offline estimate, not simulated electrical power."
       },

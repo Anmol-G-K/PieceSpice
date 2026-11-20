@@ -1,0 +1,26 @@
+* PieceSpice UROM: basis=tier2 method=trap/default tuning=off c1_variant=C0
+* Artifact identity (emitted_lib_sha256) in the validation record
+* PieceSpice Tier 2 CPWL Model for cpm2-1200
+* Generated from fitted PWLModelSpec (K=6 Vgs curves, 101 Vds breakpoints)
+.SUBCKT cpm2-1200_PIECSPICE_UROM d g s
+* Pins: 1=Drain(d) 2=Gate(g) 3=Source(s)
+
+* --- parasitics ---
+RG g gi 1.500000e+00
+RD d di 1.000000e-04
+RS s ss 1.000000e-04
+
+* --- channel: tanh-knee behavioral source (Curves 1+2) ---
+G_CH di ss VALUE = {((0.000000e+00 + 0.000000e+00*((V(gi,ss)-0.000000e+00)+abs((V(gi,ss))-0.000000e+00))/2 + 8.816266e+00*((V(gi,ss)-2.467209e+00)+abs((V(gi,ss))-2.467209e+00))/2 + 1.727108e+01*((V(gi,ss)-1.000000e+01)+abs((V(gi,ss))-1.000000e+01))/2 + 5.086280e+00*((V(gi,ss)-1.200000e+01)+abs((V(gi,ss))-1.200000e+01))/2 + 6.108137e-01*((V(gi,ss)-1.400000e+01)+abs((V(gi,ss))-1.400000e+01))/2 + -7.433882e-01*((V(gi,ss)-1.600000e+01)+abs((V(gi,ss))-1.600000e+01))/2 + -1.368381e+00*((V(gi,ss)-1.800000e+01)+abs((V(gi,ss))-1.800000e+01))/2)*tanh(V(di,ss)/(3.655031e+00 + 0.000000e+00*((V(gi,ss)-0.000000e+00)+abs((V(gi,ss))-0.000000e+00))/2 + 1.281100e+00*((V(gi,ss)-1.000000e+01)+abs((V(gi,ss))-1.000000e+01))/2 + -1.285488e-01*((V(gi,ss)-1.200000e+01)+abs((V(gi,ss))-1.200000e+01))/2 + -4.148935e-01*((V(gi,ss)-1.400000e+01)+abs((V(gi,ss))-1.400000e+01))/2 + -2.236572e-01*((V(gi,ss)-1.600000e+01)+abs((V(gi,ss))-1.600000e+01))/2 + -1.259173e-01*((V(gi,ss)-1.800000e+01)+abs((V(gi,ss))-1.800000e+01))/2)))}
+
+* --- charge-conserving capacitances (Curve 4, plan 2.3) ---
+* Output charge Qoss(Vds) as chained delta ramps:
+C_QOSS di ss Q = {0.000000e+00 + 3.576843e-09*((V(di,ss)-1.000000e-01)+abs((V(di,ss))-1.000000e-01))/2 + -2.309001e-11*((V(di,ss)-1.295559e-01)+abs((V(di,ss))-1.295559e-01))/2 + -2.912988e-11*((V(di,ss)-1.678472e-01)+abs((V(di,ss))-1.678472e-01))/2 + -3.650326e-11*((V(di,ss)-2.174559e-01)+abs((V(di,ss))-2.174559e-01))/2 + -4.537276e-11*((V(di,ss)-2.817269e-01)+abs((V(di,ss))-2.817269e-01))/2 + -5.585495e-11*((V(di,ss)-3.649937e-01)+abs((V(di,ss))-3.649937e-01))/2 + -6.798434e-11*((V(di,ss)-4.728708e-01)+abs((V(di,ss))-4.728708e-01))/2 + -8.167394e-11*((V(di,ss)-6.126319e-01)+abs((V(di,ss))-6.126319e-01))/2 + -9.667642e-11*((V(di,ss)-7.937005e-01)+abs((V(di,ss))-7.937005e-01))/2 + -1.125501e-10*((V(di,ss)-1.028286e+00)+abs((V(di,ss))-1.028286e+00))/2 + -1.286611e-10*((V(di,ss)-1.332204e+00)+abs((V(di,ss))-1.332204e+00))/2 + -1.441915e-10*((V(di,ss)-1.725949e+00)+abs((V(di,ss))-1.725949e+00))/2 + -1.582018e-10*((V(di,ss)-2.236068e+00)+abs((V(di,ss))-2.236068e+00))/2 + -1.697478e-10*((V(di,ss)-2.896957e+00)+abs((V(di,ss))-2.896957e+00))/2 + -1.780021e-10*((V(di,ss)-3.753178e+00)+abs((V(di,ss))-3.753178e+00))/2 + -1.823983e-10*((V(di,ss)-4.862462e+00)+abs((V(di,ss))-4.862462e+00))/2 + -1.827283e-10*((V(di,ss)-6.299605e+00)+abs((V(di,ss))-6.299605e+00))/2 + -1.792056e-10*((V(di,ss)-8.161508e+00)+abs((V(di,ss))-8.161508e+00))/2 + -1.726568e-10*((V(di,ss)-1.057371e+01)+abs((V(di,ss))-1.057371e+01))/2 + -1.669656e-10*((V(di,ss)-1.369887e+01)+abs((V(di,ss))-1.369887e+01))/2 + -1.912800e-10*((V(di,ss)-1.774768e+01)+abs((V(di,ss))-1.774768e+01))/2 + -2.224167e-10*((V(di,ss)-2.299316e+01)+abs((V(di,ss))-2.299316e+01))/2 + -1.669504e-10*((V(di,ss)-2.978899e+01)+abs((V(di,ss))-2.978899e+01))/2 + -9.635561e-11*((V(di,ss)-3.859339e+01)+abs((V(di,ss))-3.859339e+01))/2}
+C_ISS gi ss 7.227357e-09
+C_RSS gi di 3.306089e-10
+
+* --- body diode (Curve 6) ---
+.MODEL D_BD_cpm2-1200_PIECSPICE_UROM D(IS=6.414485e-13 N=4.000 RS=2.950997e-02)
+D_BODY ss di D_BD_cpm2-1200_PIECSPICE_UROM
+
+.ENDS cpm2-1200_PIECSPICE_UROM

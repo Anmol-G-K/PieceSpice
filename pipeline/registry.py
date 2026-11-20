@@ -95,14 +95,17 @@ def lib_path(vendor: str, tier: int,
 
 
 def fit(vendor: str, tier: int = 2,
-        variant: str = DEFAULT_VARIANT) -> Path:
+        variant: str = DEFAULT_VARIANT,
+        basis: str = "tier2") -> Path:
     """Fit the selected tier and return the emitted library path.
 
     Tier-2 calls the closed ``pipeline.fitting.fit_pwl_model`` unchanged.
     Tier-3 calls ``pipeline.tier3.run_vendor`` (build + validation); the
     registered ``urom`` variant calls ``pipeline.unified_rom.run_unified``.
     Tier-4 calls ``pipeline.tier4.run_vendor`` (ideal switch + loss LUT,
-    variant-free; DPT waveform gate retired by design).
+    variant-free; DPT waveform gate retired by design).  ``basis`` selects
+    the UROM channel basis only: ``tier2`` (canonical C0, default) or ``ann``
+    (measured/rejected candidate); it is ignored by every other route.
     """
     if tier == 2:
         from pipeline.fitting import fit_pwl_model
@@ -113,7 +116,8 @@ def fit(vendor: str, tier: int = 2,
     if tier == 3:
         if variant == UNIFIED_VARIANT:
             from pipeline.unified_rom import run_unified
-            return Path(run_unified(vendor, variant=variant)["emitted_lib"])
+            return Path(run_unified(vendor, variant=variant,
+                                    emit=basis)["emitted_lib"])
         if variant == "simplis":
             from pipeline.tier3_simplis import run_vendor as run_simplis
             return Path(run_simplis(vendor)["emitted_lib"])
@@ -123,7 +127,8 @@ def fit(vendor: str, tier: int = 2,
 
 
 def validate(vendor: str, tier: int = 2,
-             variant: str = DEFAULT_VARIANT):
+             variant: str = DEFAULT_VARIANT,
+             basis: str = "tier2"):
     """Validate the selected tier.
 
     Tier-2: endpoint-current comparison of its emitted lib against the
@@ -132,7 +137,9 @@ def validate(vendor: str, tier: int = 2,
     ``urom`` variant returns the unified G0-G6 validation record.
     Tier-4: the ideal-switch/LUT build + DPT-derived energy and inductive-bench
     speed record, with the same anti-fake completion guard; DPT waveform gate
-    retired by design and no converter bench built.
+    retired by design and no converter bench built.  ``basis`` selects the
+    UROM channel basis only: ``tier2`` (canonical C0, default) or ``ann``
+    (measured/rejected candidate); it is ignored by every other route.
     """
     if tier == 4:
         from pipeline.tier4 import run_vendor
@@ -143,7 +150,7 @@ def validate(vendor: str, tier: int = 2,
     if tier == 3:
         if variant == UNIFIED_VARIANT:
             from pipeline.unified_rom import run_unified
-            return run_unified(vendor, variant=variant)
+            return run_unified(vendor, variant=variant, emit=basis)
         if variant == "simplis":
             from pipeline.tier3_simplis import run_vendor as run_simplis
             return run_simplis(vendor)

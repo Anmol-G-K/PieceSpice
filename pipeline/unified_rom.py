@@ -16,13 +16,14 @@ project decision.  Missing provenance is a gate failure, not a silent default.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import math
 import re
 import tempfile
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +39,7 @@ from approximation.smoother import (
     _chain_coefficients,
     eps_from_grid,
     fit_tanh_knee_ls,
+    delta_ramp_chain,
     hyp_value,
 )
 from parser.netlist import NetlistParser, resolve_pin_connections
@@ -54,7 +56,8 @@ from simulation.testbenches.double_pulse import (
     DoublePulseRun,
     extract_dpt_metrics,
 )
-from simulation.testbenches.dpt_trajectory import capture_trajectory
+from simulation.testbenches.dpt_trajectory import (
+    capture_trajectory, trajectory_completion)
 
 ROOT = Path(__file__).resolve().parent.parent
 SCHEMA = "piecespice.unified/1.0"
@@ -87,6 +90,14 @@ TIMING_BAND_REL = 0.05           # explicit project-decision band (spec G4)
 # re-measured or re-baselined here.
 TIMING_BAR_COLUMN = {"ann": "golden_metrics", "tier2": "tier2_metrics"}
 ZERO_CURRENT_FRAC = 0.01         # anchor tolerance, not a measured current
+# Equal-sandbox completion guard from deep_spice_fidelity_speed_research.md
+# section 2.1 item 4: both arms must reach the same final time.
+DPT_WINDOW_REL_TOL = 1e-9
+# Probe *location* (in tanh cutoff widths) for the emitted ANN gate guard.
+# Not a device tolerance: the pass band stays ZERO_CURRENT_FRAC.
+ANN_CUTOFF_PROBE_WIDTHS = 3.0
+# Shared G4 diagnostic column: the recorded golden timing/energy table.
+COMMON_TIMING_BAR_COLUMN = "golden_metrics"
 TUNING_METRICS = (
     "td_on_ns", "tr_ns", "td_off_ns", "tf_ns",
     "e_on_uj", "e_off_uj", "e_oss_uj", "i_peak_a",
@@ -206,6 +217,20 @@ PROVENANCE: dict[str, dict[str, str]] = {
         "status": "conditional_until_url_and_section_pinned",
         "source": "local://unified_rom_spec.md section 2.3 (Yang/Tung figures CONDITIONAL)",
     },
+    "dpt_window_equality": {
+        "source": "docs/deep_spice_fidelity_speed_research.md section 2.1 item 4 (both arms reach the same t_last, relative difference <= 1e-9)",
+        "kind": "source_derived",
+    },
+    "ann_gate_probe": {
+        "source": "models/ann_netlist_builder.py:emit_ann_channel (emitted Vth tanh cutoff and low-VDS guard); local://unified_rom_spec.md section 2.3 (ZERO_CURRENT_FRAC)",
+        "kind": "source_derived",
+        "rationale": "the probe evaluates the emitted G_CH expression; 3 cutoff widths only chooses where to sample, the 1 percent band is unchanged",
+    },
+    "common_g4_column": {
+        "source": "reports/comparison/<vendor>/dpt_metrics.json#golden_metrics",
+        "kind": "measured",
+        "rationale": "cross-basis diagnostic only; the pinned basis-specific bar remains the G4 verdict bar",
+    },
 }
 
 # Section 1.4 / G1 bars.  Never used as a default, only as a comparison bar.
@@ -264,6 +289,153 @@ def _json_safe(obj: Any) -> Any:
 def _record_path(vendor: str) -> Path:
     return (registry.ROOT / "reports" / "comparison" / vendor
             / "unified_validation.json")
+
+def _is_canonical_config(*, emit: str, method: str, tuning: str,
+                         c1_variant: str | None) -> bool:
+    """True only for the documented default C0 UROM configuration."""
+    return (emit == "tier2" and method == "trap/default"
+            and tuning == "off" and c1_variant is None)
+
+
+def _config_key(*, emit: str, method: str, tuning: str,
+                c1_variant: str | None) -> str:
+    """Filesystem-safe key distinguishing non-default UROM configurations."""
+    parts = [emit]
+    if c1_variant:
+        parts.append(c1_variant)
+    parts.append(method.replace("/", "-"))
+    if tuning != "off":
+        parts.append(f"tuning-{tuning}")
+    return "_".join(parts)
+
+
+def _record_path_for_config(vendor: str, *, emit: str, method: str,
+                            tuning: str, c1_variant: str | None) -> Path:
+    """Canonical record for the default config, keyed path for every other.
+
+    Selecting a different basis/method/tuning can never overwrite the
+    canonical C0 record (or another basis' record) on disk.
+    """
+    base = _record_path(vendor)
+    if _is_canonical_config(emit=emit, method=method, tuning=tuning,
+                            c1_variant=c1_variant):
+        return base
+    key = _config_key(emit=emit, method=method, tuning=tuning,
+                      c1_variant=c1_variant)
+    return base.with_name(f"unified_{key}.json")
+
+
+def _lib_path_for_config(vendor: str, *, emit: str, method: str,
+                         tuning: str, c1_variant: str | None) -> Path:
+    """Canonical lib for the default config, keyed path for every other."""
+    base = registry.lib_path(vendor, 3, registry.UNIFIED_VARIANT)
+    if _is_canonical_config(emit=emit, method=method, tuning=tuning,
+                            c1_variant=c1_variant):
+        return base
+    key = _config_key(emit=emit, method=method, tuning=tuning,
+                      c1_variant=c1_variant)
+    return base.with_name(f"{base.stem}_{key}{base.suffix}")
+
+
+def _identity_header(*, emit: str, method: str, tuning: str,
+                     c1_variant: str | None) -> str:
+    """ASCII comment embedded in the lib naming basis/method/tuning.
+
+    A comment only: no SPICE element semantics are changed by this header.
+    """
+    label = c1_variant or "C0"
+    return (
+        f"* PieceSpice UROM: basis={emit} method={method} "
+        f"tuning={tuning} c1_variant={label}\n"
+        "* Artifact identity (emitted_lib_sha256) in the validation record\n")
+
+
+def _strip_identity_header(netlist: str) -> str:
+    """Remove only the UROM identity comment, preserving the element text."""
+    return "".join(
+        line for line in netlist.splitlines(keepends=True)
+        if not line.startswith("* PieceSpice UROM: basis=")
+        and not line.startswith("* Artifact identity (emitted_lib_sha256)"))
+
+
+def _identity_header_hint(lib_text: str) -> tuple[str, str, str, str] | None:
+    """Parse the embedded identity comment back out of an emitted lib."""
+    for line in lib_text.splitlines():
+        if not line.startswith("* PieceSpice UROM: "):
+            continue
+        fields = dict(part.split("=", 1) for part in line.split()[3:]
+                      if "=" in part)
+        basis = fields.get("basis")
+        method = fields.get("method")
+        tuning = fields.get("tuning")
+        c1_variant = fields.get("c1_variant")
+        if (basis is None or method is None or tuning is None
+                or c1_variant is None):
+            return None
+        return (basis, method, tuning, c1_variant)
+    return None
+
+
+def _verify_artifact_identity(record: dict, *, emit: str, method: str,
+                              tuning: str,
+                              c1_variant: str | None) -> dict:
+    """Re-check that a selected record still matches its on-disk lib.
+
+    Never recomputes a measured number; only hashes the emitted artifact and
+    compares the declared identity/config fields.  A mismatch is flagged on
+    the returned record rather than silently ignored.
+    """
+    selected_c1 = c1_variant or "C0"
+    result: dict = {
+        "emit": record.get("emit") or record.get("channel_basis"),
+        "tuning_mode": record.get("tuning_mode"),
+        "c1_variant": record.get("c1_variant"),
+        "method": record.get("method"),
+        "record_path": record.get("record_path"),
+        "emitted_lib": record.get("emitted_lib"),
+        "expected_sha256": record.get("emitted_lib_sha256"),
+        "actual_sha256": None,
+        "match": False,
+        "status": "unverifiable",
+        "reasons": [],
+    }
+    reasons: list[str] = result["reasons"]
+    for key, selected in (("emit", emit), ("method", method),
+                          ("tuning_mode", tuning),
+                          ("c1_variant", selected_c1)):
+        recorded = result[key] if result[key] is not None else (
+            "C0" if key == "c1_variant" else None)
+        if recorded != selected:
+            reasons.append(f"{key}: record={recorded!r} selected={selected!r}")
+    lib_rel = record.get("emitted_lib")
+    expected = record.get("emitted_lib_sha256")
+    if not lib_rel or not expected:
+        reasons.append("record lacks emitted_lib/emitted_lib_sha256")
+        return result
+    lib_path = Path(lib_rel)
+    if not lib_path.is_absolute():
+        lib_path = ROOT / lib_path
+    if not lib_path.exists():
+        reasons.append("emitted lib missing on disk")
+        return result
+    actual = hashlib.sha256(lib_path.read_bytes()).hexdigest()
+    result["actual_sha256"] = actual
+    if actual != expected:
+        reasons.append("emitted lib sha256 mismatch")
+        result["status"] = "mismatch"
+        return result
+    try:
+        lib_text = lib_path.read_text(encoding="ascii")
+    except UnicodeDecodeError:
+        reasons.append("emitted lib is not ASCII")
+        result["status"] = "mismatch"
+        return result
+    header = _identity_header_hint(lib_text)
+    if header and header != (emit, method, tuning, selected_c1):
+        reasons.append(f"lib header {header!r} != selected config")
+    result["match"] = not reasons
+    result["status"] = "match" if result["match"] else "mismatch"
+    return result
 
 
 
@@ -489,7 +661,7 @@ def _c0_bit_identity(spec: PWLModelSpec, emitted: str, name: str) -> bool:
     """A/B the emitted lib against canonical C0 at the same subckt name."""
     from models.netlist_builder import build_tier2_subcircuit
 
-    return bool(emitted == build_tier2_subcircuit(
+    return bool(_strip_identity_header(emitted) == build_tier2_subcircuit(
         spec, c1_eps=None, name=name))
 
 def _recorded_golden_emp(vendor: str) -> tuple[dict, bool, str]:
@@ -643,6 +815,34 @@ def _emit_tier2_per_table(spec: PWLModelSpec, eps_by_table: dict,
     charge_lines[ch_target[0]] = channel_lines[ch_source[0]]
     return "\n".join(charge_lines)
 
+
+def _new_tuning_record(tuning: str, conditions: list[dict],
+                       bounds: dict) -> dict:
+    """Initial tuning record; ``off`` is an unrun check, not a failure (H3).
+
+    Completion flags for an unrun check are derived from the cached condition
+    descriptors, never hardcoded false.  ``infeasible`` is reserved for an
+    actual failed feasibility check in the ``tuning == 'on'`` branch.
+    """
+    off = tuning == "off"
+    return {
+        "mode": tuning,
+        "status": "not_run" if off else "pending",
+        "theta": {k: None for k in ("A_GD", "O_GD", "A_GS", "A_RGI")},
+        "bounds": {k: list(v) for k, v in bounds.items()},
+        "weights": {},
+        "conditions": conditions,
+        "golden_completion_flags": (
+            [bool(c.get("completed")) for c in conditions] if off
+            else [False] * len(conditions)),
+        "held_out_scores": {},
+        "verdict": "not_run" if off else "reject",
+        "reason": ("tuning mode off; feasibility check not run" if off
+                   else None),
+        "max_evals": TUNING_MAX_EVALS,
+        "emp_split": "disjoint recorded golden-metric arms; no proxy condition",
+    }
+
 def _build_emitted(vendor: str, *, emit: str, tuning: str,
                    plan: dict, c1_variant: str | None = None
                    ) -> tuple[Path, PWLModelSpec, dict, dict]:
@@ -658,11 +858,12 @@ def _build_emitted(vendor: str, *, emit: str, tuning: str,
         raise ValueError(f"unknown C1 variant {c1_variant!r}; expected "
                          f"{C1_TIER2_VARIANT!r} or None")
 
-    lib = registry.lib_path(vendor, 3, registry.UNIFIED_VARIANT)
+    lib = _lib_path_for_config(
+        vendor, emit=emit, method=plan["method_label"],
+        tuning=tuning, c1_variant=c1_variant)
     stem = lib.stem
     spec = _pwl_spec(vendor)
     eps_by_table = _eps_by_table(spec)
-    eps_qoss = float(eps_by_table.get("q_oss", 0.0))
     # Derived widths are provenance only: the plain tier2 fallback emits C0,
     # so neither the channel nor Qoss may use them without an explicit label.
     emitted_eps = (eps_by_table if emit == "ann"
@@ -686,7 +887,8 @@ def _build_emitted(vendor: str, *, emit: str, tuning: str,
         # ramps only, so the Qoss grid width is the applicable one here.
         emitter = lambda s, widths: build_ann_subcircuit(
             s, channel_fit, charge_fit,
-            c1_eps=widths.get("q_oss", widths.get("transfer_vgs", 0.0)))
+            c1_eps=widths.get("q_oss", widths.get("transfer_vgs", 0.0)),
+            name=stem)
     elif c1_variant == C1_TIER2_VARIANT:
         # Explicitly labelled C1 experiment, never the fallback default.
         emitter = lambda s, widths: _emit_tier2_per_table(
@@ -701,18 +903,7 @@ def _build_emitted(vendor: str, *, emit: str, tuning: str,
                    or _tuning_condition_descriptors(vendor, plan))
     conditions = _serializable_conditions(descriptors)
     bounds = _theta_bounds(spec, vendor)
-    tuning_record: dict = {
-        "mode": tuning,
-        "theta": {"A_GD": None, "O_GD": None, "A_GS": None, "A_RGI": None},
-        "bounds": {k: list(v) for k, v in bounds.items()},
-        "weights": {},
-        "conditions": conditions,
-        "golden_completion_flags": [False] * len(conditions),
-        "held_out_scores": {},
-        "verdict": "infeasible" if tuning == "off" else "reject",
-        "max_evals": TUNING_MAX_EVALS,
-        "emp_split": "disjoint recorded golden-metric arms; no proxy condition",
-    }
+    tuning_record: dict = _new_tuning_record(tuning, conditions, bounds)
     if tuning == "on" and any(c.get("completed") for c in conditions):
         # Every simulate(theta) writes a candidate lib; keep those inside a
         # run-owned temporary directory so no stale candidate survives.
@@ -767,6 +958,9 @@ def _build_emitted(vendor: str, *, emit: str, tuning: str,
     if header != stem:
         raise ValueError(f"{vendor}: emitted .SUBCKT {header!r} does not "
                          f"match the UROM library stem {stem!r}")
+    netlist = (_identity_header(emit=emit, method=plan["method_label"],
+                                tuning=tuning, c1_variant=c1_variant)
+               + netlist)
     lib.parent.mkdir(parents=True, exist_ok=True)
     lib.write_text(netlist, encoding="ascii")
     return lib, spec, ann_record, tuning_record
@@ -1049,22 +1243,10 @@ def _run_dpt_arm(plan: dict, label: str, deck: str, traj,
         metrics = dict(extract_dpt_metrics(dpt_run))
     except (ValueError, KeyError, IndexError, ZeroDivisionError) as exc:
         metric_error = str(exc)
-    mask = dpt_run.time <= traj.time[-1]
+    # Waveform RMSE is computed on ONE common grid after both arms finish;
+    # an arm-specific mask would let a coarse arm look accurate (H2).
     waveform = {"vds_rel_rmse_pct": None, "id_rel_rmse_pct": None,
-                "compare_points": 0}
-    if np.any(mask):
-        t = dpt_run.time[mask]
-        vds = np.interp(t, traj.time, traj.input[1])
-        ids = np.interp(t, traj.time, np.abs(traj.result.get("I(Lload)")))
-        waveform = {
-            "vds_rel_rmse_pct": float(100 * np.sqrt(np.mean(
-                (dpt_run.v_ds[mask] - vds) ** 2)) /
-                (np.ptp(traj.input[1]) or 1)),
-            "id_rel_rmse_pct": float(100 * np.sqrt(np.mean(
-                (dpt_run.i_d[mask] - ids) ** 2)) /
-                (np.ptp(np.abs(traj.result.get("I(Lload)"))) or 1)),
-            "compare_points": int(mask.sum()),
-        }
+                "compare_points": 0, "status": "pending_common_grid"}
     completed = bool(
         run["iterations"] and run["iterations"] > 0
         and run["points"] >= DPT_TRACE_POINT_FRACTION * len(traj.time)
@@ -1075,9 +1257,143 @@ def _run_dpt_arm(plan: dict, label: str, deck: str, traj,
         "trace_points": run["points"],
         "golden_trace_points": len(traj.time),
         "t_last": run["t_last"], "waveform": waveform,
-        "metrics": metrics, "log_tail": run["log_tail"],
+        "metrics": metrics,
+        "_raw": {
+            "time": np.asarray(result.get("time"), dtype=float),
+            "vds": np.asarray(result.get("V(drain)"), dtype=float),
+            "ids": np.abs(np.asarray(result.get("I(Lload)"), dtype=float)),
+        },
         "error": metric_error,
     }
+
+def _dpt_common_compare(raw: dict, traj, plan: dict) -> dict:
+    """One common compare grid over the equal overlapping DPT window (H2).
+
+    The golden reference is a third capture with its own ``.save`` card.  It
+    must complete (final time, positive iterations, data-derived point floor)
+    before it may anchor a fidelity comparison.  Both arms are then
+    interpolated onto the SAME grid over the intersection of their spans; no
+    arm-dependent mask is used.  A missing guard, unequal windows or an
+    incomplete reference returns ``status=not_measured`` with no RMSE values.
+    """
+    t_end = float(plan["dpt_t_end"])
+    max_step = _num(plan.get("dpt_max_step"))
+    reference = trajectory_completion(
+        traj.time, getattr(traj.result, "log_text", ""), t_end=t_end,
+        max_step=max_step, t_last_fraction=DPT_T_LAST_FRACTION,
+        point_fraction=DPT_TRACE_POINT_FRACTION)
+    out: dict[str, Any] = {
+        "status": "not_measured", "reason": None,
+        "reference": reference, "window_equal": False, "window_s": None,
+        "compare_grid_step_s": None, "compare_points": 0,
+        "min_compare_points": None, "endpoints": {}, "arms": {},
+        "guard_ok": False,
+    }
+    if not reference["completed"]:
+        out["reason"] = "incomplete golden reference trajectory"
+        return out
+
+    ref_t = np.asarray(traj.time, dtype=float)
+    ref_v = np.asarray(traj.input[1], dtype=float)
+    ref_i = np.abs(np.asarray(traj.result.get("I(Lload)"), dtype=float))
+    spans = {"vds": float(np.ptp(ref_v) or 1.0),
+             "ids": float(np.ptp(ref_i) or 1.0)}
+    endpoints: dict[str, dict[str, float | None]] = {
+        "reference": {"t_start": float(ref_t[0]),
+                      "t_end": float(ref_t[-1])}}
+    starts_by_key: dict[str, float] = {}
+    ends_by_key: dict[str, float] = {}
+    for label in ("golden", "urom"):
+        t = np.asarray(raw[label]["time"], dtype=float)
+        arm_start = float(t[0]) if t.size else None
+        arm_end = float(t[-1]) if t.size else None
+        endpoints[label] = {"t_start": arm_start, "t_end": arm_end}
+        if arm_start is not None and arm_end is not None:
+            starts_by_key[label] = arm_start
+            ends_by_key[label] = arm_end
+    ref_start = endpoints["reference"]["t_start"]
+    ref_end = endpoints["reference"]["t_end"]
+    out["endpoints"] = endpoints
+    keys = ("reference", "golden", "urom")
+    if ref_start is not None and ref_end is not None:
+        starts_by_key["reference"] = ref_start
+        ends_by_key["reference"] = ref_end
+    if (len(starts_by_key) != len(keys) or len(ends_by_key) != len(keys)
+            or ref_start is None or ref_end is None):
+        out["reason"] = "missing arm endpoint"
+        return out
+    starts = [starts_by_key[k] for k in keys]
+    ends = [ends_by_key[k] for k in keys]
+    win_start, win_end = max(starts), min(ends)
+    if win_end <= win_start:
+        out["reason"] = "empty overlapping compare window"
+        return out
+    out["window_s"] = [win_start, win_end]
+    tol = DPT_WINDOW_REL_TOL * max(t_end, 1.0)
+    out["window_equal"] = bool(all(
+        abs(starts_by_key[k] - ref_start) <= tol
+        and abs(ends_by_key[k] - ref_end) <= tol
+        for k in ("golden", "urom")))
+    if not out["window_equal"]:
+        out["reason"] = "arm/reference windows differ beyond the guard"
+        return out
+
+    step = max_step if (max_step is not None and math.isfinite(max_step)
+                        and max_step > 0.0) else None
+    if step is None:
+        positive = []
+        for t in (ref_t, *(np.asarray(raw[k]["time"], dtype=float)
+                           for k in ("golden", "urom"))):
+            diff = np.diff(t)
+            if np.any(diff > 0.0):
+                positive.append(float(np.min(diff[diff > 0.0])))
+        step = min(positive) if positive else None
+    if step is None or not math.isfinite(step) or step <= 0.0:
+        out["reason"] = "no positive common-grid step"
+        return out
+    n = int(math.floor((win_end - win_start) / step)) + 1
+    if n < 2:
+        out["reason"] = "common grid has fewer than two points"
+        return out
+    expected = int(math.ceil((win_end - win_start) / step)) + 1
+    min_points = int(math.ceil(DPT_TRACE_POINT_FRACTION * expected))
+    grid = np.linspace(win_start, win_end, n)
+    out.update(compare_points=n, min_compare_points=min_points,
+               compare_grid_step_s=float(grid[1] - grid[0]))
+    if n < min_points:
+        out["reason"] = "common-grid point floor not met"
+        return out
+
+    for label in ("golden", "urom"):
+        arm = raw[label]
+        t = np.asarray(arm["time"], dtype=float)
+        order = np.argsort(t)
+        t, v, i = (t[order], np.asarray(arm["vds"], dtype=float)[order],
+                   np.asarray(arm["ids"], dtype=float)[order])
+        out["arms"][label] = {
+            "vds_rel_rmse_pct": float(
+                100.0 * np.sqrt(np.mean((np.interp(grid, t, v)
+                                         - np.interp(grid, ref_t, ref_v)) ** 2))
+                / spans["vds"]),
+            "id_rel_rmse_pct": float(
+                100.0 * np.sqrt(np.mean((np.interp(grid, t, i)
+                                         - np.interp(grid, ref_t, ref_i)) ** 2))
+                / spans["ids"]),
+            "compare_points": n,
+            "compare_grid_step_s": out["compare_grid_step_s"],
+            "status": "measured",
+            "role": ("control: golden self-comparison, not a fidelity measure"
+                     if label == "golden" else "fidelity measurement"),
+        }
+    out["status"] = "measured"
+    out["reason"] = "common grid over the equal overlapping window"
+    out["guard_ok"] = bool(
+        reference["completed"] and out["window_equal"]
+        and out["compare_grid_step_s"] is not None
+        and out["compare_grid_step_s"] > 0.0
+        and out["compare_points"] >= out["min_compare_points"])
+    return out
+
 
 
 def _static_bench(vendor: str, lib: Path) -> tuple[dict, list]:
@@ -1169,19 +1485,135 @@ def _emitted_cutoff_anchor(spec: PWLModelSpec) -> tuple[float, float] | None:
                                                     dtype=float))
     return cutoff_vgs, abs(float(np.max(np.abs(current))))
 
+def _eval_spice_expr(expr: str, mapping: Mapping[str, float]) -> float | None:
+    """Evaluate an emitted ASCII B-expression at numeric terminal voltages.
+
+    The expression comes from this repository's own emitters and contains
+    only numeric literals, arithmetic and the four listed ASCII functions;
+    the restricted namespace cannot call anything else.  Failure returns
+    None (never zero) so a gate cannot claim a measured probe.
+    """
+    text = expr
+    for token, value in mapping.items():
+        text = text.replace(token, f"({float(value)!r})")
+    env = {"__builtins__": {}, "abs": abs, "sqrt": math.sqrt,
+           "max": max, "min": min, "tanh": math.tanh, "exp": math.exp}
+    try:
+        return float(eval(text, env, {}))
+    except (ArithmeticError, NameError, SyntaxError, TypeError, ValueError):
+        return None
+
+
+def _ann_channel_from_lib(lib_text: str) -> str | None:
+    """Read the emitted guarded G_CH expression out of a UROM library."""
+    for line in lib_text.splitlines():
+        match = re.match(
+            r"^\s*G_CH\s+\S+\s+\S+\s+VALUE\s*=\s*\{(.*)\}\s*$", line)
+        if match:
+            return match.group(1)
+    return None
+
+
+def _ann_channel_artifact_probe(lib_text: str, ann_record: dict,
+                                spec: PWLModelSpec) -> dict:
+    """Probe the emitted ANN channel cutoff and low-Vds guard (H4).
+
+    This evaluates the G_CH string actually written to the library, not a
+    numeric re-fit and not a swept curve row.  Pass bands stay
+    ``ZERO_CURRENT_FRAC``; the probe widths only choose sample locations.
+    """
+    expr = _ann_channel_from_lib(lib_text)
+    fit = ann_record.get("channel_fit")
+    coeffs = getattr(fit, "coefficients", None)
+    probe: dict[str, Any] = {
+        "status": "not_measured", "reason": None,
+        "expression_sha256": (hashlib.sha256(expr.encode("ascii")).hexdigest()
+                              if expr is not None else None),
+    }
+    if not expr or not isinstance(coeffs, dict):
+        probe["reason"] = "emitted ANN channel expression or fit unavailable"
+        return probe
+    expr_text = expr
+    alpha = _num(coeffs.get("alpha"))
+
+    vth = _num(getattr(fit, "v_th", None))
+    vsat = _num(getattr(fit, "v_sat", None))
+    guard = _num(coeffs.get("guard_width"))
+    drives = [v for v in (_num(x) for x in spec.vgs_values) if v is not None]
+    grid = [v for v in (_num(x) for x in spec.breakpoints_vds)
+            if v is not None]
+    if (alpha is None or vsat is None or guard is None or vth is None
+            or not (math.isfinite(alpha) and alpha > 0.0
+                    and math.isfinite(vsat) and vsat > 0.0
+                    and math.isfinite(guard) and guard > 0.0)):
+        probe["reason"] = "ANN guard coefficients are not usable"
+        return probe
+    if not drives or not grid:
+        probe["reason"] = "no ANN channel drive/Vds span to probe"
+        return probe
+    vgs_on, vds_high = max(drives), max(grid)
+    vgs_cut = vth - ANN_CUTOFF_PROBE_WIDTHS / alpha
+    vds_guard = 0.5 * min(guard, vsat)
+    if vds_high <= 0.0 or vds_guard <= 0.0:
+        probe["reason"] = "non-positive ANN guard probe voltage"
+        return probe
+
+    def sample(vgs: float, vds: float) -> float | None:
+        return _eval_spice_expr(expr_text, {"V(gi,ss)": vgs,
+                                           "V(di,ss)": vds})
+
+    i_high = sample(vgs_on, vds_high)
+    i_cut = sample(vgs_cut, vds_high)
+    i_guard = sample(vgs_on, vds_guard)
+    i_zero = sample(0.0, vds_high)
+    if (i_high is None or i_cut is None or i_guard is None
+            or i_zero is None
+            or not all(math.isfinite(v) for v in
+                       (i_high, i_cut, i_guard, i_zero))
+            or abs(i_high) <= 0.0):
+        probe["reason"] = "emitted ANN channel probe did not evaluate"
+        return probe
+    band = ZERO_CURRENT_FRAC * abs(i_high)
+    probe.update({
+        "status": "measured",
+        "vgs_on": vgs_on, "vds_high": vds_high,
+        "cutoff_vgs": vgs_cut, "cutoff_i": abs(i_cut),
+        "cutoff_ok": bool(abs(i_cut) <= band),
+        "vds_guard": vds_guard, "guard_i": abs(i_guard),
+        "guard_ok": bool(abs(i_guard) <= band),
+        "vgs_zero_i": abs(i_zero),
+        "zero_ok": bool(abs(i_zero) <= band),
+        "i_high": abs(i_high), "tolerance_frac": ZERO_CURRENT_FRAC,
+    })
+    return probe
+
+
+def _derivative_sign_fractions(gm, gds) -> dict:
+    """Diagnostic sign fractions of finite small-signal derivatives."""
+    def fractions(arr) -> tuple[float | None, float | None]:
+        finite = np.asarray(arr)[np.isfinite(arr)]
+        if finite.size == 0:
+            return None, None
+        return (float(np.mean(finite >= 0.0)),
+                float(np.mean(finite < 0.0)))
+
+    gm_pos, gm_neg = fractions(gm)
+    gds_pos, gds_neg = fractions(gds)
+    return {
+        "gm_nonnegative_fraction": gm_pos, "gm_negative_fraction": gm_neg,
+        "gds_nonnegative_fraction": gds_pos, "gds_negative_fraction": gds_neg,
+    }
+
 
 def _derivative_checks(rows: list, spec: PWLModelSpec, ann_record: dict,
-                       emit: str) -> dict:
+                       emit: str, ann_probe: dict | None = None) -> dict:
     """Score the emitted model's own sweep: gm/gds, Q monotonicity, anchors.
 
-    Both channel bases are checked against the emitted DC sweep: finite-
-    difference gm/gds arrays, a non-negative Qoss derivative and the Vds=0
-    plus gate-cutoff zero-current anchors.  For ``emit="tier2"`` the cutoff
-    is probed directly at the anchor the closed builder emits and the
-    ANN-only out-of-range probe is ``not_applicable``.  For ``emit="ann"``
-    the ANN fit record, its out-of-range probe and the explicit sub-Vth swept
-    guard stay mandatory.  Every predicate must be measured and hold: no
-    emit mode gets an unconditional pass or an unconditional fail.
+    C0 probes the emitted cutoff anchor directly.  ANN probes the emitted
+    guarded G_CH expression from the library (Vgs below Vth and the low-Vds
+    guard region) with the same ``ZERO_CURRENT_FRAC`` band; a missing or
+    unevaluable probe can never pass.  gm/gds sign fractions are diagnostics
+    only.  Every gate predicate must be measured.
     """
     result: dict[str, Any] = {
         "pass": False, "status": "not_measured",
@@ -1203,20 +1635,31 @@ def _derivative_checks(rows: list, spec: PWLModelSpec, ann_record: dict,
                     * (peak or 1.0))
 
     record = (ann_record.get("record") or {}) if emit == "ann" else {}
+    ann_artifact: dict = {
+        "status": "not_applicable" if emit != "ann" else "not_measured"}
     if emit == "ann":
         out_of_range = record.get("out_of_range_check")
         ann_ok = bool(record) and out_of_range == "pass"
-        vth = _num(spec.v_th)
-        vth_anchor: bool | None = None
-        cutoff_vgs = vth
-        if vth is not None and vgs.size:
-            below = vgs < vth
-            if np.any(below):
-                idx = int(np.argmin(np.abs(vgs[below] - vth)))
-                vth_anchor = bool(
-                    float(np.max(np.abs(sim[below][idx])))
-                    <= ZERO_CURRENT_FRAC * (peak or 1.0))
-        cutoff_anchor = vth_anchor
+        ann_probe_dict = ann_probe if isinstance(ann_probe, dict) else None
+        measured_probe = bool(ann_probe_dict
+                              and ann_probe_dict.get("status") == "measured")
+        if measured_probe and ann_probe_dict is not None:
+            ann_artifact = dict(ann_probe_dict)
+            cutoff_raw = ann_probe_dict.get("cutoff_vgs")
+            cutoff_vgs = float(cutoff_raw) if cutoff_raw is not None else None
+            vth_anchor = bool(ann_probe_dict.get("cutoff_ok"))
+            guard_ok = bool(ann_probe_dict.get("guard_ok"))
+            zero_ok = bool(ann_probe_dict.get("zero_ok"))
+            cutoff_anchor = bool(vth_anchor and guard_ok and zero_ok)
+        else:
+            cutoff_vgs = None
+            vth_anchor = None
+            cutoff_anchor = False
+            ann_artifact = {
+                "status": "not_measured",
+                "reason": ((ann_probe_dict or {}).get("reason")
+                           or "emitted ANN channel probe missing"),
+            }
     else:
         # The closed C0 fallback has no ANN fit, so its out-of-range probe
         # is not applicable rather than a mandatory fail.  Probe the emitted
@@ -1247,6 +1690,13 @@ def _derivative_checks(rows: list, spec: PWLModelSpec, ann_record: dict,
         failed.append("gate_cutoff_anchor")
     if emit == "ann" and not ann_ok:
         failed.append("ann_out_of_range")
+    if emit == "ann" and ann_artifact.get("status") != "measured":
+        failed.append("ann_channel_probe_missing")
+    if emit == "ann" and ann_artifact.get("status") == "measured":
+        if not ann_artifact.get("guard_ok"):
+            failed.append("ann_low_vds_guard")
+        if not ann_artifact.get("zero_ok"):
+            failed.append("ann_vgs_zero_anchor")
     reason = ("; ".join(failed) if failed else
               "finite gm/gds; monotone Q; Vds=0 and gate-cutoff anchors near "
               "zero" + ("; ANN out-of-range pass" if emit == "ann" else
@@ -1260,6 +1710,8 @@ def _derivative_checks(rows: list, spec: PWLModelSpec, ann_record: dict,
         "gm_max": _json_safe(float(np.max(gm))),
         "gds_min": _json_safe(float(np.min(gds))),
         "gds_max": _json_safe(float(np.max(gds))),
+        **_derivative_sign_fractions(gm, gds),
+        "ann_channel_probe": ann_artifact,
         "charge_derivative_non_negative": qmono,
         "vds_zero_anchor": vds_zero,
         "vth_zero_anchor": vth_anchor,
@@ -1269,6 +1721,20 @@ def _derivative_checks(rows: list, spec: PWLModelSpec, ann_record: dict,
         "neurons": record.get("neurons"),
     })
     return result
+
+
+_TIMING_METRICS = ("td_on_ns", "tr_ns", "td_off_ns", "tf_ns",
+                   "e_on_uj", "e_off_uj")
+
+
+def _timing_bars_for_column(vendor: str, column: str) -> dict:
+    path = (registry.ROOT / "reports" / "comparison" / vendor
+            / "dpt_metrics.json")
+    if not path.exists():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    bars = data.get(column) or {}
+    return {k: bars.get(k) for k in _TIMING_METRICS}
 
 
 def _timing_bars(vendor: str, *, emit: str) -> dict:
@@ -1281,14 +1747,33 @@ def _timing_bars(vendor: str, *, emit: str) -> dict:
     if emit not in TIMING_BAR_COLUMN:
         raise ValueError(f"unknown emit mode {emit!r}; expected "
                          f"{tuple(TIMING_BAR_COLUMN)}")
-    path = (registry.ROOT / "reports" / "comparison" / vendor
-            / "dpt_metrics.json")
-    if not path.exists():
-        return {}
-    data = json.loads(path.read_text(encoding="utf-8"))
-    bars = data.get(TIMING_BAR_COLUMN[emit]) or {}
-    return {k: bars.get(k) for k in ("td_on_ns", "tr_ns", "td_off_ns",
-                                     "tf_ns", "e_on_uj", "e_off_uj")}
+    return _timing_bars_for_column(vendor, TIMING_BAR_COLUMN[emit])
+
+
+def _common_timing_bars(vendor: str) -> dict:
+    """One golden timing/energy table shared by both channel bases (H5)."""
+    return _timing_bars_for_column(vendor, COMMON_TIMING_BAR_COLUMN)
+
+
+def _timing_score_rows(actual: dict, bars: dict) -> tuple[dict, bool]:
+    """Score six timing/energy observables against one bar table."""
+    compared: dict[str, dict] = {}
+    ok = True
+    for metric in _TIMING_METRICS:
+        value = _num(actual.get(metric))
+        bar = _num(bars.get(metric))
+        band = _timing_band(bar)
+        if value is None or band is None:
+            compared[metric] = {"status": "not_measured", "value": value,
+                                "bar": bar,
+                                "band": list(band) if band else None}
+            ok = False
+            continue
+        good = bool(band[0] <= value <= band[1])
+        compared[metric] = {"status": "measured", "value": value, "bar": bar,
+                            "band": list(band), "pass": good}
+        ok = ok and good
+    return compared, ok
 
 
 def _timing_bars_source(emit: str) -> str:
@@ -1347,8 +1832,103 @@ def _channel_sat_ramp(spec: PWLModelSpec) -> tuple[list[float], list[float]] | N
     return xs, sv
 
 
+_CHARGE_ELEMENTS = {
+    "q_oss": ("C_QOSS", "V(di,ss)"),
+    "q_iss": ("C_ISS", "V(gi,ss)"),
+    "q_rss": ("C_RSS", "V(gi,di)"),
+}
+
+
+def _emitted_charge_eps(spec: PWLModelSpec) -> dict[str, float]:
+    """Width actually used by every emitted charge ramp.
+
+    Both ANN and labelled C1 Tier-2 pass one ``c1_eps`` to the shared ramp
+    helper for all three tables; the plain C0 fallback emits eps=0.  This is
+    read from the recorded emitted widths, never from derived-only C1
+    provenance.
+    """
+    widths = _emitted_eps_by_table(spec)
+    eps = (_num(widths.get("q_oss"))
+           or _num(widths.get("transfer_vgs")) or 0.0)
+    return {name: float(eps) for name in _CHARGE_ELEMENTS}
+
+
+def _emitted_charge_residuals(lib_text: str | None, spec: PWLModelSpec,
+                              eps_by_element: dict[str, float]) -> dict:
+    """Evaluate emitted Q= strings at V=0 and V=Vmax (H6 diagnostics).
+
+    A plain linear C_ISS/C_RSS line has no Q= ramp in the closed C0 emitter
+    and is reported ``not_applicable`` rather than a fabricated residual.
+    """
+    artifact: dict[str, Any] = {
+        "status": "not_measured", "mirror_match_all": False,
+        "elements": {},
+    }
+    if not lib_text:
+        artifact["reason"] = "no emitted library text"
+        return artifact
+    tables = {
+        "q_oss": (spec.q_oss_vs_v, spec.q_oss_charge_c),
+        "q_iss": (spec.q_iss_vs_v, spec.q_iss_charge_c),
+        "q_rss": (spec.q_rss_vs_v, spec.q_rss_charge_c),
+    }
+    lines = lib_text.splitlines()
+    for name, (element, term) in _CHARGE_ELEMENTS.items():
+        expr = None
+        for line in lines:
+            match = re.match(
+                rf"^\s*{element}\s+\S+\s+\S+\s+Q\s*=\s*\{{(.*)\}}\s*$", line)
+            if match:
+                expr = match.group(1)
+                break
+        vv, qq = tables[name]
+        v = np.asarray(vv, dtype=float)
+        q = np.asarray(qq, dtype=float)
+        eps = float(eps_by_element.get(name, 0.0))
+        row: dict[str, Any] = {
+            "element": element, "eps": eps,
+            "expression_found": expr is not None,
+            "emission_kind": "q_ramp" if expr else "linear_capacitor",
+        }
+        if expr is None or v.size < 2 or q.size < 2 or v.size != q.size:
+            row.update(status="not_applicable",
+                       reason="no emitted Q= ramp for this element")
+            artifact["elements"][name] = row
+            continue
+        q0 = _eval_spice_expr(expr, {term: 0.0})
+        qv = _eval_spice_expr(expr, {term: float(v[-1])})
+        q_max = float(q[-1]) if q.size else 0.0
+        mirror = delta_ramp_chain(term, vv, qq, eps)
+        row.update({
+            "status": "measured" if q0 is not None and qv is not None
+                      else "not_measured",
+            "expression_matches_mirror": bool(expr == mirror),
+            "q_zero_residual_c": (_json_safe(q0 - float(q[0]))
+                                  if q0 is not None else None),
+            "q_vmax_residual_c": (_json_safe(qv - q_max)
+                                  if qv is not None else None),
+            "q_vmax_residual_pct": (_json_safe(
+                100.0 * (qv - q_max) / q_max)
+                if qv is not None and q_max != 0.0 else None),
+        })
+        artifact["elements"][name] = row
+    applicable = [row for row in artifact["elements"].values()
+                  if row["emission_kind"] == "q_ramp"]
+    artifact["mirror_match_all"] = bool(
+        applicable and all(row["expression_matches_mirror"]
+                           for row in applicable))
+    artifact["status"] = ("measured" if applicable
+                          and all(row["status"] == "measured"
+                                  for row in applicable)
+                          else "not_measured")
+    artifact["applicable_elements"] = [
+        name for name, row in artifact["elements"].items()
+        if row["emission_kind"] == "q_ramp"]
+    return artifact
+
 def _charge_checks(spec: PWLModelSpec, eps_by_table: dict, *,
-                   emitted_eps_by_table: dict | None = None) -> dict:
+                   emitted_eps_by_table: dict | None = None,
+                   lib_text: str | None = None) -> dict:
     """Compare emitted ramp chains with their source tables.
 
     Charge tables are checked at the width actually emitted; the channel
@@ -1358,6 +1938,7 @@ def _charge_checks(spec: PWLModelSpec, eps_by_table: dict, *,
     """
     effective = (eps_by_table if emitted_eps_by_table is None
                  else emitted_eps_by_table)
+    emitted_by_element = _emitted_charge_eps(spec)
     tables = {
         "q_oss": (spec.q_oss_vs_v, spec.q_oss_charge_c),
         "q_iss": (spec.q_iss_vs_v, spec.q_iss_charge_c),
@@ -1373,7 +1954,7 @@ def _charge_checks(spec: PWLModelSpec, eps_by_table: dict, *,
                 "breakpoint_crossings": None,
             }
             continue
-        eps = _num(effective.get(name)) or 0.0
+        eps = emitted_by_element.get(name, 0.0)
         fitted = _ramp_numeric(vv, qq, eps, v)
         q_max = abs(float(q[-1]))
         error = (100.0 * float(np.max(np.abs(fitted - q))) / q_max
@@ -1386,6 +1967,8 @@ def _charge_checks(spec: PWLModelSpec, eps_by_table: dict, *,
             "charge_fit_error_pct": _json_safe(error),
             "breakpoint_crossings": crossings,
             "eps": eps, "q_max": _json_safe(q_max),
+            "q_zero_residual_c": _json_safe(fitted[0] - float(q[0])),
+            "q_vmax_residual_c": _json_safe(fitted[-1] - float(q[-1])),
         }
 
     channel = _channel_sat_ramp(spec)
@@ -1427,6 +2010,9 @@ def _charge_checks(spec: PWLModelSpec, eps_by_table: dict, *,
         "v_max": _json_safe(float(v[-1]) if v.size else None),
         "eps_by_table": eps_by_table,
         "emitted_eps_by_table": effective,
+        "emitted_eps_by_element": emitted_by_element,
+        "artifact_q_residuals": _emitted_charge_residuals(
+            lib_text, spec, emitted_by_element),
         "eps_rule": "median_positive_grid_spacing_cap_half_min_segment",
         "c0_bit_identical_at_eps0": None,
         "c0_ab_note": "not measured here; run_unified A/Bs the tier2 C0 "
@@ -1457,6 +2043,8 @@ def _evaluate_gates(record: dict, observations: dict) -> dict:
     tuning = record["tuning"]
     tuning_ok = (tuning.get("mode") == "off"
                  or tuning.get("verdict") == "accept")
+    clocks = observations.get("clock_spread") or {}
+    clock_ok = bool(clocks.get("complete"))
 
     g0 = (equality["deck_diff_only_dut"]
           and equality["effective_options_dumped"]
@@ -1464,6 +2052,7 @@ def _evaluate_gates(record: dict, observations: dict) -> dict:
           and equality["libraries_inlined_both_arms"]
           and equality["temperature_both_arms"]
           and speed["repeats"] >= 3
+          and clock_ok
           and all(a["completion"] for a in (speed["golden"], speed["urom"])))
 
     bar = STATIC_BARS_PCT.get(vendor)
@@ -1485,14 +2074,21 @@ def _evaluate_gates(record: dict, observations: dict) -> dict:
                derivative.get("status", "not_measured"), derivative)
 
     bars = DPT_BARS_PCT.get(method, {}).get(vendor)
+    compare = observations.get("dpt_compare") or {}
+    guard_ok = bool(compare.get("guard_ok"))
     dpt_rows = {}
     for label in ("golden", "urom"):
         arm = dpt[label]
+        wf = arm["waveform"]
         if not arm["completed"]:
             dpt_rows[label] = {"status": "infeasible" if label == "golden"
                                else "not_completed", "pass": False}
+        elif not guard_ok:
+            # Incomplete reference, unequal windows or a missing common-grid
+            # guard: no fidelity number may be claimed (H2).
+            dpt_rows[label] = {"status": "not_measured", "pass": False,
+                               "reason": compare.get("reason")}
         else:
-            wf = arm["waveform"]
             vds, ids = wf.get("vds_rel_rmse_pct"), wf.get("id_rel_rmse_pct")
             ok = (bars is not None and vds is not None and ids is not None
                   and vds <= bars[0] and ids <= bars[1])
@@ -1500,11 +2096,30 @@ def _evaluate_gates(record: dict, observations: dict) -> dict:
                                "vds_rel_rmse_pct": vds,
                                "id_rel_rmse_pct": ids,
                                "bars_vds_id_pct": bars,
-                               "compare_points": wf.get("compare_points")}
-    g3 = _gate(all(r["pass"] for r in dpt_rows.values()),
-               "measured" if all(r["status"] == "measured"
-                                 for r in dpt_rows.values())
-               else "infeasible", dpt_rows)
+                               "compare_points": wf.get("compare_points"),
+                               "compare_grid_step_s":
+                                   wf.get("compare_grid_step_s"),
+                               "role": wf.get("role")}
+    g3_pass = all(r["pass"] for r in dpt_rows.values())
+    if all(r["status"] == "measured" for r in dpt_rows.values()):
+        g3_status = "measured"
+    elif any(r["status"] == "not_measured" for r in dpt_rows.values()):
+        g3_status = "not_measured"
+    else:
+        g3_status = "infeasible"
+    dpt_rows.update({
+        "reference": compare.get("reference") or {},
+        "window_equal": compare.get("window_equal"),
+        "window_s": compare.get("window_s"),
+        "endpoints": compare.get("endpoints") or {},
+        "compare_grid_step_s": compare.get("compare_grid_step_s"),
+        "compare_points": compare.get("compare_points"),
+        "min_compare_points": compare.get("min_compare_points"),
+        "common_grid_guard": guard_ok,
+        "compare_status": compare.get("status"),
+        "reason": compare.get("reason"),
+    })
+    g3 = _gate(g3_pass, g3_status, dpt_rows)
 
     timed = observations.get("timing_energy") or {}
     g4 = _gate(bool(timed.get("pass")), timed.get("status", "not_measured"),
@@ -1514,13 +2129,16 @@ def _evaluate_gates(record: dict, observations: dict) -> dict:
     has_counts = all(speed_row.get(k) for k in
                      ("n_pulses", "method_label", "t_last", "iterations",
                       "points"))
-    g5 = _gate(bool(has_counts and speed["golden"]["completion"]
-                    and speed["urom"]["completion"]),
+    g5_pass = bool(has_counts and clock_ok
+                   and speed["golden"]["completion"]
+                   and speed["urom"]["completion"])
+    g5 = _gate(g5_pass,
                "measured" if has_counts else "not_measured",
                {"scoped_row_valid": bool(has_counts),
                 "method_label": speed_row.get("method_label"),
                 "n_pulses": speed_row.get("n_pulses"),
                 "max_step": speed_row.get("max_step"),
+                "clock_spread": clocks, "clock_spread_complete": clock_ok,
                 "completion": {"golden": speed["golden"]["completion"],
                                "urom": speed["urom"]["completion"]},
                 # Spec 1.3/6: one declared-method row is scoped.  A global
@@ -1540,6 +2158,8 @@ def _evaluate_gates(record: dict, observations: dict) -> dict:
         and charge["charge_fit_error_pct"] <= CHARGE_BUDGET_PCT
         and charge["c_ds_scaling_excluded"]
         and tuning_ok)
+    # Artifact Q(0)/Q(Vmax) residuals are diagnostics: the 0.5 % numeric
+    # mirror budget remains the only charge verdict bar.
     g6 = _gate(g6_pass, "measured" if charge_measured else "not_measured",
                {"monotone_q": charge["monotone_q"],
                 "q_zero_anchored": charge["q_zero_anchored"],
@@ -1547,8 +2167,13 @@ def _evaluate_gates(record: dict, observations: dict) -> dict:
                 "budget_pct": CHARGE_BUDGET_PCT,
                 "breakpoint_crossings": crossings,
                 "c_ds_scaling_excluded": charge["c_ds_scaling_excluded"],
-                "tuning_verdict": record["tuning"]["verdict"]})
-
+                "tuning_verdict": record["tuning"]["verdict"],
+                "tuning_status": tuning.get("status"),
+                "emitted_eps_by_element":
+                    charge.get("emitted_eps_by_element"),
+                "q_residual_diagnostics":
+                    charge.get("artifact_q_residuals"),
+               })
     gates: dict[str, Any] = {"G0": _gate(g0, "measured", equality),
              "G1_static": g1, "G2_derivative": g2, "G3_dpt_waveform": g3,
              "G4_timing_energy": g4, "G5_speed": g5, "G6_charge": g6}
@@ -1581,6 +2206,41 @@ def _speed_row(plan: dict, speed: dict) -> dict:
                             "3 interleaved repeats; aborts are failures",
     }
 
+
+def _clock_spread_record(speed: dict) -> dict:
+    """Both clocks' median/min/max on both arms, with a completeness flag.
+
+    A missing spread is listed explicitly and can never silently pass G0/G5.
+    """
+    golden, rom = speed["golden"], speed["urom"]
+    keys = ("solver_time_s", "wall_time_s", "solver_min_s", "solver_max_s",
+            "wall_min_s", "wall_max_s")
+    out: dict[str, Any] = {
+        "median": {"solver": {"golden": None, "urom": None},
+                   "wall": {"golden": None, "urom": None}},
+        "min": {"solver": {"golden": None, "urom": None},
+                "wall": {"golden": None, "urom": None}},
+        "max": {"solver": {"golden": None, "urom": None},
+                "wall": {"golden": None, "urom": None}},
+        "missing": [],
+    }
+    layout = {
+        "solver_time_s": ("median", "solver"),
+        "wall_time_s": ("median", "wall"),
+        "solver_min_s": ("min", "solver"),
+        "solver_max_s": ("max", "solver"),
+        "wall_min_s": ("min", "wall"),
+        "wall_max_s": ("max", "wall"),
+    }
+    for key in keys:
+        group, clock = layout[key]
+        for label, arm in (("golden", golden), ("urom", rom)):
+            value = _num(arm.get(key))
+            out[group][clock][label] = value
+            if value is None:
+                out["missing"].append(f"{group}.{clock}.{label}")
+    out["complete"] = not out["missing"]
+    return out
 
 def _runtime_record(speed: dict) -> dict:
     """Serialize both runtime clocks: medians plus min/max repeat spread.
@@ -1619,15 +2279,46 @@ def _runtime_record(speed: dict) -> dict:
 # ---------------------------------------------------------------------------
 # public API
 # ---------------------------------------------------------------------------
+def _dpt_high_vi_provenance(vendor: str, ann_record: dict,
+                            emit: str) -> dict:
+    """Copy the complete DPT extraction evidence into the record (H7).
+
+    Empty sample indices are rendered as ``not_used``; no failed extraction
+    may look like successful DPT-informed fitting.
+    """
+    source_prov = ((ann_record.get("provenance") or {}).get("dpt_high_vi")
+                   or {}) if emit == "ann" else {}
+    indices = [int(i) for i in (source_prov.get("sample_indices") or [])]
+    used = bool(indices) and source_prov.get("status") == "ok"
+    status = source_prov.get("status") or (
+        "not_applicable" if emit != "ann" else "not_used")
+    return {
+        "source": (source_prov.get("source") if used else
+                   ("not_applicable" if emit != "ann"
+                    else "not_used (fallback: Curve 1 only)")),
+        "vendor": vendor,
+        "conditions": {"config": f"config/inputs/{vendor}.yaml#dpt"},
+        "status": status,
+        "reason": source_prov.get("reason"),
+        "n_points": (source_prov.get("n_points") if used else
+                     (0 if not indices else len(indices))),
+        "sample_indices": indices,
+        "sample_selection": source_prov.get("sample_selection"),
+        "external_source_status": source_prov.get("external_source_status"),
+        "dpt_informed": bool(used),
+    }
+
 def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
-                method: str = "trap/default", emit: str = "ann",
-                tuning: str = "off", repeats: int = SPEED_REPEATS) -> dict:
+                method: str = "trap/default", emit: str = "tier2",
+                c1_variant: str | None = None, tuning: str = "off",
+                repeats: int = SPEED_REPEATS) -> dict:
     """Build one unified ROM, run the equal-sandbox benches and record gates.
 
-    The caller chooses the channel basis (``ann`` or the closed ``tier2``
-    fallback), the declared solver method, and whether the fixed-topology
-    scalar tuning layer is applied.  Nothing is fabricated: unmeasured or
-    non-completing quantities stay null / N/A and fail their gate.
+    The canonical documented UROM deliverable is the closed C0 Tier-2 basis
+    (``emit="tier2"``, ``c1_variant=None``).  ``emit="ann"`` is an explicit,
+    measured and rejected candidate (plan section 17), never the default;
+    ``c1_variant`` opts into the labelled C1 experiment.  Nothing is
+    fabricated: unmeasured or non-completing quantities stay null / N/A.
     """
     if vendor not in registry.VENDORS:
         raise ValueError(f"unknown vendor {vendor!r}; expected one of "
@@ -1639,6 +2330,11 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
         raise ValueError(f"unknown method {method!r}; expected {METHODS}")
     if emit not in EMIT_MODES:
         raise ValueError(f"unknown emit mode {emit!r}; expected {EMIT_MODES}")
+    if c1_variant is not None and c1_variant != C1_TIER2_VARIANT:
+        raise ValueError(f"unknown C1 variant {c1_variant!r}; expected "
+                         f"{C1_TIER2_VARIANT!r} or None")
+    if c1_variant == C1_TIER2_VARIANT and emit != "tier2":
+        raise ValueError("c1_variant 'tier2-c1' requires emit='tier2'")
     if tuning not in TUNING_MODES:
         raise ValueError(f"unknown tuning mode {tuning!r}; expected "
                          f"{TUNING_MODES}")
@@ -1647,7 +2343,7 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
 
     plan = _bench_plan(vendor, method, int(repeats))
     lib, spec, ann_record, tuning_record = _build_emitted(
-        vendor, emit=emit, tuning=tuning, plan=plan)
+        vendor, emit=emit, tuning=tuning, plan=plan, c1_variant=c1_variant)
     golden, rom = _arm_specs(vendor, lib)
 
     dpt_decks = {"golden": _dpt_deck(plan, golden),
@@ -1680,46 +2376,55 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
         "effective_options"]
 
     speed = _run_interleaved_speed(plan, golden, rom, speed_decks)
+    clocks = _clock_spread_record(speed)
+    equality["clock_spread"] = clocks
+    lib_text = lib.read_text(encoding="ascii")
     traj = capture_trajectory(vendor)
     dpt_cfg = load_input(vendor)["dpt"]
     dpt = {label: _run_dpt_arm(plan, label, deck, traj, dpt_cfg)
            for label, deck in dpt_decks.items()}
+    raw = {label: dpt[label].pop("_raw") for label in dpt}
+    compare = _dpt_common_compare(raw, traj, plan)
+    for label in ("golden", "urom"):
+        measured = compare["arms"].get(label)
+        if measured:
+            dpt[label]["waveform"] = dict(measured)
     static, static_rows = _static_bench(vendor, lib)
-    derivative = _derivative_checks(static_rows, spec, ann_record, emit)
+    ann_probe = (_ann_channel_artifact_probe(lib_text, ann_record, spec)
+                 if emit == "ann" else None)
+    derivative = _derivative_checks(static_rows, spec, ann_record, emit,
+                                    ann_probe=ann_probe)
     timing_energy: dict = {"pass": False, "status": "not_measured",
                            "reason": "no crossing extraction for this method"}
     if dpt["urom"]["completed"] and dpt["golden"]["completed"]:
         reference = _timing_bars(vendor, emit=emit)
         actual = dpt["urom"]["metrics"]
-        compared: dict[str, dict] = {}
-        ok = True
-        for metric in ("td_on_ns", "tr_ns", "td_off_ns", "tf_ns",
-                       "e_on_uj", "e_off_uj"):
-            value = _num(actual.get(metric))
-            bar = _num(reference.get(metric))
-            band = _timing_band(bar)
-            if value is None or band is None:
-                compared[metric] = {"status": "not_measured",
-                                    "value": value, "bar": bar,
-                                    "band": list(band) if band else None}
-                ok = False
-                continue
-            good = bool(band[0] <= value <= band[1])
-            compared[metric] = {"status": "measured", "value": value,
-                                "bar": bar, "band": list(band), "pass": good}
-            ok = ok and good
+        compared, ok = _timing_score_rows(actual, reference)
+        common_bars = _common_timing_bars(vendor)
+        common_rows, common_ok = _timing_score_rows(actual, common_bars)
         timing_energy = {
             "pass": ok,
-            "status": "measured" if len(compared) == 6 else "not_measured",
+            "status": "measured" if len(compared) == len(_TIMING_METRICS)
+                      else "not_measured",
             "rows": compared,
+            "bar_column": TIMING_BAR_COLUMN[emit],
             "band_source": _timing_bars_source(emit),
             "band_rel": TIMING_BAND_REL,
+            "cross_basis_diagnostic": {
+                "label": "common golden timing/energy table "
+                         "(cross-basis diagnostic; never scored)",
+                "bar_column": COMMON_TIMING_BAR_COLUMN,
+                "primary_bar_column": TIMING_BAR_COLUMN[emit],
+                "rows": common_rows, "all_within_band": common_ok,
+                "used_for_verdict": False,
+            },
         }
 
     eps_by_table = _eps_by_table(spec)
     emitted_eps = _emitted_eps_by_table(spec)
     c1_record = dict(_charge_checks(
-        spec, eps_by_table, emitted_eps_by_table=emitted_eps))
+        spec, eps_by_table, emitted_eps_by_table=emitted_eps,
+        lib_text=lib_text))
     c1_variant = spec.metadata.get("urom_c1_variant")
     if emit == "tier2" and c1_variant is None:
         # The fallback must be the closed canonical C0 emitter, modulo the
@@ -1733,15 +2438,26 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
     # the residual/count measurements computed above.
     fit_record = (ann_record.get("record") or {}) if emit == "ann" else {}
     if tuning == "off":
-        tuning_record["theta"] = {
-            k: None for k in ("A_GD", "O_GD", "A_GS", "A_RGI")}
+        # H3: an unrun check is not an infeasible check; refresh the record
+        # after the emitter stage so theta and flags cannot drift apart.
+        tuning_record.update(_new_tuning_record(
+            "off", tuning_record.get("conditions") or [],
+            tuning_record.get("bounds") or {}))
 
+    lib_sha256 = hashlib.sha256(lib.read_bytes()).hexdigest()
+    record_path = _record_path_for_config(
+        vendor, emit=emit, method=plan["method_label"],
+        tuning=tuning, c1_variant=c1_variant)
     record: dict[str, Any] = {
         "schema": SCHEMA,
         "vendor": vendor,
         "variant": registry.UNIFIED_VARIANT,
         "emitted_lib": str(lib.relative_to(ROOT)).replace("\\", "/"),
+        "record_path": str(record_path.relative_to(ROOT)).replace("\\", "/"),
+        "emit": emit,
         "channel_basis": emit,
+        "tuning_mode": tuning,
+        "emitted_lib_sha256": lib_sha256,
         "c1_variant": c1_variant,
         "method": plan["method_label"],
         "equal_sandbox": equality,
@@ -1749,14 +2465,7 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
             "curves": sorted(p.name for p in
                              (registry.ROOT / "config" / "outputs" / vendor)
                              .glob("curve*.yaml")),
-            "dpt_high_vi": {
-                "source": "dpt_trajectory", "vendor": vendor,
-                "conditions": {"config": f"config/inputs/{vendor}.yaml#dpt"},
-                "sample_indices": list(
-                    (((ann_record.get("provenance") or {})
-                      .get("dpt_high_vi") or {}).get("sample_indices")
-                     or [])),
-            },
+            "dpt_high_vi": _dpt_high_vi_provenance(vendor, ann_record, emit),
             "external_source_status":
                 PROVENANCE["external_sources"]["status"],
             "guard_width": (
@@ -1797,6 +2506,7 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
         "dpt_run": dpt["urom"],
         "dpt_waveform": dpt["urom"]["waveform"],
         "dpt_comparison": dpt,
+        "dpt_compare": compare,
         "static": static,
         "equal_sandbox_detail": {
             "dpt_decks": equality, "speed_decks": speed_identity,
@@ -1809,25 +2519,38 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
     record["gates"] = _evaluate_gates(
         record, {"equal_sandbox": equality, "speed": speed, "dpt": dpt,
                  "static": static, "derivative": derivative,
-                 "timing_energy": timing_energy})
+                 "timing_energy": timing_energy, "clock_spread": clocks,
+                 "dpt_compare": compare})
     record["verdict"] = ("accept" if record["gates"]["all_pass"] else "reject")
     record = _json_safe(record)
 
-    path = _record_path(vendor)
+    path = record_path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(record, indent=2, ensure_ascii=True) + "\n",
                     encoding="ascii")
     return record
 
 
-def compare_unified(vendor: str) -> dict:
-    """Read the recorded unified validation JSON; never recompute a number."""
+def compare_unified(vendor: str, *, emit: str = "tier2",
+                    method: str = "trap/default", tuning: str = "off",
+                    c1_variant: str | None = None) -> dict:
+    """Read the selected recorded unified JSON and verify its lib identity.
+
+    The canonical default reads ``unified_validation.json``; a non-default
+    basis/method/tuning reads its configuration-keyed record instead.  No
+    measured number is recomputed here.
+    """
     if vendor not in registry.VENDORS:
         raise ValueError(f"unknown vendor {vendor!r}; expected one of "
                          f"{registry.VENDORS}")
-    path = _record_path(vendor)
+    path = _record_path_for_config(
+        vendor, emit=emit, method=method, tuning=tuning,
+        c1_variant=c1_variant)
     if not path.exists():
         return {"present": False, "schema": SCHEMA, "vendor": vendor}
     data = json.loads(path.read_text(encoding="utf-8"))
     data["present"] = True
+    data["artifact_identity"] = _verify_artifact_identity(
+        data, emit=emit, method=method, tuning=tuning,
+        c1_variant=c1_variant)
     return data

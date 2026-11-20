@@ -18,12 +18,19 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+import math
 
 from config.yaml_io import load_input
 from parser.netlist import resolve_pin_connections
 from simulation.engine import SimResult, SpiceEngine, TranDirective
 from simulation.netlist_text import NetlistBuilder
-from simulation.testbenches.speedup_bench import _pulse_train
+from simulation.testbenches.speedup_bench import (
+    _iterations as _log_iterations, _pulse_train)
+
+# Completion fractions used by the golden reference guard.  These mirror the
+# unified-ROM DPT guard constants; no new tolerance is introduced here.
+DPT_T_LAST_FRACTION = 0.999
+DPT_TRACE_POINT_FRACTION = 0.5
 
 
 @dataclass
@@ -39,16 +46,64 @@ class Trajectory:
     subcircuit: str
     result: SimResult                # full engine result (log, raw path)
     edge_time: float = 0.0                 # configured Vgs edge time (s)
+    completion: dict | None = None                 # captured reference guard evidence
 
 
 def _state_names(result: SimResult) -> list[str]:
     """Internal X-instance node voltages, in deterministic sorted order."""
     return sorted(k for k in result.traces if k.startswith("V(xdut:"))
 
+def trajectory_completion(time, log_text: str, *, t_end: float,
+                          max_step, t_last_fraction: float = DPT_T_LAST_FRACTION,
+                          point_fraction: float = DPT_TRACE_POINT_FRACTION
+                          ) -> dict:
+    """Fail-closed guard evidence for the golden reference trajectory.
+
+    The reference is a third capture with its own ``.save`` card; a short
+    capture must never become the denominator of a DPT fidelity comparison.
+    ``min_points`` is derived from the configured ``max_step`` (no vendor
+    constant) and the existing 50 % trace-point fraction.  No new tolerance
+    is introduced.
+    """
+    t = np.asarray(time, dtype=float)
+    points = int(t.size)
+    iterations = _log_iterations(log_text or "") if log_text else None
+    t_last = float(t[-1]) if points else None
+    end = float(t_end)
+    try:
+        step = float(max_step)
+    except (TypeError, ValueError):
+        step = None
+    min_points = None
+    if step is not None and math.isfinite(step) and step > 0.0:
+        expected = math.ceil(end / step) + 1
+        min_points = math.ceil(point_fraction * expected)
+    reasons: list[str] = []
+    if iterations is None or iterations <= 0:
+        reasons.append("non_positive_iterations")
+    if points == 0:
+        reasons.append("no_trace_points")
+    if t_last is None or t_last < t_last_fraction * end:
+        reasons.append("t_last_below_guard")
+    if min_points is not None and points < min_points:
+        reasons.append("insufficient_trace_points")
+    return {
+        "completed": not reasons,
+        "t_last": t_last, "iterations": iterations, "points": points,
+        "min_points": min_points, "t_end": end,
+        "max_step": step if step is not None and math.isfinite(step) else None,
+        "reasons": reasons,
+    }
+
 
 def capture_trajectory(vendor: str, *, timeout_s: float = 120.0,
-                       temperature: float | None = None) -> Trajectory:
-    """Run the configured two-pulse DPT and return its state/input/output."""
+                       temperature: float | None = None,
+                       require_complete: bool = False) -> Trajectory:
+    """Run the configured two-pulse DPT and return its state/input/output.
+
+    ``require_complete`` makes a short/zero-iteration/too-sparse reference
+    raise instead of returning a trajectory usable as a golden denominator.
+    """
     cfg = load_input(vendor)
     dpt = cfg["dpt"]
     lib = Path(cfg["library"]).resolve()
@@ -92,7 +147,15 @@ def capture_trajectory(vendor: str, *, timeout_s: float = 120.0,
         raise RuntimeError(f"{vendor}: trace length mismatch")
     if not np.all(np.isfinite(x)) or not np.all(np.isfinite(y)):
         raise RuntimeError(f"{vendor}: non-finite trajectory samples")
+    completion = trajectory_completion(
+        t, getattr(result, "log_text", ""), t_end=float(dpt["t_end"]),
+        max_step=step)
+    if require_complete and not completion["completed"]:
+        raise RuntimeError(
+            f"{vendor}: incomplete golden DPT reference "
+            f"({'; '.join(completion['reasons'])})")
     return Trajectory(vendor=vendor, time=t, state=x, state_names=names,
                       input=u, output=y, pin_roles=pins,
                       subcircuit=cfg["subcircuit"], result=result,
-                      edge_time=float(dpt["edge_time"]))
+                      edge_time=float(dpt["edge_time"]),
+                      completion=completion)

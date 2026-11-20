@@ -651,3 +651,101 @@ def test_recorded_solver_stabilization_keeps_disclosures(vendor):
     assert block["c_qoss"]["source"]["kind"] == "measured"
     assert block["r_off"]["basis"] in ("measured", "project_decision_fallback")
     assert "waveform gate" in block["disclosure"].lower()
+
+
+def test_every_speedup_row_has_mandatory_method_label():
+    """Research G0/gate 1: method is mandatory; Gear stays a separate report."""
+    golden, fast = _arm(12000.0, 3000.0), _arm(600.0, 150.0)
+    rows = (
+        tier4._speedup_row(golden, fast, True, POLICY),
+        tier4._speedup_row(golden, dict(fast, error="aborted"), False, POLICY),
+    )
+    assert tier4.SPEED_METHOD == "LTspice default/trap (both arms)"
+    for row in rows:
+        assert row["method"] == tier4.SPEED_METHOD
+        assert "Gear" not in row["method"]
+
+
+@pytest.mark.parametrize("vendor", VENDORS)
+def test_offline_record_speedup_carries_method_label(tmp_path, monkeypatch,
+                                                     vendor):
+    _seed_repo(tmp_path, vendor)
+    monkeypatch.setattr(tier4, "ROOT", tmp_path)
+    rec = tier4.run_vendor(vendor, live=False)
+    assert rec["speedup"]["method"] == tier4.SPEED_METHOD
+    out = (tmp_path / "reports" / "comparison" / vendor /
+           "tier4_validation.json")
+    written = json.loads(out.read_text(encoding="utf-8"))
+    assert written["speedup"]["method"] == "LTspice default/trap (both arms)"
+
+
+def test_interpolation_wording_is_truthful_and_capability_derived():
+    from approximation.loss_lut import (
+        build_lut,
+        interpolation_provenance_text,
+    )
+    from models.tier4_ideal_switch_builder import build_tier4_subcircuit
+
+    # A multi-node grid with no full cell must never be called single-node.
+    cap = {"status": "grid_interpolation", "finite_nodes": 3,
+           "complete_cells": 0, "vbus_points": 2, "current_points": 2}
+    text = interpolation_provenance_text(cap)
+    assert "3 finite measured node(s)" in text
+    assert "no 2x2 interpolation cell has all four corners finite" in text
+    assert "off-node queries are NaN" in text
+    assert "one finite measured node per vendor" not in text
+
+    for vendor in VENDORS:
+        lut = build_lut(vendor, simulate=False)
+        basis = next(d["basis"] for d in lut.source["decisions"]
+                     if d["name"] == "interpolation")
+        assert "one finite measured node per vendor" not in basis
+        assert "finite measured node(s)" in basis
+        assert "off-node queries are NaN" in basis
+        assert lut.grid_provenance() == interpolation_provenance_text(
+            lut.interpolation_capability())
+        assert lut.interpolation_capability()["complete_cells"] == 0
+        emitted = build_tier4_subcircuit(lut, i_load_a=10.0)
+        assert "one finite measured node per vendor" not in emitted
+        assert "off-node queries are NaN" in emitted
+        assert "finite measured node(s)" in emitted
+
+
+def test_no_template_placeholder_in_stabilization_provenance(tmp_path,
+                                                             monkeypatch):
+    vendor = "cpm2-1200"
+    rationale = tier4.SOLVER_STABILIZATION_RATIONALE
+    assert "<curve4.coss_f>" not in rationale
+    assert "vendor Curve-4 Coss at cap_ref_Vds" in rationale
+    _seed_repo(tmp_path, vendor)
+    monkeypatch.setattr(tier4, "ROOT", tmp_path)
+    rec = tier4.run_vendor(vendor, live=False)
+    assert "<curve4.coss_f>" not in rec["solver_stabilization"]["rationale"]
+    out = (tmp_path / "reports" / "comparison" / vendor /
+           "tier4_validation.json")
+    payload = out.read_text(encoding="utf-8")
+    assert "<curve4.coss_f>" not in payload
+    assert "vendor Curve-4 Coss at cap_ref_Vds" in payload
+
+
+def test_vendor_scope_notes_live_at_record_root(tmp_path, monkeypatch):
+    vendor = "cpm2-1200"
+    assert "record root" in tier4.GOLDEN_SPEED_EXCLUSIONS[vendor]
+    _seed_repo(tmp_path, vendor)
+    monkeypatch.setattr(tier4, "ROOT", tmp_path)
+    rec = tier4.run_vendor(vendor, live=False)
+    assert "vendor_scope_notes" in rec
+    assert "vendor_scope_notes" not in rec["provenance"]
+    notes = rec["vendor_scope_notes"]
+    assert notes["defect"] == "VM-10"
+    assert "VM-10 vendor turn-off abort" in notes["note"]
+    assert "long_adaptive" in notes["artifact_conflict"]
+    assert "completed" in notes["artifact_conflict"]
+    speed = rec["speedup"]
+    assert speed["status"] == "N/A"
+    assert speed["solver_speedup"] is None
+    out = (tmp_path / "reports" / "comparison" / vendor /
+           "tier4_validation.json")
+    written = json.loads(out.read_text(encoding="utf-8"))
+    assert written["vendor_scope_notes"]["defect"] == "VM-10"
+    assert "vendor_scope_notes" not in written["provenance"]
