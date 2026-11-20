@@ -149,6 +149,7 @@
         "fallback": {
           "source": "project_decision",
           "note": "r_off_ohms is NaN: no measurable vendor Vgs=0 sweep. The emitter falls back to a project-decision Roff with a loud comment and JSON disclosure; no number is invented in the LUT."
+          "basis": "PLECS P-TC documents linear table interpolation; the recorded grids have one finite measured node per vendor, so no interpolation is currently exercised",
         },
         "kind": "measured",
         "value_ohms": 190887435377.77777,
