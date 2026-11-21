@@ -173,11 +173,15 @@ class CapacitanceTestbench:
         real = abs(float(value.real))
         imag = abs(float(value.imag))
         mag = float(abs(value))
-        if not np.isfinite(mag) or mag <= 0.0:
+        if not np.isfinite(mag) or mag <= 0.0 or imag <= 0.0:
             raise _BiasMeasurementError(
                 f"{label} biased AC probe at Vds={vds:g} V, "
                 f"Vgs_bias={vgs_bias:g} V returned a non-finite/zero node "
                 f"voltage ({value!r}); the C-V inversion is invalid.")
+        # For Ciss (gate port) under off-state bias (Vgs <= 0), Re(Zg) is the
+        # series gate resistance R_g, not parallel channel conduction.
+        if label == "Ciss" and vgs_bias <= 0.0:
+            return
         ratio = real / imag if imag > 0.0 else float("inf")
         if not np.isfinite(ratio) or ratio > MAX_GATE_CONDUCTANCE_RATIO:
             raise _BiasMeasurementError(
@@ -213,7 +217,9 @@ class CapacitanceTestbench:
                 vg_c = self._complex_voltage(res_a, sub_gate(pin_roles))
                 if biased:
                     self._check_bias_valid(vg_c, vds, vgs_bias, "Ciss")
-                vg = abs(vg_c)
+                # Im(Zg) = -1/(w*Ciss) isolates capacitive reactance from series R_g.
+                vg_imag = abs(vg_c.imag)
+                vg = vg_imag if vg_imag > 0.0 else abs(vg_c)
                 ciss[i] = 1.0 / (omega * max(vg, 1e-15))
 
                 text_b = self._ac_netlist(lib_path, subcircuit_name,
@@ -284,6 +290,26 @@ class CapacitanceTestbench:
                 x_data=x_valid.tolist(), y_data=cap.tolist(),
                 metadata=dict(meta)))
         return out
+
+    def extract_r_gate(self, lib_path, subcircuit_name: str = "",
+                       vds: float = 10.0, pin_roles=None,
+                       f_hz: float = 100e6) -> float:
+        """Extract internal series gate resistance R_g [Ohm] via high-freq AC.
+
+        At 100 MHz, 1/(w*Ciss) is small relative to R_g so -Re(V(gate)) under
+        a 1 A AC gate probe (variant 'a') converges to the series R_g.
+        """
+        text = self._ac_netlist(Path(lib_path), subcircuit_name, pin_roles,
+                                float(vds), "a", vgs_bias=0.0)
+        directive = ACDirective(start_freq=float(f_hz), stop_freq=float(f_hz),
+                                n_points=1, variation="lin")
+        res = self.engine.run_ac_sweep(text, directive)
+        vg_c = self._complex_voltage(res, sub_gate(pin_roles))
+        r_gate = -float(vg_c.real)
+        if not np.isfinite(r_gate) or r_gate <= 0.0:
+            raise ValueError(
+                f"invalid extracted R_g={r_gate!r} Ohm at f={f_hz:.2e} Hz")
+        return max(r_gate, 1e-4)
 
 
 def sub_gate(pin_roles) -> str:

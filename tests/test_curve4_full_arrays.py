@@ -180,3 +180,37 @@ def _fake_gate_charge(tr, ciss, crss, **kw):
     breaks = {"v_plateau_V": 5.0, "q_gs_nC": 10.0, "q_gd_nC": 20.0,
               "q_tail_nC": 5.0, "q_total_nC": 35.0}
     return frame, breaks
+
+
+def test_check_bias_valid_allows_offstate_ciss_series_rg():
+    """Off-state Ciss (Vgs<=0) with series R_g should not trip channel-on guard."""
+    from simulation.testbenches.capacitance import (
+        CapacitanceTestbench, _BiasMeasurementError)
+    # Re=-2.63, Im=-11.3 -> |Re|/|Im|=0.233 > 0.1 (IRFS7730PBF at Vgs=-10V)
+    CapacitanceTestbench._check_bias_valid(
+        complex(-2.63, -11.3), 0.1, -10.0, "Ciss")
+    with pytest.raises(_BiasMeasurementError):
+        CapacitanceTestbench._check_bias_valid(
+            complex(-2.63, -11.3), 0.1, 2.0, "Ciss")
+    with pytest.raises(_BiasMeasurementError):
+        CapacitanceTestbench._check_bias_valid(
+            complex(-2.63, -11.3), 0.1, -10.0, "Coss")
+
+
+def test_extract_r_gate_from_ac_probe():
+    """extract_r_gate returns -Re(V(gate)) from 1 A AC probe."""
+    from types import SimpleNamespace
+    from simulation.testbenches.capacitance import CapacitanceTestbench
+
+    class _FakeEngine:
+        temperature = 25.0
+
+        def run_ac_sweep(self, text, directive):
+            assert "Iprobe gate 0 DC 0 AC 1" in text
+            return SimpleNamespace(
+                traces={"V(gate)": np.array([-2.6288 - 0.5j])})
+
+    tb = CapacitanceTestbench(engine=_FakeEngine())
+    rg = tb.extract_r_gate("fake.lib", "FAKE", vds=30.0,
+                           pin_roles=["drain", "gate", "source"])
+    assert np.isclose(rg, 2.6288)
