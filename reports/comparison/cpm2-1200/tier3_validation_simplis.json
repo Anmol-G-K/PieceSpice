@@ -217,7 +217,7 @@
     "golden_trace_points": 7154,
     "iterations": 18129,
     "t_last_s": 1.4e-05,
-    "forced_2ns_wall_s": 1.0235410999994201,
+    "forced_2ns_wall_s": 0.8555411000015738,
     "error": null,
     "waveform": {
       "vds_rel_rmse_pct": 3.852517683189086,
@@ -318,7 +318,7 @@
         "golden_trace_points": 7154,
         "iterations": 18129,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.0235410999994201,
+        "forced_2ns_wall_s": 0.8555411000015738,
         "error": null,
         "waveform": {
           "vds_rel_rmse_pct": 3.852517683189086,
@@ -409,7 +409,7 @@
           "e_off_uj": 49.46979265676569
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.396 seconds.\nTotal iterations: 18129\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_i8dn7ezd\\tran.net\n",
+      "spice_log_tail": "Total elapsed time: 0.353 seconds.\nTotal iterations: 18129\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_l27b0b7i\\tran.net\n",
       "max_cap_error_pct": 50.69246200008099
     },
     "tier2": {
@@ -420,7 +420,7 @@
         "golden_trace_points": 7154,
         "iterations": 21570,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 2.0204956000015954,
+        "forced_2ns_wall_s": 0.8626613000014913,
         "error": null,
         "waveform": {
           "vds_rel_rmse_pct": 5.867268019824376,
@@ -511,7 +511,7 @@
           "e_off_uj": 662.896007007213
         }
       },
-      "spice_log_tail": "Total elapsed time: 1.291 seconds.\nTotal iterations: 21570\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_6cv4xso2\\tran.net\n",
+      "spice_log_tail": "Total elapsed time: 0.340 seconds.\nTotal iterations: 21570\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_nam9jqiq\\tran.net\n",
       "max_cap_error_pct": null
     },
     "hybrid_tables": {
@@ -522,7 +522,7 @@
         "golden_trace_points": 7154,
         "iterations": 18175,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.0159329999987676,
+        "forced_2ns_wall_s": 0.8646306000009645,
         "error": null,
         "waveform": {
           "vds_rel_rmse_pct": 11.914159533137177,
@@ -613,7 +613,7 @@
           "e_off_uj": 8566.165228448845
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.402 seconds.\nTotal iterations: 18175\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_yxfwri7_\\tran.net\n",
+      "spice_log_tail": "Total elapsed time: 0.363 seconds.\nTotal iterations: 18175\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_kljqguzl\\tran.net\n",
       "max_cap_error_pct": 50.69246200008099
     },
     "hybrid_tier2": {
@@ -624,7 +624,7 @@
         "golden_trace_points": 7154,
         "iterations": 19117,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.0164876000017102,
+        "forced_2ns_wall_s": 0.8667290999983379,
         "error": null,
         "waveform": {
           "vds_rel_rmse_pct": 12.1478459163476,
@@ -715,7 +715,7 @@
           "e_off_uj": 8576.322327034468
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.386 seconds.\nTotal iterations: 19117\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_lqlo7n6e\\tran.net\n",
+      "spice_log_tail": "Total elapsed time: 0.349 seconds.\nTotal iterations: 19117\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_lbpu3t_a\\tran.net\n",
       "max_cap_error_pct": null
     },
     "tier2+ann_residual": {
@@ -726,7 +726,7 @@
         "golden_trace_points": 7154,
         "iterations": 18065,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 0.9770680000001448,
+        "forced_2ns_wall_s": 0.873545300000842,
         "error": null,
         "waveform": {
           "vds_rel_rmse_pct": 4.661441592673329,
@@ -817,7 +817,7 @@
           "e_off_uj": 85.90885902211902
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.413 seconds.\nTotal iterations: 18065\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_u6sc9w6s\\tran.net\n"
+      "spice_log_tail": "Total elapsed time: 0.363 seconds.\nTotal iterations: 18065\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_h_pv8hkz\\tran.net\n"
     },
     "selection": "tables",
     "selection_reason": "tier2 charge does not strictly improve every recorded fidelity metric; tables retained",
@@ -839,7 +839,7 @@
         "golden_trace_points": 7154,
         "iterations": 18129,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.0235410999994201,
+        "forced_2ns_wall_s": 0.8555411000015738,
         "error": null,
         "waveform": {
           "vds_rel_rmse_pct": 3.852517683189086,
@@ -930,7 +930,7 @@
           "e_off_uj": 49.46979265676569
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.396 seconds.\nTotal iterations: 18129\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_i8dn7ezd\\tran.net\n",
+      "spice_log_tail": "Total elapsed time: 0.353 seconds.\nTotal iterations: 18129\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_l27b0b7i\\tran.net\n",
       "max_cap_error_pct": 50.69246200008099
     },
     "tier2": {
@@ -941,7 +941,7 @@
         "golden_trace_points": 7154,
         "iterations": 21570,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 2.0204956000015954,
+        "forced_2ns_wall_s": 0.8626613000014913,
         "error": null,
         "waveform": {
           "vds_rel_rmse_pct": 5.867268019824376,
@@ -1032,7 +1032,7 @@
           "e_off_uj": 662.896007007213
         }
       },
-      "spice_log_tail": "Total elapsed time: 1.291 seconds.\nTotal iterations: 21570\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_6cv4xso2\\tran.net\n",
+      "spice_log_tail": "Total elapsed time: 0.340 seconds.\nTotal iterations: 21570\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_nam9jqiq\\tran.net\n",
       "max_cap_error_pct": null
     },
     "hybrid_tables": {
@@ -1043,7 +1043,7 @@
         "golden_trace_points": 7154,
         "iterations": 18175,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.0159329999987676,
+        "forced_2ns_wall_s": 0.8646306000009645,
         "error": null,
         "waveform": {
           "vds_rel_rmse_pct": 11.914159533137177,
@@ -1134,7 +1134,7 @@
           "e_off_uj": 8566.165228448845
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.402 seconds.\nTotal iterations: 18175\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_yxfwri7_\\tran.net\n",
+      "spice_log_tail": "Total elapsed time: 0.363 seconds.\nTotal iterations: 18175\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_kljqguzl\\tran.net\n",
       "max_cap_error_pct": 50.69246200008099
     },
     "hybrid_tier2": {
@@ -1145,7 +1145,7 @@
         "golden_trace_points": 7154,
         "iterations": 19117,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.0164876000017102,
+        "forced_2ns_wall_s": 0.8667290999983379,
         "error": null,
         "waveform": {
           "vds_rel_rmse_pct": 12.1478459163476,
@@ -1236,7 +1236,7 @@
           "e_off_uj": 8576.322327034468
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.386 seconds.\nTotal iterations: 19117\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_lqlo7n6e\\tran.net\n",
+      "spice_log_tail": "Total elapsed time: 0.349 seconds.\nTotal iterations: 19117\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_lbpu3t_a\\tran.net\n",
       "max_cap_error_pct": null
     },
     "tier2+ann_residual": {
@@ -1247,7 +1247,7 @@
         "golden_trace_points": 7154,
         "iterations": 18065,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 0.9770680000001448,
+        "forced_2ns_wall_s": 0.873545300000842,
         "error": null,
         "waveform": {
           "vds_rel_rmse_pct": 4.661441592673329,
@@ -1338,7 +1338,7 @@
           "e_off_uj": 85.90885902211902
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.413 seconds.\nTotal iterations: 18065\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_u6sc9w6s\\tran.net\n"
+      "spice_log_tail": "Total elapsed time: 0.363 seconds.\nTotal iterations: 18065\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_h_pv8hkz\\tran.net\n"
     },
     "selection": "tier2",
     "selection_reason": "hybrid rejected: strict all-metric DPT fidelity gain not proven (hybrid_tables: incomplete DPT guard on at least one candidate; hybrid_tier2: incomplete DPT guard on at least one candidate); Tier-2 channel retained",
@@ -1795,26 +1795,95 @@
   },
   "runtime": {
     "golden": {
-      "wall_clock_s": 0.9215951000005589,
-      "solver_elapsed_s": 0.411,
+      "wall_clock_s": 0.8881471999993664,
+      "solver_elapsed_s": 0.402,
       "iterations": 21310.0,
       "trace_points": 7154.0
     },
     "tier3": {
-      "wall_clock_s": 0.8678729999992356,
-      "solver_elapsed_s": 0.385,
+      "wall_clock_s": 0.8649816999968607,
+      "solver_elapsed_s": 0.358,
       "iterations": 18129.0,
       "trace_points": 7133.0
     },
     "tier3_bench_completed": true,
-    "solver_speedup": 1.0675324675324676,
+    "solver_speedup": 1.122905027932961,
     "bench_wall_s": {
-      "golden": 2.7688826999983576,
-      "tier3": 2.6321753000011086
+      "golden": 2.680953999999474,
+      "tier3": 2.597076099998958
     },
     "bench": "forced 2ns fidelity control; not the speed claim"
   },
   "speed_adaptive_20": {
+    "conditions": {
+      "n_pulses": 20,
+      "max_step_golden_s": null,
+      "max_step_simplis_s": null,
+      "end_time_s": 0.000176,
+      "repeats": 3,
+      "timeout_s": 90.0,
+      "topology": "clamped-inductive DPT, per-vendor config YAML"
+    },
+    "golden": {
+      "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\SpiceModels\\CPM2-1200-0025B-Bare-Die.lib",
+      "subcircuit": "CPM2-1200-0025B",
+      "max_step": null,
+      "end_time_s": 0.000176,
+      "repeats": 3,
+      "bench_wall_s": 3.071014599998307,
+      "guard_run": {
+        "t_last_s": 0.000176,
+        "iterations": 12492,
+        "trace_points": 3092,
+        "solver_elapsed_s": 0.286
+      },
+      "completed": true,
+      "anti_fake_guard": "3/3 repeats must return; median solver/wall/iterations/points > 0; identical-netlist guard run must reach t_last >= 0.999*end_time_s with points >= 0.5*median points; timeouts/exceptions fail the side",
+      "wall_clock_s": 0.7677523999991536,
+      "solver_elapsed_s": 0.283,
+      "iterations": 12492.0,
+      "trace_points": 3092.0,
+      "trace_names": 15.0
+    },
+    "tier3_simplis": {
+      "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\cpm2-1200_PIECESPICE_T3_simplis.lib",
+      "subcircuit": "cpm2-1200_PIECESPICE_T3_simplis",
+      "max_step": null,
+      "end_time_s": 0.000176,
+      "repeats": 3,
+      "bench_wall_s": 2.9025442999991355,
+      "guard_run": {
+        "t_last_s": 0.000176,
+        "iterations": 10621,
+        "trace_points": 2577,
+        "solver_elapsed_s": 0.249
+      },
+      "completed": true,
+      "anti_fake_guard": "3/3 repeats must return; median solver/wall/iterations/points > 0; identical-netlist guard run must reach t_last >= 0.999*end_time_s with points >= 0.5*median points; timeouts/exceptions fail the side",
+      "wall_clock_s": 0.722907800001849,
+      "solver_elapsed_s": 0.259,
+      "iterations": 10621.0,
+      "trace_points": 2577.0,
+      "trace_names": 12.0
+    },
+    "solver_speedup": 1.0926640926640925,
+    "wall_speedup": 1.0620336369274062,
+    "epc_golden_fully_adaptive_attempt": null,
+    "notes": [
+      "All timing rows are medians of completed runs only; failed repeats or guards carry completed=false and no speedup."
+    ],
+    "selected_candidate": "tables",
+    "scope": "final selected candidate only; no adaptive runs for non-selected candidates; both channel gates are fidelity-first, adaptive deferred"
+  },
+  "build_seconds": {
+    "capture": 0.9352127999991353,
+    "fit": 0.1532113000030222,
+    "ann_fit": 29.354911400001583,
+    "static_sweep": 3.1180985999999393
+  },
+  "spice_log_tail": "Total elapsed time: 0.353 seconds.\nTotal iterations: 18129\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_l27b0b7i\\tran.net\n",
+  "emitted_lib": "reports\\models\\cpm2-1200_PIECESPICE_T3_simplis.lib",
+  "speed_adaptive_20_source": {
     "conditions": {
       "n_pulses": 20,
       "max_step_golden_s": null,
@@ -1860,71 +1929,6 @@
       "solver_elapsed_s": 0.255,
       "iterations": 10621.0,
       "trace_points": 2577.0,
-      "trace_names": 12.0
-    },
-    "solver_speedup": null,
-    "wall_speedup": null,
-    "epc_golden_fully_adaptive_attempt": null,
-    "notes": [
-      "All timing rows are medians of completed runs only; failed repeats or guards carry completed=false and no speedup."
-    ],
-    "selected_candidate": "tables",
-    "scope": "final selected candidate only; no adaptive runs for non-selected candidates; both channel gates are fidelity-first, adaptive deferred"
-  },
-  "build_seconds": {
-    "capture": 0.9122285000012198,
-    "fit": 0.16086319999885745,
-    "ann_fit": 30.461845800000447,
-    "static_sweep": 3.1789903999997478
-  },
-  "spice_log_tail": "Total elapsed time: 0.396 seconds.\nTotal iterations: 18129\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_i8dn7ezd\\tran.net\n",
-  "emitted_lib": "reports\\models\\cpm2-1200_PIECESPICE_T3_simplis.lib",
-  "speed_adaptive_20_source": {
-    "conditions": {
-      "n_pulses": 20,
-      "max_step_golden_s": null,
-      "max_step_simplis_s": null,
-      "end_time_s": 0.000176,
-      "repeats": 3,
-      "timeout_s": 90.0,
-      "topology": "clamped-inductive DPT, per-vendor config YAML"
-    },
-    "golden": {
-      "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\SpiceModels\\CPM2-1200-0025B-Bare-Die.lib",
-      "subcircuit": "CPM2-1200-0025B",
-      "max_step": null,
-      "end_time_s": 0.000176,
-      "repeats": 3,
-      "bench_wall_s": 0.5401825999997527,
-      "guard_run": {},
-      "completed": false,
-      "anti_fake_guard": "3/3 repeats must return; median solver/wall/iterations/points > 0; identical-netlist guard run must reach t_last >= 0.999*end_time_s with points >= 0.5*median points; timeouts/exceptions fail the side",
-      "wall_clock_s": null,
-      "solver_elapsed_s": null,
-      "iterations": null,
-      "trace_points": null,
-      "trace_names": null,
-      "error": "LTSpiceError: LTspice produced no raw output for 'tran' (rc=1). Solver likely failed."
-    },
-    "tier3_simplis": {
-      "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\cpm2-1200_PIECESPICE_T3_simplis.lib",
-      "subcircuit": "cpm2-1200_PIECESPICE_T3_simplis",
-      "max_step": null,
-      "end_time_s": 0.000176,
-      "repeats": 3,
-      "bench_wall_s": 3.895072200000868,
-      "guard_run": {
-        "t_last_s": 0.000176,
-        "iterations": 10592,
-        "trace_points": 2586,
-        "solver_elapsed_s": 0.411
-      },
-      "completed": true,
-      "anti_fake_guard": "3/3 repeats must return; median solver/wall/iterations/points > 0; identical-netlist guard run must reach t_last >= 0.999*end_time_s with points >= 0.5*median points; timeouts/exceptions fail the side",
-      "wall_clock_s": 0.9557749000014155,
-      "solver_elapsed_s": 0.323,
-      "iterations": 10592.0,
-      "trace_points": 2586.0,
       "trace_names": 12.0
     },
     "solver_speedup": null,

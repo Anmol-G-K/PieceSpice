@@ -24,6 +24,7 @@ from common.types import PWLModelSpec, trim_trailing_invalid
 from config.yaml_io import load_input, load_output
 from approximation.charge_model import integrate_charge
 from metrics.static import compute_curve_error
+from parser.netlist import resolve_pin_connections
 from models.simplis_netlist_builder import (
     CGSLinearityDecision,
     RELTOL,
@@ -1001,9 +1002,16 @@ def _run_adaptive_benchmark(vendor: str, cfg: dict, dpt: dict, lib: Path,
     end = (1.0e-6 + (kw["n_pulses"] - 1) * kw["pulse_period"]
            + kw["pulse_width"] + 2e-6)
     golden_step = 100e-9 if vendor == "epc2216" else None
+    pins_cfg = cfg.get("pins") or {}
+    semantic = pins_cfg.get("pin_order_semantic")
+    if semantic:
+        golden_pins = resolve_pin_connections(
+            Path(cfg["library"]).resolve(), cfg["subcircuit"], semantic)
+    else:
+        golden_pins = list(pins_cfg.get("pin_order") or [])
     sides = (
         ("golden", Path(cfg["library"]).resolve(), cfg["subcircuit"],
-         None, golden_step),
+         golden_pins, golden_step),
         ("tier3_simplis", lib,
          f"{cfg['device']}_PIECESPICE_T3_simplis",
          _EMITTED_PIN_ROLES, None),
@@ -1014,7 +1022,7 @@ def _run_adaptive_benchmark(vendor: str, cfg: dict, dpt: dict, lib: Path,
         "with points >= 0.5*median points; timeouts/exceptions fail the side")
     results = {}
     for label, library, subckt, pins, max_step in sides:
-        pins = list(cfg["pins"]["pin_order"]) if pins is None else pins
+        pins = list(pins_cfg.get("pin_order") or []) if pins is None else pins
         bench, guard = {}, {}
         error = None
         t_wall = time.perf_counter()

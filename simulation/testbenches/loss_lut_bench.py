@@ -28,6 +28,7 @@ from typing import Any, Mapping
 import numpy as np
 
 from config.yaml_io import CONFIG_ROOT, OUTPUT_DIR, load_input, load_output
+from parser.netlist import resolve_pin_connections
 from simulation.testbenches.double_pulse import (
     DoublePulseRun,
     extract_dpt_metrics,
@@ -46,6 +47,16 @@ TRACE_POINT_FRACTION = 0.5
 NEGATIVE_LOSS_DIAGNOSTIC = 0.0
 
 ENERGY_KEYS = ("e_on_uj", "e_off_uj")
+
+
+def _golden_pins(cfg: Mapping[str, Any]) -> list[str]:
+    """Resolve the vendor pin order, including any Tj thermal port."""
+    pins_cfg = cfg.get("pins") or {}
+    semantic = pins_cfg.get("pin_order_semantic")
+    if semantic:
+        return resolve_pin_connections(
+            Path(cfg["library"]).resolve(), cfg["subcircuit"], semantic)
+    return list(pins_cfg.get("pin_order") or [])
 
 
 @dataclass(frozen=True)
@@ -664,7 +675,7 @@ def run_golden_sweep(
         try:
             run = run_double_pulse(
                 Path(cfg["library"]).resolve(), cfg["subcircuit"],
-                list(cfg["pins"]["pin_order"]), **kw)
+                _golden_pins(cfg), **kw)
         except Exception as exc:  # solver/backend failures are reported, never faked
             results.append(SweepResult(
                 point, float("nan"), float("nan"), "not_evaluable",

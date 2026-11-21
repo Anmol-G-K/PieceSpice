@@ -1314,6 +1314,48 @@ def test_simplis_residual_gate_requires_strict_dpt_gain_and_complete_run():
         == "tier2"
 
 
+def test_simplis_speed_uses_header_resolved_cpm2_tj_pin(
+        monkeypatch, tmp_path):
+    """CPM2's floating Tj port must not be dropped from the golden bench."""
+    import pipeline.tier3_simplis as sm
+
+    lib = tmp_path / "cpm2.lib"
+    lib.write_text("* fixture\n.SUBCKT CPM2 d g s Tj\nR1 d s 1\n.ENDS\n",
+                   encoding="ascii")
+    seen = []
+
+    def fake_bench(library, subckt, pins, **kwargs):
+        seen.append(list(pins))
+        return {
+            "wall_clock_s": 0.8, "solver_elapsed_s": 0.4,
+            "iterations": 1000, "trace_points": 1000,
+            "trace_names": 12, "end_time_s": 176e-6,
+        }
+
+    monkeypatch.setattr(sm, "run_inductive_benchmark", fake_bench)
+    monkeypatch.setattr(sm, "_adaptive_guard_run", lambda *a, **kw: {
+        "t_last_s": 176e-6, "iterations": 1000, "trace_points": 1000})
+
+    cfg = {
+        "library": str(lib), "subcircuit": "CPM2", "device": "CPM2",
+        "pins": {
+            "pin_order": ["drain", "gate", "source"],
+            "pin_order_semantic": {
+                "drain": "d", "gate": "g", "source": "s", "tj": "Tj"},
+        },
+    }
+    dpt = {
+        "vbus": 20.0, "vgs_on": 18.0, "i_load_target": 20.0,
+        "l_load": 5e-6, "t1_on": 1e-6, "t1_width": 5e-6,
+        "t2_on": 10e-6, "t2_width": 2e-6, "edge_time": 20e-9,
+    }
+    row = sm._run_adaptive_benchmark("CPM2", cfg, dpt, lib, 25.0)
+
+    assert seen[0] == ["drain", "gate", "source", "tj"]
+    assert seen[1] == ["drain", "gate", "source"]
+    assert row["solver_speedup"] == pytest.approx(1.0)
+
+
 @pytest.mark.parametrize("residual_better", [False, True])
 def test_simplis_run_vendor_records_residual_evidence_and_gate(
         monkeypatch, tmp_path, residual_better):
