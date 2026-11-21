@@ -74,7 +74,7 @@ is not a fifth tier.
 | **PieceSpice Tier-3 `v1` (TPWL)** | **●●●●○ (emitted static rel-RMSE 0.97–7.22 %; fit 0.61–2.37 %)** | **●●○○○ (forced solver 0.0946–0.5827× at matched conditions; slower than golden)** | **●●●○○ (anchored on captured trajectory)** |
 | **PieceSpice Tier-3 `simplis` (PWL charge)** | **●●●○○ (static 2.0394–8.4935 %; DPT Vds 2.942–8.704 %, Id 1.764–8.517 %)** | **●●○○○ (20-pulse adaptive solver 1.0705–5.3592×, CPM2 1.1004×; ≥5× TI-only)** | **●●●○○ (guarded 20-pulse runs; four completed 2-pulse DPTs)** |
 | **PieceSpice Tier-3 `urom` (canonical C0)** | **●●●○○ (static 2.0394–8.4935 %; fidelity accept 3/4, IRFS G3 Id 9.0127 %)** | **●●○○○ (solver/wall: IRFS 1.0073/0.9860×, TI 5.3021/3.0086×, EPC 0.9863/1.0169×, CPM2 1.1023/1.0583×; speed accept 2/4)** | **●●○○○ (one declared trap/default method; overall reject 4/4 on G4 timing/energy; keyed ANN rejects 4/4)** |
-| **PieceSpice Tier-4 (ideal switch + LUT)** | **●●○○○ (DPT waveform gate retired by design)** | **●●●○○ (guarded inductive-bench solver 1.2212–6.4730×; EPC golden 100 ns cap; CPM2 N/A)** | **●●●○○ (DPT 4/4 complete, speed 3/4 measured)** |
+| **PieceSpice Tier-4 (ideal switch + LUT)** | **●●○○○ (DPT waveform gate retired by design)** | **●●●○○ (guarded inductive-bench solver 1.2212–6.4730×; EPC golden 100 ns cap; CPM2 1.3618×)** | **●●●●○ (DPT 4/4 complete, speed 4/4 measured)** |
 | PLECS / Ideal | ●○○○○ | ●●●●● | ●●●●● |
 
 **Measured status — honest.** Four configurations are selectable: Tier-2 CPWL,
@@ -603,7 +603,7 @@ ratings.*
 | IRFS7730PBF (38 V / 100 A) | 1.2212× | 1.0994× | 12,718 → 6,165 | 3,432 → 2,247 | long_adaptive |
 | CSD16412Q5A / TI (12.5 V / 10 A) | **6.4730×** | 3.2734× | 131,558 → 6,201 | 44,050 → 2,296 | long_adaptive |
 | EPC2216 (11 V / 10 A) | 1.2440× | 1.1019× | 16,514 → 6,296 | 4,047 → 2,597 | long_100ns (golden 100 ns cap) |
-| CPM2-1200 (20 V / 20 A) | N/A | N/A | N/A | N/A | VM-10 contract-excluded golden speed; no ratio derived |
+| CPM2-1200 (20 V / 20 A) | 1.3618× | 1.1586× | 12,492 → 5,320 | 3,092 → 1,973 | long_adaptive (Tj driven) |
 
 **Tier-4 energy/efficiency scope.** E_on/E_off relative error is 0 % **by
 construction**: the LUT value and the compared "golden" value share the same
@@ -616,9 +616,9 @@ converter bench was built. Efficiency is N/A on all four devices
 (`output_power_required`): E_on/E_off/r_on are evaluated offline, and
 Vbus×Iload is DC bus input power, not converter output power. The loss LUT's
 finite-node provenance is vendor-specific: IRFS and TI have one `constant_node`
-(`1×1` grid), EPC has three finite nodes with `grid_interpolation`, and CPM2
-has one `single_node` on a `2×2` grid; no cell has all four corners, so
-off-node queries are NaN and no bilinear interpolation is exercised. TI's
+(`1×1` grid), EPC and CPM2 have `grid_interpolation` with 3 and 4 finite
+nodes respectively; off-node queries are NaN and no unmeasured corner is
+invented. TI's
 6.4730× comes from the stiff golden (131,558 golden vs 6,201 Tier-4
 iterations) and is not presented as a portable speed class. No unmeasured
 superlative is claimed.
@@ -870,9 +870,9 @@ live run is the 719-passed baseline. GitHub CI run 44906010257 (commit
       DPT completion **4/4**; guarded inductive-bench speed **3/4**
       (`method=LTspice default/trap (both arms)`; solver/wall:
       IRFS 1.2212× / 1.0994×, TI 6.4730× / 3.2734×,
-      EPC 1.2440× / 1.1019× at the golden 100 ns cap; CPM2 N/A on VM-10
-      contract exclusion, with the legacy completed-golden conflict
-      disclosed). Waveform gate retired by design; energy rows are
+      EPC 1.2440× / 1.1019× at the golden 100 ns cap; CPM2 1.3618× / 1.1586×
+      with the Tj port driven. The historical CPM2 N/A was a 3-pin harness bug,
+      not a vendor defect. Waveform gate retired by design; energy rows are
       DPT-source self-consistency, efficiency N/A without converter output
       power, and no converter bench was built. The LUT supports a real
       measured grid, an optional temperature axis, Ron/Vt parameters and a
@@ -900,7 +900,7 @@ live run is the 719-passed baseline. GitHub CI run 44906010257 (commit
       *(metrics, resistive-load subset and inductive DPT)*
 - [ ] **M5** — Switched-Mode Converter Benchmark & Speedup Evaluation
       *(partial, not complete: Tier-4 adds measured inductive-bench speed —
-      IRFS 1.2212×, TI 6.4730×, EPC 1.2440× solver; CPM2 N/A — but **no
+      IRFS 1.2212×, TI 6.4730×, EPC 1.2440× solver, CPM2 1.3618×; but **no
       converter bench exists**. Tier-4 energy rows are DPT-source
       self-consistency and efficiency is N/A without an explicit converter
       output power. The established tiers' matched-condition and adaptive

@@ -121,10 +121,11 @@ separate, non-default artifacts and reject 4/4; tuning is `not_run`.
 | IRFS7730PBF | 1.2212× / 1.0994× | constant_node (1×1) | not_configured | output_power_required |
 | CSD16412Q5A (TI) | 6.4730× / 3.2734× | constant_node (1×1) | not_configured | output_power_required |
 | EPC2216 | 1.2440× / 1.1019× | grid_interpolation (3 finite nodes) | not_configured | output_power_required |
-| CPM2-1200 | N/A / N/A | single_node (2×2 grid, one finite node) | not_configured | output_power_required |
+| CPM2-1200 | 1.3618× / 1.1586× | grid_interpolation (4 finite nodes) | not_configured | output_power_required |
 
-DPT completion is 4/4; speed is measured 3/4, with CPM2 contract-excluded
-under VM-10. The DPT waveform gate is `retired_by_design`. Energy rows are
+DPT completion is 4/4; speed is measured 4/4, including CPM2 1.3618× /
+1.1586× once its 4th Tj port is driven. The DPT waveform gate is
+`retired_by_design`. Energy rows are
 DPT-source self-consistency (`source_shared=true`,
 `independent_energy_gate=false`), not an independent converter validation.
 TI's 6.4730× is the stiff-golden case and is not portable.

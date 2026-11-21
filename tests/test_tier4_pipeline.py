@@ -99,16 +99,6 @@ def test_recorded_speedup_never_fabricates_timing(vendor):
     assert speed["measured_trace_endpoint_available"] is False
     assert "no measured trace endpoint" in speed["t_last_source"]
     assert ".tran stop" in speed["end_time_s_source"]
-    if vendor == "cpm2-1200":
-        assert speed["status"] == "N/A"
-        err = speed["error"]
-        assert "contract-excluded" in err
-        assert "VM-10 vendor turn-off abort" in err
-        assert "artifact conflict is disclosed in vendor_scope_notes" in err
-        assert "no ratio is derived" in err
-        assert speed["solver_speedup"] is None
-        assert speed["wall_speedup"] is None
-        return
     if speed["status"] == "N/A":
         # An aborted/unmeasured arm is N/A, never zero or a fabricated ratio.
         assert speed["solver_speedup"] is None
@@ -127,25 +117,61 @@ def test_recorded_speedup_never_fabricates_timing(vendor):
     assert speed["wall_speedup"] > 0.0
 
 
-def test_cpm2_speed_is_na_from_recorded_golden_failure():
+def test_cpm2_speed_policy_selects_completed_adaptive_golden():
+    """The retired exclusion must resolve to the completed long_adaptive case."""
+    assert "cpm2-1200" not in tier4.GOLDEN_SPEED_EXCLUSIONS
+    speed_record = json.loads(
+        (ROOT / "reports" / "comparison" / "speedup_benchmark.json")
+        .read_text(encoding="utf-8"))
+    policy = tier4._speed_policy("cpm2-1200", speed_record)
+    assert policy["case"] == "long_adaptive"
+    assert policy["golden_failure"] is None
+    assert policy["cap_reason"] is None
+    # Fully adaptive: no pinned max_step cap, exactly like the recorded case.
+    assert policy["golden_max_step"] is None
+    assert "completed" in policy["decision"]
     rec = _record("cpm2-1200")
-    policy = rec["runtime"]["golden_cap"]
-    assert policy["reason"] is None
-    speed = rec["speedup"]
-    assert speed["case"] == "long_adaptive"
-    assert speed["status"] == "N/A"
-    assert speed["solver_speedup"] is None
-    assert speed["wall_speedup"] is None
-    err = speed["error"]
-    assert "contract-excluded" in err
-    assert "VM-10" in err
-    assert "artifact conflict is disclosed in vendor_scope_notes" in err
-    assert "no ratio is derived" in err
-    notes = rec["vendor_scope_notes"]
-    assert notes["defect"] == "VM-10"
-    assert "long_adaptive" in notes["artifact_conflict"]
-    # The golden DPT energy crossing is still evaluable for CPM2.
+    assert rec["speedup"]["case"] == "long_adaptive"
+    assert rec["provenance"]["decisions"]["golden_speed_policy"] == (
+        policy["decision"])
+    assert rec["runtime"]["golden_cap"]["reason"] is None
+    # The golden DPT energy crossing is evaluable independently of speed.
     assert rec["energy_comparison"]["e_on_uj"]["status"] == "measured"
+
+
+def test_cpm2_speed_row_is_measured_with_positive_ratios():
+    """CPM2's committed record is a live, measured 20-pulse speed row."""
+    rec = _record("cpm2-1200")
+    assert rec["generation"]["mode"] == "live"
+    speed = rec["speedup"]
+    assert speed["status"] == "measured"
+    assert speed["case"] == "long_adaptive"
+    for key in ("golden_iterations", "tier4_iterations",
+                "golden_points", "tier4_points"):
+        assert isinstance(speed[key], float) and speed[key] > 0.0
+    assert speed["solver_speedup"] is not None and speed["solver_speedup"] > 0.0
+    assert speed["wall_speedup"] is not None and speed["wall_speedup"] > 0.0
+    assert speed["end_time_s"] == pytest.approx(1.76e-4)
+    assert rec["guards"]["speed_completion"] is True
+    assert not rec["speedup"].get("error")
+
+
+def test_speedup_row_carries_positive_ratio_for_complete_pair():
+    """A completed measured pair yields ratios; no count gate is applied."""
+    golden = {"solver_elapsed_s": 2.0, "wall_clock_s": 4.0,
+              "iterations": 12000.0, "trace_points": 3000.0,
+              "end_time_s": 1.76e-4, "repeats": 3, "n_pulses": 20}
+    tier4_arm = {"solver_elapsed_s": 1.0, "wall_clock_s": 2.0,
+                 "iterations": 6000.0, "trace_points": 2000.0,
+                 "end_time_s": 1.76e-4, "repeats": 3, "n_pulses": 20}
+    assert tier4._bench_complete(golden, tier4_arm,
+                                 scheduled_end_s=1.76e-4) is True
+    row = tier4._speedup_row(
+        golden, tier4_arm, True,
+        {"golden_max_step": None, "case": "long_adaptive"})
+    assert row["status"] == "measured"
+    assert row["solver_speedup"] == pytest.approx(2.0)
+    assert row["wall_speedup"] == pytest.approx(2.0)
 
 
 @pytest.mark.parametrize("vendor", VENDORS)
@@ -356,27 +382,50 @@ def test_run_vendor_offline_builds_full_record(tmp_path, monkeypatch):
     assert not hasattr(tier4, "BENCH_COUNT_RATIO_FRACTION")
 
 
-def test_run_vendor_never_benches_excluded_golden(tmp_path, monkeypatch):
+def test_run_vendor_live_benches_cpm2_speed_with_tj_port(tmp_path, monkeypatch):
+    """No exclusion: a live CPM2 run must bench both arms, Tj driven."""
+    from approximation.loss_lut import build_lut as real_build_lut
+
     vendor = "cpm2-1200"
     _seed_repo(tmp_path, vendor)
     monkeypatch.setattr(tier4, "ROOT", tmp_path)
+    monkeypatch.setattr(tier4, "build_lut",
+                        lambda v, **kw: real_build_lut(v, simulate=False))
+    calls = []
 
-    def _forbid(*args, **kwargs):
-        raise AssertionError("no speed bench may run for an excluded golden")
+    def _resolve(library, sub, semantic):
+        calls.append(("resolve", sub, dict(semantic)))
+        return ["drain", "gate", "source", "tj"]
 
-    monkeypatch.setattr(tier4, "run_inductive_benchmark", _forbid)
-    monkeypatch.setattr(tier4, "_run_emitted_dpt", _forbid)
+    def _fake_bench(library, sub, roles, **kw):
+        calls.append(("bench", sub, list(roles)))
+        return {"solver_elapsed_s": 2.0, "wall_clock_s": 4.0,
+                "iterations": 12000.0, "trace_points": 3000.0,
+                "end_time_s": 1.76e-4, "repeats": 3, "n_pulses": 20}
+
+    monkeypatch.setattr(tier4, "resolve_pin_connections", _resolve)
+    monkeypatch.setattr(tier4, "run_inductive_benchmark", _fake_bench)
+    monkeypatch.setattr(tier4, "_run_emitted_dpt", lambda *a, **k: ({}, 0.0))
+    monkeypatch.setattr(
+        tier4, "_dpt_guard",
+        lambda *a, **k: {"executed": True, "completed": True,
+                         "trace_points": 7104, "golden_trace_points": 7154.0,
+                         "iterations": 14346, "t_last_s": 1.4e-5,
+                         "t_end_s": 1.4e-5, "wall_clock_s": 1.0,
+                         "error": None, "spice_log_tail": ""})
     rec = tier4.run_vendor(vendor, live=True)
+    resolves = [c for c in calls if c[0] == "resolve"]
+    benches = [c for c in calls if c[0] == "bench"]
+    # The vendor header's 4th port must reach the bench as a driven Tj role.
+    assert resolves and resolves[0][2].get("tj") == "Tj"
+    assert len(benches) == 2
+    assert benches[0][2] == ["drain", "gate", "source", "tj"]
     speed = rec["speedup"]
-    assert speed["status"] == "N/A"
-    assert speed["solver_speedup"] is None
-    assert speed["wall_speedup"] is None
-    assert rec["dpt_run"]["completed"] is None
-    err = speed["error"]
-    assert "contract-excluded" in err
-    assert "VM-10" in err
-    assert "artifact conflict is disclosed in vendor_scope_notes" in err
-    assert "no ratio is derived" in err
+    assert speed["status"] == "measured"
+    assert speed["case"] == "long_adaptive"
+    assert speed["solver_speedup"] == pytest.approx(1.0)
+    assert speed["wall_speedup"] == pytest.approx(1.0)
+    assert "error" not in speed
 
 
 def test_live_flow_uses_20_pulses_and_matching_step(tmp_path, monkeypatch):
@@ -730,24 +779,35 @@ def test_no_template_placeholder_in_stabilization_provenance(tmp_path,
 
 def test_vendor_scope_notes_live_at_record_root(tmp_path, monkeypatch):
     vendor = "cpm2-1200"
-    assert "record root" in tier4.GOLDEN_SPEED_EXCLUSIONS[vendor]
+    assert vendor not in tier4.GOLDEN_SPEED_EXCLUSIONS
     _seed_repo(tmp_path, vendor)
     monkeypatch.setattr(tier4, "ROOT", tmp_path)
     rec = tier4.run_vendor(vendor, live=False)
     assert "vendor_scope_notes" in rec
     assert "vendor_scope_notes" not in rec["provenance"]
     notes = rec["vendor_scope_notes"]
-    assert notes["defect"] == "VM-10"
-    assert "VM-10 vendor turn-off abort" in notes["note"]
-    assert "long_adaptive" in notes["artifact_conflict"]
-    assert "completed" in notes["artifact_conflict"]
+    assert notes["kind"] == "harness_bug_retired"
+    # The disclosure must state the real fix and retract the vendor-defect
+    # reading: the 4th Tj port has to be driven, the old N/A was a 3-pin bug.
+    assert "4th port 'Tj'" in notes["note"]
+    assert "must be driven" in notes["note"]
+    assert "3-pin harness bug" in notes["note"]
+    assert "retracted" in notes["defect"]
+    assert "long_adaptive" in notes["historical"]
+    assert "completed" in notes["historical"]
     speed = rec["speedup"]
+    # Offline generation still never invents a timing, but for the honest
+    # reason (no bench executed), not a contract exclusion.
     assert speed["status"] == "N/A"
+    assert speed["case"] == "long_adaptive"
     assert speed["solver_speedup"] is None
+    assert speed["wall_speedup"] is None
+    assert "offline generation" in speed["error"]
+    assert "contract-excluded" not in speed["error"]
     out = (tmp_path / "reports" / "comparison" / vendor /
            "tier4_validation.json")
     written = json.loads(out.read_text(encoding="utf-8"))
-    assert written["vendor_scope_notes"]["defect"] == "VM-10"
+    assert written["vendor_scope_notes"]["kind"] == "harness_bug_retired"
     assert "vendor_scope_notes" not in written["provenance"]
 
 

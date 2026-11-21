@@ -116,53 +116,49 @@ OFFICIAL_SOURCES = {
     "P-DEMO": "https://docs.plexim.com/plecs-demos/plecs-spice/demo-plecs-spice/",
 }
 
-# The CPM2 golden adaptive speed is contract-excluded, not a re-measured
-# failure claim: older recorded text cited a golden abort (no raw output /
-# rc=1, research section 2), while the current recorded baseline artifact
-# holds a completed adaptive golden arm.  Both readings are disclosed in
-# vendor_scope_notes at the record root.  Prose/metadata only: no number,
-# guard or tolerance.
-GOLDEN_SPEED_EXCLUSIONS = {
-    "cpm2-1200": (
-        "CPM2-1200 golden adaptive speed is contract-excluded (VM-10 vendor "
-        "turn-off abort; fidelity_speed_research.md section 2, Tier-4 contract "
-        "section 20). Older recorded text cited a golden failure "
-        "('no raw output / rc=1'); the current "
-        "reports/comparison/speedup_benchmark.json instead holds a completed "
-        "adaptive golden arm. That artifact conflict is disclosed in "
-        "vendor_scope_notes (record root); no ratio is derived and the status stays N/A."
-    ),
-}
+# Contract-pinned golden-speed exclusions: a vendor whose recorded adaptive
+# golden arm cannot be re-measured at all keeps speedup.status N/A with an
+# explicit reason instead of a fabricated ratio.  The mapping is empty by
+# design: CPM2-1200 was removed once the bench resolved the vendor header's
+# 4th 'Tj' port (the historical entry was a 3-pin harness bug, not a vendor
+# model defect).  The API stays so a future, genuinely unbenchable golden can
+# be pinned without inventing a number.
+GOLDEN_SPEED_EXCLUSIONS: dict[str, str] = {}
 
-# Vendor-scope disclosure for that excluded CPM2 speed: VM-10 truncates the
-# vendor DPT waveform, so only the golden adaptive speed is N/A.  Energy/
-# efficiency stay reported from the finite measured 2-pulse DPT crossing.
+# Vendor-scope disclosure for CPM2-1200 speed: the historical golden-speed
+# exclusion is retracted.  The vendor .SUBCKT declares a 4th 'Tj' port, so a
+# 3-pin X-instance silently shifted the thermal port and aborted the vendor
+# arm; the bench now drives Tj from the header-resolved role list.
 VENDOR_SPEED_SCOPE_NOTES = {
     "cpm2-1200": {
-        "kind": "vendor_model_defect",
-        "defect": "VM-10",
-        "reference": "vendor_model_defects.md VM-10 (CPM2 turn-off abort)",
+        "kind": "harness_bug_retired",
+        "defect": "VM-10 (retracted: 3-pin harness bug, not a vendor defect)",
+        "reference": "vendor_model_defects.md VM-10",
         "note": (
-            "VM-10 vendor turn-off abort truncates the CPM2-1200 golden "
-            "waveform. The Tier-4 contract (section 20) excludes only this "
-            "vendor's golden adaptive speed: speedup.status stays N/A and no "
-            "solver/wall ratio is derived. Energy/efficiency remain reported "
-            "from the finite measured 2-pulse DPT crossing (a different "
-            "observable); the emitted Tier-4 model and all guards are unchanged."
+            "The CPM2-1200-0025B vendor .SUBCKT has a 4th port 'Tj' (volts "
+            "= degC) that must be driven by a fixed V source at "
+            "conditions.temperature in every bench. The historical golden-"
+            "speed exclusion was a 3-pin harness bug: the X-instance omitted "
+            "Tj, so the vendor arm aborted at turn-off. With the header-"
+            "resolved port list the adaptive golden arm completes and the "
+            "Tier-4 speed row is measured from both arms; no contract "
+            "exclusion remains."
         ),
-        "artifact_conflict": (
+        "historical": (
             "Older recorded text reported a golden adaptive failure "
-            "('no raw output / rc=1', fidelity_speed_research.md section 2); "
-            "the current reports/comparison/speedup_benchmark.json case "
-            "long_adaptive instead holds a completed adaptive golden arm "
-            "(golden_completed=true). Both readings are disclosed; the "
-            "completed legacy golden/Tier-2 case is context only, never a "
-            "Tier-4 speedup, and the contract-pinned N/A outcome is unchanged."
+            "('no raw output / rc=1', fidelity_speed_research.md section 2) "
+            "and pinned a contract N/A; the recorded "
+            "reports/comparison/speedup_benchmark.json case long_adaptive "
+            "holds a completed adaptive golden arm (golden_completed=true). "
+            "The failure reading is now attributed to the missing Tj "
+            "connection, both readings are disclosed, and the legacy "
+            "golden/Tier-2 case remains context only - never a Tier-4 "
+            "speedup."
         ),
         "source": (
-            "vendor_model_defects.md VM-10; docs/fidelity_speed_research.md "
-            "section 2; reports/comparison/speedup_benchmark.json "
-            "cases.long_adaptive"
+            "config/inputs/cpm2-1200.yaml pins.pin_order_semantic (Tj); "
+            "docs/fidelity_speed_research.md section 2; "
+            "reports/comparison/speedup_benchmark.json cases.long_adaptive"
         ),
     },
 }
@@ -336,7 +332,7 @@ def _speed_policy(vendor: str, speed: dict) -> dict:
     if excluded:
         return {"case": "long_adaptive", "golden_max_step": None,
                 "golden_failure": excluded, "cap_reason": None,
-                "decision": "contract-excluded golden speed kept N/A (VM-10; contract section 20; artifact conflict disclosed)"}
+                "decision": "contract-pinned golden speed kept N/A"}
     cases = speed.get("cases", {})
     vendor_cases = speed.get("vendors", {}).get(vendor, {})
     adaptive = vendor_cases.get("long_adaptive", {}).get("golden", {})
@@ -870,9 +866,8 @@ def run_vendor(vendor: str, *, live: bool = True,
     generation = {
         "mode": "live" if live else "offline_recorded",
         "live_benches_executed": bool(live),
-        "note": ("Live generation ran the emitted DPT and, where the golden "
-                 "case is not contract-excluded, the adaptive speed bench; "
-                 "unavailable or incomplete runs stay N/A."
+        "note": ("Live generation ran the emitted DPT and the adaptive "
+                 "speed bench; unavailable or incomplete runs stay N/A."
                  if live else
                  "Offline generation uses recorded measured artifacts and "
                  "leaves every bench-derived field N/A; it never reports a "
@@ -1096,8 +1091,8 @@ def run_vendor(vendor: str, *, live: bool = True,
                 "no_tolerance_change": True,
             },
         },
-        # Vendor-specific scope disclosure (VM-10); a RECORD-ROOT key so it
-        # matches the documented pointer in GOLDEN_SPEED_EXCLUSIONS.
+        # Vendor-specific scope disclosure (CPM2-1200 Tj-port harness note);
+        # a RECORD-ROOT key, not a provenance sub-key.
         **({"vendor_scope_notes": VENDOR_SPEED_SCOPE_NOTES[vendor]}
            if vendor in VENDOR_SPEED_SCOPE_NOTES else {}),
         "guards": {
