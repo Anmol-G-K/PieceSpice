@@ -14,6 +14,7 @@ import json
 import re
 import threading
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -30,6 +31,9 @@ from simulation.testbenches.speedup_bench import (
     run_inductive_benchmark,
 )
 from models.tpwl_netlist_builder import (
+    COMPACT_POLICY,
+    EmissionPolicy,
+    emission_metrics,
     emission_policy,
     emit_subcircuit,
     emitted_static_rmse,
@@ -85,6 +89,48 @@ def _emitted_selection_error(model) -> float:
     """Tier-3 cell-selection key: the emitted channel's static RMSE."""
     from models.tpwl_netlist_builder import emitted_static_rmse as _esr
     return _esr(model)
+
+
+_FLOAT_LITERAL = re.compile(r"[-+]?\d+\.\d+e[-+]\d+")
+
+
+def _emission_settings(vendor: str, model, tier3_cfg: dict):
+    """Resolve the opt-in compact path from config; never fall back silently."""
+    requested = bool(tier3_cfg.get("compact_emission", False))
+    raw_tol = tier3_cfg.get("compact_rel_tol",
+                            EmissionPolicy().compact_rel_tol)
+    try:
+        rel_tol = float(raw_tol)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"{vendor}: tier3.compact_rel_tol must be numeric") from exc
+    if not np.isfinite(rel_tol) or rel_tol <= 0.0:
+        raise ValueError(
+            f"{vendor}: tier3.compact_rel_tol must be finite and > 0; "
+            f"got {raw_tol!r}")
+    if requested:
+        pol = COMPACT_POLICY(model, rel_tol=rel_tol)
+        source = "config"
+    else:
+        pol = replace(emission_policy(model), compact_rel_tol=rel_tol)
+        source = "default"
+    return pol, source
+
+
+def _emission_record(model, policy, text: str, source: str) -> dict:
+    """Measured emission facts plus a literal count of the emitted channel."""
+    metrics = emission_metrics(model, policy)
+    channel = next((ln for ln in text.splitlines()
+                    if ln.startswith("G_CH ")), text)
+    return {
+        "compact": metrics["compact"],
+        "rel_tol": metrics["rel_tol"],
+        "table_points": metrics["table_points"],
+        "vgs_points": metrics["vgs_points"],
+        "max_rel_error_pct": metrics["max_rel_error_pct"],
+        "estimated_literal_count": len(_FLOAT_LITERAL.findall(channel)),
+        "source": source,
+    }
 
 
 def _run_emitted_dpt(model, lib_path: Path, vendor: str):
@@ -268,10 +314,16 @@ def run_vendor(vendor: str, variant: str = DEFAULT_VARIANT) -> dict:
         holdout_trajectory=holdout_requested)
     fit_wall = time.perf_counter() - t0 - capture_wall - extra_capture_wall
 
+    emission_policy_for_run, emission_source = _emission_settings(
+        vendor, model, tier3_cfg)
     lib = ROOT / "reports" / "models" / f"{vendor}_PIECESPICE_T3{suffix}.lib"
     lib.parent.mkdir(parents=True, exist_ok=True)
-    lib.write_text(emit_subcircuit(model), encoding="ascii")
-    static_emitted = emitted_static_rmse(model)
+    emitted_text = emit_subcircuit(model, policy=emission_policy_for_run)
+    lib.write_text(emitted_text, encoding="ascii")
+    emission = _emission_record(model, emission_policy_for_run,
+                                emitted_text, emission_source)
+    static_emitted = emitted_static_rmse(model,
+                                          policy=emission_policy_for_run)
     dpt = _dpt_conditions(vendor)
     # trajectory output[0] is the fitted device current I(Lload)-I(Dclamp).
     golden_run = DoublePulseRun(
@@ -437,6 +489,7 @@ def run_vendor(vendor: str, variant: str = DEFAULT_VARIANT) -> dict:
         "schema": "piecespice.tier3/2.0",
         "vendor": vendor,
         "variant": variant,
+        "emission": emission,
         "methods": ["TPWL (Rewienski & White 2003)",
                     "POD-DEIM anchors (Chaturantabut & Sorensen 2010)"],
         "algorithm": {

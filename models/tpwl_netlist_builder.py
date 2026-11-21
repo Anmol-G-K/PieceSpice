@@ -40,12 +40,15 @@ ASCII.
 
 The opt-in ``V2_POLICY`` emission path adds the internal ``gi/di/ss`` nodes
 (``RG``/``RD``/``RS``), the DPT gate-charge table (``C_QG``) and the Tier-2
-body diode.  The default call (``policy=None``) keeps the closed v1 text
-byte-for-byte; the physical elements are never inferred silently.
+body diode.  The opt-in compact path (``EmissionPolicy.compact`` /
+``COMPACT_POLICY``) prunes only the shared Vds axis by measured interpolation
+error; Vgs rows, cell count, clamp/Qoss settings and the ASCII ``table()``
+syntax are kept.  The default call (``policy=None``) keeps the closed v1 text
+byte-for-byte; neither physical elements nor compact emission are inferred.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 from scipy.optimize import least_squares
@@ -76,10 +79,12 @@ class EmissionPolicy:
     soft_clamp: bool = False
     soft_eps: float = 1e-3
     high_vds_saturation: bool = False
-    # V2 physical elements; all False keeps the closed v1 netlist byte-equal.
     include_gate_charge: bool = False
     include_body_diode: bool = False
     include_parasitics: bool = False
+    # Opt-in Vds-axis compression; defaults keep the closed v1 table.
+    compact: bool = False
+    compact_rel_tol: float = 0.005
 
 
 _BASE = EmissionPolicy()
@@ -100,6 +105,25 @@ _POLICY_BY_VENDOR = {
 V2_POLICY = EmissionPolicy(include_gate_charge=True,
                            include_body_diode=True,
                            include_parasitics=True)
+
+
+def compact_policy(base: TPWLTerminalModel | EmissionPolicy, *,
+                   rel_tol: float | None = None) -> EmissionPolicy:
+    """Vendor emission policy with compact Vds emission enabled.
+
+    Grid, clamp and Qoss settings are inherited from the measured vendor
+    policy; only ``compact`` and its tolerance change.  Accepts a model or
+    an existing policy so callers cannot lose the vendor's settings.
+    """
+    pol = base if isinstance(base, EmissionPolicy) else emission_policy(base)
+    tol = pol.compact_rel_tol if rel_tol is None else float(rel_tol)
+    return replace(pol, compact=True, compact_rel_tol=tol)
+
+
+# Factory, not a fixed policy: the vendor clamp/grid settings must survive
+# the opt-in.  Use COMPACT_POLICY(model) or COMPACT_POLICY(policy).
+COMPACT_POLICY = compact_policy
+
 
 # Documented Tier-2 emitter scalars (pipeline.fitting.build_pwl_spec
 # metadata: r_gate/r_drain/r_source).  Reused verbatim, not re-measured.
@@ -193,6 +217,105 @@ def grid_channel(model: TPWLTerminalModel, g: np.ndarray, d: np.ndarray, *,
     return table
 
 
+def compact_channel_table(model: TPWLTerminalModel, g: np.ndarray,
+                          d: np.ndarray, table: np.ndarray,
+                          rel_tol: float) -> tuple[np.ndarray, np.ndarray,
+                                                   float, float]:
+    """Prune the shared Vds axis by greedy farthest-point interpolation.
+
+    Endpoints are always kept.  On each step the original Vds index with the
+    largest absolute interpolation error over *all* Vgs rows becomes a knot.
+    Stop at ``rel_tol * max|table|`` or when no error remains; the returned
+    errors are measured on the retained table, not estimated.
+    """
+    g = np.asarray(g, dtype=float)
+    d = np.asarray(d, dtype=float)
+    table = np.asarray(table, dtype=float)
+    tol = float(rel_tol)
+    if not np.isfinite(tol) or tol <= 0.0:
+        raise ValueError(
+            f"{model.vendor}: compact_rel_tol must be finite and > 0; "
+            f"got {rel_tol!r}")
+    if d.ndim != 1 or d.size < 2:
+        raise ValueError(
+            f"{model.vendor}: compact Vds axis has {d.size} point(s); "
+            "need >=2")
+    if (g.ndim != 1 or table.ndim != 2
+            or table.shape != (g.size, d.size)):
+        raise ValueError(
+            f"{model.vendor}: channel table shape {table.shape} does not "
+            f"match axes {(g.size, d.size)}")
+    if not np.all(np.isfinite(d)) or np.any(np.diff(d) <= 0.0):
+        raise ValueError(
+            f"{model.vendor}: compact Vds axis is not finite and increasing")
+    if not np.all(np.isfinite(table)):
+        raise ValueError(
+            f"{model.vendor}: channel table has non-finite values; "
+            "refusing to compress")
+    scale = float(np.max(np.abs(table)))
+    budget = tol * scale
+    keep = [0, d.size - 1]
+
+    def remaining_error(indices: list[int]) -> np.ndarray:
+        knots = d[indices]
+        interp = np.array([np.interp(d, knots, row[indices])
+                           for row in table])
+        err = np.max(np.abs(table - interp), axis=0)
+        err[indices] = -np.inf          # already a knot, no remaining error
+        return err
+
+    err = remaining_error(keep)
+    while True:
+        worst = float(np.max(err))
+        if worst <= 0.0 or worst <= budget:
+            break
+        keep.append(int(np.argmax(err)))
+        keep.sort()
+        if len(keep) == d.size:
+            break
+        err = remaining_error(keep)
+
+    knots_idx = np.asarray(keep, dtype=int)
+    knots = d[knots_idx]
+    interp = np.array([np.interp(d, knots, row[knots_idx]) for row in table])
+    abs_err = float(np.max(np.abs(table - interp)))
+    rel_err = 0.0 if scale == 0.0 else abs_err / scale
+    if not np.isfinite(abs_err) or rel_err > tol:
+        raise ValueError(
+            f"{model.vendor}: compact Vds budget {tol:.6g} not met "
+            f"(achieved {rel_err:.6g} with {len(keep)} point(s))")
+    return knots, table[:, knots_idx], abs_err, rel_err
+
+
+def _emission_channel(model: TPWLTerminalModel, pol: EmissionPolicy
+                      ) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
+    """Emission mesh and measured metrics for one policy (no simulation)."""
+    g, d = grid_axes(model, policy=pol)
+    table = grid_channel(model, g, d, policy=pol)
+    metrics = {
+        "table_points": int(d.size),
+        "vgs_points": int(g.size),
+        "max_abs_error_a": 0.0,
+        "max_rel_error_pct": 0.0,
+        "compact": bool(pol.compact),
+        "rel_tol": float(pol.compact_rel_tol),
+    }
+    if pol.compact:
+        d, table, abs_err, rel_err = compact_channel_table(
+            model, g, d, table, pol.compact_rel_tol)
+        metrics.update(table_points=int(d.size),
+                       max_abs_error_a=abs_err,
+                       max_rel_error_pct=100.0 * rel_err)
+    return g, d, table, metrics
+
+
+def emission_metrics(model: TPWLTerminalModel,
+                     policy: EmissionPolicy | None = None) -> dict:
+    """Measured Vds compression metrics for one emission policy."""
+    pol = emission_policy(model) if policy is None else policy
+    return _emission_channel(model, pol)[3]
+
+
 def transfer_curve(model: TPWLTerminalModel
                    ) -> tuple[np.ndarray, np.ndarray]:
     """Curve-2 Id(Vgs) normalised to 1 at the first static Vgs level."""
@@ -209,7 +332,8 @@ def transfer_curve(model: TPWLTerminalModel
     return v, np.clip(i / norm, 0.0, 1.0)
 
 
-def emitted_channel(model: TPWLTerminalModel, u: np.ndarray) -> np.ndarray:
+def emitted_channel(model: TPWLTerminalModel, u: np.ndarray, *,
+                    policy: EmissionPolicy | None = None) -> np.ndarray:
     """SPICE-emitted channel current on operating points (2, K) [A].
 
     Mirrors the netlist: 2-D table interpolation, Curve-2 gate factor,
@@ -218,8 +342,8 @@ def emitted_channel(model: TPWLTerminalModel, u: np.ndarray) -> np.ndarray:
     actually evaluates.
     """
     u = np.atleast_2d(u)
-    g, d = grid_axes(model)
-    table = grid_channel(model, g, d)
+    pol = emission_policy(model) if policy is None else policy
+    g, d, table, _ = _emission_channel(model, pol)
     row = np.array([
         [np.interp(vds, d, table[k]) for vds in u[1]]
         for k in range(len(g))])
@@ -230,17 +354,17 @@ def emitted_channel(model: TPWLTerminalModel, u: np.ndarray) -> np.ndarray:
     tv, tf = transfer_curve(model)
     gate = np.clip(np.interp(u[0], tv, tf), 0.0, 1.0)
     x = out * gate * u[1] / (u[1] + saturation_scale(model))
-    pol = emission_policy(model)
     if pol.soft_clamp:
         return np.asarray(hyp_value(x, pol.soft_eps), dtype=float)
     return np.maximum(0.0, x)
 
 
-def emitted_static_rmse(model: TPWLTerminalModel) -> float:
+def emitted_static_rmse(model: TPWLTerminalModel, *,
+                        policy: EmissionPolicy | None = None) -> float:
     """Relative RMSE of the emitted channel on the Curve-1 static family."""
     from approximation.static_curves import static_samples
     u, ref, _ = static_samples(model.vendor)
-    pred = emitted_channel(model, u)
+    pred = emitted_channel(model, u, policy=policy)
     span = float(np.ptp(ref)) or 1.0
     return float(np.sqrt(np.mean((pred - ref) ** 2)) / span)
 
@@ -352,7 +476,8 @@ def emit_subcircuit(model: TPWLTerminalModel, *,
     ``policy=None`` keeps the closed v1 emission (the measured per-vendor
     channel/Qoss policy, no internal nodes).  ``policy=V2_POLICY`` adds the
     Tier-2 parasitics, body diode and DPT gate charge; the channel and Qoss
-    tables then attach to the internal ``gi/ss/di`` nodes.
+    tables then attach to the internal ``gi/ss/di`` nodes.  A compact policy
+    prunes the common Vds axis only; every row uses that same axis.
     """
     _registered_vendor(model)
     pol = emission_policy(model) if policy is None else policy
@@ -363,8 +488,7 @@ def emit_subcircuit(model: TPWLTerminalModel, *,
             "nodes from include_parasitics")
     name = name or f"{model.vendor.upper()}_TPWL_DEIM"
     ports = [_PORT.get(r, r) for r in model.pin_roles]
-    g, d = grid_axes(model, policy=pol)
-    table = grid_channel(model, g, d, policy=pol)
+    g, d, table, _ = _emission_channel(model, pol)
     tv, tf = transfer_curve(model)
     if tv.size < 2:
         raise ValueError(

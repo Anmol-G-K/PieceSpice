@@ -1,4 +1,5 @@
 """Unit tests for the paper-defined parts of the Tier-3 TPWL terminal model."""
+import hashlib
 import re
 
 import numpy as np
@@ -6,7 +7,9 @@ import pytest
 
 from config.yaml_io import load_input
 from models import tpwl_netlist_builder as emitter
-from pipeline.tier3 import _log_iterations, _waveform_errors
+from pipeline.tier3 import (
+    _emission_record, _emission_settings, _log_iterations, _waveform_errors,
+)
 from approximation import tpwl_deim as tpwl
 from approximation.charge_surface import ChargeSurface
 from approximation.tpwl_deim import (
@@ -243,6 +246,150 @@ def test_default_v1_emission_is_the_closed_four_line_form():
     assert "RG " not in text and "RD " not in text and "RS " not in text
     assert "D_BODY" not in text and "_QG " not in text
     assert text.isascii()
+
+
+def _channel_rows(text: str) -> list[str]:
+    """Unique nested V(d,s) channel table rows.
+
+    The C1 soft clamp substitutes the whole channel expression three times
+    inside the smoothed hinge, so the same row text appears three times.
+    Deduplicate while preserving order; the distinct row count is the Vgs
+    grid size.
+    """
+    gch = next(ln for ln in text.splitlines() if ln.startswith("G_CH "))
+    return list(dict.fromkeys(
+        re.findall(r"table\(V\(d,s\),([^()]*)\)", gch)))
+
+
+def _row_points(row: str) -> int:
+    return len(re.findall(r"[-+]?\d\.\d+e[-+]\d+", row)) // 2
+
+
+def test_default_emission_is_byte_identical_with_compact_fields_present():
+    model = _toy_model()
+    base = emitter.emission_policy(model)
+    legacy = emitter.EmissionPolicy(
+        vgs_points=base.vgs_points, vds_points=base.vds_points,
+        smooth_qoss=base.smooth_qoss, soft_clamp=base.soft_clamp,
+        soft_eps=base.soft_eps,
+        high_vds_saturation=base.high_vds_saturation,
+        include_gate_charge=base.include_gate_charge,
+        include_body_diode=base.include_body_diode,
+        include_parasitics=base.include_parasitics)
+    text = emitter.emit_subcircuit(model)
+    assert text == emitter.emit_subcircuit(model, policy=base)
+    assert text == emitter.emit_subcircuit(model, policy=legacy)
+    # Closed v1 record: byte-identity guard for the toy model's full lib.
+    assert hashlib.sha256(text.encode("ascii")).hexdigest() == (
+        "78f5aba97f72bc4d192d9d31e4832a986f7ee00a0aafcd3ab4c74ce2cd6ffee0")
+    assert emitter.EmissionPolicy().compact is False
+    assert emitter.EmissionPolicy().compact_rel_tol == 0.005
+    assert emitter.emission_metrics(model, None) == {
+        "table_points": 41, "vgs_points": 30,
+        "max_abs_error_a": 0.0, "max_rel_error_pct": 0.0,
+        "compact": False, "rel_tol": 0.005,
+    }
+
+
+def test_compact_policy_preserves_vendor_clamp_and_grid():
+    model = _toy_model()
+    base = emitter.emission_policy(model)
+    pol = emitter.COMPACT_POLICY(model)
+    assert pol.compact is True and pol.compact_rel_tol == base.compact_rel_tol
+    assert (pol.vgs_points, pol.vds_points, pol.soft_clamp, pol.soft_eps,
+            pol.smooth_qoss, pol.high_vds_saturation) == (
+        base.vgs_points, base.vds_points, base.soft_clamp, base.soft_eps,
+        base.smooth_qoss, base.high_vds_saturation)
+    assert emitter.COMPACT_POLICY(base, rel_tol=0.002) == (
+        emitter.compact_policy(model, rel_tol=0.002))
+
+
+def test_compact_emission_reduces_vds_axis_with_measured_error():
+    model = _toy_model()
+    pol = emitter.COMPACT_POLICY(model)
+    full = emitter.emit_subcircuit(model)
+    text = emitter.emit_subcircuit(model, policy=pol)
+    full_rows, compact_rows = _channel_rows(full), _channel_rows(text)
+    assert len(full_rows) == len(compact_rows) == 30   # same Vgs/cell count
+    assert {_row_points(r) for r in full_rows} == {41}
+    assert {_row_points(r) for r in compact_rows} == {26}
+    assert text.isascii() and len(text.splitlines()) == len(full.splitlines())
+    assert text.startswith(full.splitlines()[0] + "\n")
+    metrics = emitter.emission_metrics(model, pol)
+    assert metrics["compact"] is True and metrics["rel_tol"] == 0.005
+    assert metrics["vgs_points"] == len(compact_rows)
+    assert metrics["table_points"] == 26
+    assert metrics["max_abs_error_a"] > 0.0
+    assert metrics["max_rel_error_pct"] <= 0.5        # 0.005 * 100
+
+
+def test_compact_channel_table_reports_measured_error_and_fails_closed():
+    model = _toy_model()
+    g, d = emitter.grid_axes(model)
+    table = emitter.grid_channel(model, g, d)
+    dc, tc, abs_err, rel_err = emitter.compact_channel_table(
+        model, g, d, table, 0.005)
+    assert dc[0] == d[0] and dc[-1] == d[-1] and np.all(np.diff(dc) > 0)
+    assert tc.shape == (len(g), len(dc)) and 2 <= len(dc) < len(d)
+    assert np.allclose(tc[:, 0], table[:, 0])
+    assert np.allclose(tc[:, -1], table[:, -1])
+    interp = np.array([np.interp(d, dc, row) for row in tc])
+    assert np.isclose(np.max(np.abs(table - interp)), abs_err)
+    assert np.isclose(rel_err, abs_err / np.max(np.abs(table)))
+    assert rel_err <= 0.005
+    for bad_tol in (0.0, -1e-3, float("nan"), float("inf")):
+        with pytest.raises(ValueError):
+            emitter.compact_channel_table(model, g, d, table, bad_tol)
+    with pytest.raises(ValueError):
+        emitter.compact_channel_table(model, g, d[:1], table[:, :1], 1e-3)
+    broken = table.copy()
+    broken[0, 0] = np.nan
+    with pytest.raises(ValueError):
+        emitter.compact_channel_table(model, g, d, broken, 1e-3)
+    with pytest.raises(ValueError):
+        emitter.emit_subcircuit(
+            model, policy=emitter.COMPACT_POLICY(model, rel_tol=0.0))
+
+
+def test_tier3_compact_config_is_opt_in_and_recorded(monkeypatch):
+    model = _toy_model()
+    base_cfg = load_input(model.vendor)
+
+    def _patched_load_input(vendor):
+        cfg = dict(base_cfg)
+        cfg["tier3"] = {"compact_emission": True, "compact_rel_tol": 0.002}
+        return cfg
+
+    monkeypatch.setattr("pipeline.tier3.load_input", _patched_load_input)
+    tier3_cfg = _patched_load_input(model.vendor)["tier3"]
+    pol, source = _emission_settings(model.vendor, model, tier3_cfg)
+    assert pol.compact is True and pol.compact_rel_tol == 0.002
+    assert source == "config"
+    text = emitter.emit_subcircuit(model, policy=pol)
+    record = _emission_record(model, pol, text, source)
+    assert record["compact"] is True and record["source"] == "config"
+    assert record["rel_tol"] == 0.002
+    assert record["table_points"] == 28 and record["vgs_points"] == 30
+    assert 0.0 < record["max_rel_error_pct"] <= 0.2
+    assert record["estimated_literal_count"] > 0
+
+    default_pol, default_source = _emission_settings(
+        model.vendor, model, {})
+    assert default_pol.compact is False and default_source == "default"
+    default_text = emitter.emit_subcircuit(model)
+    assert emitter.emit_subcircuit(model, policy=default_pol) == default_text
+    default = _emission_record(model, default_pol, default_text,
+                               default_source)
+    assert default["compact"] is False and default["source"] == "default"
+    assert default["table_points"] == 41
+    assert default["max_rel_error_pct"] == 0.0
+    assert default["estimated_literal_count"] > \
+        record["estimated_literal_count"]
+
+    impossible = dict(base_cfg)
+    impossible["tier3"] = {"compact_emission": True, "compact_rel_tol": 0.0}
+    with pytest.raises(ValueError):
+        _emission_settings(model.vendor, model, impossible["tier3"])
 
 
 def test_v2_policy_emits_parasitics_diode_and_monotone_gate_charge(monkeypatch):
