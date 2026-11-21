@@ -19,7 +19,9 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from approximation.ann_charge import AnnChargeFit, fit_charge_qv
-from approximation.ann_channel import AnnChannelFit, DptPoints, fit_channel_iv
+from approximation.ann_channel import (
+    AnnChannelFit, DptPoints, fit_channel_iv, fit_channel_iv_monotone,
+)
 from approximation.ann_residual import fit_channel_residual
 from common.types import CurveData, trim_trailing_invalid
 from config.yaml_io import load_input, load_output
@@ -197,7 +199,8 @@ def _dpt_points(vendor: str, vds_max: float
 def ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True,
                        holdout_fraction: float = 0.0,
                        holdout_mask: Optional[Any] = None,
-                       temperature_c: Optional[Any] = None) -> Dict[str, Any]:
+                       temperature_c: Optional[Any] = None,
+                       model_form: str = "positive_conductance") -> Dict[str, Any]:
     """Fit channel + charge ANN candidates for *vendor* (no file writes).
 
     Returns a dict with the two fit objects, a serialisable ``record`` and the
@@ -224,14 +227,72 @@ def ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True,
         dpt, dpt_prov = _dpt_points(vendor, vmax)
 
     channel_inputs: List[Any] = list(families)
-    if dpt is not None:
+    if dpt is not None and model_form == "legacy_exp":
         channel_inputs.append(dpt)
-    channel_fit: AnnChannelFit = fit_channel_iv(
-        channel_inputs, v_th, v_sat,
-        guard_width=guard_width, guard_width_provenance=guard_prov,
-        holdout_fraction=holdout_fraction, holdout_mask=holdout_mask,
-        temperature_c=temperature_c)
+    if model_form == "positive_conductance":
+        channel_fit = fit_channel_iv_monotone(
+            channel_inputs, v_th, v_sat,
+            guard_width=guard_width, guard_width_provenance=guard_prov)
+    else:
+        channel_fit = fit_channel_iv(
+            channel_inputs, v_th, v_sat,
+            guard_width=guard_width, guard_width_provenance=guard_prov,
+            holdout_fraction=holdout_fraction, holdout_mask=holdout_mask,
+            temperature_c=temperature_c)
     charge_fit: AnnChargeFit = fit_charge_qv(c4, plateau)
+    if model_form == "positive_conductance":
+        try:
+            from scipy.optimize import least_squares as _lsq, nnls as _nnls
+            c4_ext = _extract(vendor, "curve4_capacitances")
+            c5_ext = _extract(vendor, "curve5_gate_charge")
+            vd_c = np.asarray(c4_ext["curve_vds"], dtype=float)
+            ciss_c = np.asarray(c4_ext["ciss_curve_f"], dtype=float)
+            coss_c = np.asarray(c4_ext["coss_curve_f"], dtype=float)
+            crss_c = np.asarray(c4_ext["crss_curve_f"], dtype=float)
+
+            def _fit_cinf_cap(v_arr, c_arr):
+                vk0 = np.geomspace(max(v_arr[0], 0.2), max(v_arr[-1] * 0.6, 2.0), 4)
+
+                def _res(log_vk):
+                    vks = np.exp(log_vk)
+                    A = np.column_stack([np.ones_like(v_arr)] + [
+                        1.0 - np.tanh(v_arr / vi) ** 2 for vi in vks])
+                    coef, _ = _nnls(A / c_arr[:, None], np.ones_like(v_arr))
+                    return ((A @ coef) - c_arr) / c_arr
+
+                r = _lsq(_res, np.log(vk0),
+                         bounds=(np.log(0.05), np.log(v_arr[-1] * 5.0)),
+                         max_nfev=200)
+                vks = np.exp(r.x)
+                A = np.column_stack([np.ones_like(v_arr)] + [
+                    1.0 - np.tanh(v_arr / vi) ** 2 for vi in vks])
+                coef, _ = _nnls(A / c_arr[:, None], np.ones_like(v_arr))
+                return float(coef[0]), [
+                    (float(coef[k + 1]), float(vks[k])) for k in range(4)]
+
+            cgs_f = float(np.mean(np.maximum(ciss_c - crss_c, 1e-15)))
+            cds_fit_cinf = _fit_cinf_cap(vd_c, np.maximum(coss_c - crss_c, 1e-15))
+            cdg_fit_cinf = _fit_cinf_cap(vd_c, np.maximum(crss_c, 1e-15))
+            vbus = float(cfg["dpt"]["vbus"])
+            vgs_on = float(cfg["dpt"]["vgs_on"])
+            mask = vd_c <= vbus
+            qgd_c4 = float(np.trapezoid(crss_c[mask], vd_c[mask])) if np.any(mask) else 0.0
+            qgd_c5 = float(c5_ext.get("qgd_nc", 0.0)) * 1e-9
+            v_plat = float(c5_ext.get("v_plateau_v", v_th))
+            # Only add Vdg<0 accumulation excess when Curve-5 Q_gd significantly
+            # exceeds Curve-4 integral over [0, Vbus] (e.g. IRFS 79 nC vs 35 nC).
+            cdg_neg_excess = 0.0
+            if qgd_c5 > 1.25 * max(qgd_c4, 1e-15) and vbus <= float(cond.get("Vds_cap_max", vbus)):
+                cdg_neg_excess = (qgd_c5 - qgd_c4) / max(vgs_on - v_plat, 1.0)
+            charge_fit.provenance["cinf_caps"] = {
+                "cgs_f": cgs_f,
+                "cds": cds_fit_cinf,
+                "cdg": cdg_fit_cinf,
+                "cdg_neg_excess_f": float(cdg_neg_excess),
+                "r_gate_ohm": c4_ext.get("r_gate_ohm"),
+            }
+        except Exception:
+            pass
 
     ch_diag = getattr(channel_fit, "diagnostics", {}) or {}
     ch_coef = getattr(channel_fit, "coefficients", {}) or {}

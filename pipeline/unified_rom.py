@@ -1184,12 +1184,18 @@ def _build_emitted(vendor: str, *, emit: str, tuning: str,
         if channel_fit is None or charge_fit is None:
             raise RuntimeError(
                 f"{vendor}: ann_fit_for_vendor returned no channel/charge fit")
-        # The ANN channel has no Vgs ramp chain; eps applies to its charge
-        # ramps only, so the Qoss grid width is the applicable one here.
-        emitter = lambda s, widths: build_ann_subcircuit(
-            s, channel_fit, charge_fit,
-            c1_eps=widths.get("q_oss", widths.get("transfer_vgs", 0.0)),
-            name=stem)
+        cinf_caps = (getattr(charge_fit, "provenance", {}) or {}).get("cinf_caps") or {}
+        rg_val = cinf_caps.get("r_gate_ohm")
+
+        def _emit_ann_with_rg(s, widths):
+            if rg_val is not None:
+                s.metadata["r_gate"] = float(rg_val)
+            return build_ann_subcircuit(
+                s, channel_fit, charge_fit,
+                c1_eps=widths.get("q_oss", widths.get("transfer_vgs", 0.0)),
+                name=stem)
+
+        emitter = _emit_ann_with_rg
     elif c1_variant == C1_TIER2_VARIANT:
         # Explicitly labelled C1 experiment, never the fallback default.
         emitter = lambda s, widths: _emit_tier2_per_table(
@@ -1863,7 +1869,8 @@ def _eval_spice_expr(expr: str, mapping: Mapping[str, float]) -> float | None:
     for token, value in mapping.items():
         text = text.replace(token, f"({float(value)!r})")
     env = {"__builtins__": {}, "abs": abs, "sqrt": math.sqrt,
-           "max": max, "min": min, "tanh": math.tanh, "exp": math.exp}
+           "max": max, "min": min, "tanh": math.tanh, "exp": math.exp,
+           "ln": math.log}
     try:
         return float(eval(text, env, {}))
     except (ArithmeticError, NameError, SyntaxError, TypeError, ValueError):

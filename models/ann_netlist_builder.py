@@ -101,6 +101,22 @@ def emit_ann_channel(fit: AnnChannelFit, vgs_term: str = "V(gi,ss)",
             raise ValueError("terminal expressions must be non-empty strings")
         term.encode("ascii")
     c = fit.coefficients
+    if c.get("model_form") == "positive_conductance":
+        ng = f"(({vgs_term})-({_fmt(c['vgs_center'])}))/({_fmt(c['vgs_scale'])})"
+
+        def _mlp1d(par: dict, sc: float) -> str:
+            s = _fmt(par["b2"])
+            for wi, bi, w2i in zip(par["w1"], par["b1"], par["w2"]):
+                s += f"+({_fmt(w2i)})*tanh(({_fmt(wi)})*{ng}+({_fmt(bi)}))"
+            return f"({_fmt(sc)}*ln(1+exp(min(max({s},-40),40))))"
+
+        isat = _mlp1d(c["sat"], float(c["scale_i"]))
+        vk = f"({_fmt(c['vknee_min'])}+{_mlp1d(c['knee'], float(c['scale_v']))})"
+        gout = _mlp1d(c["gout"], float(c["scale_g"]))
+        cut = f"(0.5*(1+tanh({_fmt(c['alpha'])}*(({vgs_term})-({_fmt(fit.v_th)})))))"
+        expr = f"({cut}*({isat}*tanh(({vds_term})/{vk})+{gout}*({vds_term})))"
+        expr.encode("ascii")
+        return expr
     activation = fit.activation
     if activation not in _ACT:
         raise ValueError(f"unsupported activation {activation!r}")
@@ -158,6 +174,33 @@ def _resolve_eps(c1_eps) -> float:
     if not math.isfinite(eps) or eps < 0.0:
         raise ValueError("c1_eps must be finite and >= 0")
     return eps
+
+
+def _cinf_charge_lines(cinf_caps: dict) -> List[str]:
+    """Emit C-inf tanh Q= charge lines (zero abs() hinges, Q(0)=0)."""
+    def _q_expr(cmin: float, terms: list, term: str) -> str:
+        s = f"{_fmt(cmin)}*({term})"
+        for dc, vk in terms:
+            if dc > 0.0:
+                s += f"+({_fmt(dc * vk)})*tanh(({term})/({_fmt(vk)}))"
+        return s
+
+    lines = ["* --- charge-conserving capacitances (C-inf tanh Q) ---"]
+    lines.append(f"C_ISS gi ss {_fmt(cinf_caps['cgs_f'])}")
+    cds_cmin, cds_terms = cinf_caps["cds"]
+    lines.append(
+        f"C_QOSS di ss Q = {{{_q_expr(cds_cmin, cds_terms, 'V(di,ss)')}}}")
+    cdg_cmin, cdg_terms = cinf_caps["cdg"]
+    cdg_expr = _q_expr(cdg_cmin, cdg_terms, "V(di,gi)")
+    c_neg = float(cinf_caps.get("cdg_neg_excess_f", 0.0))
+    if c_neg > 0.0:
+        # Smoothly add excess accumulation C_gd for V(di,gi) < 0 (Vgs > Vds)
+        cdg_expr += (f"+({_fmt(0.5 * c_neg)})*"
+                     f"(V(di,gi)-sqrt(V(di,gi)*V(di,gi)+1.0e-2)+1.0e-1)")
+    lines.append(f"C_RSS di gi Q = {{{cdg_expr}}}")
+    lines.append("RGS gi ss 1e7")
+    lines.append("")
+    return lines
 
 
 def _charge_lines(charge_fit: AnnChargeFit, eps: float,
@@ -309,9 +352,14 @@ def build_ann_subcircuit(spec, channel_fit: AnnChannelFit,
 
     channel = emit_ann_channel(channel_fit)
     gw = float(channel_fit.coefficients["guard_width"])
-    q_lines = _charge_lines(charge_fit, eps,
-                            header="* --- charge-conserving capacitances "
-                                   "(ANN Q nets) ---")
+    if channel_fit.coefficients.get("model_form") == "positive_conductance" and \
+            isinstance(charge_fit.provenance, dict) and \
+            charge_fit.provenance.get("cinf_caps"):
+        q_lines = _cinf_charge_lines(charge_fit.provenance["cinf_caps"])
+    else:
+        q_lines = _charge_lines(charge_fit, eps,
+                                header="* --- charge-conserving capacitances "
+                                       "(ANN Q nets) ---")
 
     body = [l.replace(old, new) for l in lines[i_bd:]]
     header = [

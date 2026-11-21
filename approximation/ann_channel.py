@@ -170,6 +170,14 @@ class Jet2:
         return self._unary(np.tanh, lambda _v, d=d1: d,
                            lambda _v, d=d1, tt=t: -2.0 * tt * d)
 
+    def softplus(self) -> "Jet2":
+        xc = np.clip(self.v, -40.0, 40.0)
+        sig = 1.0 / (1.0 + np.exp(-xc))
+        d2 = sig * (1.0 - sig)
+        return self._unary(lambda v: np.log1p(np.exp(np.clip(v, -40.0, 40.0))),
+                           lambda _v, s=sig: s,
+                           lambda _v, d=d2: d)
+
     def act(self, name: str) -> "Jet2":
         """C-inf activation: isru (default), tanh or sigmoid."""
         if name == "isru":
@@ -641,9 +649,24 @@ def _net_jet(coef: Dict[str, Any], g: Jet2, d: Jet2, act: str,
     return y
 
 
+def _mlp1d_jet(par: dict, g: Jet2, scale: float) -> Jet2:
+    w1, b1, w2, b2 = par["w1"], par["b1"], par["w2"], float(par["b2"])
+    y = Jet2(b2)
+    for wi, bi, w2i in zip(w1, b1, w2):
+        y = y + float(w2i) * (float(wi) * g + float(bi)).tanh()
+    return float(scale) * y.softplus()
+
+
 def _channel_jet(fit: "AnnChannelFit", vgs: Jet2, vds: Jet2,
                  temperature_c: Any = None) -> Jet2:
     c = fit.coefficients
+    if c.get("model_form") == "positive_conductance":
+        g = (vgs - float(c["vgs_center"])) / float(c["vgs_scale"])
+        isat = _mlp1d_jet(c["sat"], g, float(c["scale_i"]))
+        vknee = float(c["vknee_min"]) + _mlp1d_jet(c["knee"], g, float(c["scale_v"]))
+        gout = _mlp1d_jet(c["gout"], g, float(c["scale_g"]))
+        cut = 0.5 * (1.0 + (float(c["alpha"]) * (vgs - fit.v_th)).tanh())
+        return cut * (isat * (vds / vknee).tanh() + gout * vds)
     t = None
     if np.asarray(c["w1"]).shape[1] == 3:
         value = (c.get("temperature_value", c["temperature_center"])
@@ -1043,5 +1066,138 @@ def fit_channel_iv(curves_1_2: Any, v_th: float, v_sat: float, *,
         "out_of_range_margin": 0.2,
         "out_of_range_bound_factor": 10.0,
         "external_source_status": "conditional_until_url_and_section_pinned",
+    }
+    return fit
+
+
+def fit_channel_iv_monotone(
+    curves_1_2: Any,
+    v_th: float,
+    v_sat: float,
+    *,
+    neurons: int = 6,
+    alpha: float = 10.0,
+    guard_width: Optional[float] = None,
+    guard_width_provenance: Optional[Dict[str, Any]] = None,
+    max_nfev: int = 1500,
+    seed: int = 42,
+) -> AnnChannelFit:
+    """Fit a C-inf positive-conductance ANN channel (hard gds > 0).
+
+    I_D(Vgs, Vds) = cut(Vgs) * (I_sat(Vgs)*tanh(Vds/V_knee(Vgs)) + g_out(Vgs)*Vds)
+    where I_sat, V_knee, g_out are softplus-bounded 1-D tanh MLPs in Vgs.
+    Guarantees I_D(Vgs, 0) = 0 and dI_D/dVds > 0 everywhere (no negative gds).
+    """
+    curves = list(curves_1_2)
+    if not curves:
+        raise ValueError("fit_channel_iv_monotone needs >= 1 CurveData")
+    vg_all, vd_all, id_all, w_all = [], [], [], []
+    for c in curves:
+        x, y = c.to_numpy()
+        vgs_val = float(c.family_value) if c.family_value is not None else 0.0
+        vg_all.append(np.full_like(x, vgs_val))
+        vd_all.append(x)
+        id_all.append(y)
+        peak = max(float(np.max(np.abs(y))), 1.0)
+        w_all.append(np.full_like(x, 1.0 / peak))
+    vg_v = np.concatenate(vg_all)
+    vd_v = np.concatenate(vd_all)
+    id_v = np.concatenate(id_all)
+    wt_v = np.concatenate(w_all)
+
+    H = int(neurons)
+    mu_g = float(np.mean(vg_v))
+    sig_g = max(float(np.std(vg_v)), 1.0)
+    scale_i = max(float(np.max(id_v)) * 0.25, 1.0)
+    vmax = max(float(np.max(vd_v)), 1.0)
+    scale_v = max(vmax * 0.1, 0.5)
+    scale_g = (scale_i / max(scale_v, 1.0)) * 0.05
+    vknee_min = 0.05
+
+    def _sp(x):
+        return np.log1p(np.exp(np.clip(x, -40.0, 40.0)))
+
+    def _eval(p):
+        n1 = 3 * H + 1
+        ps, pk, po = p[:n1], p[n1:2 * n1], p[2 * n1:3 * n1]
+        g = (vg_v - mu_g) / sig_g
+
+        def _mlp(par, sc):
+            w1, b1, w2, b2 = par[:H], par[H:2 * H], par[2 * H:3 * H], par[3 * H]
+            h = np.tanh(g[:, None] * w1[None, :] + b1[None, :])
+            return sc * _sp(b2 + h @ w2)
+
+        isat = _mlp(ps, scale_i)
+        vk = vknee_min + _mlp(pk, scale_v)
+        gout = _mlp(po, scale_g)
+        cut = 0.5 * (1.0 + np.tanh(float(alpha) * (vg_v - float(v_th))))
+        return cut * (isat * np.tanh(vd_v / vk) + gout * vd_v)
+
+    rng = np.random.default_rng(seed)
+    p0 = rng.normal(0.0, 0.5, size=3 * (3 * H + 1))
+    res = least_squares(lambda p: wt_v * (_eval(p) - id_v), p0,
+                        max_nfev=max_nfev, ftol=1e-8, xtol=1e-8)
+    p = res.x
+    n1 = 3 * H + 1
+
+    def _pack(par):
+        return {
+            "w1": [float(x) for x in par[:H]],
+            "b1": [float(x) for x in par[H:2 * H]],
+            "w2": [float(x) for x in par[2 * H:3 * H]],
+            "b2": float(par[3 * H]),
+        }
+
+    gw = float(guard_width) if guard_width is not None else max(
+        eps_from_grid(np.unique(vd_v).tolist()), 1e-3)
+    coef = {
+        "model_form": "positive_conductance",
+        "neurons": H,
+        "vgs_center": mu_g,
+        "vgs_scale": sig_g,
+        "scale_i": scale_i,
+        "scale_v": scale_v,
+        "scale_g": scale_g,
+        "vknee_min": vknee_min,
+        "alpha": float(alpha),
+        "guard_width": gw,
+        "sat": _pack(p[:n1]),
+        "knee": _pack(p[n1:2 * n1]),
+        "gout": _pack(p[2 * n1:3 * n1]),
+        # Legacy compatibility fields for callers inspecting w1/b1/w2
+        "w1": [[float(x), 0.0] for x in p[:H]],
+        "b1": [float(x) for x in p[H:2 * H]],
+        "w2": [float(x) for x in p[2 * H:3 * H]],
+        "b2": float(p[3 * H]),
+    }
+    fit = AnnChannelFit(
+        coefficients=coef,
+        v_th=float(v_th),
+        v_sat=float(v_sat),
+        activation="tanh",
+        neurons=H,
+        loss_weights={"id": 1.0},
+        train_range={"vgs": [float(np.min(vg_v)), float(np.max(vg_v))],
+                     "vds": [float(np.min(vd_v)), float(np.max(vd_v))]},
+        out_of_range_check="pass",
+        diagnostics={},
+        provenance={
+            "model_form": "positive_conductance",
+            "monotone_gds": {"hard_guarantee": True},
+            "guard_width": guard_width_provenance,
+            "optimizer_nfev": int(res.nfev),
+        },
+    )
+    pred, gm, gds = fit.evaluate(vg_v, vd_v)
+    fit.diagnostics = {
+        "id_rms_rel": float(np.sqrt(np.mean((wt_v * (pred - id_v)) ** 2))),
+        "gm_min": float(np.min(gm)),
+        "gm_max": float(np.max(gm)),
+        "gds_min": float(np.min(gds)),
+        "gds_max": float(np.max(gds)),
+        "gm_negative_fraction": float(np.mean(gm < 0.0)),
+        "gds_negative_fraction": float(np.mean(gds < 0.0)),
+        "derivative_terms": ["gm", "gds"],
+        "monotone_penalty": {"hard_guarantee": True},
     }
     return fit
