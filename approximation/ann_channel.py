@@ -693,7 +693,13 @@ def fit_channel_iv(curves_1_2: Any, v_th: float, v_sat: float, *,
                    guard_width_provenance: Optional[Dict[str, Any]] = None,
                    holdout_fraction: float = 0.0,
                    holdout_mask: Optional[Any] = None,
-                   temperature_c: Optional[Any] = None) -> AnnChannelFit:
+                   temperature_c: Optional[Any] = None,
+                   model_form: str = "legacy_exp") -> AnnChannelFit:
+    if model_form == "positive_conductance":
+        return fit_channel_iv_monotone(
+            curves_1_2, v_th, v_sat,
+            guard_width=guard_width,
+            guard_width_provenance=guard_width_provenance)
     """Fit the guarded ANN channel; return analytic coefficients + diagnostics.
 
     ``curves_1_2`` accepts a CurveData family, a list of CurveData, a

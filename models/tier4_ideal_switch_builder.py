@@ -539,3 +539,28 @@ def build_tier4_subcircuit(lut: "LossLUT", *,
     ap("")
     ap(f".ENDS {name}")
     return _ascii("\n".join(lines) + "\n")
+
+
+def build_tier4_ann_subcircuit(
+    spec,
+    channel_fit,
+    charge_fit,
+    lut: "LossLUT",
+    *,
+    subckt_name: str | None = None,
+) -> str:
+    """Emit Tier-4 dynamic C-inf ANN subcircuit with LossLUT metadata."""
+    from models.ann_netlist_builder import build_ann_subcircuit
+
+    device = getattr(lut, "device", None) or getattr(spec, "device_name", None)
+    name = subckt_name or f"{device}_PIECESPICE_T4_ann"
+    text = build_ann_subcircuit(spec, channel_fit, charge_fit, subckt_name=name)
+    lut_comments = [
+        "* --- Tier-4 Loss LUT metadata (offline post-processing) ---",
+        *_table_comment("e_on_uj", getattr(lut, "e_on_uj", None)),
+        *_table_comment("e_off_uj", getattr(lut, "e_off_uj", None)),
+    ]
+    lines = text.splitlines()
+    ends_idx = next(i for i, l in enumerate(lines) if l.strip().upper().startswith(".ENDS"))
+    out = lines[:ends_idx] + lut_comments + lines[ends_idx:]
+    return _ascii("\n".join(out) + "\n")

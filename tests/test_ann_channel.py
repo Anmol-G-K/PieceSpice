@@ -258,3 +258,20 @@ def test_channel_emitter_keeps_closed_c0_charge_lines():
     for token in ("D_BODY", "RG ", "RD ", "RS ", "C_QOSS ", "C_ISS ",
                   "C_RSS "):
         assert token in base and token in net
+
+
+def test_fit_channel_iv_monotone_guarantees_positive_gds():
+    """positive_conductance ANN has zero at Vds=0 and hard gds > 0."""
+    from approximation.ann_channel import fit_channel_iv_monotone
+    fit = fit_channel_iv_monotone(_families(), V_TH, 2.0, neurons=4, max_nfev=200)
+    assert fit.coefficients["model_form"] == "positive_conductance"
+    assert fit.diagnostics["gds_negative_fraction"] == 0.0
+    vg = np.linspace(0.0, 10.0, 20)
+    vd = np.linspace(0.0, 20.0, 20)
+    VG, VD = np.meshgrid(vg, vd)
+    id_pred, _, gds = fit.evaluate(VG.ravel(), VD.ravel())
+    assert np.all(gds >= 0.0)
+    id_zero, _, _ = fit.evaluate(vg, np.zeros_like(vg))
+    assert np.allclose(id_zero, 0.0)
+    expr = emit_ann_channel(fit)
+    assert expr.isascii() and "ln(1+exp" in expr

@@ -1,0 +1,78 @@
+{
+  "schema": "piecespice.tier4-ann/1.0",
+  "vendor": "csd16412q5a",
+  "emitted_lib": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\csd16412q5a_PIECESPICE_T4_ann.lib",
+  "dpt_waveform": {
+    "vds_rel_rmse_pct": 5.559676601426216,
+    "id_rel_rmse_pct": 4.202664995492199,
+    "compare_points": 10189,
+    "current_definition": "I(Lload)-I(Dclamp)"
+  },
+  "dpt_comparison": {
+    "td_on_ns": {
+      "golden": 7.388513716454634,
+      "tier4_ann": 2.4363191987574475,
+      "rel_err_pct": -67.02558468110267
+    },
+    "tr_ns": {
+      "golden": 1.095746039040917,
+      "tier4_ann": 1.8640198717984557,
+      "rel_err_pct": 70.11422404319092
+    },
+    "td_off_ns": {
+      "golden": 12.44075693519395,
+      "tier4_ann": 13.03794131668022,
+      "rel_err_pct": 4.800225457318289
+    },
+    "tf_ns": {
+      "golden": 1.6618198938018818,
+      "tier4_ann": 1.9083297745099552,
+      "rel_err_pct": 14.833730275313565
+    },
+    "dv_dt_max_v_per_ns": {
+      "golden": 600.4276841381004,
+      "tier4_ann": 485.86132684800003,
+      "rel_err_pct": -19.08079196157613
+    },
+    "di_dt_max_a_per_ns": {
+      "golden": 277.8112856371706,
+      "tier4_ann": 1365.9005116440105,
+      "rel_err_pct": 391.66487549678425
+    },
+    "e_on_uj": {
+      "golden": 0.3785407247197336,
+      "tier4_ann": 0.25949125512562327,
+      "rel_err_pct": -31.449580407036244
+    },
+    "e_off_uj": {
+      "golden": 0.36999258630018145,
+      "tier4_ann": 0.1789526643197612,
+      "rel_err_pct": -51.63344592678574
+    },
+    "i_peak_a": {
+      "golden": 13.432002067564142,
+      "tier4_ann": 13.45917701721369,
+      "rel_err_pct": 0.202314960293011
+    }
+  },
+  "speedup": {
+    "solver_speedup": 5.671140939597316,
+    "wall_speedup": 3.081453916838568,
+    "golden_iterations": 131558.0,
+    "tier4_iterations": 12129.0,
+    "golden_points": 44050.0,
+    "tier4_points": 2858.0,
+    "end_time_s": 0.000176,
+    "end_time_s_source": "run_inductive_benchmark bench schedule (.tran stop); not a measured trace endpoint",
+    "t_last_s": null,
+    "t_last_source": "run_inductive_benchmark discards per-run time vectors; no measured trace endpoint is exposed, so t_last is N/A",
+    "measured_trace_endpoint_available": false,
+    "completion_basis": "count similarity is not required; lower counts are expected for faster models; aborted runs are rejected by positive iterations/points and no error. Both arms must also be full-schedule run_inductive_benchmark records: end_time_s equals the scheduled 20-pulse .tran stop and repeats == 3. The configured .tran stop is schedule metadata, not a measured trace endpoint.",
+    "status": "measured",
+    "max_step_s": null,
+    "case": "long_adaptive",
+    "method": "LTspice default/trap (both arms)"
+  },
+  "ann_static_rms_rel": 0.020893877982084298,
+  "gds_negative_fraction": 0.0
+}

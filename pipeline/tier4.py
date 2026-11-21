@@ -1110,3 +1110,102 @@ def run_vendor(vendor: str, *, live: bool = True,
     out.write_text(json.dumps(_json_safe(record), indent=2, allow_nan=False)
                    + "\n", encoding="utf-8")
     return record
+
+
+def run_vendor_ann(vendor: str) -> dict[str, Any]:
+    """Build and validate Tier-4 dynamic C-inf ANN subcircuit for *vendor*."""
+    import numpy as np
+    from models.tier4_ideal_switch_builder import build_tier4_ann_subcircuit
+    from pipeline.ann_fit import ann_fit_for_vendor
+    from pipeline.fitting import build_pwl_spec
+    from pipeline.tier3 import _dpt_conditions, _waveform_errors
+    from pipeline.tier3_simplis import _run_emitted_dpt
+    from simulation.testbenches.double_pulse import DoublePulseRun, extract_dpt_metrics
+    from simulation.testbenches.dpt_trajectory import capture_trajectory
+
+    cfg = load_input(vendor)
+    lut = build_lut(vendor)
+    spec = build_pwl_spec(vendor)
+    ann_rec = ann_fit_for_vendor(vendor)
+    channel_fit = ann_rec["channel_fit"]
+    charge_fit = ann_rec["charge_fit"]
+    cinf_caps = (getattr(charge_fit, "provenance", {}) or {}).get("cinf_caps") or {}
+    if cinf_caps.get("r_gate_ohm") is not None:
+        spec.metadata["r_gate"] = float(cinf_caps["r_gate_ohm"])
+
+    subckt_name = f"{vendor}_PIECESPICE_T4_ann"
+    lib_text = build_tier4_ann_subcircuit(
+        spec, channel_fit, charge_fit, lut, subckt_name=subckt_name)
+    lib_path = ROOT / "reports" / "models" / f"{subckt_name}.lib"
+    lib_path.parent.mkdir(parents=True, exist_ok=True)
+    lib_path.write_text(lib_text, encoding="ascii")
+
+    traj = capture_trajectory(vendor)
+    dpt = _dpt_conditions(vendor)
+    i_load = float(dpt.get("i_load_target") or (dpt["vbus"] * dpt["t1_on"] / dpt["l_load"]))
+    g_run = DoublePulseRun(
+        time=traj.time, v_ds=traj.input[1], i_d=np.abs(traj.output[0]),
+        v_gs=traj.input[0], v_bus=dpt["vbus"], i_load=i_load,
+        l_load=dpt["l_load"], vgs_on=dpt["vgs_on"], wall_clock_s=0.0,
+        t2_on=dpt["t2_on"], i_d_signed=traj.output[0],
+    )
+    net = None
+    if net is None:
+        alias_text = lib_text.replace(subckt_name, f"{vendor}_PIECESPICE_T3_simplis")
+        alias_path = lib_path.with_suffix(".tmp.lib")
+        alias_path.write_text(alias_text, encoding="ascii")
+        try:
+            m_run, _, _ = _run_emitted_dpt(alias_path, vendor)
+        finally:
+            alias_path.unlink(missing_ok=True)
+
+    wf = _waveform_errors(m_run, traj)
+    gm = extract_dpt_metrics(g_run)
+    mm = extract_dpt_metrics(m_run)
+    dpt_comp = {}
+    for k in ("td_on_ns", "tr_ns", "td_off_ns", "tf_ns",
+              "dv_dt_max_v_per_ns", "di_dt_max_a_per_ns",
+              "e_on_uj", "e_off_uj", "i_peak_a"):
+        gv, mv = gm.get(k), mm.get(k)
+        rel = ((mv - gv) / abs(gv) * 100.0) if (gv and mv is not None) else None
+        dpt_comp[k] = {"golden": gv, "tier4_ann": mv, "rel_err_pct": rel}
+
+    golden_roles = resolve_pin_connections(
+        Path(cfg["library"]), cfg["subcircuit"],
+        pin_order_semantic=cfg.get("pins", {}).get("pin_order_semantic"))
+    policy = _speed_policy(vendor, cfg.get("speed") or {})
+    bench_kw = {
+        "vbus": dpt["vbus"], "vgs_on": dpt["vgs_on"],
+        "i_load": i_load, "l_load": dpt["l_load"],
+        "pulse_width": dpt["t2_width"],
+        "first_pulse_width": dpt["t1_width"],
+        "pulse_period": dpt["t2_on"] - dpt["t1_on"],
+        "n_pulses": SPEED_N_PULSES, "edge_time": dpt["edge_time"],
+        "repeats": SPEED_REPEATS, "timeout_s": SPEED_TIMEOUT_S,
+    }
+    scheduled_end_s = _scheduled_bench_end(bench_kw)
+    g_bench = run_inductive_benchmark(
+        ROOT / cfg["library"], cfg["subcircuit"], golden_roles,
+        max_step=policy["golden_max_step"], **bench_kw)
+    t4_bench = run_inductive_benchmark(
+        lib_path, subckt_name, ["drain", "gate", "source"],
+        max_step=None, **bench_kw)
+    speedup = _speedup_row(
+        g_bench, t4_bench,
+        _bench_complete(g_bench, t4_bench, scheduled_end_s=scheduled_end_s),
+        policy)
+    record = {
+        "schema": "piecespice.tier4-ann/1.0",
+        "vendor": vendor,
+        "emitted_lib": str(lib_path),
+        "dpt_waveform": wf,
+        "dpt_comparison": dpt_comp,
+        "speedup": speedup,
+        "ann_static_rms_rel": channel_fit.diagnostics.get("id_rms_rel"),
+        "gds_negative_fraction": channel_fit.diagnostics.get("gds_negative_fraction"),
+    }
+    out = ROOT / "reports" / "comparison" / vendor / "tier4_validation_ann.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(_json_safe(record), indent=2, allow_nan=False) + "\n",
+                   encoding="utf-8")
+    return record

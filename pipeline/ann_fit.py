@@ -229,16 +229,11 @@ def ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True,
     channel_inputs: List[Any] = list(families)
     if dpt is not None and model_form == "legacy_exp":
         channel_inputs.append(dpt)
-    if model_form == "positive_conductance":
-        channel_fit = fit_channel_iv_monotone(
-            channel_inputs, v_th, v_sat,
-            guard_width=guard_width, guard_width_provenance=guard_prov)
-    else:
-        channel_fit = fit_channel_iv(
-            channel_inputs, v_th, v_sat,
-            guard_width=guard_width, guard_width_provenance=guard_prov,
-            holdout_fraction=holdout_fraction, holdout_mask=holdout_mask,
-            temperature_c=temperature_c)
+    channel_fit = fit_channel_iv(
+        channel_inputs, v_th, v_sat,
+        guard_width=guard_width, guard_width_provenance=guard_prov,
+        holdout_fraction=holdout_fraction, holdout_mask=holdout_mask,
+        temperature_c=temperature_c, model_form=model_form)
     charge_fit: AnnChargeFit = fit_charge_qv(c4, plateau)
     if model_form == "positive_conductance":
         try:

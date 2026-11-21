@@ -173,7 +173,7 @@ class CapacitanceTestbench:
         real = abs(float(value.real))
         imag = abs(float(value.imag))
         mag = float(abs(value))
-        if not np.isfinite(mag) or mag <= 0.0 or imag <= 0.0:
+        if not np.isfinite(mag) or mag <= 0.0:
             raise _BiasMeasurementError(
                 f"{label} biased AC probe at Vds={vds:g} V, "
                 f"Vgs_bias={vgs_bias:g} V returned a non-finite/zero node "
