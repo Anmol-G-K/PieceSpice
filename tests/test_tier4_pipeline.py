@@ -211,7 +211,7 @@ def test_json_safe_maps_nan_to_none():
 
 def test_energy_comparison_reports_nan_crossing_as_na():
     class _FakeLut:
-        def energy_at(self, vbus, current):
+        def energy_at(self, vbus, current, temperature_c=None):
             assert (vbus, current) == (11.0, 10.0)
             return {"e_on_uj": float("nan"), "e_off_uj": 15.0,
                     "status": "not_evaluable", "source": {"gap": "no crossing"}}
@@ -434,7 +434,7 @@ def test_energy_comparison_accepts_every_finite_lut_status(status):
     class _FakeLut:
         source = {"dpt_crossing_evaluable": True}
 
-        def energy_at(self, vbus, current):
+        def energy_at(self, vbus, current, temperature_c=None):
             return {"e_on_uj": 1.0, "e_off_uj": 2.0, "status": status,
                     "source": {"node_status": status}}
 
@@ -749,3 +749,154 @@ def test_vendor_scope_notes_live_at_record_root(tmp_path, monkeypatch):
     written = json.loads(out.read_text(encoding="utf-8"))
     assert written["vendor_scope_notes"]["defect"] == "VM-10"
     assert "vendor_scope_notes" not in written["provenance"]
+
+
+# --- thermal config and explicit converter efficiency ----------------------
+
+def test_offline_record_reports_thermal_not_configured(tmp_path, monkeypatch):
+    vendor = "epc2216"
+    _seed_repo(tmp_path, vendor)
+    monkeypatch.setattr(tier4, "ROOT", tmp_path)
+    rec = tier4.run_vendor(vendor, live=False)
+    thermal = rec["thermal"]
+    assert thermal["status"] == "not_configured"
+    assert thermal["tj_steady_c"] is None
+    assert thermal["thermal_network"] is None
+    assert "fabricated ambient" in thermal["reason"]
+    assert rec["thermal_network"] is None
+    decisions = rec["provenance"]["decisions"]
+    assert decisions["thermal"]["status"] == "not_configured"
+    assert decisions["thermal"]["tj_steady_c"] is None
+
+
+def test_offline_record_computes_explicit_thermal_tj(tmp_path, monkeypatch):
+    vendor = "epc2216"
+    _seed_repo(tmp_path, vendor)
+    monkeypatch.setattr(tier4, "ROOT", tmp_path)
+    cfg = dict(load_input(vendor))
+    cfg["thermal"] = {
+        "topology": "foster",
+        "r_th_k_per_w": [1.0, 2.0],
+        "tau_s": [0.1, 1.0],
+        "ambient_c": 25.0,
+    }
+    monkeypatch.setattr(tier4, "load_input", lambda v: cfg)
+    rec = tier4.run_vendor(vendor, live=False)
+    thermal = rec["thermal"]
+    assert thermal["status"] == "configured"
+    assert thermal["ambient_c"] == pytest.approx(25.0)
+    p_loss = rec["efficiency_gate"]["p_total_w"]
+    assert p_loss is not None and p_loss > 0.0
+    assert thermal["p_loss_w"] == pytest.approx(p_loss)
+    assert thermal["tj_steady_c"] == pytest.approx(25.0 + 3.0 * p_loss)
+    assert rec["tj_steady_c"] == pytest.approx(thermal["tj_steady_c"])
+    assert rec["thermal_network"]["topology"] == "foster"
+    assert rec["thermal_network"]["r_th_total_k_per_w"] == pytest.approx(3.0)
+    # Thermal injection is offline loss data, never a simulated electrical
+    # power claim.
+    assert "PLECS" in thermal["rule"]
+
+
+def test_invalid_thermal_config_stays_na(tmp_path, monkeypatch):
+    vendor = "epc2216"
+    _seed_repo(tmp_path, vendor)
+    monkeypatch.setattr(tier4, "ROOT", tmp_path)
+    cfg = dict(load_input(vendor))
+    cfg["thermal"] = {"ambient_c": 25.0}
+    monkeypatch.setattr(tier4, "load_input", lambda v: cfg)
+    rec = tier4.run_vendor(vendor, live=False)
+    thermal = rec["thermal"]
+    assert thermal["status"] == "invalid_config"
+    assert thermal["tj_steady_c"] is None
+    assert "r_th_k_per_w" in thermal["reason"]
+    assert rec["thermal_network"] is None
+
+
+def _converter_result(**overrides) -> dict:
+    result = {
+        "status": "measured",
+        "completed": True,
+        "vout_v": 5.0,
+        "iout_a": 1.0,
+        "iin_a": 0.8333,
+        "pout_w": 5.0,
+        "pin_w": 10.0,
+        "efficiency": 0.5,
+        "f_sw_hz": 100_000.0,
+        "guard": {"completed": True, "t_last_s": 2.0e-4,
+                  "t_end_s": 2.0e-4, "iterations": 1000,
+                  "trace_points": 500},
+    }
+    result.update(overrides)
+    return result
+
+
+def test_converter_result_supplies_explicit_efficiency(tmp_path, monkeypatch):
+    vendor = "epc2216"
+    _seed_repo(tmp_path, vendor)
+    monkeypatch.setattr(tier4, "ROOT", tmp_path)
+    rec = tier4.run_vendor(vendor, live=False,
+                           converter_result=_converter_result())
+    gate = rec["efficiency_gate"]
+    assert gate["status"] == "computed"
+    assert gate["efficiency_source"] == "converter_bench"
+    assert gate["efficiency"] == pytest.approx(0.5)
+    assert gate["p_out_w"] == pytest.approx(5.0)
+    assert gate["f_sw_hz"] == pytest.approx(100_000.0)
+    assert gate["f_sw_source"] == "explicit converter result"
+    assert gate["converter"]["completed"] is True
+    # The LUT thermal estimate is separate from the converter's electrical
+    # Pout/Pin efficiency and uses the explicit Pout.
+    p_total = gate["p_total_w"]
+    assert rec["efficiency"]["efficiency"] == pytest.approx(
+        5.0 / (5.0 + p_total))
+    assert rec["efficiency"]["p_out_w"] == pytest.approx(5.0)
+    decisions = rec["provenance"]["decisions"]["efficiency_inputs"]
+    assert decisions["p_out_w"] == pytest.approx(5.0)
+    assert decisions["p_out_source"] == "explicit converter result"
+    assert decisions["kind"] == "explicit_converter_output"
+    # No config.thermal in this fixture: Tj stays N/A.
+    assert rec["thermal"]["status"] == "not_configured"
+    out = (tmp_path / "reports" / "comparison" / vendor /
+           "tier4_validation.json")
+    json.dumps(json.loads(out.read_text(encoding="utf-8")), allow_nan=False)
+
+
+def test_incomplete_converter_result_keeps_efficiency_na(tmp_path, monkeypatch):
+    vendor = "epc2216"
+    _seed_repo(tmp_path, vendor)
+    monkeypatch.setattr(tier4, "ROOT", tmp_path)
+    incomplete = _converter_result(
+        status="incomplete", completed=False,
+        pout_w=5.0, pin_w=10.0, efficiency=0.5)
+    rec = tier4.run_vendor(vendor, live=False,
+                           converter_result=incomplete)
+    gate = rec["efficiency_gate"]
+    assert gate["status"] == "output_power_required"
+    assert gate["efficiency"] is None
+    assert gate["efficiency_source"] == "output_power_required"
+    assert gate["p_out_w"] is None
+    assert "incomplete" in gate["converter"]["reason"]
+    assert rec["efficiency"]["efficiency"] is None
+    decisions = rec["provenance"]["decisions"]["efficiency_inputs"]
+    assert decisions["p_out_w"] is None
+    assert decisions["kind"] == "config_derived_input_power_only"
+
+
+def test_record_publishes_ron_and_vt_selection_provenance(tmp_path,
+                                                          monkeypatch):
+    vendor = "epc2216"
+    _seed_repo(tmp_path, vendor)
+    monkeypatch.setattr(tier4, "ROOT", tmp_path)
+    rec = tier4.run_vendor(vendor, live=False)
+    decisions = rec["provenance"]["decisions"]
+    ron = decisions["r_on_selection"]
+    assert ron["selection_source"] in ("r_on_ohms", "r_on_by_vgs")
+    assert ron["selected_ohms"] is not None
+    assert ron["vgs_on_v"] == pytest.approx(
+        rec["conditions"]["vgs_on_v"])
+    vt = decisions["vt_selection"]
+    assert vt["source"] == "curve7_jedec_vth"
+    assert vt["value_v"] == pytest.approx(vt["curve7_vth_v"])
+    assert vt["config_vt_switch_v"] is None
+    assert "curve7_jedec_vth" in vt["rule"]

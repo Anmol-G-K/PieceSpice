@@ -194,15 +194,132 @@ def _r_on_at_index(lut: "LossLUT", index: int | None) -> float:
     raise ValueError("LossLUT provides neither r_on_ohms nor usable v_on_v")
 
 
-def conduction_r_on(lut: "LossLUT") -> float:
+def _resolve_reference_index(lut: "LossLUT",
+                             i_load_a: float | None) -> tuple[int | None, str]:
+    """Index and rule for the representative conduction current."""
+    currents = _seq(getattr(lut, "current_points", ()))
+    if not currents:
+        return None, _RON_SELECTION_RULE
+    if i_load_a is None:
+        return _reference_index(lut), _RON_SELECTION_RULE
+    k = min(range(len(currents)),
+            key=lambda j: abs(float(currents[j]) - float(i_load_a)))
+    return k, ("nearest measured current point to "
+               f"i_load_a={_num(i_load_a)} A (runtime selection)")
+
+
+def _measured_gate_drives(lut: "LossLUT") -> tuple[float, ...]:
+    table = getattr(lut, "r_on_by_vgs", None)
+    if not isinstance(table, dict) or not table:
+        return ()
+    return tuple(sorted(float(k) for k in table))
+
+
+def resolve_r_on(lut: "LossLUT", *, i_load_a: float | None = None,
+                 vgs_on: float | None = None) -> dict[str, Any]:
+    """Select the measured Curve-3 on-resistance and publish its rule.
+
+    When the LUT carries a measured ``r_on_by_vgs`` family and ``vgs_on`` is
+    supplied, the row at the actual (or nearest measured) gate drive is used.
+    Otherwise the historical representative-current rule is preserved.  No
+    number is invented; a missing selected value is returned as-is so the
+    emitter's finite guard refuses to write it.
+    """
+    index, current_rule = _resolve_reference_index(lut, i_load_a)
+    currents = _seq(getattr(lut, "current_points", ()))
+    selected_current = (None if index is None or index >= len(currents)
+                        else float(currents[index]))
+    table = getattr(lut, "r_on_by_vgs", None)
+    gates = _measured_gate_drives(lut)
+    out: dict[str, Any] = {
+        "value_ohms": None, "index": index,
+        "current_a": selected_current,
+        "rule": current_rule,
+        "source": "r_on_ohms",
+        "vgs_on_v": None if vgs_on is None else float(vgs_on),
+        "vgs_points": list(gates),
+        "vgs_selected_v": None,
+        "vgs_match": None,
+        "table_available": bool(gates),
+    }
+    if (gates and vgs_on is not None
+            and math.isfinite(float(vgs_on))):
+        gate = float(vgs_on)
+        chosen = min(gates, key=lambda value: (abs(value - gate), value))
+        row = tuple(table[chosen])  # type: ignore[index]
+        value = (float(row[index]) if index is not None and index < len(row)
+                 else None)
+        exact = chosen == gate
+        out.update(
+            value_ohms=value,
+            source="r_on_by_vgs",
+            vgs_selected_v=chosen,
+            vgs_match=("exact" if exact else "nearest_measured_gate_drive"),
+            rule=(f"measured Curve-3 Rds(on) at vgs_on={_num(gate)} V: "
+                  + (f"exact measured gate drive {_num(chosen)} V"
+                     if exact else
+                     "nearest measured gate drive "
+                     f"{_num(chosen)} V (no interpolation)")
+                  + (f"; {current_rule}" if index is not None else "")),
+        )
+        return out
+    value = _r_on_at_index(lut, index) if index is not None else None
+    out["value_ohms"] = None if value is None else float(value)
+    if gates and vgs_on is None:
+        out["rule"] = (current_rule + "; no vgs_on supplied, so the measured "
+                       "r_on_by_vgs family is not selected")
+    return out
+
+
+def conduction_r_on(lut: "LossLUT",
+                    vgs_on: float | None = None) -> float:
     """Return the Curve-3 on-resistance used by the emitted ideal switch.
 
-    Uses ``r_on_ohms`` (aligned 1:1 to ``current_points``) at the documented
-    representative current.  If a LUT only carries ``v_on_v``, R = V/I is
-    derived at that same measured current -- always a measured curve point,
-    never a fabricated datasheet number.
+    Uses the measured ``r_on_by_vgs`` row at ``vgs_on`` when both are present;
+    otherwise the representative measured current point (median selection, or
+    ``i_load_a`` in :func:`build_tier4_subcircuit`).  If a LUT only carries
+    ``v_on_v``, R = V/I is derived at that same measured current -- always a
+    measured curve point, never a fabricated datasheet number.
     """
-    return _r_on_at_index(lut, _reference_index(lut))
+    value = resolve_r_on(lut, vgs_on=vgs_on)["value_ohms"]
+    if value is None:
+        raise ValueError("LossLUT provides neither r_on_ohms nor usable v_on_v")
+    return float(value)
+
+
+def resolve_vt(lut: "LossLUT") -> dict[str, Any]:
+    """Switch threshold: config/LUT value first, else Curve-7 JEDEC Vth.
+
+    A non-finite Curve-7 Vth is a hard failure (the emitter never writes a
+    literal NaN); a finite ``vt_switch_v`` always wins and is labelled with
+    its own source.
+    """
+    raw = getattr(lut, "vt_switch_v", None)
+    try:
+        vt = float(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        vt = float("nan")
+    meta = getattr(lut, "source", None)
+    meta = meta.get("vt_switch") if isinstance(meta, dict) else None
+    meta = meta if isinstance(meta, dict) else {}
+    if math.isfinite(vt) and vt > 0.0:
+        return {
+            "value_v": vt,
+            "source": str(meta.get("kind") or "lut_measured"),
+            "kind": "configured",
+            "rule": ("config/LUT-provided switching threshold used verbatim; "
+                     "Curve-7 Vth is not substituted"),
+            "source_meta": meta,
+        }
+    vth = _finite_spice_value("vth_v", getattr(lut, "vth_v"))
+    return {
+        "value_v": vth,
+        "source": "curve7_jedec_vth",
+        "kind": "curve7_jedec_vth",
+        "rule": ("no finite config/LUT switching threshold; the emitted "
+                 "switch uses the measured Curve-7 JEDEC threshold"),
+        "source_meta": meta,
+    }
 
 
 def _table_comment(label: str, rows: Any) -> list[str]:
@@ -241,7 +358,8 @@ def _curve_gate_drive_v(lut: "LossLUT") -> float | None:
 
 
 def build_tier4_subcircuit(lut: "LossLUT", *,
-                           i_load_a: float | None = None) -> str:
+                           i_load_a: float | None = None,
+                           vgs_on: float | None = None) -> str:
     """Return a complete ASCII ``.subckt`` for one Tier-4 ideal-switch LUT.
 
     Parameters
@@ -254,28 +372,37 @@ def build_tier4_subcircuit(lut: "LossLUT", *,
         it selects the Curve-3 conduction point nearest that operating current
         instead of the documented median-grid fallback; it never creates a new
         resistance value, only selects an existing measured one.
+    vgs_on:
+        Optional actual gate drive.  When the LUT carries a measured
+        ``r_on_by_vgs`` family, the row at this (or the nearest measured)
+        gate drive is selected; otherwise the representative-current rule is
+        preserved and labelled.
     """
     vendor = str(getattr(lut, "vendor", "UNKNOWN"))
     name = f"{vendor}_PIECESPICE_T4"
-    r_on = conduction_r_on(lut)
+    ron_selection = resolve_r_on(lut, i_load_a=i_load_a, vgs_on=vgs_on)
+    r_on = ron_selection["value_ohms"]
+    selection = ron_selection["rule"]
     coss_f = _measured_coss_f(lut)
     r_off, r_off_source = _measured_r_off(lut)
-    vth = _finite_spice_value("vth_v", getattr(lut, "vth_v"))
+    vt_selection = resolve_vt(lut)
+    vt = vt_selection["value_v"]
+    # The comment may carry the literal NaN marker, but only when a finite
+    # configured Vt already passed resolve_vt(); the executable .MODEL always
+    # uses a finite selected threshold.
+    vth = getattr(lut, "vth_v", float("nan"))
     temp_c = float(getattr(lut, "temperature_c", float("nan")))
-    vgs_on = float(getattr(lut, "vgs_on_v", float("nan")))
+    lut_vgs_on = float(getattr(lut, "vgs_on_v", float("nan")))
+    temperature_points = tuple(
+        float(t) for t in (getattr(lut, "temperature_points", ()) or ()))
+    has_temperature_tables = getattr(
+        lut, "e_on_uj_by_temperature", None) is not None
 
-    selection = _RON_SELECTION_RULE
-    if i_load_a is not None:
-        currents = _seq(getattr(lut, "current_points", ()))
-        if currents:
-            k = min(range(len(currents)),
-                    key=lambda j: abs(float(currents[j]) - float(i_load_a)))
-            r_on = _r_on_at_index(lut, k)
-            selection = ("nearest measured current point to "
-                         f"i_load_a={_num(i_load_a)} A (runtime selection)")
     # Never emit an unsimulatable .MODEL: a missing measurement is a hard
     # failure here, not a literal "NaN" in Ron/Vt.  Comment tables still use
     # "NaN" as the provenance marker for unmeasured grid nodes.
+    if r_on is None:
+        raise ValueError("LossLUT provides neither r_on_ohms nor usable v_on_v")
     r_on = _finite_spice_value("r_on_ohms", r_on)
 
     lines: list[str] = []
@@ -303,12 +430,19 @@ def build_tier4_subcircuit(lut: "LossLUT", *,
     ap(f".SUBCKT {name} d g s")
     ap("* Pins: d=drain g=gate s=source (positional; gate threshold Vgs=V(g,s))")
     ap("")
-    ap("* --- ideal conduction (Curve-3 rds_on, measured Roff, Curve-7 Vth) ---")
-    ap(f"* temperature_c = {_num(temp_c)} (config conditions.temperature)")
-    ap("* data_limitation: E_on/E_off and r_on are measured only at this")
-    ap(f"*   conditions.temperature = {_num(temp_c)} C; the LUT has no temperature")
-    ap("*   axis and is valid only there.  It is a measured data slice, not a")
-    ap("*   physical guarantee at other junction temperatures.")
+    ap("* --- ideal conduction (Curve-3 rds_on, measured Roff, switch Vt) ---")
+    ap(f"* temperature_c = {_num(temp_c)} (reference temperature; config conditions.temperature)")
+    if has_temperature_tables:
+        ap("* data_limitation: E_on/E_off are measured over the opt-in")
+        ap(f"*   temperature axis [{', '.join(_num(t) for t in temperature_points)}] C;")
+        ap("*   trilinear interpolation is used only when all eight corners of")
+        ap("*   adjacent slices are finite. No temperature extrapolation exists.")
+        ap(f"*   r_on remains measured at conditions.temperature = {_num(temp_c)} C.")
+    else:
+        ap("* data_limitation: E_on/E_off and r_on are measured only at this")
+        ap(f"*   conditions.temperature = {_num(temp_c)} C; the LUT has no temperature")
+        ap("*   axis and is valid only there.  It is a measured data slice, not a")
+        ap("*   physical guarantee at other junction temperatures.")
     _grid_provenance = getattr(lut, "grid_provenance", None)
     if callable(_grid_provenance):
         ap(f"*   {_grid_provenance()}")
@@ -317,7 +451,10 @@ def build_tier4_subcircuit(lut: "LossLUT", *,
     ap("*   Losses are evaluated offline.")
     ap("*   They are not electrical power consumed by this switch (P-TC:")
     ap("*   Conduction Losses / Switching Losses notes).")
-    ap(f"* vth_v = {_num(vth)} (config/outputs/<vendor>/curve7_threshold_voltage.yaml)")
+    ap(f"* vth_v = {_num(vth)} (Curve-7 JEDEC threshold, "
+       "config/outputs/<vendor>/curve7_threshold_voltage.yaml)")
+    ap(f"* vt_switch_v = {_num(vt)} (source={vt_selection['source']}; "
+       f"{vt_selection['rule']})")
     drive_v = _curve_gate_drive_v(lut)
     if drive_v is None:
         ap(f"* r_on_ohms = {_num(r_on)} (Curve-3 rds_on at unrecorded gate drive; "
@@ -325,7 +462,10 @@ def build_tier4_subcircuit(lut: "LossLUT", *,
     else:
         ap(f"* r_on_ohms = {_num(r_on)} (Curve-3 rds_on at {_num(drive_v)} V, "
            f"conditions.Vgs_fixed; selection: {selection})")
-    ap(f"* vgs_on_v = {_num(vgs_on)} (config dpt.vgs_on; gate-drive metadata only)")
+    ap(f"* r_on_source = {ron_selection['source']} "
+       f"(vgs_on_v={_num(ron_selection['vgs_on_v']) if ron_selection['vgs_on_v'] is not None else 'N/A'}; "
+       f"vgs_points={ron_selection['vgs_points']})")
+    ap(f"* vgs_on_v = {_num(lut_vgs_on)} (config dpt.vgs_on; gate-drive metadata only)")
     ap(f"* r_off_ohms = {_num(r_off)} (source={r_off_source}; measured at Vgs=0 "
        "DC sweep as Roff=Vbus/Ioff; full provenance in source.r_off)")
     if r_off_source == _ROFF_FALLBACK:
@@ -334,10 +474,10 @@ def build_tier4_subcircuit(lut: "LossLUT", *,
         ap("*   No fabricated measurement is substituted; measured Vgs=0 Roff")
         ap("*   is preferred whenever it is available.")
     ap(f"* vh_v = {_num(_SW_HYSTERESIS_V)} (source={_HYSTERESIS_SOURCE}: zero "
-       "hysteresis, switch tracks the Curve-7 threshold)")
+       "hysteresis, switch tracks the selected threshold)")
     ap(f"S_SW d s g s {_SW_MODEL_NAME}")
     ap(f".MODEL {_SW_MODEL_NAME} SW(Ron={_num(r_on)} "
-       f"Roff={_num(r_off)} Vt={_num(vth)} "
+       f"Roff={_num(r_off)} Vt={_num(vt)} "
        f"Vh={_num(_SW_HYSTERESIS_V)})")
     ap("* --- one measured linear output capacitor: solver stabilizer only ---")
     ap(f"* coss_f = {_num(coss_f)} F (source={_COSS_SOURCE}; Curve-4 Coss at "
@@ -349,14 +489,33 @@ def build_tier4_subcircuit(lut: "LossLUT", *,
     ap("* current and applied thermally; no E/G source consumes these tables.")
     ap(f"* vbus_points = [{', '.join(_num(v) for v in _seq(getattr(lut, 'vbus_points', ())))}]")
     ap(f"* current_points = [{', '.join(_num(v) for v in _seq(getattr(lut, 'current_points', ())))}]")
+    ap(f"* temperature_points = [{', '.join(_num(t) for t in temperature_points)}]")
     ap("* e_on_uj[vbus][current], microjoules (NaN = no golden crossing):")
     lines.extend(_table_comment("e_on_uj", getattr(lut, "e_on_uj", ())))
     ap("* e_off_uj[vbus][current], microjoules (NaN = no golden crossing):")
     lines.extend(_table_comment("e_off_uj", getattr(lut, "e_off_uj", ())))
+    on_by_temperature = getattr(lut, "e_on_uj_by_temperature", None)
+    off_by_temperature = getattr(lut, "e_off_uj_by_temperature", None)
+    if on_by_temperature is not None and off_by_temperature is not None:
+        for temperature, e_on_matrix, e_off_matrix in zip(
+                temperature_points, on_by_temperature, off_by_temperature):
+            ap(f"* e_on_uj[T={_num(temperature)}][vbus][current] = "
+               "(metadata only)")
+            lines.extend(_table_comment(
+                f"e_on_uj[T={_num(temperature)}]", e_on_matrix))
+            ap(f"* e_off_uj[T={_num(temperature)}][vbus][current] = "
+               "(metadata only)")
+            lines.extend(_table_comment(
+                f"e_off_uj[T={_num(temperature)}]", e_off_matrix))
     ron_curve = ", ".join(_num(v) for v in _seq(getattr(lut, "r_on_ohms", None)))
     von_curve = ", ".join(_num(v) for v in _seq(getattr(lut, "v_on_v", None)))
     ap(f"* r_on_ohms[current] = [{ron_curve}]")
     ap(f"* v_on_v[current] = [{von_curve}]")
+    ron_by_vgs = getattr(lut, "r_on_by_vgs", None)
+    if isinstance(ron_by_vgs, dict):
+        for gate, row in sorted(ron_by_vgs.items()):
+            ap(f"* r_on_ohms[vgs={_num(gate)}][current] = "
+               f"[{', '.join(_num(v) for v in row)}]")
     lines.extend(_source_comments(getattr(lut, "source", None)))
     stabilization = {
         "coss_f": coss_f,
@@ -365,10 +524,16 @@ def build_tier4_subcircuit(lut: "LossLUT", *,
         "r_off_source": r_off_source,
         "v_hysteresis_v": _SW_HYSTERESIS_V,
         "v_hysteresis_source": _HYSTERESIS_SOURCE,
+        "vt_switch_v": vt,
+        "vt_switch_source": vt_selection["source"],
+        "ron_selection_source": ron_selection["source"],
+        "ron_selected_ohms": r_on,
+        "ron_vgs_selected_v": ron_selection["vgs_selected_v"],
         "rationale": (
             "missing measured output capacitance caused Tier-4 DPT "
             "convergence failures; one measured linear C prevents "
-            "singular/no-cap steps; DPT waveform gate remains retired"),
+            "singular/no-cap steps; DPT waveform gate remains retired; "
+            "Vt and Ron are the measured/config-selected values, never NaN"),
     }
     ap(f"* emitter_stabilization = {json.dumps(stabilization, sort_keys=True)}")
     ap("")

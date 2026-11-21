@@ -7,12 +7,16 @@ completion and energy gates belong to the pipeline layer.
 
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from approximation.loss_lut import LossLUT
 from models.tier4_ideal_switch_builder import (
     build_tier4_subcircuit,
     conduction_r_on,
+    resolve_r_on,
+    resolve_vt,
 )
 
 
@@ -319,4 +323,95 @@ def test_emitter_stabilization_discloses_provenance_and_rationale():
 
 def test_no_active_element_carries_nan_marker():
     text = build_tier4_subcircuit(_toy_lut())
+    assert all("NaN" not in ln for ln in _active_lines(text))
+
+
+def test_measured_ron_by_vgs_selects_actual_gate_drive():
+    lut = _with_field(
+        _toy_lut(),
+        "r_on_by_vgs",
+        {5.0: (0.02, 0.021, 0.022), 10.0: (0.01, 0.0105, 0.011)},
+    )
+    selection = resolve_r_on(lut, i_load_a=10.0, vgs_on=10.0)
+    assert selection["source"] == "r_on_by_vgs"
+    assert selection["vgs_match"] == "exact"
+    assert selection["value_ohms"] == pytest.approx(0.0105)
+    assert conduction_r_on(lut, vgs_on=10.0) == pytest.approx(0.0105)
+
+    text = build_tier4_subcircuit(lut, i_load_a=10.0, vgs_on=10.0)
+    assert "Ron=0.0105" in text
+    assert "r_on_source = r_on_by_vgs" in text
+    assert "vgs_points=[5.0, 10.0]" in text
+    assert "exact measured gate drive 10 V" in text
+    # The table is metadata/selection provenance, never an active element.
+    assert "* r_on_ohms[vgs=5][current] = [" in text
+    assert all("NaN" not in ln for ln in _active_lines(text))
+
+
+def test_nearest_measured_gate_drive_is_labelled_without_interpolation():
+    lut = _with_field(
+        _toy_lut(),
+        "r_on_by_vgs",
+        {5.0: (0.02, 0.021, 0.022), 10.0: (0.01, 0.0105, 0.011)},
+    )
+    selection = resolve_r_on(lut, i_load_a=10.0, vgs_on=8.0)
+    assert selection["vgs_selected_v"] == 10.0
+    assert selection["vgs_match"] == "nearest_measured_gate_drive"
+    assert "nearest measured gate drive 10 V (no interpolation)" in (
+        selection["rule"])
+    assert selection["value_ohms"] == pytest.approx(0.0105)
+
+
+def test_no_ron_table_preserves_median_current_rule_with_label():
+    lut = _toy_lut()
+    selection = resolve_r_on(lut, i_load_a=19.0, vgs_on=10.0)
+    assert selection["source"] == "r_on_ohms"
+    assert selection["table_available"] is False
+    assert "i_load_a=19 A" in selection["rule"]
+    text = build_tier4_subcircuit(lut, i_load_a=19.0, vgs_on=10.0)
+    assert "Ron=0.0116" in text
+    assert "selection: nearest measured current point to i_load_a=19 A" in text
+
+
+def test_vt_switch_from_lut_wins_and_is_labelled():
+    lut = _with_field(_toy_lut(), "vt_switch_v", 3.3)
+    lut = _with_field(lut, "source", {
+        **dict(lut.source),
+        "vt_switch": {"kind": "config_derived", "value_v": 3.3,
+                      "rule": "config threshold"},
+    })
+    selection = resolve_vt(lut)
+    assert selection["value_v"] == pytest.approx(3.3)
+    assert selection["source"] == "config_derived"
+    text = build_tier4_subcircuit(lut)
+    assert "Vt=3.3" in text
+    assert "vt_switch_v = 3.3 (source=config_derived" in text
+
+
+def test_missing_vt_switch_uses_labelled_curve7_threshold():
+    lut = _toy_lut(vth=1.88)
+    assert math.isnan(lut.vt_switch_v)
+    selection = resolve_vt(lut)
+    assert selection["value_v"] == pytest.approx(1.88)
+    assert selection["source"] == "curve7_jedec_vth"
+    text = build_tier4_subcircuit(lut)
+    assert "Vt=1.88" in text
+    assert "source=curve7_jedec_vth" in text
+
+
+def test_temperature_tables_are_comment_metadata_only():
+    lut = _with_field(_toy_lut(), "temperature_points", (25.0, 100.0))
+    lut = _with_field(lut, "e_on_uj_by_temperature", (
+        ((12.0, 25.0, 48.0), (19.0, 39.0, 75.0)),
+        ((14.0, 27.0, 50.0), (21.0, 41.0, 77.0)),
+    ))
+    lut = _with_field(lut, "e_off_uj_by_temperature", (
+        ((3.0, 6.0, 12.0), (5.0, float("nan"), 19.0)),
+        ((4.0, 7.0, 13.0), (6.0, float("nan"), 20.0)),
+    ))
+    text = build_tier4_subcircuit(lut)
+    assert "* temperature_points = [25, 100]" in text
+    assert "* e_on_uj[T=100][vbus][current] = (metadata only)" in text
+    assert "* e_off_uj[T=25][vbus][current] = (metadata only)" in text
+    assert "trilinear interpolation is used only when all eight corners" in text
     assert all("NaN" not in ln for ln in _active_lines(text))

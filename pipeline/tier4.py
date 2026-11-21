@@ -29,7 +29,13 @@ from pathlib import Path
 from typing import Any
 from config.yaml_io import load_input
 from approximation.loss_lut import build_lut
-from models.tier4_ideal_switch_builder import build_tier4_subcircuit
+from approximation.thermal import ThermalNetwork
+from common.provenance import sha256_file
+from models.tier4_ideal_switch_builder import (
+    build_tier4_subcircuit,
+    resolve_r_on,
+    resolve_vt,
+)
 from parser.netlist import resolve_pin_connections
 from simulation.engine import SpiceEngine, TranDirective
 from simulation.netlist_text import NetlistBuilder
@@ -350,14 +356,19 @@ def _speed_policy(vendor: str, speed: dict) -> dict:
 
 
 def _energy_comparison(lut, dpt_record: dict, vbus: float,
-                       i_switch: float, vendor: str = "") -> dict:
+                       i_switch: float, vendor: str = "",
+                       temperature_c: float | None = None) -> dict:
     """LUT energy vs the golden crossing that produced the same LUT node.
 
     The two columns are not independent: the LUT node is filled from this
     vendor's ``dpt_metrics.json#golden_metrics``.  A zero error is therefore
     a source self-consistency check and every row says so explicitly.
     """
-    predicted = lut.energy_at(vbus, i_switch)
+    if temperature_c is None:
+        predicted = lut.energy_at(vbus, i_switch)
+    else:
+        predicted = lut.energy_at(vbus, i_switch,
+                                  temperature_c=float(temperature_c))
     golden = dpt_record.get("golden_metrics", {})
     golden_ok = bool(golden) and not dpt_record.get("golden_failure")
     crossing_ok = getattr(lut, "source", {}).get("dpt_crossing_evaluable", True)
@@ -440,6 +451,122 @@ def _bench_complete(left: dict, right: dict, *,
         if _num(arm.get("repeats")) != SPEED_REPEATS:
             return False
     return True
+
+
+def _thermal_network_from_config(
+    cfg: dict,
+) -> tuple[ThermalNetwork | None, dict]:
+    """Parse optional ``config.thermal`` without inventing any default.
+
+    Absent config is ``not_configured``; a malformed network is
+    ``invalid_config`` with a reason.  Neither case fabricates an ambient
+    temperature or a junction temperature.
+    """
+    raw = cfg.get("thermal")
+    if raw is None:
+        return None, {
+            "status": "not_configured",
+            "tj_steady_c": None,
+            "thermal_network": None,
+            "source": None,
+            "reason": ("no config.thermal block; junction temperature is N/A "
+                       "rather than a fabricated ambient"),
+            "rule": ("thermal injection requires explicit r_th_k_per_w, tau_s "
+                     "and ambient_c from config; none are defaulted"),
+        }
+    if not isinstance(raw, dict):
+        return None, {
+            "status": "invalid_config",
+            "tj_steady_c": None,
+            "thermal_network": None,
+            "source": "config.thermal",
+            "reason": "config.thermal must be a mapping",
+            "rule": "malformed thermal config is N/A, never defaulted",
+        }
+    try:
+        network = ThermalNetwork.from_mapping(
+            raw, name="tier4_thermal",
+            source={"config": "config.thermal"})
+    except ValueError as exc:
+        return None, {
+            "status": "invalid_config",
+            "tj_steady_c": None,
+            "thermal_network": None,
+            "source": "config.thermal",
+            "reason": str(exc),
+            "rule": "malformed thermal config is N/A, never defaulted",
+        }
+    return network, {
+        "status": "configured",
+        "tj_steady_c": None,
+        "thermal_network": network.to_dict(),
+        "source": "config.thermal",
+        "reason": None,
+        "rule": ("Tj = Tamb + p_loss*sum(R_th) for the explicit network; "
+                 "p_loss is the offline LUT thermal estimate (PLECS P-TC), "
+                 "not simulated electrical power"),
+    }
+
+
+def _thermal_block(cfg: dict, p_loss_w: float | None
+                   ) -> tuple[dict, dict | None]:
+    """Thermal record plus normalized network; Tj only from explicit inputs."""
+    network, block = _thermal_network_from_config(cfg)
+    if network is None:
+        return block, None
+    power = _num(p_loss_w)
+    network_dict = network.to_dict()
+    block.update({
+        "topology": network.topology,
+        "r_th_k_per_w": list(network.r_th_k_per_w),
+        "tau_s": list(network.tau_s),
+        "ambient_c": network.ambient_c,
+        "p_loss_w": power,
+        "thermal_network": network_dict,
+    })
+    if power is None:
+        block.update(
+            tj_steady_c=None,
+            reason=("no finite computed loss power is available; Tj is N/A "
+                    "rather than a fabricated temperature"))
+    else:
+        block["tj_steady_c"] = network.steady_state_tj(power)
+    return block, network_dict
+
+
+def _converter_summary(converter_result: dict | None) -> dict:
+    """Only an explicitly completed converter run may supply an output power."""
+    if not isinstance(converter_result, dict) or not converter_result:
+        return {
+            "status": "not_provided",
+            "completed": None,
+            "pout_w": None, "pin_w": None,
+            "efficiency": None,
+            "reason": "no explicit converter result was supplied",
+        }
+    status = str(converter_result.get("status") or "unknown")
+    completed = bool(converter_result.get("completed"))
+    pout = _num(converter_result.get("pout_w"))
+    pin = _num(converter_result.get("pin_w"))
+    efficiency = _num(converter_result.get("efficiency"))
+    measured = status == "measured" and completed and pout is not None
+    return {
+        "status": status,
+        "completed": completed,
+        "pout_w": pout if measured else None,
+        "pin_w": pin if measured else None,
+        "efficiency": efficiency if measured else None,
+        "vout_v": _num(converter_result.get("vout_v")) if measured else None,
+        "iout_a": _num(converter_result.get("iout_a")) if measured else None,
+        "iin_a": _num(converter_result.get("iin_a")) if measured else None,
+        "f_sw_hz": _num(converter_result.get("f_sw_hz")) if measured else None,
+        "guard": converter_result.get("guard"),
+        "reason": (None if measured else
+                   "converter result is incomplete or not measured; "
+                   "efficiency stays output_power_required"),
+        "rule": ("only an explicitly completed measured converter run may "
+                 "supply p_out for the efficiency gate"),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -544,23 +671,32 @@ def _speedup_row(golden: dict, tier4: dict, complete: bool,
 # public entry point
 # ---------------------------------------------------------------------------
 
-def run_vendor(vendor: str, *, live: bool = True) -> dict:
+def run_vendor(vendor: str, *, live: bool = True,
+               converter_result: dict | None = None) -> dict:
     """Build, emit and validate one Tier-4 vendor.
 
     ``live=False`` constructs the whole flow from recorded measured data and
     deliberately leaves the bench-derived fields N/A; it never invents a
     Tier-4 timing. The CLI/registry call the default (live=True).
+
+    ``converter_result`` is an optional explicit synchronous-buck measurement
+    (see ``simulation/testbenches/converter.py``).  Only a completed measured
+    run may supply a useful output power; otherwise the efficiency gate stays
+    ``output_power_required``.  ``config['thermal']`` is optional too: absent
+    or malformed thermal data leaves Tj N/A rather than inventing ambient.
     """
     cfg = load_input(vendor)
     dpt = {k: float(v) for k, v in cfg["dpt"].items()}
     vbus, i_switch = dpt["vbus"], dpt["i_load_target"]
+    temperature = float(cfg["conditions"]["temperature"])
     dpt_record, speed_record = _recorded_artifacts(vendor)
 
     lut = build_lut(vendor, simulate=live)
     lib = ROOT / "reports" / "models" / f"{vendor}_PIECESPICE_T4.lib"
     lib.parent.mkdir(parents=True, exist_ok=True)
     try:
-        text = build_tier4_subcircuit(lut, i_load_a=i_switch)
+        text = build_tier4_subcircuit(lut, i_load_a=i_switch,
+                                      vgs_on=dpt["vgs_on"])
         emission = {
             "status": "emitted", "reason": None,
             "finite_device_values": True, "ascii": text.isascii(),
@@ -568,6 +704,7 @@ def run_vendor(vendor: str, *, live: bool = True) -> dict:
         if not text.isascii():
             raise ValueError("Tier-4 emission must be ASCII")
         lib.write_text(text, encoding="ascii")
+        emission["emitted_lib_sha256"] = sha256_file(lib)
         sub_name, pin_roles = _parse_emitted_header(text)
     except (ValueError, TypeError) as exc:
         # The emitter refuses non-finite Vth/Ron rather than writing literal
@@ -575,12 +712,14 @@ def run_vendor(vendor: str, *, live: bool = True) -> dict:
         # guard; never emit or bench an unsimulatable switch.
         reason = f"{type(exc).__name__}: {exc}"
         emission = {"status": "N/A", "reason": reason,
-                    "finite_device_values": False, "ascii": None}
+                    "finite_device_values": False, "ascii": None,
+                    "emitted_lib_sha256": None}
         text = ""
         sub_name = f"{vendor}_PIECESPICE_T4"
         pin_roles = ["drain", "gate", "source"]
 
-    energy = _energy_comparison(lut, dpt_record, vbus, i_switch, vendor)
+    energy = _energy_comparison(lut, dpt_record, vbus, i_switch, vendor,
+                                temperature_c=temperature)
     policy = _speed_policy(vendor, speed_record)
     recorded_case = speed_record.get("vendors", {}).get(
         vendor, {}).get(policy["case"], {})
@@ -669,36 +808,64 @@ def run_vendor(vendor: str, *, live: bool = True) -> dict:
     if emission["status"] != "emitted":
         speedup["error"] = f"emission N/A: {emission['reason']}"
 
-    # Vbus*Iload is DC bus INPUT power, never converter output power.  No
-    # config field supplies a measured converter output, so the LUT returns
-    # N/A with an explicit reason; only the separately computed loss terms
-    # are reported.  f_sw is 1 / (a DPT bench pulse repetition interval): an
-    # illustrative offline frequency, NOT a measured converter f_sw (F_SW_BASIS_NOTE).
+    # Vbus*Iload is DC bus INPUT power, never converter output power.  Only an
+    # explicitly completed converter run may supply p_out; otherwise the LUT
+    # returns N/A with an explicit reason and only the separately computed
+    # loss terms are reported.  The DPT pulse repetition frequency is an
+    # illustrative offline fallback, NOT a measured converter f_sw.
+    converter = _converter_summary(converter_result)
     pulse_period = dpt["t2_on"] - dpt["t1_on"]
     p_bus_in_w = vbus * i_switch
-    f_sw_hz = 1.0 / pulse_period if pulse_period > 0 else None
+    dpt_f_sw_hz = 1.0 / pulse_period if pulse_period > 0 else None
+    converter_f_sw = _num(converter.get("f_sw_hz"))
+    if converter_f_sw is not None and converter_f_sw > 0.0:
+        f_sw_hz = converter_f_sw
+        f_sw_source = "explicit converter result"
+    else:
+        f_sw_hz = dpt_f_sw_hz
+        f_sw_source = "DPT pulse repetition interval (offline diagnostic)"
     try:
-        efficiency = lut.efficiency_at(vbus, i_switch, p_out_w=None,
-                                       f_sw_hz=f_sw_hz)
+        efficiency = lut.efficiency_at(
+            vbus, i_switch, p_out_w=converter.get("pout_w"),
+            f_sw_hz=f_sw_hz, temperature_c=temperature)
     except (AttributeError, TypeError, ValueError):
         efficiency = None
     r_meta = dict(getattr(lut, "source", {}).get("r_on") or {})
     eff_dict = efficiency if isinstance(efficiency, dict) else {}
+    lut_efficiency = _num(eff_dict.get("efficiency"))
+    converter_measured = (converter.get("status") == "measured"
+                          and converter.get("pout_w") is not None)
     efficiency_gate = {
         "status": str(eff_dict.get("status") or "unavailable"),
-        "efficiency": _num(eff_dict.get("efficiency")),
-        "reason": str(eff_dict.get("reason") or
-                      "no measured converter output power is available"),
+        "efficiency": (converter.get("efficiency") if converter_measured
+                       else lut_efficiency),
+        "efficiency_source": ("converter_bench" if converter_measured
+                              else "output_power_required"),
+        "lut_estimate": lut_efficiency,
+        "reason": (None if converter_measured else
+                   str(eff_dict.get("reason") or
+                       "no measured converter output power is available")),
+        "p_out_w": converter.get("pout_w"),
         "p_bus_in_w": p_bus_in_w,
         "p_bus_in_role": ("config-derived DC bus input power; never used as "
                           "p_out or as converter output"),
         "p_cond_w": _num(eff_dict.get("p_cond_w")),
         "p_switch_w": _num(eff_dict.get("p_switch_w")),
+        "p_total_w": _num(eff_dict.get("p_total_w")),
         "f_sw_hz": f_sw_hz,
+        "f_sw_source": f_sw_source,
         "f_sw_basis": F_SW_BASIS_NOTE,
+        "temperature_c": temperature,
         "thermal_note": THERMAL_LOSS_NOTE,
+        "converter": _json_safe(converter),
         "source": OFFICIAL_SOURCES["P-TC"],
     }
+    thermal_block, thermal_network = _thermal_block(
+        cfg, _num(eff_dict.get("p_total_w")))
+    if converter_measured:
+        efficiency_gate["status"] = "computed"
+    if isinstance(efficiency, dict):
+        efficiency["converter"] = _json_safe(converter)
 
     generation = {
         "mode": "live" if live else "offline_recorded",
@@ -713,6 +880,29 @@ def run_vendor(vendor: str, *, live: bool = True) -> dict:
     }
 
     solver_stabilization = _solver_stabilization(lut, text, emission)
+    try:
+        ron_selection = resolve_r_on(
+            lut, i_load_a=i_switch, vgs_on=dpt["vgs_on"])
+    except (TypeError, ValueError) as exc:
+        ron_selection = {
+            "value_ohms": None, "source": "unavailable",
+            "rule": f"{type(exc).__name__}: {exc}",
+            "vgs_on_v": dpt["vgs_on"], "vgs_points": [],
+        }
+    try:
+        vt_selection = resolve_vt(lut)
+    except (TypeError, ValueError) as exc:
+        vt_selection = {
+            "value_v": None, "source": "unavailable",
+            "rule": f"{type(exc).__name__}: {exc}",
+        }
+    ron_meta = dict(getattr(lut, "source", {}).get("r_on_by_vgs") or {})
+    vt_meta = dict(getattr(lut, "source", {}).get("vt_switch") or {})
+    vt_rule = vt_selection.get("rule")
+    if (vt_selection.get("source") == "curve7_jedec_vth"
+            and isinstance(vt_rule, str)
+            and "curve7_jedec_vth" not in vt_rule):
+        vt_rule += " (source=curve7_jedec_vth)"
 
     record = {
         "schema": SCHEMA,
@@ -727,8 +917,7 @@ def run_vendor(vendor: str, *, live: bool = True) -> dict:
         "pin_roles": pin_roles,
         "conditions": {
             "vbus_v": vbus, "i_switch_a": i_switch,
-            "vgs_on_v": dpt["vgs_on"], "temperature_c":
-                float(cfg["conditions"]["temperature"]),
+            "vgs_on_v": dpt["vgs_on"], "temperature_c": temperature,
             "t_end_s": dpt["t_end"],
             "golden_i_peak_a": _num(
                 dpt_record.get("golden_metrics", {}).get("i_peak_a")),
@@ -737,6 +926,11 @@ def run_vendor(vendor: str, *, live: bool = True) -> dict:
         "energy_gate_disclosure": ENERGY_GATE_DISCLOSURE,
         "efficiency": _json_safe(efficiency),
         "efficiency_gate": _json_safe(efficiency_gate),
+        "thermal": _json_safe(thermal_block),
+        "thermal_network": _json_safe(thermal_network),
+        "tj_steady_c": thermal_block.get("tj_steady_c"),
+        "converter": (_json_safe(converter)
+                      if converter_result is not None else None),
         "dpt_run": dpt_guard,
         "speedup": speedup,
         "runtime": {
@@ -781,14 +975,20 @@ def run_vendor(vendor: str, *, live: bool = True) -> dict:
                                        "is by construction, not an independent "
                                        "converter-bench validation (M5 unbuilt)."),
                 "efficiency_inputs": {
-                    "p_out_w": None,
+                    "p_out_w": converter.get("pout_w"),
+                    "p_out_source": ("explicit converter result"
+                                     if converter_measured else None),
+                    "p_conv_in_w": converter.get("pin_w"),
                     "p_bus_in_w": p_bus_in_w,
                     "f_sw_hz": f_sw_hz,
-                    "rule": ("Vbus*Iload is DC bus input power, not output "
-                             "power; no config field supplies converter "
-                             "output power, so efficiency is N/A. "
-                             + F_SW_BASIS_NOTE),
-                    "kind": "config_derived_input_power_only",
+                    "f_sw_source": f_sw_source,
+                    "rule": (
+                        "Vbus*Iload is DC bus input power, not output power. "
+                        "Only a completed measured converter run supplies "
+                        "p_out; otherwise efficiency is N/A. "
+                        + F_SW_BASIS_NOTE),
+                    "kind": ("explicit_converter_output" if converter_measured
+                             else "config_derived_input_power_only"),
                     "thermal_note": THERMAL_LOSS_NOTE,
                 },
                 "run_constants": {
@@ -831,14 +1031,43 @@ def run_vendor(vendor: str, *, live: bool = True) -> dict:
                     "source_file": r_meta.get("source_file"),
                     "measured_key": r_meta.get("measured_key"),
                     "method": r_meta.get("method"),
-                    "rule": (
-                        "one Curve-3 rds_on value is selected from the "
-                        "measured current grid (nearest point to i_load_a; "
-                        "runtime selection); the choice never invents a "
-                        "resistance"),
+                    "selected_ohms": _num(ron_selection.get("value_ohms")),
+                    "selection_source": ron_selection.get("source"),
+                    "vgs_on_v": ron_selection.get("vgs_on_v"),
+                    "vgs_selected_v": ron_selection.get("vgs_selected_v"),
+                    "vgs_match": ron_selection.get("vgs_match"),
+                    "vgs_points": ron_selection.get("vgs_points"),
+                    "table_available": bool(ron_meta.get("vgs_points")),
+                    "table_source": ron_meta.get("source"),
+                    "rule": ron_selection.get("rule"),
                     "note": (
-                        "Duplicates the r_on_ohms selection label already "
-                        "emitted in the lib comment; value and guard unchanged."),
+                        "Measured Rds(on) family from config.r_on_by_vgs is "
+                        "selected at dpt.vgs_on when present (exact measured "
+                        "gate drive preferred, nearest measured otherwise); "
+                        "without it the representative measured current point "
+                        "is used. No resistance is invented."),
+                },
+                "vt_selection": {
+                    "kind": vt_selection.get("source"),
+                    "value_v": _num(vt_selection.get("value_v")),
+                    "source": vt_selection.get("source"),
+                    "curve7_vth_v": _num(getattr(lut, "vth_v", None)),
+                    "config_vt_switch_v": _num(
+                        getattr(lut, "vt_switch_v", None)),
+                    "source_meta": _json_safe(vt_meta),
+                    "rule": vt_rule,
+                    "note": (
+                        "A finite config/LUT switching threshold wins; "
+                        "otherwise the measured Curve-7 JEDEC Vth is used and "
+                        "labelled source=curve7_jedec_vth. NaN is never "
+                        "emitted into the .MODEL."),
+                },
+                "thermal": {
+                    "status": thermal_block.get("status"),
+                    "tj_steady_c": thermal_block.get("tj_steady_c"),
+                    "thermal_network": _json_safe(thermal_network),
+                    "source": thermal_block.get("source"),
+                    "rule": thermal_block.get("rule"),
                 },
                 "v_hysteresis": {
                     "kind": "project_decision",

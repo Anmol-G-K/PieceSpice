@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import math
+import copy
 from hashlib import sha256
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,6 +19,7 @@ import numpy as np
 import pytest
 
 from approximation.loss_lut import LossLUT, _node_key, build_lut
+from approximation.thermal import ThermalNetwork
 from config.yaml_io import CONFIG_ROOT, OUTPUT_DIR, load_input, load_output
 from simulation.testbenches import loss_lut_bench as bench
 from simulation.testbenches.double_pulse import DoublePulseRun
@@ -546,3 +548,216 @@ def test_stabilization_fields_survive_json_roundtrip():
     assert missing_guard["finite"] is True
     assert missing_guard["r_off_measured"] is False
     assert "falls back" in missing_guard["r_off_note"]
+
+
+# --- opt-in loss grid, temperature axis, thermal network -------------------
+
+def _loss_grid_config() -> dict:
+    cfg = copy.deepcopy(load_input("epc2216"))
+    cfg["loss_grid"] = {
+        "vbus_points": [11.0, 15.0],
+        "current_points": [10.0, 25.0],
+        "temperature_points": [100.0, 25.0],
+    }
+    return cfg
+
+
+def _full_sweep(vendor: str, **kwargs) -> tuple[bench.SweepResult, ...]:
+    """Synthetic measured energies for every requested grid node."""
+    cfg = kwargs["config"]
+    points = kwargs["points"]
+    results = []
+    for point in points:
+        temperature = float(point.temperature_c)
+        e_on = 10.0 + 0.01 * temperature + 0.1 * float(point.current_a)
+        e_off = 5.0 + 0.005 * temperature + 0.05 * float(point.current_a)
+        results.append(bench.SweepResult(
+            point, e_on, e_off, "measured", "synthetic full grid",
+            "offline synthetic", bench.dpt_kwargs(cfg, point)))
+    return tuple(results)
+
+
+def test_loss_grid_derives_cartesian_product_with_temperature():
+    cfg = _loss_grid_config()
+    points, rules = bench.derive_grid(cfg)
+    assert len(points) == 2 * 2 * 2
+    assert {p.vbus_v for p in points} == {11.0, 15.0}
+    assert {p.current_a for p in points} == {10.0, 25.0}
+    assert {p.temperature_c for p in points} == {25.0, 100.0}
+    assert all("loss_grid.temperature_points" in p.temperature_rule
+               for p in points)
+    assert all(p.temperature_rule for p in points)
+    assert rules["source"] == "loss_grid"
+    assert rules["kind"] == "config_loss_grid"
+    point = next(p for p in points
+                 if p.vbus_v == 15.0 and p.current_a == 25.0
+                 and p.temperature_c == 100.0)
+    assert bench.dpt_kwargs(cfg, point)["temperature"] == 100.0
+    assert bench.dpt_kwargs(cfg, point)["vbus"] == 15.0
+    # The legacy config-derived grid is still the explicit default source.
+    legacy_points, legacy_rules = bench.derive_grid(load_input("epc2216"))
+    assert legacy_rules["source"] == "config_derived_default"
+    assert {p.temperature_c for p in legacy_points} == {
+        float(load_input("epc2216")["conditions"]["temperature"])}
+
+
+def test_loss_grid_rejects_empty_or_nonfinite_axes():
+    cfg = _loss_grid_config()
+    cfg["loss_grid"] = dict(cfg["loss_grid"], vbus_points=[])
+    with pytest.raises(ValueError, match="non-empty"):
+        bench.derive_grid(cfg)
+    cfg = _loss_grid_config()
+    cfg["loss_grid"] = dict(cfg["loss_grid"],
+                            temperature_points=[25.0, float("nan")])
+    with pytest.raises(ValueError, match="finite"):
+        bench.derive_grid(cfg)
+
+
+def test_builder_records_temperature_axis_and_trilinear_interpolation(
+    monkeypatch
+):
+    cfg = _loss_grid_config()
+    monkeypatch.setattr(bench, "run_golden_sweep", _full_sweep)
+    lut = build_lut("epc2216", config=cfg, simulate=False)
+    assert lut.temperature_points == (25.0, 100.0)
+    assert lut.temperature_c == 25.0
+    assert lut.e_on_uj_by_temperature is not None
+    assert lut.e_off_uj_by_temperature is not None
+    assert lut.source["grid"]["source"] == "loss_grid"
+    assert lut.source["temperature"]["has_3d_tables"] is True
+    assert lut.source["grid"]["temperature_points"] == [25.0, 100.0]
+    limitation = lut.data_limitations()[0]
+    assert limitation["name"] == "temperature_interpolated_grid"
+    assert limitation["temperature_points"] == [25.0, 100.0]
+    assert "Trilinear" in limitation["rule"]
+
+    reference = lut.energy_at(11.0, 10.0)
+    assert reference["temperature_method"] == "reference_2d"
+    assert reference["e_on_uj"] == pytest.approx(11.25)
+    exact = lut.energy_at(11.0, 10.0, temperature_c=100.0)
+    assert exact["status"] == "measured"
+    assert exact["temperature_method"] == "exact_temperature_slice"
+    assert exact["e_on_uj"] == pytest.approx(12.0)
+    middle = lut.energy_at(11.0, 10.0, temperature_c=62.5)
+    assert middle["status"] == "interpolated"
+    assert middle["temperature_method"] == "trilinear_interpolation"
+    assert middle["e_on_uj"] == pytest.approx(11.625)
+    assert middle["e_off_uj"] == pytest.approx(5.8125)
+    outside = lut.energy_at(11.0, 10.0, temperature_c=150.0)
+    assert outside["status"] == "outside_grid"
+    assert math.isnan(outside["e_on_uj"])
+
+    assert lut.temperature_at(25.0)["status"] == "exact_slice"
+    assert lut.temperature_at(62.5)["status"] == "interpolated"
+    assert lut.temperature_at(150.0)["status"] == "outside_grid"
+    assert lut.temperature_at(float("nan"))["status"] == "invalid_value"
+
+    restored = LossLUT.from_dict(json.loads(json.dumps(lut.to_dict())))
+    assert restored.temperature_points == (25.0, 100.0)
+    assert restored.e_on_uj_by_temperature == lut.e_on_uj_by_temperature
+    assert restored.e_off_uj_by_temperature == lut.e_off_uj_by_temperature
+
+
+def test_trilinear_interpolation_requires_every_finite_corner():
+    base_on = ((1.0, 2.0), (3.0, 4.0))
+    base_off = ((10.0, 20.0), (30.0, 40.0))
+    hot_on = ((1.5, 2.5), (3.5, math.nan))
+    hot_off = ((11.0, 21.0), (31.0, 41.0))
+    lut = LossLUT(
+        "toy", 25.0, (10.0, 20.0), (5.0, 10.0),
+        base_on, base_off, r_on_ohms=(0.01, 0.02),
+        vth_v=2.0, vgs_on_v=10.0,
+        temperature_points=(25.0, 100.0),
+        e_on_uj_by_temperature=(base_on, hot_on),
+        e_off_uj_by_temperature=(base_off, hot_off),
+        source={"nodes": {}, "gaps": []})
+    middle = lut.energy_at(15.0, 7.5, temperature_c=62.5)
+    assert middle["status"] == "insufficient_measured_nodes"
+    assert math.isnan(middle["e_on_uj"]) and math.isnan(middle["e_off_uj"])
+    # A fully finite exact slice still uses the 2-D bilinear rules.
+    exact = lut.energy_at(15.0, 7.5, temperature_c=25.0)
+    assert exact["status"] == "interpolated"
+    assert exact["e_on_uj"] == pytest.approx(2.5)
+    # A temperature query on a 2-D LUT outside its reference is explicit N/A.
+    flat = _four_node_lut(base_on, base_off)
+    missing = flat.energy_at(10.0, 5.0, temperature_c=100.0)
+    assert missing["status"] == "temperature_table_unavailable"
+    assert math.isnan(missing["e_on_uj"])
+    assert flat.temperature_at(25.0)["status"] == "exact_reference"
+
+
+def test_thermal_network_foster_and_cauer_step_responses():
+    foster = ThermalNetwork(
+        r_th_k_per_w=(1.0, 2.0), tau_s=(0.1, 1.0), ambient_c=25.0)
+    assert foster.r_th_total_k_per_w == pytest.approx(3.0)
+    assert foster.steady_state_tj(3.0) == pytest.approx(34.0)
+    assert foster.step_response(3.0, 0.0) == pytest.approx(25.0)
+    assert foster.step_response(3.0, 100.0) == pytest.approx(34.0)
+    assert math.isnan(foster.step_response(3.0, -1.0))
+    assert math.isnan(foster.steady_state_tj(float("nan")))
+    assert foster.to_dict()["topology"] == "foster"
+
+    cauer = ThermalNetwork(
+        r_th_k_per_w=[1.0, 2.0], tau_s=[0.1, 1.0], ambient_c=25.0,
+        topology="cauer")
+    assert cauer.steady_state_tj(3.0) == pytest.approx(34.0)
+    assert cauer.step_response(3.0, 0.0) == pytest.approx(25.0)
+    assert cauer.step_response(3.0, 20.0) == pytest.approx(34.0, abs=1e-4)
+    early = cauer.step_response(3.0, 0.2)
+    assert 25.0 < early < 34.0
+    assert cauer.to_dict()["topology"] == "cauer"
+
+
+def test_thermal_network_requires_explicit_finite_inputs():
+    with pytest.raises(ValueError, match="ambient_c"):
+        ThermalNetwork.from_mapping(
+            {"r_th_k_per_w": 1.0, "tau_s": 1.0})
+    with pytest.raises(ValueError, match="equal lengths"):
+        ThermalNetwork(r_th_k_per_w=(1.0, 2.0), tau_s=(1.0,), ambient_c=25.0)
+    with pytest.raises(ValueError, match="positive"):
+        ThermalNetwork(r_th_k_per_w=(0.0,), tau_s=(1.0,), ambient_c=25.0)
+    with pytest.raises(ValueError, match="topology"):
+        ThermalNetwork(r_th_k_per_w=(1.0,), tau_s=(1.0,), ambient_c=25.0,
+                       topology="unknown")
+    with pytest.raises(ValueError, match="finite"):
+        ThermalNetwork(r_th_k_per_w=(1.0,), tau_s=(1.0,),
+                       ambient_c=float("nan"))
+
+
+def test_builder_parses_measured_ron_by_vgs_and_config_vt(monkeypatch):
+    cfg = copy.deepcopy(load_input("epc2216"))
+    cfg["r_on_by_vgs"] = {
+        "vgs_points": [5.0, 10.0],
+        "r_on_ohms": [[0.02, 0.03], [0.01, 0.015]],
+    }
+    cfg["vt_switch_v"] = 3.3
+    monkeypatch.setattr(bench, "run_golden_sweep", _full_sweep)
+    lut = build_lut("epc2216", config=cfg, simulate=False)
+    assert lut.current_points == (10.0, 25.0)
+    assert sorted(lut.r_on_by_vgs) == [5.0, 10.0]
+    assert lut.r_on_by_vgs[10.0] == (0.01, 0.015)
+    assert lut.vt_switch_v == pytest.approx(3.3)
+    assert lut.source["r_on_by_vgs"]["kind"] == "measured"
+    assert lut.source["r_on_by_vgs"]["unit"] == "Ohm"
+    assert lut.source["vt_switch"]["kind"] == "config_derived"
+    restored = LossLUT.from_dict(json.loads(json.dumps(lut.to_dict())))
+    assert sorted(restored.r_on_by_vgs) == [5.0, 10.0]
+    assert restored.vt_switch_v == pytest.approx(3.3)
+
+
+def test_builder_labels_curve7_vt_when_config_provides_none(monkeypatch):
+    monkeypatch.setattr(bench, "run_golden_sweep", _full_sweep)
+    lut = build_lut("epc2216", simulate=False)
+    assert math.isnan(lut.vt_switch_v)
+    assert lut.source["vt_switch"]["kind"] == "curve7_jedec_vth"
+    assert lut.source["vt_switch"]["value_v"] == pytest.approx(lut.vth_v)
+    assert lut.r_on_by_vgs is None
+    assert lut.source["r_on_by_vgs"]["kind"] == "absent"
+
+
+def test_invalid_config_vt_is_rejected(monkeypatch):
+    cfg = copy.deepcopy(load_input("epc2216"))
+    cfg["vt_switch_v"] = 0.0
+    monkeypatch.setattr(bench, "run_golden_sweep", _full_sweep)
+    with pytest.raises(ValueError, match="vt_switch_v"):
+        build_lut("epc2216", config=cfg, simulate=False)

@@ -52,15 +52,22 @@ NAN = float("nan")
 THERMAL_LOSS_NOTE = (
     "PLECS P-TC: dissipated thermal power is not the electrical power consumed "
     "by the device; take this into account when estimating efficiency. The "
-    "emitted Tier-4 switch has no loss element and no thermal RC network: "
-    "E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit "
-    "useful output-power definition (Vbus*Iload is input power, not output)."
+    "emitted Tier-4 switch has no loss element: E_on/E_off/r_on are evaluated "
+    "offline and an optional caller-configured thermal network may consume "
+    "that loss estimate, so efficiency needs an explicit useful output-power "
+    "definition (Vbus*Iload is input power, not output)."
 )
 
 
 def _node_key(vbus_v: float, current_a: float) -> str:
     """Stable key for one measured grid node in source provenance."""
     return f"{float(vbus_v)!r}|{float(current_a)!r}"
+
+
+def _node_key_with_temperature(vbus_v: float, current_a: float,
+                               temperature_c: float) -> str:
+    """Temperature-qualified node key for opt-in 3-D grids."""
+    return f"{_node_key(vbus_v, current_a)}|{float(temperature_c)!r}"
 
 
 def _finite_or_nan(value: Any) -> float:
@@ -212,9 +219,36 @@ def interpolation_provenance_text(cap: Mapping[str, Any]) -> str:
 
 
 def _data_limitations(temperature_c: float, e_on: Any, e_off: Any,
-                      n_vbus: int, n_current: int) -> list[dict[str, Any]]:
+                      n_vbus: int, n_current: int, *,
+                      temperature_points: tuple[float, ...] = (),
+                      has_temperature_tables: bool = False
+                      ) -> list[dict[str, Any]]:
     """Measured-data limitations (not project decisions) for JSON/meta (M3)."""
     cap = _interpolation_capability(e_on, e_off, n_vbus, n_current)
+    if has_temperature_tables:
+        points = tuple(float(t) for t in temperature_points)
+        return [{
+            "kind": "data_limitation",
+            "name": "temperature_interpolated_grid",
+            "temperature_c": float(temperature_c),
+            "temperature_points": list(points),
+            "finite_nodes": cap["finite_nodes"],
+            "interpolation_status": cap["status"],
+            "rule": (
+                "E_on/E_off are measured at T = "
+                + ", ".join(f"{t:g}" for t in points)
+                + f" C with reference slice T = {float(temperature_c):g} C. "
+                "Trilinear interpolation is used only when all eight corners "
+                "of the two adjacent measured temperature slices are finite; "
+                "off-grid, NaN-corner and temperature-extrapolated queries are "
+                "NaN with a diagnostic status, never zero or extrapolated. "
+                f"r_on is measured at conditions.temperature = "
+                f"{float(temperature_c):g} C only and has no temperature axis. "
+                "Losses are evaluated offline and injected thermally, not "
+                "electrical power consumed by the emitted switch (PLECS P-TC)."
+            ),
+            "basis": THERMAL_LOSS_NOTE,
+        }]
     return [{
         "kind": "data_limitation",
         "name": "single_temperature_single_measured_node",
@@ -260,6 +294,20 @@ class LossLUT:
     source: dict[str, Any] = field(default_factory=dict)
     coss_f: float = NAN
     r_off_ohms: float = NAN
+    # Opt-in temperature axis.  ``None`` normalizes to
+    # ``(temperature_c,)`` in __post_init__, so every existing 2-D LUT keeps
+    # its exact reference-table behaviour.
+    temperature_points: tuple[float, ...] | None = None
+    e_on_uj_by_temperature: tuple[tuple[tuple[float, ...], ...], ...] | None = None
+    e_off_uj_by_temperature: tuple[tuple[tuple[float, ...], ...], ...] | None = None
+    # Config/LUT switching threshold.  NaN means "use the Curve-7 JEDEC Vth";
+    # the emitter labels that fallback source=curve7_jedec_vth and never
+    # writes NaN into a SPICE .MODEL.
+    vt_switch_v: float = NAN
+    # Measured Curve-3 Rds(on) family: gate drive (V) -> r_on per current
+    # point (ohm).  When present, the emitter selects the measured point at
+    # the actual vgs_on instead of the median-current fallback.
+    r_on_by_vgs: Mapping[float, tuple[float, ...]] | None = None
 
     def __post_init__(self) -> None:
         if not self.vbus_points or not self.current_points:
@@ -276,42 +324,116 @@ class LossLUT:
             if values is not None and len(values) != n_i:
                 raise ValueError(f"{name} must align with current_points")
 
+        # Opt-in temperature axis: a bare 2-D LUT normalizes to its single
+        # reference temperature, preserving the historical behaviour.
+        raw_temps = self.temperature_points
+        if raw_temps is None:
+            temps = (float(self.temperature_c),)
+        else:
+            temps = tuple(float(t) for t in raw_temps)
+            if not temps:
+                raise ValueError("temperature_points must be non-empty")
+            if not all(math.isfinite(t) for t in temps):
+                raise ValueError("temperature_points must be finite")
+            if any(b <= a for a, b in zip(temps, temps[1:])):
+                raise ValueError(
+                    "temperature_points must be strictly increasing")
+        object.__setattr__(self, "temperature_points", temps)
+        for name in ("e_on_uj_by_temperature", "e_off_uj_by_temperature"):
+            matrices = getattr(self, name)
+            if matrices is None:
+                continue
+            if len(matrices) != len(temps):
+                raise ValueError(
+                    f"{name} first axis must align with temperature_points")
+            normalized = []
+            for rows in matrices:
+                matrix = _matrix(rows)
+                if (len(matrix) != len(self.vbus_points)
+                        or any(len(row) != n_i for row in matrix)):
+                    raise ValueError(
+                        f"{name} shape must be [temperature][vbus][current]")
+                normalized.append(matrix)
+            object.__setattr__(self, name, tuple(normalized))
+
+        table = self.r_on_by_vgs
+        if table is not None:
+            cleaned: dict[float, tuple[float, ...]] = {}
+            for key, row in table.items():
+                gate = float(key)
+                if not math.isfinite(gate):
+                    raise ValueError("r_on_by_vgs gate-drive keys must be finite")
+                values = tuple(_finite_or_nan(v) for v in row)
+                if len(values) != n_i:
+                    raise ValueError(
+                        "r_on_by_vgs rows must align with current_points")
+                cleaned[gate] = values
+            object.__setattr__(self, "r_on_by_vgs", cleaned)
+        object.__setattr__(self, "vt_switch_v", _finite_or_nan(self.vt_switch_v))
+
         # D13: a finite negative energy is a PLECS-style diagnostic, not a
         # construction-time failure.  Normalize it to NaN and record a gap so
         # ``energy_at`` can report it; never crop it to zero, which would
         # fabricate a measured loss.  Shape/axis errors above still raise --
         # those are malformed containers, not data diagnostics.
-        negative: dict[str, list[tuple[int, int, float]]] = {}
-        for name in ("e_on_uj", "e_off_uj"):
+        negative: list[dict[str, Any]] = []
+
+        def _clean_matrix(name: str, matrix: Any,
+                          temperature: float | None
+                          ) -> tuple[tuple[tuple[float, ...], ...], bool]:
+            """Return (normalized matrix, changed); negatives become NaN."""
+            changed = False
             cleaned: list[tuple[float, ...]] = []
-            bad: list[tuple[int, int, float]] = []
-            for vi, row in enumerate(getattr(self, name)):
+            for vi, row in enumerate(matrix):
                 new_row: list[float] = []
                 for ci, raw in enumerate(row):
                     value = _finite_or_nan(raw)
                     if math.isfinite(value) and value < 0.0:
-                        bad.append((vi, ci, value))
+                        negative.append({
+                            "metric": name, "vi": vi, "ci": ci,
+                            "value": value, "temperature": temperature,
+                        })
                         new_row.append(NAN)
+                        changed = True
                     else:
                         new_row.append(value)
                 cleaned.append(tuple(new_row))
-            if bad:
-                object.__setattr__(self, name, tuple(cleaned))
-                negative[name] = bad
+            return tuple(cleaned), changed
+
+        for name in ("e_on_uj", "e_off_uj"):
+            cleaned_matrix, changed = _clean_matrix(
+                name, getattr(self, name), None)
+            if changed:
+                object.__setattr__(self, name, cleaned_matrix)
+        for name in ("e_on_uj_by_temperature", "e_off_uj_by_temperature"):
+            matrices = getattr(self, name)
+            if matrices is None:
+                continue
+            cleaned_slices: list[tuple[tuple[float, ...], ...]] = []
+            changed_any = False
+            for ti, matrix in enumerate(matrices):
+                cleaned_matrix, changed = _clean_matrix(
+                    name, matrix, temps[ti])
+                cleaned_slices.append(cleaned_matrix)
+                changed_any = changed_any or changed
+            if changed_any:
+                object.__setattr__(self, name, tuple(cleaned_slices))
         if negative:
             source = copy.deepcopy(self.source)
             gaps = list(source.get("gaps") or [])
-            for name, bad in negative.items():
-                for vi, ci, value in bad:
-                    gaps.append({
-                        "point": {"vbus_v": self.vbus_points[vi],
-                                  "current_a": self.current_points[ci]},
-                        "metric": name, "status": "negative_loss",
-                        "recorded_value": value,
-                        "reason": "PLECS negative-loss diagnostic: finite "
-                                  "negative energy normalized to NaN, never "
-                                  "cropped to zero",
-                    })
+            for item in negative:
+                point = {"vbus_v": self.vbus_points[item["vi"]],
+                         "current_a": self.current_points[item["ci"]]}
+                if item["temperature"] is not None:
+                    point["temperature_c"] = item["temperature"]
+                gaps.append({
+                    "point": point,
+                    "metric": item["metric"], "status": "negative_loss",
+                    "recorded_value": item["value"],
+                    "reason": "PLECS negative-loss diagnostic: finite "
+                              "negative energy normalized to NaN, never "
+                              "cropped to zero",
+                })
             source["gaps"] = gaps
             object.__setattr__(self, "source", source)
 
@@ -332,10 +454,25 @@ class LossLUT:
             "vgs_on_v": self.vgs_on_v,
             "coss_f": self.coss_f,
             "r_off_ohms": self.r_off_ohms,
+            "temperature_points": list(self.temperature_points or ()),
+            "e_on_uj_by_temperature": (
+                None if self.e_on_uj_by_temperature is None else
+                [[list(row) for row in matrix]
+                 for matrix in self.e_on_uj_by_temperature]),
+            "e_off_uj_by_temperature": (
+                None if self.e_off_uj_by_temperature is None else
+                [[list(row) for row in matrix]
+                 for matrix in self.e_off_uj_by_temperature]),
+            "vt_switch_v": self.vt_switch_v,
+            "r_on_by_vgs": (
+                None if self.r_on_by_vgs is None else
+                {str(float(gate)): list(row)
+                 for gate, row in sorted(self.r_on_by_vgs.items())}),
             "source": copy.deepcopy(self.source),
             # Honest capability and measured-data limitations, mirrored in
             # source for provenance consumers that read only that sub-tree.
             "interpolation": self.interpolation_capability(),
+            "temperature_capability": self.temperature_capability(),
             "data_limitations": self.data_limitations(),
             "device_values_finite": self.device_values_finite(),
             "thermal_loss_note": THERMAL_LOSS_NOTE,
@@ -347,6 +484,30 @@ class LossLUT:
             self.e_on_uj, self.e_off_uj,
             len(self.vbus_points), len(self.current_points))
 
+    def temperature_capability(self) -> dict[str, Any]:
+        """What the (opt-in) temperature axis can support; no extrapolation."""
+        points = tuple(self.temperature_points or ())
+        if self.e_on_uj_by_temperature is None:
+            status = ("single_temperature" if len(points) == 1
+                      else "reference_table_only")
+            rule = ("Only the reference 2-D E_on/E_off table exists; a query "
+                    "at any other temperature is NaN, never extrapolated.")
+        else:
+            finite_slices = sum(
+                1 for matrix in self.e_on_uj_by_temperature
+                if any(math.isfinite(float(v)) for row in matrix for v in row))
+            status = ("trilinear_interpolation" if finite_slices >= 2
+                      else "insufficient_measured_temperatures")
+            rule = ("Trilinear interpolation requires all eight corners of the "
+                    "two temperature slices to be finite; no extrapolation.")
+        return {
+            "status": status,
+            "temperature_points": list(points),
+            "reference_temperature_c": float(self.temperature_c),
+            "has_3d_tables": self.e_on_uj_by_temperature is not None,
+            "rule": rule,
+        }
+
     def grid_provenance(self) -> str:
         """Capability-derived grid provenance for emitted/JSON comments."""
         return interpolation_provenance_text(self.interpolation_capability())
@@ -355,7 +516,9 @@ class LossLUT:
         """Measured-data limitations (not project decisions) for JSON/meta."""
         return _data_limitations(
             self.temperature_c, self.e_on_uj, self.e_off_uj,
-            len(self.vbus_points), len(self.current_points))
+            len(self.vbus_points), len(self.current_points),
+            temperature_points=tuple(self.temperature_points or ()),
+            has_temperature_tables=self.e_on_uj_by_temperature is not None)
 
     def device_values_finite(self) -> dict[str, Any]:
         """Guard inputs for the emitted .MODEL; NaN must never reach SPICE."""
@@ -413,6 +576,12 @@ class LossLUT:
         if schema != SCHEMA:
             raise ValueError(f"unsupported loss LUT schema: {schema}")
         source = copy.deepcopy(dict(data.get("source") or {}))
+        by_temperature = {
+            name: (None if data.get(name) is None else
+                   tuple(_matrix(matrix) for matrix in data[name]))
+            for name in ("e_on_uj_by_temperature", "e_off_uj_by_temperature")
+        }
+        table = data.get("r_on_by_vgs")
         return cls(
             vendor=str(data["vendor"]),
             temperature_c=float(data["temperature_c"]),
@@ -428,25 +597,44 @@ class LossLUT:
             vgs_on_v=_finite_or_nan(data.get("vgs_on_v")),
             coss_f=_finite_or_nan(data.get("coss_f")),
             r_off_ohms=_finite_or_nan(data.get("r_off_ohms")),
+            temperature_points=(None if data.get("temperature_points") is None
+                                else tuple(float(t) for t in
+                                           data["temperature_points"])),
+            e_on_uj_by_temperature=by_temperature["e_on_uj_by_temperature"],
+            e_off_uj_by_temperature=by_temperature["e_off_uj_by_temperature"],
+            vt_switch_v=_finite_or_nan(data.get("vt_switch_v")),
+            r_on_by_vgs=(None if table is None else
+                         {float(gate): tuple(_finite_or_nan(v) for v in row)
+                          for gate, row in dict(table).items()}),
             source=source,
         )
 
-    def energy_at(self, vbus_v: float, current_a: float) -> dict[str, Any]:
-        """E_on/E_off at a measured node or by in-grid interpolation only.
+    def _node(self, vbus_v: float, current_a: float,
+              temperature_c: float | None) -> dict[str, Any] | None:
+        """Measured-node provenance, temperature-qualified when available."""
+        nodes = self.source.get("nodes", {})
+        if temperature_c is not None:
+            key = _node_key_with_temperature(
+                vbus_v, current_a, temperature_c)
+            if isinstance(nodes, Mapping) and key in nodes:
+                return nodes[key]
+        return nodes.get(_node_key(vbus_v, current_a)) \
+            if isinstance(nodes, Mapping) else None
 
-        Finite results carry a status that states the actual capability:
-        ``measured``, ``single_node``, ``constant_node`` or ``interpolated``.
-        There is no extrapolation path; out-of-grid, missing and negative-loss
-        results are NaN with a diagnostic status, never zero.
-        E_on/E_off are a pair: an unmeasured corner in either channel makes
-        both NaN (``insufficient_measured_nodes``).
-        """
+    def _energy_2d(self, e_on_mat: Any, e_off_mat: Any,
+                   vbus_v: float, current_a: float, *,
+                   temperature_c: float | None = None) -> dict[str, Any]:
+        """Reference 2-D node/bilinear lookup for one energy table pair."""
         vp = _axis_position(self.vbus_points, float(vbus_v))
         cp = _axis_position(self.current_points, float(current_a))
         out: dict[str, Any] = {
             "vbus_v": float(vbus_v), "current_a": float(current_a),
             "e_on_uj": NAN, "e_off_uj": NAN, "status": "outside_grid",
             "method": None, "indices": None, "source": None,
+            "temperature_c": (None if temperature_c is None
+                              else float(temperature_c)),
+            "temperature_method": ("reference_2d" if temperature_c is None
+                                   else "exact_temperature_slice"),
         }
         if vp is None or cp is None:
             out["status"] = ("invalid_value" if not
@@ -458,10 +646,9 @@ class LossLUT:
         ci, cj, wc, cm = cp
         out["indices"] = {"vbus": [vi, vj], "current": [ci, cj]}
         if vm == "exact" and cm == "exact":
-            e_on = float(self.e_on_uj[vi][ci])
-            e_off = float(self.e_off_uj[vi][ci])
-            node = self.source.get("nodes", {}).get(
-                _node_key(float(vbus_v), float(current_a)))
+            e_on = float(e_on_mat[vi][ci])
+            e_off = float(e_off_mat[vi][ci])
+            node = self._node(float(vbus_v), float(current_a), temperature_c)
             out["method"] = "exact_grid_node"
             out["source"] = node or {"method": "exact_grid_node"}
             finite = math.isfinite(e_on) and math.isfinite(e_off)
@@ -470,13 +657,15 @@ class LossLUT:
                     str(node.get("status")) if isinstance(node, dict) and node
                     and node.get("status") else "not_evaluable")
             else:
-                capability = self.interpolation_capability()["status"]
+                capability = _interpolation_capability(
+                    e_on_mat, e_off_mat,
+                    len(self.vbus_points), len(self.current_points))["status"]
                 out["status"] = (capability if capability in ("constant_node",
                                                               "single_node")
                                  else "measured")
         else:
-            e_on = _grid_value(self.e_on_uj, vi, vj, wv, ci, cj, wc)
-            e_off = _grid_value(self.e_off_uj, vi, vj, wv, ci, cj, wc)
+            e_on = _grid_value(e_on_mat, vi, vj, wv, ci, cj, wc)
+            e_off = _grid_value(e_off_mat, vi, vj, wv, ci, cj, wc)
             out["method"] = "bilinear_interpolation"
             if not (math.isfinite(e_on) and math.isfinite(e_off)):
                 # A measured node supplies both energies or neither: a missing
@@ -491,11 +680,164 @@ class LossLUT:
                         "no extrapolation",
                 "corners": out["indices"],
             }
-        if (math.isfinite(e_on) and e_on < 0.0) or (math.isfinite(e_off) and e_off < 0.0):
+        if ((math.isfinite(e_on) and e_on < 0.0)
+                or (math.isfinite(e_off) and e_off < 0.0)):
             out.update(e_on_uj=NAN, e_off_uj=NAN, status="negative_loss")
             return out
         out["e_on_uj"] = e_on
         out["e_off_uj"] = e_off
+        return out
+
+    def temperature_at(self, temperature_c: float) -> dict[str, Any]:
+        """Position of a query on the (opt-in) temperature axis.
+
+        Statuses are explicit: ``exact_reference``, ``exact_slice``,
+        ``interpolated``, ``outside_grid``, ``invalid_value`` or
+        ``temperature_table_unavailable``.  No extrapolation is implemented.
+        """
+        points = tuple(self.temperature_points or ())
+        out: dict[str, Any] = {
+            "temperature_c": None, "temperature_points": list(points),
+            "status": "invalid_value", "indices": None, "weight": None,
+            "method": None, "extrapolation": False,
+        }
+        try:
+            value = float(temperature_c)
+        except (TypeError, ValueError):
+            return out
+        out["temperature_c"] = value
+        if not math.isfinite(value):
+            return out
+        if self.e_on_uj_by_temperature is not None:
+            pos = _axis_position(points, value)
+            if pos is None:
+                out["status"] = "outside_grid"
+                return out
+            i, j, weight, mode = pos
+            out["indices"] = [i, j]
+            out["weight"] = weight
+            if mode == "exact":
+                out["status"] = "exact_slice"
+                out["method"] = "measured_temperature_slice"
+            else:
+                out["status"] = "interpolated"
+                out["method"] = "trilinear_interpolation"
+            return out
+        if len(points) == 1 and value == points[0]:
+            out["status"] = "exact_reference"
+            out["indices"] = [0, 0]
+            out["weight"] = 0.0
+            out["method"] = "reference_2d"
+            return out
+        out["status"] = ("temperature_table_unavailable"
+                         if len(points) == 1 else "outside_grid")
+        return out
+
+    def energy_at(self, vbus_v: float, current_a: float,
+                  temperature_c: float | None = None) -> dict[str, Any]:
+        """E_on/E_off at a measured node or by in-grid interpolation only.
+
+        Finite results carry a status that states the actual capability:
+        ``measured``, ``single_node``, ``constant_node`` or ``interpolated``.
+        There is no extrapolation path; out-of-grid, missing and negative-loss
+        results are NaN with a diagnostic status, never zero.
+        E_on/E_off are a pair: an unmeasured corner in either channel makes
+        both NaN (``insufficient_measured_nodes``).
+
+        ``temperature_c=None`` uses the reference 2-D table, preserving the
+        original API.  A supplied temperature is resolved on the opt-in
+        temperature axis: an exact slice reuses the 2-D rules, and an interior
+        query uses trilinear interpolation only when all eight corners of the
+        two adjacent slices are finite.  Off-axis/extrapolated queries are NaN.
+        """
+        if temperature_c is None:
+            out = self._energy_2d(self.e_on_uj, self.e_off_uj,
+                                  vbus_v, current_a)
+            out["temperature_c"] = float(self.temperature_c)
+            out["temperature_method"] = "reference_2d"
+            return out
+
+        position = self.temperature_at(temperature_c)
+        out: dict[str, Any] = {
+            "vbus_v": float(vbus_v), "current_a": float(current_a),
+            "temperature_c": position["temperature_c"],
+            "temperature_method": position["method"],
+            "e_on_uj": NAN, "e_off_uj": NAN,
+            "status": position["status"], "method": None,
+            "indices": None, "source": None,
+            "temperature": position,
+        }
+        if position["status"] in ("invalid_value", "outside_grid",
+                                  "temperature_table_unavailable"):
+            return out
+        if position["status"] == "exact_reference":
+            reference = self._energy_2d(self.e_on_uj, self.e_off_uj,
+                                        vbus_v, current_a)
+            reference["temperature_c"] = float(self.temperature_c)
+            reference["temperature_method"] = "exact_reference"
+            return reference
+        matrices_on = self.e_on_uj_by_temperature
+        matrices_off = self.e_off_uj_by_temperature
+        if matrices_on is None or matrices_off is None:  # defensive
+            return out
+        ti, tj = position["indices"]
+        if ti == tj:
+            out = self._energy_2d(matrices_on[ti], matrices_off[ti],
+                                  vbus_v, current_a,
+                                  temperature_c=float(position["temperature_c"]))
+            out["temperature"] = position
+            return out
+
+        vp = _axis_position(self.vbus_points, float(vbus_v))
+        cp = _axis_position(self.current_points, float(current_a))
+        if vp is None or cp is None:
+            out["status"] = ("invalid_value" if not
+                             (math.isfinite(float(vbus_v))
+                              and math.isfinite(float(current_a)))
+                             else "outside_grid")
+            return out
+        vi, vj, wv, _vm = vp
+        ci, cj, wc, _cm = cp
+        weight = float(position["weight"] or 0.0)
+        corners = []
+        for index, matrices_on_slice, matrices_off_slice in (
+            (ti, matrices_on[ti], matrices_off[ti]),
+            (tj, matrices_on[tj], matrices_off[tj]),
+        ):
+            corners.append((
+                index,
+                _grid_value(matrices_on_slice, vi, vj, wv, ci, cj, wc),
+                _grid_value(matrices_off_slice, vi, vj, wv, ci, cj, wc),
+            ))
+        out["indices"] = {"vbus": [vi, vj], "current": [ci, cj],
+                          "temperature": [ti, tj]}
+        if not all(math.isfinite(on) and math.isfinite(off)
+                   for _index, on, off in corners):
+            out["status"] = "insufficient_measured_nodes"
+            out["source"] = {
+                "method": "trilinear_interpolation",
+                "rule": ("all eight corners (two temperature slices x four "
+                         "vbus/current corners) must be finite; no "
+                         "extrapolation"),
+                "temperature_slices": [ti, tj],
+            }
+            return out
+        low = corners[0]
+        high = corners[1]
+        e_on = ((1.0 - weight) * low[1] + weight * high[1])
+        e_off = ((1.0 - weight) * low[2] + weight * high[2])
+        out.update(
+            e_on_uj=e_on, e_off_uj=e_off, status="interpolated",
+            method="trilinear_interpolation",
+            source={
+                "method": "trilinear_interpolation",
+                "rule": ("bilinear within each measured temperature slice, "
+                         "then linear in temperature; no extrapolation"),
+                "temperature_slices": [ti, tj],
+                "temperature_weight": weight,
+                "corners": out["indices"],
+            },
+        )
         return out
 
 
@@ -513,14 +855,16 @@ class LossLUT:
         return r * float(current_a) if math.isfinite(r) else NAN
 
     def losses_at(self, vbus_v: float, current_a: float, *,
-                  f_sw_hz: float | None = None) -> dict[str, Any]:
+                  f_sw_hz: float | None = None,
+                  temperature_c: float | None = None) -> dict[str, Any]:
         """Conduction and switching losses computed separately from the LUT.
 
         No efficiency is produced here.  PLECS P-TC states that thermal losses
         are not the electrical power consumed by the device; ``note`` carries
         that caveat into every caller and into the JSON record.
         """
-        energy = self.energy_at(vbus_v, current_a)
+        energy = self.energy_at(vbus_v, current_a,
+                                temperature_c=temperature_c)
         out: dict[str, Any] = {
             "p_cond_w": NAN, "p_switch_w": NAN, "p_total_w": NAN,
             "f_sw_hz": None if f_sw_hz is None else float(f_sw_hz),
@@ -555,7 +899,8 @@ class LossLUT:
 
     def efficiency_at(self, vbus_v: float, current_a: float,
                       p_out_w: float | None = None, *,
-                      f_sw_hz: float | None = None) -> dict[str, Any]:
+                      f_sw_hz: float | None = None,
+                      temperature_c: float | None = None) -> dict[str, Any]:
         """Efficiency only for an explicit *useful output* power.
 
         ``p_out_w`` must be the converter's useful output power supplied by
@@ -565,7 +910,8 @@ class LossLUT:
         computed loss terms.  Losses are thermal/offline data (PLECS P-TC),
         not electrical power consumed by the emitted switch.
         """
-        losses = self.losses_at(vbus_v, current_a, f_sw_hz=f_sw_hz)
+        losses = self.losses_at(vbus_v, current_a, f_sw_hz=f_sw_hz,
+                                temperature_c=temperature_c)
         out: dict[str, Any] = dict(losses)
         out.update(efficiency=NAN, p_out_w=None, reason=None)
         if p_out_w is None:
@@ -661,6 +1007,85 @@ def _coss_from_output(vendor: str,
                     reason=str(exc))
     return meta["value_f"], meta
 
+def _r_on_by_vgs_from_config(
+    vendor: str, config: Mapping[str, Any], currents: tuple[float, ...],
+) -> tuple[dict[float, tuple[float, ...]] | None, dict[str, Any]]:
+    """Parse an optional measured Curve-3 Rds(on) family from config.
+
+    Accepted shapes (units are ohm, aligned with ``current_points``)::
+
+        r_on_by_vgs:
+          vgs_points: [5.0, 10.0]
+          r_on_ohms: [[...], [...]]
+
+        r_on_by_vgs:
+          5.0: [...]
+          10.0: [...]
+
+    The table is a measured family: each row is the Curve-3 Rds(on) at one
+    gate drive for every grid current.  Nothing is interpolated or invented
+    here; the emitter selects the nearest measured gate-drive row.
+    """
+    raw = config.get("r_on_by_vgs")
+    meta: dict[str, Any] = {
+        "kind": "absent",
+        "source": f"config/inputs/{vendor}.yaml#r_on_by_vgs",
+        "unit": "Ohm",
+        "rule": ("no measured Rds(on)-vs-Vgs family in config; the emitter "
+                 "keeps the median/current-point Curve-3 selection"),
+    }
+    if raw is None:
+        return None, meta
+    if not isinstance(raw, Mapping):
+        raise ValueError("config r_on_by_vgs must be a mapping")
+    if "r_on_ohms" in raw:
+        rows = raw["r_on_ohms"]
+        gates = raw.get("vgs_points")
+        if gates is None:
+            raise ValueError("r_on_by_vgs.vgs_points is required with r_on_ohms")
+        if not isinstance(rows, (list, tuple)) or not isinstance(
+                gates, (list, tuple)):
+            raise ValueError("r_on_by_vgs rows and vgs_points must be sequences")
+        if len(rows) != len(gates):
+            raise ValueError(
+                "r_on_by_vgs r_on_ohms rows must match vgs_points length")
+        pairs = list(zip(gates, rows))
+        shape = "vgs_points/r_on_ohms matrix"
+    else:
+        pairs = []
+        for key, row in raw.items():
+            try:
+                gate = float(key)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    "r_on_by_vgs keys must be numeric gate drives (V), or "
+                    "use vgs_points/r_on_ohms") from exc
+            pairs.append((gate, row))
+        shape = "gate-drive -> row mapping"
+    table: dict[float, tuple[float, ...]] = {}
+    for gate, row in pairs:
+        gate_value = float(gate)
+        if not math.isfinite(gate_value):
+            raise ValueError("r_on_by_vgs gate drives must be finite")
+        values = tuple(_finite_or_nan(v) for v in row)
+        if len(values) != len(currents):
+            raise ValueError(
+                "r_on_by_vgs rows must align with the LUT current_points")
+        table[gate_value] = values
+    meta.update({
+        "kind": "measured",
+        "shape": shape,
+        "vgs_points": sorted(table),
+        "current_points": list(currents),
+        "rule": ("measured Curve-3 Rds(on) family; the emitter selects the "
+                 "nearest measured gate-drive row to the actual vgs_on "
+                 "(exact match preferred, no interpolation)"),
+        "finite_rows": {str(gate): all(math.isfinite(v) for v in row)
+                        for gate, row in sorted(table.items())},
+    })
+    return table, meta
+
+
 def build_lut(vendor: str, *, config: Mapping[str, Any] | None = None,
               simulate: bool = True, reproduce_recorded: bool = False,
               points: tuple[Any, ...] | None = None) -> LossLUT:
@@ -683,8 +1108,10 @@ def build_lut(vendor: str, *, config: Mapping[str, Any] | None = None,
             "current": "caller-supplied points=... current values (not config-derived)",
             "l_load": "caller-supplied GridPoint.l_load_h (no new numeric value "
                       "derived here)",
-            "temperature": "conditions.temperature",
+            "temperature": ("caller-supplied GridPoint.temperature_c values "
+                            "(not config-derived)"),
             "vgs_on": "dpt.vgs_on (DPT gate drive)",
+            "source": "explicit_points",
             "kind": "project_decision_explicit_points",
             "rationale": "explicit points override the config-derived grid; "
                          "config derivation rules are not republished",
@@ -694,27 +1121,60 @@ def build_lut(vendor: str, *, config: Mapping[str, Any] | None = None,
         vendor, config=cfg, points=grid, simulate=simulate,
         reproduce_recorded=reproduce_recorded)
 
+    cond = cfg["conditions"]
+    config_temperature = float(cond["temperature"])
+
+    def _point_temperature(point: Any) -> float:
+        try:
+            raw = float(getattr(point, "temperature_c", NAN))
+        except (TypeError, ValueError):
+            raw = NAN
+        # A caller-built GridPoint may omit the opt-in temperature; use the
+        # config condition rather than passing NaN into a simulator or axis.
+        return raw if math.isfinite(raw) else config_temperature
+
     current_axis = tuple(sorted({float(p.current_a) for p in grid}))
     vbus_axis = tuple(sorted({float(p.vbus_v) for p in grid}))
+    temperature_axis = tuple(sorted({_point_temperature(p) for p in grid}))
+    multi_temperature = len(temperature_axis) > 1
     i_index = {value: k for k, value in enumerate(current_axis)}
     v_index = {value: k for k, value in enumerate(vbus_axis)}
-    e_on = [[NAN] * len(current_axis) for _ in vbus_axis]
-    e_off = [[NAN] * len(current_axis) for _ in vbus_axis]
+    e_on = {t: [[NAN] * len(current_axis) for _ in vbus_axis]
+            for t in temperature_axis}
+    e_off = {t: [[NAN] * len(current_axis) for _ in vbus_axis]
+             for t in temperature_axis}
 
     node_provenance: dict[str, Any] = {}
     gaps: list[dict[str, Any]] = []
     for result in sweeps:
-        key = _node_key(result.point.vbus_v, result.point.current_a)
+        temperature = _point_temperature(result.point)
+        key = (_node_key_with_temperature(result.point.vbus_v,
+                                          result.point.current_a, temperature)
+               if multi_temperature else
+               _node_key(result.point.vbus_v, result.point.current_a))
         node_provenance[key] = result.as_dict()
-        iv, ic = v_index[float(result.point.vbus_v)], i_index[float(result.point.current_a)]
-        e_on[iv][ic] = float(result.e_on_uj)
-        e_off[iv][ic] = float(result.e_off_uj)
+        iv = v_index[float(result.point.vbus_v)]
+        ic = i_index[float(result.point.current_a)]
+        e_on[temperature][iv][ic] = float(result.e_on_uj)
+        e_off[temperature][iv][ic] = float(result.e_off_uj)
         if result.status != "measured":
             gaps.append({
                 "point": result.point.as_dict(), "metric": "e_on_uj,e_off_uj",
                 "status": result.status, "reason": result.reason,
                 "source": result.source, "guard": result.guard,
             })
+
+    reference_temperature = (config_temperature
+                             if config_temperature in temperature_axis
+                             else temperature_axis[0])
+    e_on_reference = e_on[reference_temperature]
+    e_off_reference = e_off[reference_temperature]
+    e_on_by_temperature = (
+        tuple(tuple(tuple(row) for row in e_on[t])
+              for t in temperature_axis) if multi_temperature else None)
+    e_off_by_temperature = (
+        tuple(tuple(tuple(row) for row in e_off[t])
+              for t in temperature_axis) if multi_temperature else None)
 
     r_on, r_meta = _r_on_from_curve(vendor, cfg, current_axis)
     for current, resistance in zip(current_axis, r_on):
@@ -723,6 +1183,39 @@ def build_lut(vendor: str, *, config: Mapping[str, Any] | None = None,
                          "status": "outside_measured_curve_range",
                          "reason": "Curve-3 sweep does not cover this grid current",
                          "source": r_meta["source_file"]["file"]})
+    r_on_by_vgs, r_on_by_vgs_meta = _r_on_by_vgs_from_config(
+        vendor, cfg, current_axis)
+    for gate, row in (r_on_by_vgs or {}).items():
+        for current, resistance in zip(current_axis, row):
+            if not math.isfinite(resistance):
+                gaps.append({
+                    "point": {"current_a": current, "vgs_on_v": gate},
+                    "metric": "r_on_by_vgs", "status": "unmeasured_point",
+                    "reason": ("measured Rds(on)-vs-Vgs family has no finite "
+                               "value at this gate drive/current"),
+                    "source": r_on_by_vgs_meta["source"],
+                })
+    raw_vt = cfg.get("vt_switch_v")
+    vt_switch_v = NAN
+    vt_meta: dict[str, Any] = {
+        "kind": "absent",
+        "value_v": NAN,
+        "source": f"config/inputs/{vendor}.yaml#vt_switch_v",
+        "rule": ("no config switching threshold; the emitter keeps the "
+                 "Curve-7 JEDEC Vth and labels source=curve7_jedec_vth"),
+    }
+    if raw_vt is not None:
+        candidate = _finite_or_nan(raw_vt)
+        if not math.isfinite(candidate) or candidate <= 0.0:
+            raise ValueError(
+                "config vt_switch_v must be a finite positive voltage")
+        vt_switch_v = candidate
+        vt_meta.update({
+            "kind": "config_derived",
+            "value_v": candidate,
+            "rule": ("config-provided switching threshold used by the "
+                     "emitted ideal switch; no Curve-7 fallback"),
+        })
     try:
         vth = float(load_output(vendor, "curve7_threshold_voltage")["extracted"]["vth_v"])
         if not math.isfinite(vth):
@@ -739,6 +1232,14 @@ def build_lut(vendor: str, *, config: Mapping[str, Any] | None = None,
                     "reason": str(exc)}
         gaps.append({"point": {}, "metric": "vth_v", "status": "missing",
                      "reason": str(exc), "source": vth_meta["source_file"]["file"]})
+    if vt_meta["kind"] == "absent":
+        vt_meta.update({
+            "kind": "curve7_jedec_vth",
+            "value_v": vth,
+            "source": "config/outputs/curve7_threshold_voltage#extracted.vth_v",
+            "rule": ("no config switching threshold; the emitter uses the "
+                     "Curve-7 JEDEC Vth and labels source=curve7_jedec_vth"),
+        })
 
     coss_f, coss_meta = _coss_from_output(vendor, cfg)
     if not math.isfinite(coss_f):
@@ -755,9 +1256,9 @@ def build_lut(vendor: str, *, config: Mapping[str, Any] | None = None,
             "source": r_off_meta["bench"],
         })
 
-    cond = cfg["conditions"]
     capability = _interpolation_capability(
-        e_on, e_off, len(vbus_axis), len(current_axis))
+        e_on_reference, e_off_reference,
+        len(vbus_axis), len(current_axis))
     source: dict[str, Any] = {
         "schema": SCHEMA,
         "method": "clamped-inductive golden DPT E_on/E_off at config-derived "
@@ -773,31 +1274,55 @@ def build_lut(vendor: str, *, config: Mapping[str, Any] | None = None,
         },
         "grid": {
             "vbus_points": list(vbus_axis), "current_points": list(current_axis),
+            "temperature_points": list(temperature_axis),
+            "reference_temperature_c": reference_temperature,
+            "source": rules.get("source", "config_derived_default"),
             "rules": rules,
             "kind": "project_decision",
         },
         "r_on": r_meta,
+        "r_on_by_vgs": r_on_by_vgs_meta,
         "vth": vth_meta,
+        "vt_switch": vt_meta,
         "coss_f": coss_meta,
         "r_off_ohms": r_off_meta,
         "nodes": node_provenance,
         "gaps": gaps,
         "golden_evaluable": all(r.status == "measured" for r in sweeps),
         "dpt_crossing_evaluable": (
-            node_provenance.get(_node_key(float(cfg["dpt"]["vbus"]),
-                                          float(cfg["dpt"]["i_load_target"])), {})
+            node_provenance.get(
+                _node_key_with_temperature(
+                    float(cfg["dpt"]["vbus"]),
+                    float(cfg["dpt"]["i_load_target"]),
+                    reference_temperature)
+                if multi_temperature else
+                _node_key(float(cfg["dpt"]["vbus"]),
+                          float(cfg["dpt"]["i_load_target"])), {})
             .get("status") == "measured"),
         "waveform_gate": "retired_by_design",
         "interpolation": capability,
+        "temperature": {
+            "points": list(temperature_axis),
+            "reference_temperature_c": reference_temperature,
+            "has_3d_tables": multi_temperature,
+            "rule": ("opt-in temperature axis from config loss_grid; trilinear "
+                     "interpolation only with all eight corners finite, no "
+                     "extrapolation" if multi_temperature else
+                     "single reference temperature; no temperature axis"),
+        },
         "data_limitations": _data_limitations(
-            float(cond["temperature"]), e_on, e_off,
-            len(vbus_axis), len(current_axis)),
+            reference_temperature, e_on_reference, e_off_reference,
+            len(vbus_axis), len(current_axis),
+            temperature_points=temperature_axis,
+            has_temperature_tables=multi_temperature),
         "thermal_loss_note": THERMAL_LOSS_NOTE,
         "device_value_guard": {
             "vth_finite": math.isfinite(vth),
+            "vt_switch_finite": math.isfinite(vt_switch_v),
             "r_on_all_finite": all(math.isfinite(float(r)) for r in r_on),
             "rule": ("emitter must refuse to emit .MODEL when vth or the "
-                     "selected r_on is NaN; never write NaN into SPICE"),
+                     "selected r_on is NaN; never write NaN into SPICE. A "
+                     "missing vt_switch_v falls back to Curve-7 Vth."),
             "coss_f_finite": math.isfinite(coss_f),
             "r_off_measured": math.isfinite(r_off_ohms),
             "r_off_note": ("r_off_ohms NaN is allowed: emitter falls back to a "
@@ -834,14 +1359,36 @@ def build_lut(vendor: str, *, config: Mapping[str, Any] | None = None,
                       "project-decision emitter value with loud comment+JSON "
                       "disclosure; no fallback number is invented here."),
              "basis": "local://tier4_stabilization_contract.md"},
+            {"name": "temperature_axis", "kind": "project_decision",
+             "rule": rules.get(
+                 "temperature", "conditions.temperature"),
+             "temperature_points": list(temperature_axis),
+             "reference_temperature_c": reference_temperature,
+             "interpolation": ("trilinear only with all eight corners finite; "
+                               "no extrapolation" if multi_temperature else
+                               "single measured temperature slice")},
+            {"name": "r_on_selection", "kind": "measured",
+             "rule": r_on_by_vgs_meta["rule"],
+             "table_available": r_on_by_vgs is not None,
+             "vgs_points": r_on_by_vgs_meta.get("vgs_points"),
+             "source": r_on_by_vgs_meta["source"]},
+            {"name": "vt_switch_selection", "kind": vt_meta["kind"],
+             "rule": vt_meta["rule"],
+             "value_v": vt_meta["value_v"],
+             "source": vt_meta["source"]},
         ],
     }
     return LossLUT(
-        vendor=vendor, temperature_c=float(cond["temperature"]),
+        vendor=vendor, temperature_c=reference_temperature,
         vbus_points=vbus_axis, current_points=current_axis,
-        e_on_uj=tuple(tuple(row) for row in e_on),
-        e_off_uj=tuple(tuple(row) for row in e_off),
+        e_on_uj=tuple(tuple(row) for row in e_on_reference),
+        e_off_uj=tuple(tuple(row) for row in e_off_reference),
         r_on_ohms=tuple(r_on), vth_v=vth,
         vgs_on_v=float(cfg["dpt"]["vgs_on"]),
-        coss_f=coss_f, r_off_ohms=r_off_ohms, source=source,
+        coss_f=coss_f, r_off_ohms=r_off_ohms,
+        temperature_points=temperature_axis,
+        e_on_uj_by_temperature=e_on_by_temperature,
+        e_off_uj_by_temperature=e_off_by_temperature,
+        vt_switch_v=vt_switch_v, r_on_by_vgs=r_on_by_vgs,
+        source=source,
     )

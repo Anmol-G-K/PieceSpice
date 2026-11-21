@@ -50,7 +50,7 @@ ENERGY_KEYS = ("e_on_uj", "e_off_uj")
 
 @dataclass(frozen=True)
 class GridPoint:
-    """One (Vbus, load-current) golden DPT condition."""
+    """One (Vbus, load-current, temperature) golden DPT condition."""
 
     vbus_v: float
     current_a: float
@@ -58,15 +58,19 @@ class GridPoint:
     vbus_rule: str
     current_rule: str
     l_load_rule: str
+    temperature_c: float = float("nan")
+    temperature_rule: str = ""
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "vbus_v": self.vbus_v,
             "current_a": self.current_a,
             "l_load_h": self.l_load_h,
+            "temperature_c": self.temperature_c,
             "vbus_rule": self.vbus_rule,
             "current_rule": self.current_rule,
             "l_load_rule": self.l_load_rule,
+            "temperature_rule": self.temperature_rule,
         }
 
 
@@ -84,10 +88,88 @@ def _unique_sorted(specs: tuple[tuple[float, str], ...]) -> tuple[tuple[float, s
     return tuple(sorted(merged.items()))
 
 
+def _unique_sorted_temperatures(
+    specs: tuple[tuple[float, str], ...],
+) -> tuple[tuple[float, str], ...]:
+    """Sort config-derived temperatures, merging duplicate provenance rules.
+
+    Temperatures may be negative; only non-finite values are rejected.
+    """
+    merged: dict[float, str] = {}
+    for raw, rule in specs:
+        value = float(raw)
+        if not np.isfinite(value):
+            raise ValueError(
+                f"config-derived temperature must be finite: {rule}={raw!r}")
+        if value in merged:
+            merged[value] = f"{merged[value]} == {rule}"
+        else:
+            merged[value] = rule
+    return tuple(sorted(merged.items()))
+
+
+def _loss_grid_axis(config: Mapping[str, Any], key: str, *,
+                    positive: bool) -> tuple[tuple[float, str], ...]:
+    """Validate one ``config.loss_grid`` axis and pair values with its rule."""
+    raw = config["loss_grid"].get(key)
+    if raw is None:
+        raise ValueError(f"config loss_grid is missing required key {key!r}")
+    if isinstance(raw, (str, bytes)) or not isinstance(raw, (list, tuple)):
+        raise ValueError(f"config loss_grid.{key} must be a list")
+    specs = tuple((float(value), f"loss_grid.{key}[{index}]")
+                  for index, value in enumerate(raw))
+    if not specs:
+        raise ValueError(f"config loss_grid.{key} must be non-empty")
+    if positive:
+        return _unique_sorted(specs)
+    return _unique_sorted_temperatures(specs)
+
+
 def derive_grid(config: Mapping[str, Any]) -> tuple[tuple[GridPoint, ...], dict[str, Any]]:
-    """Derive the config-only DPT grid; returns points and their derivation rules."""
+    """Derive the DPT grid from config; returns points and their rules.
+
+    With ``config.loss_grid`` present, the full Cartesian product of the
+    explicit ``vbus_points`` x ``current_points`` x ``temperature_points`` is
+    measured.  Without it, the historical config-derived 2-point Vbus/current
+    grid at ``conditions.temperature`` is preserved and labelled as the
+    default source.
+    """
     dpt = config["dpt"]
     cond = config["conditions"]
+    l_rule = (
+        "L = Vbus * dpt.t1_width / Id "
+        "(identical to the recorded dpt.l_load for the configured DPT crossing)"
+    )
+    loss_grid = config.get("loss_grid")
+    if loss_grid is not None:
+        if not isinstance(loss_grid, Mapping):
+            raise ValueError("config loss_grid must be a mapping")
+        v_axis = _loss_grid_axis(config, "vbus_points", positive=True)
+        i_axis = _loss_grid_axis(config, "current_points", positive=True)
+        t_axis = _loss_grid_axis(config, "temperature_points", positive=False)
+        points = tuple(
+            GridPoint(
+                vbus_v=v, current_a=i, l_load_h=v * float(dpt["t1_width"]) / i,
+                vbus_rule=rv, current_rule=ri, l_load_rule=l_rule,
+                temperature_c=t, temperature_rule=rt,
+            )
+            for v, rv in v_axis for i, ri in i_axis for t, rt in t_axis
+        )
+        return points, {
+            "vbus": "exact config values loss_grid.vbus_points, sorted unique",
+            "current": ("exact config values loss_grid.current_points, "
+                        "sorted unique"),
+            "temperature": ("exact config values loss_grid.temperature_points, "
+                            "sorted unique"),
+            "l_load": l_rule,
+            "vgs_on": "dpt.vgs_on (DPT gate drive)",
+            "source": "loss_grid",
+            "kind": "config_loss_grid",
+            "rationale": ("the caller supplied the full measured grid; no new "
+                          "numeric grid value is introduced and unmeasured "
+                          "crossings stay NaN"),
+        }
+
     v_axis = _unique_sorted((
         (float(dpt["vbus"]), "dpt.vbus"),
         (float(cond["Vbus"]), "conditions.Vbus"),
@@ -96,14 +178,15 @@ def derive_grid(config: Mapping[str, Any]) -> tuple[tuple[GridPoint, ...], dict[
         (float(dpt["i_load_target"]), "dpt.i_load_target"),
         (float(cond["Id_load"]), "conditions.Id_load"),
     ))
-    l_rule = (
-        "L = Vbus * dpt.t1_width / Id "
-        "(identical to the recorded dpt.l_load for the configured DPT crossing)"
-    )
+    temperature = float(cond["temperature"])
+    if not np.isfinite(temperature):
+        raise ValueError("config conditions.temperature must be finite")
     points = tuple(
         GridPoint(
             vbus_v=v, current_a=i, l_load_h=v * float(dpt["t1_width"]) / i,
             vbus_rule=rv, current_rule=ri, l_load_rule=l_rule,
+            temperature_c=temperature,
+            temperature_rule="conditions.temperature",
         )
         for v, rv in v_axis for i, ri in i_axis
     )
@@ -114,6 +197,7 @@ def derive_grid(config: Mapping[str, Any]) -> tuple[tuple[GridPoint, ...], dict[
         "l_load": l_rule,
         "temperature": "conditions.temperature",
         "vgs_on": "dpt.vgs_on (DPT gate drive)",
+        "source": "config_derived_default",
         "kind": "project_decision",
         "rationale": "no new numeric grid value is introduced; unmeasured crossings "
                      "stay NaN instead of being interpolated into a measurement",
@@ -127,9 +211,13 @@ def dpt_kwargs(config: Mapping[str, Any], point: GridPoint) -> dict[str, Any]:
     keys = ("vgs_on", "t1_on", "t1_width", "t2_on", "t2_width",
             "edge_time", "t_end", "max_step")
     kw = {k: float(dpt[k]) for k in keys}
+    temperature = float(point.temperature_c)
+    if not math.isfinite(temperature):
+        # A legacy/caller-built GridPoint without a temperature uses the
+        # config condition rather than passing NaN into the simulator.
+        temperature = float(config["conditions"]["temperature"])
     kw.update(vbus=point.vbus_v, i_load_target=point.current_a,
-              l_load=point.l_load_h,
-              temperature=float(config["conditions"]["temperature"]))
+              l_load=point.l_load_h, temperature=temperature)
     return kw
 
 
@@ -381,6 +469,22 @@ def _recorded_condition_check(recorded: Mapping[str, Any], point: GridPoint,
             check["matched"].append(entry)
         else:
             check["mismatched"].append(entry)
+    # The recorded piecespice.dpt/1.0 artifact has no temperature key.  It may
+    # only be reused at the config reference temperature; a multi-temperature
+    # grid point must be measured, never filled with cross-temperature data.
+    if "temperature" not in cond:
+        config_temperature = float(config["conditions"]["temperature"])
+        point_temperature = float(getattr(point, "temperature_c",
+                                          config_temperature))
+        if (math.isfinite(point_temperature)
+                and point_temperature != config_temperature):
+            check["mismatched"].append({
+                "key": "temperature",
+                "recorded": None,
+                "expected": point_temperature,
+                "reason": ("recorded artifact has no temperature condition; "
+                           "it cannot be reused at a different temperature"),
+            })
     for key in sorted(expected):
         if key not in cond:
             check["not_recorded"].append({"key": key, "expected": expected[key]})
@@ -429,6 +533,7 @@ def extract_energy_from_run(
     source: str,
     reference_points: int | None = None,
     iterations: int | None = None,
+    temperature_c: float = float("nan"),
 ) -> SweepResult:
     """Extract golden switching energies with the Tier-3 completion guard."""
     t = np.asarray(run.time, dtype=float)
@@ -436,12 +541,18 @@ def extract_energy_from_run(
         vbus_v=float(run.v_bus), current_a=float(run.i_load),
         l_load_h=float(run.l_load), vbus_rule="run.v_bus",
         current_rule="run.i_load", l_load_rule="run.l_load",
+        temperature_c=float(temperature_c),
+        temperature_rule=("run temperature (passed from dpt_kwargs)"
+                          if math.isfinite(float(temperature_c)) else
+                          "run object exposes no temperature"),
     )
     conditions = {
         "vbus_v": float(run.v_bus), "current_a": float(run.i_load),
         "vgs_on_v": float(run.vgs_on), "l_load_h": float(run.l_load),
         "t2_on_s": float(run.t2_on),
     }
+    if math.isfinite(float(temperature_c)):
+        conditions["temperature_c"] = float(temperature_c)
     if t.size == 0 or not np.all(np.isfinite(t)):
         return SweepResult(point, float("nan"), float("nan"), "not_evaluable",
                            "empty or non-finite golden time vector", source,
@@ -563,5 +674,6 @@ def run_golden_sweep(
             run, t_end=kw["t_end"], source=source,
             reference_points=(None if not rec.get("available") else
                               rec.get("golden_trace_points")),
+            temperature_c=float(kw["temperature"]),
         ))
     return tuple(results)
