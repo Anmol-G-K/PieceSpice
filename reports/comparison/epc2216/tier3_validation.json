@@ -195,6 +195,8 @@
       "compare_points": 7418,
       "current_definition": "I(Lload)-I(Dclamp)"
     },
+    "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+    "golden_energy_current_definition": "I(Lload)-I(Dclamp) signed",
     "current_definitions": {
       "golden": "I(Lload)-I(Dclamp)",
       "tier3": "I(Lload)-I(Dclamp)"
@@ -244,18 +246,24 @@
       "tier2_rel_err_pct": -93.45486096918388
     },
     "e_on_uj": {
-      "golden": 0.39793457485284,
+      "golden": 0.3976268163342146,
       "tier3": 0.6155681651818202,
-      "tier3_rel_err_pct": 54.690796950595,
-      "tier2": 0.54178578091995,
-      "tier2_rel_err_pct": 36.149461534049294
+      "tier3_rel_err_pct": 54.810525823394386,
+      "tier2": 0.5416445060041672,
+      "tier2_rel_err_pct": 36.219310105308,
+      "golden_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+      "tier3_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+      "tier2_energy_current_definition": "I(Lload)-I(Dclamp) signed"
     },
     "e_off_uj": {
-      "golden": 0.2379373544426174,
-      "tier3": 0.3724492740434839,
-      "tier3_rel_err_pct": 56.532493569985576,
-      "tier2": 0.4352999621751329,
-      "tier2_rel_err_pct": 82.9472985420256
+      "golden": 0.23088046945936386,
+      "tier3": 0.36704200670107273,
+      "tier3_rel_err_pct": 58.97490487634079,
+      "tier2": 0.388272753596838,
+      "tier2_rel_err_pct": 68.17046262337749,
+      "golden_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+      "tier3_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+      "tier2_energy_current_definition": "I(Lload)-I(Dclamp) signed"
     },
     "i_peak_a": {
       "golden": 13.239258766176981,
@@ -264,6 +272,12 @@
       "tier2": 13.227507591252,
       "tier2_rel_err_pct": -0.08876006680225021
     }
+  },
+  "energy_current_definition": {
+    "golden": "I(Lload)-I(Dclamp) signed",
+    "tier3": "I(Lload)-I(Dclamp) signed",
+    "tier2": "I(Lload)-I(Dclamp) signed",
+    "rule": "switching energy integrates the signed device current I(Lload)-I(Dclamp); timing/G3 remain on its absolute magnitude"
   },
   "runtime": {
     "method": "default/trap",
@@ -284,24 +298,24 @@
       }
     },
     "golden": {
-      "wall_clock_s": 0.849048899999616,
-      "solver_elapsed_s": 0.379,
+      "wall_clock_s": 0.871211299992865,
+      "solver_elapsed_s": 0.378,
       "iterations": 23036.0,
       "trace_points": 7418.0,
       "t_last_s": 1.4e-05
     },
     "tier3": {
-      "wall_clock_s": 1.4065425000007963,
-      "solver_elapsed_s": 0.902,
+      "wall_clock_s": 1.4529388999944786,
+      "solver_elapsed_s": 0.92,
       "iterations": 33785.0,
       "trace_points": 9440.0,
       "t_last_s": 1.4e-05
     },
     "tier3_bench_completed": true,
-    "solver_speedup": 0.42017738359201773,
+    "solver_speedup": 0.41086956521739126,
     "bench_wall_s": {
-      "golden": 2.5595898000028683,
-      "tier3": 4.236378000001423
+      "golden": 2.600347400002647,
+      "tier3": 4.320562100001553
     },
     "scope": "forced 2ns fidelity control; not the adaptive speed claim"
   },
@@ -310,10 +324,10 @@
     "tier3": "I(Lload)-I(Dclamp)"
   },
   "build_seconds": {
-    "capture": 0.9499383000002126,
-    "training_captures": 6.000009307172149e-07,
-    "fit": 29.248126099999354
+    "capture": 0.9280575000011595,
+    "training_captures": 1.9999424694105983e-07,
+    "fit": 29.676546300004702
   },
-  "spice_log_tail": "Total elapsed time: 0.905 seconds.\nTotal iterations: 33785\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_msi5gwuv\\tran.net\n",
+  "spice_log_tail": "Total elapsed time: 0.907 seconds.\nTotal iterations: 33785\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_svsae65_\\tran.net\n",
   "emitted_lib": "reports\\models\\epc2216_PIECESPICE_T3.lib"
 }

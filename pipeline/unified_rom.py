@@ -62,6 +62,8 @@ from simulation.testbenches.speedup_bench import (
     _pulse_train,
 )
 from simulation.testbenches.double_pulse import (
+    LEGACY_ABS_ENERGY_DEFINITION,
+    SIGNED_ENERGY_SUFFIX,
     DoublePulseRun,
     extract_dpt_metrics,
 )
@@ -262,6 +264,11 @@ PROVENANCE: dict[str, dict[str, Any]] = {
         ),
         "kind": "measured",
         "golden_column": "dpt_comparison.<metric>.golden",
+        "energy_current_definition": (
+            "the recorded tier3_validation.json rows carry no "
+            "energy_current_definition and are legacy abs; a signed measured "
+            "energy is reported as definition_mismatch instead of being "
+            "scored against them"),
         "tier2_regression": (
             "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics"),
         "tier2_regression_role": (
@@ -966,6 +973,26 @@ def _tuning_condition_descriptors(vendor: str, plan: dict) -> list[dict]:
     spec exists.
     """
     emp, completed, source = _recorded_golden_emp(vendor)
+    # The live tuning candidate integrates signed energy (tuning.py uses the
+    # clamp-subtracted trace).  A recorded golden with no energy definition is
+    # legacy abs, so its energy metrics are never compared against signed
+    # candidate energy: they are excluded and named, not silently mixed.
+    golden_energy_definition = _recorded_energy_definition(
+        vendor, "dpt_metrics.json", column="golden_metrics")
+    candidate_energy_definition = "I(Lload)-I(Dclamp) signed"
+    energy_comparable = (
+        _energy_definition_kind(golden_energy_definition) == "signed")
+    excluded = [] if energy_comparable else list(_ENERGY_METRICS)
+    emp = {k: v for k, v in emp.items() if k not in excluded}
+    energy_note = {
+        "golden": golden_energy_definition,
+        "candidate": candidate_energy_definition,
+        "comparable": energy_comparable,
+        "excluded_metrics": excluded,
+        "rule": ("energy metrics are compared only when the recorded golden "
+                 "and the live candidate integrate the same current "
+                 "definition; otherwise they are excluded and listed here"),
+    }
     fit = {k: v for k, v in emp.items() if k not in TUNING_HELD_OUT}
     held = {k: v for k, v in emp.items() if k in TUNING_HELD_OUT}
     if not fit or not held:
@@ -978,11 +1005,11 @@ def _tuning_condition_descriptors(vendor: str, plan: dict) -> list[dict]:
     return [
         {"name": "recorded_golden_fit", "emp": fit, "held_out": False,
          "completed": completed, "condition": dict(condition),
-         "emp_source": source,
+         "emp_source": source, "energy_definition": dict(energy_note),
          "split": "fit metrics of the recorded golden DPT"},
         {"name": "recorded_golden_heldout", "emp": held, "held_out": True,
          "completed": completed, "condition": dict(condition),
-         "emp_source": source,
+         "emp_source": source, "energy_definition": dict(energy_note),
          "split": "held-out metrics of the recorded golden DPT"},
     ]
 
@@ -1510,6 +1537,26 @@ def _dpt_device_current(result) -> tuple[np.ndarray, str]:
             DPT_CURRENT_WITH_DCLAMP)
 
 
+def _dpt_signed_device_current(result) -> tuple[np.ndarray | None, str | None]:
+    """Bench device current BEFORE ``abs``, plus its identity label.
+
+    The clamp branch makes ``I(Lload)-I(Dclamp)`` reverse sign after
+    turn-off; ``abs`` would count recovered reactance as dissipation.  When
+    the raw result has no ``I(Lload)`` this returns ``None`` and the energy
+    metric falls back to the absolute trace instead of inventing a sign.
+    """
+    traces = getattr(result, "traces", None)
+    raw_load = (traces.get("I(Lload)") if isinstance(traces, Mapping)
+                else result.get("I(Lload)"))
+    if raw_load is None:
+        return None, None
+    i_load = np.asarray(raw_load, dtype=float)
+    dclamp = traces.get("I(Dclamp)") if isinstance(traces, Mapping) else None
+    if dclamp is None:
+        return i_load, "I(Lload) [fallback: I(Dclamp) not in raw]"
+    return i_load - np.asarray(dclamp, dtype=float), "I(Lload)-I(Dclamp)"
+
+
 def _run_dpt_arm(plan: dict, label: str, deck: str, traj,
                  dpt_cfg: dict) -> dict:
     directive = TranDirective(step_time=plan["dpt_max_step"],
@@ -1520,6 +1567,7 @@ def _run_dpt_arm(plan: dict, label: str, deck: str, traj,
     run = _one_transient(deck, directive, engine, timeout_s=DPT_TIMEOUT_S)
     result = run["result"]
     device_current, current_definition = _dpt_device_current(result)
+    signed_current, signed_definition = _dpt_signed_device_current(result)
     dpt_run = DoublePulseRun(
         time=np.asarray(result.get("time")),
         v_ds=np.asarray(result.get("V(drain)")),
@@ -1528,7 +1576,9 @@ def _run_dpt_arm(plan: dict, label: str, deck: str, traj,
         v_bus=plan["vbus"], i_load=plan["i_load"],
         l_load=plan["l_load"], vgs_on=plan["vgs_on"],
         wall_clock_s=float(run["wall_time_s"]),
-        t2_on=dpt_cfg["t2_on"])
+        t2_on=dpt_cfg["t2_on"],
+        current_definition=signed_definition or current_definition,
+        i_d_signed=signed_current)
     metrics: dict = {}
     metric_error: str | None = None
     try:
@@ -1551,6 +1601,9 @@ def _run_dpt_arm(plan: dict, label: str, deck: str, traj,
         "t_last": run["t_last"], "waveform": waveform,
         "metrics": metrics,
         "current_definition": current_definition,
+        "signed_current_definition": signed_definition,
+        "energy_current_definition":
+            metrics.get("energy_current_definition"),
         "_raw": {
             "time": np.asarray(result.get("time"), dtype=float),
             "vds": np.asarray(result.get("V(drain)"), dtype=float),
@@ -2256,6 +2309,84 @@ def _tier2_regression_source() -> str:
     """Provenance label for the diagnostic Tier-2 self-comparison."""
     return (f"{TIER2_REGRESSION_BAR_SOURCE} (diagnostic only; never "
             "scored in G4_timing_energy or in the verdict)")
+
+
+_ENERGY_METRICS = ("e_on_uj", "e_off_uj")
+
+
+def _energy_definition_kind(definition: Any) -> str:
+    """Classify an energy-current label as ``signed``, ``abs`` or unknown."""
+    if not definition:
+        return "unknown"
+    text = str(definition).strip().lower()
+    if "abs fallback" in text or text.startswith("abs"):
+        return "abs"
+    if text.endswith(SIGNED_ENERGY_SUFFIX.strip()):
+        return "signed"
+    return "unknown"
+
+
+def _recorded_energy_definition(vendor: str, filename: str, *,
+                                column: str | None = None) -> str:
+    """Energy-current definition of a recorded comparison table.
+
+    Old records carry no ``energy_current_definition`` field; their values
+    were integrated on the absolute current and are labelled as such instead
+    of being silently treated as signed.
+    """
+    path = (registry.ROOT / "reports" / "comparison" / vendor / filename)
+    if not path.exists():
+        return "not recorded"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    row = (data.get(column) or {}) if column else data
+    definition = (row.get("energy_current_definition")
+                  or data.get("energy_current_definition"))
+    if isinstance(definition, Mapping):
+        key = {"golden_metrics": "golden",
+               "tier2_metrics": "tier2"}.get(column or "", "golden")
+        definition = definition.get(key)
+        return str(definition) if definition else "not recorded"
+    return str(definition) if definition else LEGACY_ABS_ENERGY_DEFINITION
+
+
+def _apply_energy_definition(rows: dict, actual_definition: Any,
+                             bar_definition: Any) -> tuple[dict, bool]:
+    """Label the energy rows and veto a signed/abs definition mismatch.
+
+    Timing/slew/peak rows keep their absolute-current comparison; only the
+    two integrated-energy rows can depend on the current sign.  A mismatch
+    is reported as ``definition_mismatch`` with both labels, never scored as
+    if the numbers were comparable.
+    """
+    actual_kind = _energy_definition_kind(actual_definition)
+    bar_kind = _energy_definition_kind(bar_definition)
+    comparable = (actual_kind == bar_kind and actual_kind != "unknown")
+    for metric in _ENERGY_METRICS:
+        row = rows.get(metric)
+        if row is None:
+            continue
+        row["actual_energy_current_definition"] = actual_definition
+        row["bar_energy_current_definition"] = bar_definition
+        row["actual_energy_definition_kind"] = actual_kind
+        row["bar_energy_definition_kind"] = bar_kind
+        row["energy_definition_comparison"] = (
+            "comparable" if comparable else "definition_mismatch")
+        if not comparable and row.get("status") != "not_measured":
+            row["status"] = "definition_mismatch"
+            row["pass"] = False
+            row["reason"] = (
+                "energy bar and measured energy integrate different current "
+                "definitions; not compared row-wise")
+    return rows, comparable
+
+
+def _timing_status(rows: dict, energy_comparable: bool) -> str:
+    """Status for one timing/energy table; missing data wins over a label."""
+    if (not rows or len(rows) != len(_TIMING_METRICS)
+            or any(row.get("status") == "not_measured"
+                   for row in rows.values())):
+        return "not_measured"
+    return "measured" if energy_comparable else "definition_mismatch"
 
 
 def _timing_band(bar: float | None) -> tuple[float, float] | None:
@@ -3055,20 +3186,31 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
     if dpt["urom"]["completed"] and dpt["golden"]["completed"]:
         reference = _timing_bars(vendor)
         actual = dpt["urom"]["metrics"]
+        golden_bar_definition = _recorded_energy_definition(
+            vendor, "tier3_validation.json")
+        actual_energy_definition = actual.get("energy_current_definition")
         compared, ok = _timing_score_rows(actual, reference)
+        compared, golden_comparable = _apply_energy_definition(
+            compared, actual_energy_definition, golden_bar_definition)
+        ok = ok and golden_comparable
         regression_bars = _tier2_regression_bars(vendor)
+        tier2_definition = _recorded_energy_definition(
+            vendor, "dpt_metrics.json", column="tier2_metrics")
         regression_rows, regression_ok = _timing_score_rows(
             actual, regression_bars)
-        regression_measured = bool(
-            regression_rows
-            and all(row.get("status") == "measured"
-                    for row in regression_rows.values()))
+        regression_rows, tier2_comparable = _apply_energy_definition(
+            regression_rows, actual_energy_definition, tier2_definition)
+        regression_ok = regression_ok and tier2_comparable
         timing_energy = {
             "pass": ok,
-            "status": "measured" if len(compared) == len(_TIMING_METRICS)
-                      else "not_measured",
+            "status": _timing_status(compared, golden_comparable),
             "rows": compared,
             "bar_source": GOLDEN_DPT_BAR_SOURCE,
+            "energy_current_definition": actual_energy_definition,
+            "bar_energy_current_definition": golden_bar_definition,
+            "energy_definition_comparison": (
+                "comparable" if golden_comparable
+                else "definition_mismatch"),
             "band_rel": ACCEPTANCE_POLICY.timing_band_rel,
             "band_abs": ACCEPTANCE_POLICY.timing_band_abs,
             # Self-consistency against this pipeline's own Tier-2 row: a
@@ -3077,10 +3219,14 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
                 "label": "Tier-2 self-comparison (diagnostic only; never "
                          "scored)",
                 "bar_source": TIER2_REGRESSION_BAR_SOURCE,
-                "status": ("measured" if regression_measured
-                           else "not_measured"),
+                "status": _timing_status(regression_rows, tier2_comparable),
                 "rows": regression_rows,
                 "all_within_band": regression_ok,
+                "energy_current_definition": actual_energy_definition,
+                "bar_energy_current_definition": tier2_definition,
+                "energy_definition_comparison": (
+                    "comparable" if tier2_comparable
+                    else "definition_mismatch"),
                 "used_for_verdict": False,
                 "diagnostic_only": True,
             },
@@ -3176,6 +3322,24 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
         "current_definition": compare.get("current_definition"),
         "current_definition_by_arm":
             compare.get("current_definition_by_arm"),
+        "energy_current_definition":
+            (dpt.get("urom") or {}).get("energy_current_definition"),
+        "energy_definition": {
+            "urom": (dpt.get("urom") or {}).get(
+                "energy_current_definition"),
+            "golden_arm": (dpt.get("golden") or {}).get(
+                "energy_current_definition"),
+            "g4_bar": _recorded_energy_definition(
+                vendor, "tier3_validation.json"),
+            "tier2_regression_bar": _recorded_energy_definition(
+                vendor, "dpt_metrics.json", column="tier2_metrics"),
+            "rule": (
+                "switching energy integrates the signed device current "
+                "I(Lload)-I(Dclamp); timing, slew and i_peak stay on its "
+                "absolute magnitude. A recorded bar without an "
+                "energy_current_definition is legacy abs and its energy rows "
+                "are reported as definition_mismatch, never scored as signed"),
+        },
         "c1_variant": c1_variant,
         "method": plan["method_label"],
         "equal_sandbox": equality,

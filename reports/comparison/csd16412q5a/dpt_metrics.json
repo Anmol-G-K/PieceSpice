@@ -16,6 +16,11 @@
   },
   "repeats": 1,
   "current_definition": "I(Lload)-I(Dclamp)",
+  "energy_current_definition": {
+    "golden": "I(Lload)-I(Dclamp) signed",
+    "tier2": "I(Lload)-I(Dclamp) signed",
+    "rule": "switching energy integrates the signed device current I(Lload)-I(Dclamp); timing/G3 remain on its absolute magnitude"
+  },
   "golden_failure": null,
   "golden_metrics": {
     "td_on_ns": 7.388513716454634,
@@ -24,8 +29,8 @@
     "tf_ns": 1.6618198938018818,
     "dv_dt_max_v_per_ns": 600.4276841381004,
     "di_dt_max_a_per_ns": 277.8112856371706,
-    "e_on_uj": 0.37956058084198213,
-    "e_off_uj": 0.9534493410718745,
+    "e_on_uj": 0.3785407247197336,
+    "e_off_uj": 0.36999258630018145,
     "e_oss_uj": null,
     "i_peak_a": 13.432002067564142
   },
@@ -36,14 +41,14 @@
     "tf_ns": 2.2460204524818494,
     "dv_dt_max_v_per_ns": 158.23055831928798,
     "di_dt_max_a_per_ns": 267.31460529548053,
-    "e_on_uj": 0.26661377339795833,
-    "e_off_uj": 0.2304911390776104,
+    "e_on_uj": 0.26463292641952585,
+    "e_off_uj": 0.22955729269092046,
     "e_oss_uj": null,
     "i_peak_a": 13.444267272949219
   },
   "wall_clock_s": {
-    "golden_median": 0.9182379000012588,
-    "tier2_median": 0.8698672999998962,
-    "speedup": 1.0556068724521182
+    "golden_median": 0.912719299994933,
+    "tier2_median": 0.936735299997963,
+    "speedup": 0.9743620209432886
   }
 }

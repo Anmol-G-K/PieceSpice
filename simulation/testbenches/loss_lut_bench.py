@@ -30,6 +30,7 @@ import numpy as np
 from config.yaml_io import CONFIG_ROOT, OUTPUT_DIR, load_input, load_output
 from parser.netlist import resolve_pin_connections
 from simulation.testbenches.double_pulse import (
+    LEGACY_ABS_ENERGY_DEFINITION,
     DoublePulseRun,
     extract_dpt_metrics,
     run_double_pulse,
@@ -415,12 +416,17 @@ def recorded_golden(vendor: str) -> dict[str, Any]:
         and np.isfinite(float(golden[k])) for k in ENERGY_KEYS
     )
     failure = str(data.get("golden_failure") or "")
+    definition = data.get("energy_current_definition")
+    if isinstance(definition, Mapping):
+        definition = definition.get("golden")
     return {
         "path": path.relative_to(ROOT).as_posix(),
         "available": True,
         "schema": data.get("schema"),
         "conditions": data.get("conditions") or {},
         "golden": golden,
+        "energy_current_definition": (
+            definition or LEGACY_ABS_ENERGY_DEFINITION),
         "repeats": data.get("repeats"),
         "wall_clock_s": (data.get("wall_clock_s") or {}).get("golden_median"),
         "failure": failure,
@@ -522,6 +528,7 @@ class SweepResult:
     conditions: dict[str, Any] = field(default_factory=dict)
     guard: dict[str, Any] = field(default_factory=dict)
     wall_clock_s: float | None = None
+    energy_current_definition: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -534,6 +541,7 @@ class SweepResult:
             "conditions": self.conditions,
             "guard": self.guard,
             "wall_clock_s": self.wall_clock_s,
+            "energy_current_definition": self.energy_current_definition,
         }
 
 
@@ -592,23 +600,28 @@ def extract_energy_from_run(
                            float(run.wall_clock_s))
 
     metrics = extract_dpt_metrics(run)
+    energy_definition = metrics.get("energy_current_definition")
     values = {k: float(metrics[k]) for k in ENERGY_KEYS}
     guard["golden_metrics"] = {k: values[k] for k in ENERGY_KEYS}
+    guard["energy_current_definition"] = energy_definition
     missing = [k for k, v in values.items() if not np.isfinite(v)]
     if missing:
         return SweepResult(point, values[ENERGY_KEYS[0]], values[ENERGY_KEYS[1]],
                            "not_evaluable",
                            "missing golden DPT crossing for " + ",".join(missing),
-                           source, conditions, guard, float(run.wall_clock_s))
+                           source, conditions, guard, float(run.wall_clock_s),
+                           energy_definition)
     negative = [k for k, v in values.items() if v < NEGATIVE_LOSS_DIAGNOSTIC]
     if negative:
         return SweepResult(point, float("nan"), float("nan"), "not_evaluable",
                            "negative switching loss for " + ",".join(negative),
-                           source, conditions, guard, float(run.wall_clock_s))
+                           source, conditions, guard, float(run.wall_clock_s),
+                           energy_definition)
     return SweepResult(point, values[ENERGY_KEYS[0]], values[ENERGY_KEYS[1]],
                        "measured", "golden DPT switching energy from "
                        "metrics.loss.compute_switching_energy", source,
-                       conditions, guard, float(run.wall_clock_s))
+                       conditions, guard, float(run.wall_clock_s),
+                       energy_definition)
 
 
 def run_golden_sweep(
@@ -650,6 +663,8 @@ def run_golden_sweep(
                         "per-run points are in tier3_validation.json, "
                         "iterations N/A for the recorded golden run",
                 "condition_check": condition_check,
+                "energy_current_definition":
+                    rec.get("energy_current_definition"),
             }
             if rec["evaluable"]:
                 results.append(SweepResult(
@@ -658,12 +673,14 @@ def run_golden_sweep(
                     "recorded vendor golden DPT metrics at identical config "
                     "conditions", source, conditions, guard,
                     None if rec.get("wall_clock_s") is None
-                    else float(rec["wall_clock_s"])))
+                    else float(rec["wall_clock_s"]),
+                    rec.get("energy_current_definition")))
             else:
                 results.append(SweepResult(
                     point, float("nan"), float("nan"), "not_evaluable",
                     f"recorded golden not evaluable: {rec.get('failure')}",
-                    source, conditions, guard, None))
+                    source, conditions, guard, None,
+                    rec.get("energy_current_definition")))
             continue
         if not simulate:
             results.append(SweepResult(

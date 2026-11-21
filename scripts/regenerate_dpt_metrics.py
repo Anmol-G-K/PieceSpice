@@ -5,6 +5,8 @@ on the shared clamped-inductive bench and records:
 
 * ``golden_metrics`` / ``tier2_metrics`` from ``extract_dpt_metrics`` using
   the bench's ``I(Lload)-I(Dclamp)`` current;
+* the energy-current definition of each arm (signed integration; timing/G3
+  stay on the absolute magnitude), so a consumer never has to guess;
 * the measured wall clocks and the speed ratio;
 * an explicit failure reason if either arm aborts.
 
@@ -61,8 +63,11 @@ def _one(lib: Path, subckt: str, roles: list[str], cfg: dict) -> dict:
         temperature=float(cfg["conditions"].get("temperature", 25.0)),
     )
     wall = time.perf_counter() - t0
+    metrics = extract_dpt_metrics(run)
     return {
-        "metrics": extract_dpt_metrics(run),
+        "metrics": metrics,
+        "energy_current_definition": metrics.get(
+            "energy_current_definition"),
         "wall_clock_s": float(wall),
         "current_definition": run.current_definition,
         "trace_points": int(len(run.time)),
@@ -100,6 +105,12 @@ def regenerate(vendor: str) -> dict:
         },
         "repeats": 1,
         "current_definition": "I(Lload)-I(Dclamp)",
+        "energy_current_definition": {
+            "golden": None, "tier2": None,
+            "rule": ("switching energy integrates the signed device current "
+                     "I(Lload)-I(Dclamp); timing/G3 remain on its absolute "
+                     "magnitude"),
+        },
         "golden_failure": None,
         "golden_metrics": {},
         "tier2_metrics": {},
@@ -111,6 +122,8 @@ def regenerate(vendor: str) -> dict:
         golden = _one(golden_lib, golden_sub, golden_roles, cfg)
         record["golden_metrics"] = {k: golden["metrics"][k]
                                     for k in _METRIC_KEYS}
+        record["energy_current_definition"]["golden"] = \
+            golden["energy_current_definition"]
         record["wall_clock_s"]["golden_median"] = golden["wall_clock_s"]
         record["current_definition"] = golden["current_definition"]
     except Exception as exc:  # a vendor abort is reported, never fabricated
@@ -121,6 +134,8 @@ def regenerate(vendor: str) -> dict:
                      ["drain", "gate", "source"], cfg)
         record["tier2_metrics"] = {k: tier2["metrics"][k]
                                    for k in _METRIC_KEYS}
+        record["energy_current_definition"]["tier2"] = \
+            tier2["energy_current_definition"]
         record["wall_clock_s"]["tier2_median"] = tier2["wall_clock_s"]
     except Exception as exc:
         record["tier2_failure"] = f"{type(exc).__name__}: {exc}"[:300]

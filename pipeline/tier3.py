@@ -44,6 +44,30 @@ from simulation.testbenches.dpt_trajectory import (
 from pipeline.registry import DEFAULT_VARIANT
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def _recorded_energy_definitions(vendor: str) -> dict[str, str | None]:
+    """Golden and Tier-2 energy-current definitions from dpt_metrics.json.
+
+    Records written before the signed-energy correction carry no label; this
+    returns ``None`` for them rather than claiming a definition.
+    """
+    path = ROOT / "reports" / "comparison" / vendor / "dpt_metrics.json"
+    out: dict[str, str | None] = {"golden": None, "tier2": None}
+    if not path.exists():
+        return out
+    data = json.loads(path.read_text(encoding="utf-8"))
+    definition = data.get("energy_current_definition")
+    if isinstance(definition, dict):
+        out["golden"] = (definition.get("golden")
+                         or definition.get("golden_metrics"))
+        out["tier2"] = (definition.get("tier2")
+                        or definition.get("tier2_metrics"))
+    elif isinstance(definition, str):
+        out["golden"] = out["tier2"] = definition
+    return out
+
+
 METRICS = ("td_on_ns", "tr_ns", "td_off_ns", "tf_ns",
            "dv_dt_max_v_per_ns", "di_dt_max_a_per_ns",
            "e_on_uj", "e_off_uj", "i_peak_a")
@@ -164,7 +188,8 @@ def _run_emitted_dpt(model, lib_path: Path, vendor: str):
         v_gs=np.asarray(res.get("V(gate)")),
         v_bus=dpt["vbus"], i_load=dpt["i_load_target"],
         l_load=dpt["l_load"], vgs_on=dpt["vgs_on"],
-        wall_clock_s=float(wall), t2_on=dpt["t2_on"])
+        wall_clock_s=float(wall), t2_on=dpt["t2_on"],
+        i_d_signed=_signed_device_current(res))
     return run, res.log_text, current_def
 
 
@@ -189,6 +214,8 @@ def _device_current(result) -> tuple[np.ndarray, str]:
     capture_trajectory trains on I(Lload)-I(Dclamp) (trajectory output[0]);
     validation uses the same definition wherever the clamp trace exists so
     golden and ROM stay like-with-like. The fallback is recorded explicitly.
+    This is the ABSOLUTE magnitude: it is what waveform/G3/timing/peak
+    comparisons use.
     """
     i_l = np.asarray(result.get("I(Lload)"), dtype=float)
     i_clamp = result.traces.get("I(Dclamp)")
@@ -196,6 +223,24 @@ def _device_current(result) -> tuple[np.ndarray, str]:
         return (np.abs(i_l - np.asarray(i_clamp, dtype=float)),
                 _DEVICE_CURRENT)
     return np.abs(i_l), _LOAD_CURRENT
+
+
+def _signed_device_current(result) -> np.ndarray | None:
+    """The same DUT current BEFORE ``abs``, for switching-energy integration.
+
+    The clamp branch makes I(Lload)-I(Dclamp) reverse sign after turn-off;
+    ``abs`` would count that recovered reactance as dissipation. ``None``
+    when the raw result carries no I(Lload); the energy metric then uses the
+    absolute trace and records the fallback instead of inventing a sign.
+    """
+    i_l = result.traces.get("I(Lload)")
+    if i_l is None:
+        return None
+    i_l = np.asarray(i_l, dtype=float)
+    i_clamp = result.traces.get("I(Dclamp)")
+    if i_clamp is None:
+        return i_l
+    return i_l - np.asarray(i_clamp, dtype=float)
 
 
 def _waveform_errors(run, traj) -> dict:
@@ -332,8 +377,10 @@ def run_vendor(vendor: str, variant: str = DEFAULT_VARIANT) -> dict:
         v_gs=traj.input[0], v_bus=dpt["vbus"],
         i_load=dpt["i_load_target"], l_load=dpt["l_load"],
         vgs_on=dpt["vgs_on"], wall_clock_s=capture_wall,
-        t2_on=dpt["t2_on"])
+        t2_on=dpt["t2_on"],
+        i_d_signed=np.asarray(traj.output[0], dtype=float))
     golden = extract_dpt_metrics(golden_run)
+    golden_energy_definition = golden.get("energy_current_definition")
     current_defs = {"golden": _DEVICE_CURRENT, "tier3": None}
 
     tier3_run, tier3, log = None, {}, ""
@@ -341,6 +388,9 @@ def run_vendor(vendor: str, variant: str = DEFAULT_VARIANT) -> dict:
                 "golden_trace_points": int(len(traj.time)),
                 "iterations": None, "t_last_s": None,
                 "error": None, "waveform": {},
+                "energy_current_definition": None,
+                "golden_energy_current_definition":
+                    golden_energy_definition,
                 "current_definitions": current_defs}
     try:
         tier3_run, log, current_def = _run_emitted_dpt(model, lib, vendor)
@@ -356,6 +406,8 @@ def run_vendor(vendor: str, variant: str = DEFAULT_VARIANT) -> dict:
             dpt_info["completed"] = True
             dpt_info["waveform"] = _waveform_errors(tier3_run, traj)
             tier3 = extract_dpt_metrics(tier3_run)
+            dpt_info["energy_current_definition"] = tier3.get(
+                "energy_current_definition")
         else:
             dpt_info["error"] = (
                 f"incomplete: {n3} trace points, t_last={t_last:.3g} s")
@@ -369,6 +421,7 @@ def run_vendor(vendor: str, variant: str = DEFAULT_VARIANT) -> dict:
     recorded = ROOT / "reports" / "comparison" / vendor / "dpt_metrics.json"
     tier2 = json.loads(recorded.read_text(encoding="utf-8"))["tier2_metrics"] \
         if recorded.exists() else {}
+    recorded_energy = _recorded_energy_definitions(vendor)
 
     comparison = {}
     for m in METRICS:
@@ -378,6 +431,13 @@ def run_vendor(vendor: str, variant: str = DEFAULT_VARIANT) -> dict:
         if m in tier2:
             row["tier2"] = tier2[m]
             row["tier2_rel_err_pct"] = _rel_err(tier2[m], g)
+        if m in ("e_on_uj", "e_off_uj"):
+            row["golden_energy_current_definition"] = \
+                golden_energy_definition
+            row["tier3_energy_current_definition"] = (
+                tier3.get("energy_current_definition"))
+            row["tier2_energy_current_definition"] = \
+                recorded_energy["tier2"]
         comparison[m] = row
 
     # runtime medians from the same benchmark that produced the Tier-2 table
@@ -513,6 +573,14 @@ def run_vendor(vendor: str, variant: str = DEFAULT_VARIANT) -> dict:
         "generalization": generalization,
         "dpt_run": dpt_info,
         "dpt_comparison": comparison,
+        "energy_current_definition": {
+            "golden": golden_energy_definition,
+            "tier3": dpt_info.get("energy_current_definition"),
+            "tier2": recorded_energy["tier2"],
+            "rule": ("switching energy integrates the signed device current "
+                     "I(Lload)-I(Dclamp); timing/G3 remain on its absolute "
+                     "magnitude"),
+        },
         "runtime": {
             "method": "default/trap",
             "max_step_s": dpt["max_step"],

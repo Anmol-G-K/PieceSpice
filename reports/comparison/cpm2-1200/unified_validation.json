@@ -10,7 +10,7 @@
   "timing_bar_source": "reports/comparison/<vendor>/tier3_validation.json#dpt_comparison.<metric>.golden (device-current golden DPT; independent of dpt_metrics.json#tier2_metrics)",
   "timing_regression_source": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics (diagnostic only; never scored in G4_timing_energy or in the verdict)",
   "tuning_mode": "off",
-  "emitted_lib_sha256": "fe4e0d6af0e2da60a22acbaf19dbd8eda338083567947bdfde80e4d387d180e4",
+  "emitted_lib_sha256": "c19d74137c9564861f5c7ed9ca99165a05f11cf552a3186bba70cf54a348270c",
   "environment": {
     "python_version": "3.13.0",
     "python_implementation": "CPython",
@@ -23,13 +23,13 @@
     "ltspice_version": null
   },
   "input_hashes": {
-    "config/inputs/cpm2-1200.yaml": "ddf050db4453741116777586009e20b1e412e3972d6565b285d6ae30c406826c",
+    "config/inputs/cpm2-1200.yaml": "ff751222a2e9ace524a7c57a5a4fd5bca45dd4ebcbab477c72905960f8be87db",
     "vendor_library:CPM2-1200-0025B-Bare-Die.lib": "26823ab247c44d5d55c681c2db56022a0683a77e007e79296c63ca44263b6e42",
-    "emitted_lib": "fe4e0d6af0e2da60a22acbaf19dbd8eda338083567947bdfde80e4d387d180e4",
+    "emitted_lib": "c19d74137c9564861f5c7ed9ca99165a05f11cf552a3186bba70cf54a348270c",
     "config/outputs/cpm2-1200/curve1_output_characteristics.yaml": "dc79c7e8ac0f1c8466c90d5cdcf6541bc8578419d982acd5f5f319d9418d275b",
     "config/outputs/cpm2-1200/curve2_transfer_characteristic.yaml": "c705fcde87120c5575a23164bd03cdcf29f1dc905f1a8e54e1bc57a2affe314b",
     "config/outputs/cpm2-1200/curve3_rds_on.yaml": "b422e4f09d1f9653abcd93e354cd38e2e0757581004bd74ebeaf30389ea65b0d",
-    "config/outputs/cpm2-1200/curve4_capacitances.yaml": "d1edf00382f63afde8046812feb09df0844aae94d7d9823c1789aecf98e60303",
+    "config/outputs/cpm2-1200/curve4_capacitances.yaml": "23f1f86fc9e520fce61b1ebcc0ef8c38b8506f1dbf26ed6f49404e8871029e92",
     "config/outputs/cpm2-1200/curve5_gate_charge.yaml": "85cf6175a4c29eb294fad4655139d752509a123f62edce9fa8d5af094185390b",
     "config/outputs/cpm2-1200/curve6_body_diode.yaml": "6beb76829cbeb9322be87d54e3d7964290fc3930cae57f7fd3e56c0bf42957fc",
     "config/outputs/cpm2-1200/curve7_threshold_voltage.yaml": "688d274748c7aaa5ca7a5f386ca8bed89a9df994b7319acf1a1a7a70dff10c24"
@@ -132,14 +132,14 @@
     "schema": "piecespice.artifact_manifest/1.0",
     "lib": {
       "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\cpm2-1200_PIECSPICE_UROM.lib",
-      "sha256": "fe4e0d6af0e2da60a22acbaf19dbd8eda338083567947bdfde80e4d387d180e4",
-      "bytes": 3654
+      "sha256": "c19d74137c9564861f5c7ed9ca99165a05f11cf552a3186bba70cf54a348270c",
+      "bytes": 3966
     },
     "inputs": {
       "config/inputs/cpm2-1200.yaml": {
         "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\inputs\\cpm2-1200.yaml",
-        "sha256": "ddf050db4453741116777586009e20b1e412e3972d6565b285d6ae30c406826c",
-        "bytes": 3495
+        "sha256": "ff751222a2e9ace524a7c57a5a4fd5bca45dd4ebcbab477c72905960f8be87db",
+        "bytes": 3608
       },
       "vendor_library:CPM2-1200-0025B-Bare-Die.lib": {
         "path": "SpiceModels\\CPM2-1200-0025B-Bare-Die.lib",
@@ -148,8 +148,8 @@
       },
       "emitted_lib": {
         "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\cpm2-1200_PIECSPICE_UROM.lib",
-        "sha256": "fe4e0d6af0e2da60a22acbaf19dbd8eda338083567947bdfde80e4d387d180e4",
-        "bytes": 3654
+        "sha256": "c19d74137c9564861f5c7ed9ca99165a05f11cf552a3186bba70cf54a348270c",
+        "bytes": 3966
       },
       "config/outputs/cpm2-1200/curve1_output_characteristics.yaml": {
         "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\cpm2-1200\\curve1_output_characteristics.yaml",
@@ -168,8 +168,8 @@
       },
       "config/outputs/cpm2-1200/curve4_capacitances.yaml": {
         "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\cpm2-1200\\curve4_capacitances.yaml",
-        "sha256": "d1edf00382f63afde8046812feb09df0844aae94d7d9823c1789aecf98e60303",
-        "bytes": 3059
+        "sha256": "23f1f86fc9e520fce61b1ebcc0ef8c38b8506f1dbf26ed6f49404e8871029e92",
+        "bytes": 12050
       },
       "config/outputs/cpm2-1200/curve5_gate_charge.yaml": {
         "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\cpm2-1200\\curve5_gate_charge.yaml",
@@ -198,6 +198,14 @@
     "golden": "abs(I(Lload) - I(Dclamp))",
     "urom": "abs(I(Lload) - I(Dclamp))"
   },
+  "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+  "energy_definition": {
+    "urom": "I(Lload)-I(Dclamp) signed",
+    "golden_arm": "I(Lload)-I(Dclamp) signed",
+    "g4_bar": "I(Lload)-I(Dclamp) signed",
+    "tier2_regression_bar": "I(Lload)-I(Dclamp) signed",
+    "rule": "switching energy integrates the signed device current I(Lload)-I(Dclamp); timing, slew and i_peak stay on its absolute magnitude. A recorded bar without an energy_current_definition is legacy abs and its energy rows are reported as definition_mismatch, never scored as signed"
+  },
   "c1_variant": null,
   "method": "trap/default",
   "equal_sandbox": {
@@ -220,32 +228,32 @@
     "clock_spread": {
       "median": {
         "solver": {
-          "golden": 0.291,
-          "urom": 0.264
+          "golden": 0.316,
+          "urom": 0.28
         },
         "wall": {
-          "golden": 0.766315199998644,
-          "urom": 0.7241095999997924
+          "golden": 0.8251318000038736,
+          "urom": 0.7667784000004758
         }
       },
       "min": {
         "solver": {
-          "golden": 0.29,
-          "urom": 0.264
+          "golden": 0.302,
+          "urom": 0.276
         },
         "wall": {
-          "golden": 0.7619076999981189,
-          "urom": 0.7239731999979995
+          "golden": 0.7908258000024944,
+          "urom": 0.7570424000005005
         }
       },
       "max": {
         "solver": {
-          "golden": 0.296,
-          "urom": 0.271
+          "golden": 0.335,
+          "urom": 0.291
         },
         "wall": {
-          "golden": 0.7760240999996313,
-          "urom": 0.7478645999981381
+          "golden": 0.8404899000015575,
+          "urom": 0.784982700002729
         }
       },
       "missing": [],
@@ -458,7 +466,7 @@
           "td_on_ns": 10.252879764066485,
           "tr_ns": 4.703011959080317,
           "td_off_ns": 14.034458010213152,
-          "e_on_uj": 2.7909554948540354,
+          "e_on_uj": 2.7601594486405885,
           "dv_dt_max_v_per_ns": 373.7322739993671,
           "di_dt_max_a_per_ns": 986.2625878706833
         },
@@ -472,13 +480,20 @@
           "temperature": 25.0
         },
         "emp_source": "reports/comparison/cpm2-1200/dpt_metrics.json",
+        "energy_definition": {
+          "golden": "I(Lload)-I(Dclamp) signed",
+          "candidate": "I(Lload)-I(Dclamp) signed",
+          "comparable": true,
+          "excluded_metrics": [],
+          "rule": "energy metrics are compared only when the recorded golden and the live candidate integrate the same current definition; otherwise they are excluded and listed here"
+        },
         "split": "fit metrics of the recorded golden DPT"
       },
       {
         "name": "recorded_golden_heldout",
         "emp": {
           "tf_ns": 4.139181554911007,
-          "e_off_uj": 1.6520839383633132,
+          "e_off_uj": 1.4200473072736473,
           "i_peak_a": 26.82243537902832
         },
         "held_out": true,
@@ -491,6 +506,13 @@
           "temperature": 25.0
         },
         "emp_source": "reports/comparison/cpm2-1200/dpt_metrics.json",
+        "energy_definition": {
+          "golden": "I(Lload)-I(Dclamp) signed",
+          "candidate": "I(Lload)-I(Dclamp) signed",
+          "comparable": true,
+          "excluded_metrics": [],
+          "rule": "energy metrics are compared only when the recorded golden and the live candidate integrate the same current definition; otherwise they are excluded and listed here"
+        },
         "split": "held-out metrics of the recorded golden DPT"
       }
     ],
@@ -528,32 +550,32 @@
         "clock_spread": {
           "median": {
             "solver": {
-              "golden": 0.291,
-              "urom": 0.264
+              "golden": 0.316,
+              "urom": 0.28
             },
             "wall": {
-              "golden": 0.766315199998644,
-              "urom": 0.7241095999997924
+              "golden": 0.8251318000038736,
+              "urom": 0.7667784000004758
             }
           },
           "min": {
             "solver": {
-              "golden": 0.29,
-              "urom": 0.264
+              "golden": 0.302,
+              "urom": 0.276
             },
             "wall": {
-              "golden": 0.7619076999981189,
-              "urom": 0.7239731999979995
+              "golden": 0.7908258000024944,
+              "urom": 0.7570424000005005
             }
           },
           "max": {
             "solver": {
-              "golden": 0.296,
-              "urom": 0.271
+              "golden": 0.335,
+              "urom": 0.291
             },
             "wall": {
-              "golden": 0.7760240999996313,
-              "urom": 0.7478645999981381
+              "golden": 0.8404899000015575,
+              "urom": 0.784982700002729
             }
           },
           "missing": [],
@@ -634,8 +656,8 @@
         "urom": {
           "status": "measured",
           "pass": true,
-          "vds_rel_rmse_pct": 2.893307090177065,
-          "id_rel_rmse_pct": 3.208612002533582,
+          "vds_rel_rmse_pct": 2.8932998147593514,
+          "id_rel_rmse_pct": 3.208611942839892,
           "bars_vds_id_pct": [
             3.0,
             5.0
@@ -690,7 +712,7 @@
         "rows": {
           "td_on_ns": {
             "status": "measured",
-            "value": 11.780657261751886,
+            "value": 11.78065788164956,
             "bar": 10.252879764066485,
             "band": [
               9.74023577586316,
@@ -700,7 +722,7 @@
           },
           "tr_ns": {
             "status": "measured",
-            "value": 4.12318014485143,
+            "value": 4.123180211809384,
             "bar": 4.703011959080317,
             "band": [
               4.467861361126301,
@@ -720,7 +742,7 @@
           },
           "tf_ns": {
             "status": "measured",
-            "value": 8.788832091072095,
+            "value": 8.788831927299968,
             "bar": 4.139181554911007,
             "band": [
               3.9322224771654564,
@@ -730,26 +752,39 @@
           },
           "e_on_uj": {
             "status": "measured",
-            "value": 3.2394497672543987,
-            "bar": 2.7909554948540354,
+            "value": 3.2139138019854436,
+            "bar": 2.7601594486405885,
             "band": [
-              2.6514077201113335,
-              2.9305032695967372
+              2.622151476208559,
+              2.898167421072618
             ],
-            "pass": false
+            "pass": false,
+            "actual_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "actual_energy_definition_kind": "signed",
+            "bar_energy_definition_kind": "signed",
+            "energy_definition_comparison": "comparable"
           },
           "e_off_uj": {
             "status": "measured",
-            "value": 3.45889177896711,
-            "bar": 1.6520839383633132,
+            "value": 3.3144107984531366,
+            "bar": 1.4200473072736473,
             "band": [
-              1.5694797414451476,
-              1.734688135281479
+              1.3490449419099648,
+              1.4910496726373297
             ],
-            "pass": false
+            "pass": false,
+            "actual_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "actual_energy_definition_kind": "signed",
+            "bar_energy_definition_kind": "signed",
+            "energy_definition_comparison": "comparable"
           }
         },
         "bar_source": "reports/comparison/<vendor>/tier3_validation.json#dpt_comparison.<metric>.golden",
+        "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+        "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+        "energy_definition_comparison": "comparable",
         "band_rel": 0.05,
         "band_abs": 1e-12,
         "tier2_regression": {
@@ -759,7 +794,7 @@
           "rows": {
             "td_on_ns": {
               "status": "measured",
-              "value": 11.780657261751886,
+              "value": 11.78065788164956,
               "bar": 11.780657210018502,
               "band": [
                 11.191624349517577,
@@ -769,7 +804,7 @@
             },
             "tr_ns": {
               "status": "measured",
-              "value": 4.12318014485143,
+              "value": 4.123180211809384,
               "bar": 4.123180135595054,
               "band": [
                 3.917021128815301,
@@ -789,7 +824,7 @@
             },
             "tf_ns": {
               "status": "measured",
-              "value": 8.788832091072095,
+              "value": 8.788831927299968,
               "bar": 8.788832112198792,
               "band": [
                 8.349390506588852,
@@ -799,26 +834,39 @@
             },
             "e_on_uj": {
               "status": "measured",
-              "value": 3.2394497672543987,
-              "bar": 3.2394497672543987,
+              "value": 3.2139138019854436,
+              "bar": 3.213875373912566,
               "band": [
-                3.0774772788916787,
-                3.4014222556171188
+                3.053181605216938,
+                3.3745691426081943
               ],
-              "pass": true
+              "pass": true,
+              "actual_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+              "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+              "actual_energy_definition_kind": "signed",
+              "bar_energy_definition_kind": "signed",
+              "energy_definition_comparison": "comparable"
             },
             "e_off_uj": {
               "status": "measured",
-              "value": 3.45889177896711,
-              "bar": 3.45889177896711,
+              "value": 3.3144107984531366,
+              "bar": 3.314410474663301,
               "band": [
-                3.2859471900187542,
-                3.6318363679154655
+                3.148689950930136,
+                3.4801309983964663
               ],
-              "pass": true
+              "pass": true,
+              "actual_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+              "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+              "actual_energy_definition_kind": "signed",
+              "bar_energy_definition_kind": "signed",
+              "energy_definition_comparison": "comparable"
             }
           },
           "all_within_band": true,
+          "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+          "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+          "energy_definition_comparison": "comparable",
           "used_for_verdict": false,
           "diagnostic_only": true
         }
@@ -834,7 +882,7 @@
         "rows": {
           "td_on_ns": {
             "status": "measured",
-            "value": 11.780657261751886,
+            "value": 11.78065788164956,
             "bar": 11.780657210018502,
             "band": [
               11.191624349517577,
@@ -844,7 +892,7 @@
           },
           "tr_ns": {
             "status": "measured",
-            "value": 4.12318014485143,
+            "value": 4.123180211809384,
             "bar": 4.123180135595054,
             "band": [
               3.917021128815301,
@@ -864,7 +912,7 @@
           },
           "tf_ns": {
             "status": "measured",
-            "value": 8.788832091072095,
+            "value": 8.788831927299968,
             "bar": 8.788832112198792,
             "band": [
               8.349390506588852,
@@ -874,26 +922,39 @@
           },
           "e_on_uj": {
             "status": "measured",
-            "value": 3.2394497672543987,
-            "bar": 3.2394497672543987,
+            "value": 3.2139138019854436,
+            "bar": 3.213875373912566,
             "band": [
-              3.0774772788916787,
-              3.4014222556171188
+              3.053181605216938,
+              3.3745691426081943
             ],
-            "pass": true
+            "pass": true,
+            "actual_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "actual_energy_definition_kind": "signed",
+            "bar_energy_definition_kind": "signed",
+            "energy_definition_comparison": "comparable"
           },
           "e_off_uj": {
             "status": "measured",
-            "value": 3.45889177896711,
-            "bar": 3.45889177896711,
+            "value": 3.3144107984531366,
+            "bar": 3.314410474663301,
             "band": [
-              3.2859471900187542,
-              3.6318363679154655
+              3.148689950930136,
+              3.4801309983964663
             ],
-            "pass": true
+            "pass": true,
+            "actual_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "actual_energy_definition_kind": "signed",
+            "bar_energy_definition_kind": "signed",
+            "energy_definition_comparison": "comparable"
           }
         },
         "all_within_band": true,
+        "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+        "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+        "energy_definition_comparison": "comparable",
         "used_for_verdict": false,
         "diagnostic_only": true,
         "scored": false,
@@ -913,32 +974,32 @@
         "clock_spread": {
           "median": {
             "solver": {
-              "golden": 0.291,
-              "urom": 0.264
+              "golden": 0.316,
+              "urom": 0.28
             },
             "wall": {
-              "golden": 0.766315199998644,
-              "urom": 0.7241095999997924
+              "golden": 0.8251318000038736,
+              "urom": 0.7667784000004758
             }
           },
           "min": {
             "solver": {
-              "golden": 0.29,
-              "urom": 0.264
+              "golden": 0.302,
+              "urom": 0.276
             },
             "wall": {
-              "golden": 0.7619076999981189,
-              "urom": 0.7239731999979995
+              "golden": 0.7908258000024944,
+              "urom": 0.7570424000005005
             }
           },
           "max": {
             "solver": {
-              "golden": 0.296,
-              "urom": 0.271
+              "golden": 0.335,
+              "urom": 0.291
             },
             "wall": {
-              "golden": 0.7760240999996313,
-              "urom": 0.7478645999981381
+              "golden": 0.8404899000015575,
+              "urom": 0.784982700002729
             }
           },
           "missing": [],
@@ -949,29 +1010,29 @@
           "golden": true,
           "urom": true
         },
-        "solver_speedup": 1.102272727272727,
-        "wall_speedup": 1.058286204186305,
+        "solver_speedup": 1.1285714285714286,
+        "wall_speedup": 1.0761020393941216,
         "solver_speedup_ci95": {
-          "point": 1.102272727272727,
-          "low": 1.070110701107011,
-          "high": 1.121212121212121,
+          "point": 1.144927536231884,
+          "low": 1.0378006872852235,
+          "high": 1.1964285714285714,
           "n": 3,
           "confidence": 0.95,
           "n_resamples": 2000
         },
         "wall_speedup_ci95": {
-          "point": 1.058485590351634,
-          "low": 1.0187775969072688,
-          "high": 1.0716942573332182,
+          "point": 1.0707113672678845,
+          "low": 1.0313616033028625,
+          "high": 1.089941329578539,
           "n": 3,
           "confidence": 0.95,
           "n_resamples": 2000
         },
-        "recorded_solver_speedup": 1.102272727272727,
+        "recorded_solver_speedup": 1.1285714285714286,
         "recorded_solver_speedup_ci95": {
-          "point": 1.102272727272727,
-          "low": 1.070110701107011,
-          "high": 1.121212121212121,
+          "point": 1.144927536231884,
+          "low": 1.0378006872852235,
+          "high": 1.1964285714285714,
           "n": 3,
           "confidence": 0.95,
           "n_resamples": 2000
@@ -1069,11 +1130,11 @@
   "runtime": {
     "iterations": {
       "golden": 12492.0,
-      "urom": 9214.0
+      "urom": 9176.0
     },
     "points": {
       "golden": 3092.0,
-      "urom": 2523.0
+      "urom": 2517.0
     },
     "t_last": {
       "golden": 0.000176,
@@ -1081,41 +1142,41 @@
     },
     "repeats": 3,
     "solver_time_s": {
-      "golden": 0.291,
-      "urom": 0.264
+      "golden": 0.316,
+      "urom": 0.28
     },
     "wall_time_s": {
-      "golden": 0.766315199998644,
-      "urom": 0.7241095999997924
+      "golden": 0.8251318000038736,
+      "urom": 0.7667784000004758
     },
     "median": {
       "solver": {
-        "golden": 0.291,
-        "urom": 0.264
+        "golden": 0.316,
+        "urom": 0.28
       },
       "wall": {
-        "golden": 0.766315199998644,
-        "urom": 0.7241095999997924
+        "golden": 0.8251318000038736,
+        "urom": 0.7667784000004758
       }
     },
     "min": {
       "solver": {
-        "golden": 0.29,
-        "urom": 0.264
+        "golden": 0.302,
+        "urom": 0.276
       },
       "wall": {
-        "golden": 0.7619076999981189,
-        "urom": 0.7239731999979995
+        "golden": 0.7908258000024944,
+        "urom": 0.7570424000005005
       }
     },
     "max": {
       "solver": {
-        "golden": 0.296,
-        "urom": 0.271
+        "golden": 0.335,
+        "urom": 0.291
       },
       "wall": {
-        "golden": 0.7760240999996313,
-        "urom": 0.7478645999981381
+        "golden": 0.8404899000015575,
+        "urom": 0.784982700002729
       }
     },
     "completion": {
@@ -1127,20 +1188,20 @@
     "n_pulses": 20,
     "max_step": null,
     "method_label": "trap/default",
-    "solver_speedup": 1.102272727272727,
-    "wall_speedup": 1.058286204186305,
+    "solver_speedup": 1.1285714285714286,
+    "wall_speedup": 1.0761020393941216,
     "solver_speedup_ci95": {
-      "point": 1.102272727272727,
-      "low": 1.070110701107011,
-      "high": 1.121212121212121,
+      "point": 1.144927536231884,
+      "low": 1.0378006872852235,
+      "high": 1.1964285714285714,
       "n": 3,
       "confidence": 0.95,
       "n_resamples": 2000
     },
     "wall_speedup_ci95": {
-      "point": 1.058485590351634,
-      "low": 1.0187775969072688,
-      "high": 1.0716942573332182,
+      "point": 1.0707113672678845,
+      "low": 1.0313616033028625,
+      "high": 1.089941329578539,
       "n": 3,
       "confidence": 0.95,
       "n_resamples": 2000
@@ -1152,11 +1213,11 @@
     },
     "iterations": {
       "golden": 12492.0,
-      "urom": 9214.0
+      "urom": 9176.0
     },
     "points": {
       "golden": 3092.0,
-      "urom": 2523.0
+      "urom": 2517.0
     },
     "global_claim": false,
     "min_default_gear": null,
@@ -1166,7 +1227,7 @@
     "waveform_gate_retired": false,
     "energy_only_claim": false
   },
-  "spice_log_tail": "LTspice 26.1.1 for Windows\nCircuit: C:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_i51nheay\\tran.net\nStart Time: Sat Nov 21 18:19:32 2026\nsolver = Normal\nMaximum thread count: 16\ntnom = 27\ntemp = 25\nmethod = modified trap\nAsciiRawFile = true\nCompress1stOrder = true\nCompress2ndOrder = true\nDirect Newton iteration succeeded in finding operating point.\nTotal elapsed time: 0.264 seconds.\nTotal iterations: 9214\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_i51nheay\\tran.net\n\n",
+  "spice_log_tail": "LTspice 26.1.1 for Windows\nCircuit: C:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_mrfmndph\\tran.net\nStart Time: Sat Nov 21 21:52:48 2026\nsolver = Normal\nMaximum thread count: 16\ntnom = 27\ntemp = 25\nmethod = modified trap\nAsciiRawFile = true\nCompress1stOrder = true\nCompress2ndOrder = true\nDirect Newton iteration succeeded in finding operating point.\nTotal elapsed time: 0.291 seconds.\nTotal iterations: 9176\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_mrfmndph\\tran.net\n\n",
   "dpt_run": {
     "completed": true,
     "iterations": 20961,
@@ -1174,8 +1235,8 @@
     "golden_trace_points": 7154,
     "t_last": 1.4e-05,
     "waveform": {
-      "vds_rel_rmse_pct": 2.893307090177065,
-      "id_rel_rmse_pct": 3.208612002533582,
+      "vds_rel_rmse_pct": 2.8932998147593514,
+      "id_rel_rmse_pct": 3.208611942839892,
       "compare_points": 7000,
       "compare_grid_step_s": 2.0002857551078724e-09,
       "current_definition": "abs(I(Lload) - I(Dclamp))",
@@ -1183,24 +1244,27 @@
       "role": "fidelity measurement"
     },
     "metrics": {
-      "td_on_ns": 11.780657261751886,
-      "tr_ns": 4.12318014485143,
+      "td_on_ns": 11.78065788164956,
+      "tr_ns": 4.123180211809384,
       "td_off_ns": 18.242310407757053,
-      "tf_ns": 8.788832091072095,
-      "dv_dt_max_v_per_ns": 374.947872768,
-      "di_dt_max_a_per_ns": 726.5448769511014,
-      "e_on_uj": 3.2394497672543987,
-      "e_off_uj": 3.45889177896711,
+      "tf_ns": 8.788831927299968,
+      "dv_dt_max_v_per_ns": 374.41598259200003,
+      "di_dt_max_a_per_ns": 725.5140294487989,
+      "e_on_uj": 3.2139138019854436,
+      "e_off_uj": 3.3144107984531366,
       "e_oss_uj": null,
       "i_peak_a": 26.73192024230957,
-      "wall_clock_s": 0.9084605999996711
+      "wall_clock_s": 0.9002116999981808,
+      "energy_current_definition": "I(Lload)-I(Dclamp) signed"
     },
     "current_definition": "abs(I(Lload) - I(Dclamp))",
+    "signed_current_definition": "I(Lload)-I(Dclamp)",
+    "energy_current_definition": "I(Lload)-I(Dclamp) signed",
     "error": null
   },
   "dpt_waveform": {
-    "vds_rel_rmse_pct": 2.893307090177065,
-    "id_rel_rmse_pct": 3.208612002533582,
+    "vds_rel_rmse_pct": 2.8932998147593514,
+    "id_rel_rmse_pct": 3.208611942839892,
     "compare_points": 7000,
     "compare_grid_step_s": 2.0002857551078724e-09,
     "current_definition": "abs(I(Lload) - I(Dclamp))",
@@ -1230,13 +1294,16 @@
         "tf_ns": 4.139181570877578,
         "dv_dt_max_v_per_ns": 373.73227827200003,
         "di_dt_max_a_per_ns": 986.2625878706833,
-        "e_on_uj": 2.7909554948540354,
-        "e_off_uj": 1.6520839383633132,
+        "e_on_uj": 2.7601594486405885,
+        "e_off_uj": 1.4200473072736473,
         "e_oss_uj": null,
         "i_peak_a": 26.82243537902832,
-        "wall_clock_s": 0.9633890000004612
+        "wall_clock_s": 0.9760950999989291,
+        "energy_current_definition": "I(Lload)-I(Dclamp) signed"
       },
       "current_definition": "abs(I(Lload) - I(Dclamp))",
+      "signed_current_definition": "I(Lload)-I(Dclamp)",
+      "energy_current_definition": "I(Lload)-I(Dclamp) signed",
       "error": null
     },
     "urom": {
@@ -1246,8 +1313,8 @@
       "golden_trace_points": 7154,
       "t_last": 1.4e-05,
       "waveform": {
-        "vds_rel_rmse_pct": 2.893307090177065,
-        "id_rel_rmse_pct": 3.208612002533582,
+        "vds_rel_rmse_pct": 2.8932998147593514,
+        "id_rel_rmse_pct": 3.208611942839892,
         "compare_points": 7000,
         "compare_grid_step_s": 2.0002857551078724e-09,
         "current_definition": "abs(I(Lload) - I(Dclamp))",
@@ -1255,19 +1322,22 @@
         "role": "fidelity measurement"
       },
       "metrics": {
-        "td_on_ns": 11.780657261751886,
-        "tr_ns": 4.12318014485143,
+        "td_on_ns": 11.78065788164956,
+        "tr_ns": 4.123180211809384,
         "td_off_ns": 18.242310407757053,
-        "tf_ns": 8.788832091072095,
-        "dv_dt_max_v_per_ns": 374.947872768,
-        "di_dt_max_a_per_ns": 726.5448769511014,
-        "e_on_uj": 3.2394497672543987,
-        "e_off_uj": 3.45889177896711,
+        "tf_ns": 8.788831927299968,
+        "dv_dt_max_v_per_ns": 374.41598259200003,
+        "di_dt_max_a_per_ns": 725.5140294487989,
+        "e_on_uj": 3.2139138019854436,
+        "e_off_uj": 3.3144107984531366,
         "e_oss_uj": null,
         "i_peak_a": 26.73192024230957,
-        "wall_clock_s": 0.9084605999996711
+        "wall_clock_s": 0.9002116999981808,
+        "energy_current_definition": "I(Lload)-I(Dclamp) signed"
       },
       "current_definition": "abs(I(Lload) - I(Dclamp))",
+      "signed_current_definition": "I(Lload)-I(Dclamp)",
+      "energy_current_definition": "I(Lload)-I(Dclamp) signed",
       "error": null
     }
   },
@@ -1317,8 +1387,8 @@
         "role": "control: golden self-comparison, not a fidelity measure"
       },
       "urom": {
-        "vds_rel_rmse_pct": 2.893307090177065,
-        "id_rel_rmse_pct": 3.208612002533582,
+        "vds_rel_rmse_pct": 2.8932998147593514,
+        "id_rel_rmse_pct": 3.208611942839892,
         "compare_points": 7000,
         "compare_grid_step_s": 2.0002857551078724e-09,
         "current_definition": "abs(I(Lload) - I(Dclamp))",
@@ -1390,32 +1460,32 @@
       "clock_spread": {
         "median": {
           "solver": {
-            "golden": 0.291,
-            "urom": 0.264
+            "golden": 0.316,
+            "urom": 0.28
           },
           "wall": {
-            "golden": 0.766315199998644,
-            "urom": 0.7241095999997924
+            "golden": 0.8251318000038736,
+            "urom": 0.7667784000004758
           }
         },
         "min": {
           "solver": {
-            "golden": 0.29,
-            "urom": 0.264
+            "golden": 0.302,
+            "urom": 0.276
           },
           "wall": {
-            "golden": 0.7619076999981189,
-            "urom": 0.7239731999979995
+            "golden": 0.7908258000024944,
+            "urom": 0.7570424000005005
           }
         },
         "max": {
           "solver": {
-            "golden": 0.296,
-            "urom": 0.271
+            "golden": 0.335,
+            "urom": 0.291
           },
           "wall": {
-            "golden": 0.7760240999996313,
-            "urom": 0.7478645999981381
+            "golden": 0.8404899000015575,
+            "urom": 0.784982700002729
           }
         },
         "missing": [],
@@ -1477,6 +1547,7 @@
       "source": "reports/comparison/<vendor>/tier3_validation.json#dpt_comparison.<metric>.golden (device-current golden DPT); independent of this pipeline's own recorded Tier-2 table",
       "kind": "measured",
       "golden_column": "dpt_comparison.<metric>.golden",
+      "energy_current_definition": "the recorded tier3_validation.json rows carry no energy_current_definition and are legacy abs; a signed measured energy is reported as definition_mismatch instead of being scored against them",
       "tier2_regression": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics",
       "tier2_regression_role": "diagnostic only: reported as G4_tier2_regression and never scored in G4_timing_energy or in the verdict"
     },

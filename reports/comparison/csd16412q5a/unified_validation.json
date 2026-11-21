@@ -10,7 +10,7 @@
   "timing_bar_source": "reports/comparison/<vendor>/tier3_validation.json#dpt_comparison.<metric>.golden (device-current golden DPT; independent of dpt_metrics.json#tier2_metrics)",
   "timing_regression_source": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics (diagnostic only; never scored in G4_timing_energy or in the verdict)",
   "tuning_mode": "off",
-  "emitted_lib_sha256": "b45ff47e72966a6c2b0d24849737f79d2e7cef7d19046708e444ee68310b7df8",
+  "emitted_lib_sha256": "f03699c581153b418f612c6eac7e876c93599582cf9b1944dcf60cba0a2197ec",
   "environment": {
     "python_version": "3.13.0",
     "python_implementation": "CPython",
@@ -23,13 +23,13 @@
     "ltspice_version": null
   },
   "input_hashes": {
-    "config/inputs/csd16412q5a.yaml": "0362487ccd30c658bd273454055b3b167b86ea5e1c47e56cbe84561c55496103",
+    "config/inputs/csd16412q5a.yaml": "7e2193ff6206e1e3722c6e56a768766601c6ef0d1cc4129b12dc1916c8e6acd7",
     "vendor_library:CSD16412Q5A.lib": "da46dc6da88b9b85b7ed5315d04d0b03efe6ca89df8cd19618cea3e49fc2b3b2",
-    "emitted_lib": "b45ff47e72966a6c2b0d24849737f79d2e7cef7d19046708e444ee68310b7df8",
+    "emitted_lib": "f03699c581153b418f612c6eac7e876c93599582cf9b1944dcf60cba0a2197ec",
     "config/outputs/csd16412q5a/curve1_output_characteristics.yaml": "1f63ce9f3e3c96c6bf3f359b94707ae05fee00241098a140905fb00c2a46a9a7",
     "config/outputs/csd16412q5a/curve2_transfer_characteristic.yaml": "ccbe483b1471d9cf8c32c6701f0e043c6ad746dbd566ba5c75eacaae19c692cc",
     "config/outputs/csd16412q5a/curve3_rds_on.yaml": "db41b58f6d4f9d6295990e44ff7a51bff0e8d1654367fa011fd5e06f981a38a1",
-    "config/outputs/csd16412q5a/curve4_capacitances.yaml": "170e968fa7aa4bae16f8425ee34184478a4f2122c83e09feb248170d0ba87684",
+    "config/outputs/csd16412q5a/curve4_capacitances.yaml": "8e9ca83b9d8d619bedc0c48184ba4b7eff335909ff53f7614501a85bfa21398e",
     "config/outputs/csd16412q5a/curve5_gate_charge.yaml": "21d2609531df496ee76f6b76757eb0711fc79df1a9238040f4ba9ca14f31ee57",
     "config/outputs/csd16412q5a/curve6_body_diode.yaml": "a57a9008e345dfa5054a630cc2b9f164a3a0f9108cfb27981e9f56b1a7669737",
     "config/outputs/csd16412q5a/curve7_threshold_voltage.yaml": "7e0c905d50984603bdf50c6bb3c10b773fcc6750df0faf29a4ddfdea32ab2e02"
@@ -132,14 +132,14 @@
     "schema": "piecespice.artifact_manifest/1.0",
     "lib": {
       "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\csd16412q5a_PIECSPICE_UROM.lib",
-      "sha256": "b45ff47e72966a6c2b0d24849737f79d2e7cef7d19046708e444ee68310b7df8",
-      "bytes": 4611
+      "sha256": "f03699c581153b418f612c6eac7e876c93599582cf9b1944dcf60cba0a2197ec",
+      "bytes": 4925
     },
     "inputs": {
       "config/inputs/csd16412q5a.yaml": {
         "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\inputs\\csd16412q5a.yaml",
-        "sha256": "0362487ccd30c658bd273454055b3b167b86ea5e1c47e56cbe84561c55496103",
-        "bytes": 2600
+        "sha256": "7e2193ff6206e1e3722c6e56a768766601c6ef0d1cc4129b12dc1916c8e6acd7",
+        "bytes": 2703
       },
       "vendor_library:CSD16412Q5A.lib": {
         "path": "SpiceModels\\CSD16412Q5A.lib",
@@ -148,8 +148,8 @@
       },
       "emitted_lib": {
         "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\csd16412q5a_PIECSPICE_UROM.lib",
-        "sha256": "b45ff47e72966a6c2b0d24849737f79d2e7cef7d19046708e444ee68310b7df8",
-        "bytes": 4611
+        "sha256": "f03699c581153b418f612c6eac7e876c93599582cf9b1944dcf60cba0a2197ec",
+        "bytes": 4925
       },
       "config/outputs/csd16412q5a/curve1_output_characteristics.yaml": {
         "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\csd16412q5a\\curve1_output_characteristics.yaml",
@@ -168,8 +168,8 @@
       },
       "config/outputs/csd16412q5a/curve4_capacitances.yaml": {
         "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\csd16412q5a\\curve4_capacitances.yaml",
-        "sha256": "170e968fa7aa4bae16f8425ee34184478a4f2122c83e09feb248170d0ba87684",
-        "bytes": 4657
+        "sha256": "8e9ca83b9d8d619bedc0c48184ba4b7eff335909ff53f7614501a85bfa21398e",
+        "bytes": 18723
       },
       "config/outputs/csd16412q5a/curve5_gate_charge.yaml": {
         "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\csd16412q5a\\curve5_gate_charge.yaml",
@@ -198,6 +198,14 @@
     "golden": "abs(I(Lload) - I(Dclamp))",
     "urom": "abs(I(Lload) - I(Dclamp))"
   },
+  "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+  "energy_definition": {
+    "urom": "I(Lload)-I(Dclamp) signed",
+    "golden_arm": "I(Lload)-I(Dclamp) signed",
+    "g4_bar": "I(Lload)-I(Dclamp) signed",
+    "tier2_regression_bar": "I(Lload)-I(Dclamp) signed",
+    "rule": "switching energy integrates the signed device current I(Lload)-I(Dclamp); timing, slew and i_peak stay on its absolute magnitude. A recorded bar without an energy_current_definition is legacy abs and its energy rows are reported as definition_mismatch, never scored as signed"
+  },
   "c1_variant": null,
   "method": "trap/default",
   "equal_sandbox": {
@@ -220,32 +228,32 @@
     "clock_spread": {
       "median": {
         "solver": {
-          "golden": 1.527,
-          "urom": 0.288
+          "golden": 1.46,
+          "urom": 0.292
         },
         "wall": {
-          "golden": 2.2927713000026415,
-          "urom": 0.7620623000002524
+          "golden": 2.2222270000056596,
+          "urom": 0.7497499000019161
         }
       },
       "min": {
         "solver": {
-          "golden": 1.519,
-          "urom": 0.271
+          "golden": 1.446,
+          "urom": 0.291
         },
         "wall": {
-          "golden": 2.281334399998741,
-          "urom": 0.7467430999968201
+          "golden": 2.1981001000021934,
+          "urom": 0.7421470999979647
         }
       },
       "max": {
         "solver": {
-          "golden": 1.532,
-          "urom": 0.294
+          "golden": 1.462,
+          "urom": 0.298
         },
         "wall": {
-          "golden": 2.342682900001819,
-          "urom": 0.787898700000369
+          "golden": 2.241220500000054,
+          "urom": 0.7505156000042916
         }
       },
       "missing": [],
@@ -458,7 +466,7 @@
           "td_on_ns": 7.388513716454634,
           "tr_ns": 1.095746039040917,
           "td_off_ns": 12.44075693519395,
-          "e_on_uj": 0.37956058084198213,
+          "e_on_uj": 0.3785407247197336,
           "dv_dt_max_v_per_ns": 600.4276841381004,
           "di_dt_max_a_per_ns": 277.8112856371706
         },
@@ -472,13 +480,20 @@
           "temperature": 25.0
         },
         "emp_source": "reports/comparison/csd16412q5a/dpt_metrics.json",
+        "energy_definition": {
+          "golden": "I(Lload)-I(Dclamp) signed",
+          "candidate": "I(Lload)-I(Dclamp) signed",
+          "comparable": true,
+          "excluded_metrics": [],
+          "rule": "energy metrics are compared only when the recorded golden and the live candidate integrate the same current definition; otherwise they are excluded and listed here"
+        },
         "split": "fit metrics of the recorded golden DPT"
       },
       {
         "name": "recorded_golden_heldout",
         "emp": {
           "tf_ns": 1.6618198938018818,
-          "e_off_uj": 0.9534493410718745,
+          "e_off_uj": 0.36999258630018145,
           "i_peak_a": 13.432002067564142
         },
         "held_out": true,
@@ -491,6 +506,13 @@
           "temperature": 25.0
         },
         "emp_source": "reports/comparison/csd16412q5a/dpt_metrics.json",
+        "energy_definition": {
+          "golden": "I(Lload)-I(Dclamp) signed",
+          "candidate": "I(Lload)-I(Dclamp) signed",
+          "comparable": true,
+          "excluded_metrics": [],
+          "rule": "energy metrics are compared only when the recorded golden and the live candidate integrate the same current definition; otherwise they are excluded and listed here"
+        },
         "split": "held-out metrics of the recorded golden DPT"
       }
     ],
@@ -528,32 +550,32 @@
         "clock_spread": {
           "median": {
             "solver": {
-              "golden": 1.527,
-              "urom": 0.288
+              "golden": 1.46,
+              "urom": 0.292
             },
             "wall": {
-              "golden": 2.2927713000026415,
-              "urom": 0.7620623000002524
+              "golden": 2.2222270000056596,
+              "urom": 0.7497499000019161
             }
           },
           "min": {
             "solver": {
-              "golden": 1.519,
-              "urom": 0.271
+              "golden": 1.446,
+              "urom": 0.291
             },
             "wall": {
-              "golden": 2.281334399998741,
-              "urom": 0.7467430999968201
+              "golden": 2.1981001000021934,
+              "urom": 0.7421470999979647
             }
           },
           "max": {
             "solver": {
-              "golden": 1.532,
-              "urom": 0.294
+              "golden": 1.462,
+              "urom": 0.298
             },
             "wall": {
-              "golden": 2.342682900001819,
-              "urom": 0.787898700000369
+              "golden": 2.241220500000054,
+              "urom": 0.7505156000042916
             }
           },
           "missing": [],
@@ -634,8 +656,8 @@
         "urom": {
           "status": "measured",
           "pass": true,
-          "vds_rel_rmse_pct": 1.9837792226980693,
-          "id_rel_rmse_pct": 1.2592453220640945,
+          "vds_rel_rmse_pct": 1.983809513460573,
+          "id_rel_rmse_pct": 1.2592420928061505,
           "bars_vds_id_pct": [
             5.583,
             5.0
@@ -690,7 +712,7 @@
         "rows": {
           "td_on_ns": {
             "status": "measured",
-            "value": 5.40831482343574,
+            "value": 5.408315249623755,
             "bar": 7.388513716454634,
             "band": [
               7.019088030631902,
@@ -700,7 +722,7 @@
           },
           "tr_ns": {
             "status": "measured",
-            "value": 1.4861257627204203,
+            "value": 1.4861254834841509,
             "bar": 1.095746039040917,
             "band": [
               1.040958737088871,
@@ -710,7 +732,7 @@
           },
           "td_off_ns": {
             "status": "measured",
-            "value": 15.013766046513997,
+            "value": 15.01389462883606,
             "bar": 12.44075693519395,
             "band": [
               11.818719088434252,
@@ -720,7 +742,7 @@
           },
           "tf_ns": {
             "status": "measured",
-            "value": 2.24602046309009,
+            "value": 2.245969400664318,
             "bar": 1.6618198938018818,
             "band": [
               1.5787288991117876,
@@ -730,26 +752,39 @@
           },
           "e_on_uj": {
             "status": "measured",
-            "value": 0.26661377339795833,
-            "bar": 0.37956058084198213,
+            "value": 0.264632765336728,
+            "bar": 0.3785407247197336,
             "band": [
-              0.360582551799883,
-              0.39853860988408124
+              0.3596136884837469,
+              0.3974677609557203
             ],
-            "pass": false
+            "pass": false,
+            "actual_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "actual_energy_definition_kind": "signed",
+            "bar_energy_definition_kind": "signed",
+            "energy_definition_comparison": "comparable"
           },
           "e_off_uj": {
             "status": "measured",
-            "value": 0.2304911390776104,
-            "bar": 0.9534493410718745,
+            "value": 0.22953768056885313,
+            "bar": 0.36999258630018145,
             "band": [
-              0.9057768740182808,
-              1.0011218081254682
+              0.35149295698517236,
+              0.38849221561519054
             ],
-            "pass": false
+            "pass": false,
+            "actual_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "actual_energy_definition_kind": "signed",
+            "bar_energy_definition_kind": "signed",
+            "energy_definition_comparison": "comparable"
           }
         },
         "bar_source": "reports/comparison/<vendor>/tier3_validation.json#dpt_comparison.<metric>.golden",
+        "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+        "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+        "energy_definition_comparison": "comparable",
         "band_rel": 0.05,
         "band_abs": 1e-12,
         "tier2_regression": {
@@ -759,7 +794,7 @@
           "rows": {
             "td_on_ns": {
               "status": "measured",
-              "value": 5.40831482343574,
+              "value": 5.408315249623755,
               "bar": 5.408314818582241,
               "band": [
                 5.137899077653129,
@@ -769,7 +804,7 @@
             },
             "tr_ns": {
               "status": "measured",
-              "value": 1.4861257627204203,
+              "value": 1.4861254834841509,
               "bar": 1.4861257630541513,
               "band": [
                 1.4118194749014439,
@@ -779,7 +814,7 @@
             },
             "td_off_ns": {
               "status": "measured",
-              "value": 15.013766046513997,
+              "value": 15.01389462883606,
               "bar": 15.01376605189435,
               "band": [
                 14.263077749299633,
@@ -789,7 +824,7 @@
             },
             "tf_ns": {
               "status": "measured",
-              "value": 2.24602046309009,
+              "value": 2.245969400664318,
               "bar": 2.2460204524818494,
               "band": [
                 2.133719429857757,
@@ -799,26 +834,39 @@
             },
             "e_on_uj": {
               "status": "measured",
-              "value": 0.26661377339795833,
-              "bar": 0.26661377339795833,
+              "value": 0.264632765336728,
+              "bar": 0.26463292641952585,
               "band": [
-                0.25328308472806044,
-                0.2799444620678562
+                0.25140128009854956,
+                0.27786457274050214
               ],
-              "pass": true
+              "pass": true,
+              "actual_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+              "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+              "actual_energy_definition_kind": "signed",
+              "bar_energy_definition_kind": "signed",
+              "energy_definition_comparison": "comparable"
             },
             "e_off_uj": {
               "status": "measured",
-              "value": 0.2304911390776104,
-              "bar": 0.2304911390776104,
+              "value": 0.22953768056885313,
+              "bar": 0.22955729269092046,
               "band": [
-                0.21896658212372988,
-                0.24201569603149092
+                0.21807942805637442,
+                0.2410351573254665
               ],
-              "pass": true
+              "pass": true,
+              "actual_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+              "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+              "actual_energy_definition_kind": "signed",
+              "bar_energy_definition_kind": "signed",
+              "energy_definition_comparison": "comparable"
             }
           },
           "all_within_band": true,
+          "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+          "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+          "energy_definition_comparison": "comparable",
           "used_for_verdict": false,
           "diagnostic_only": true
         }
@@ -834,7 +882,7 @@
         "rows": {
           "td_on_ns": {
             "status": "measured",
-            "value": 5.40831482343574,
+            "value": 5.408315249623755,
             "bar": 5.408314818582241,
             "band": [
               5.137899077653129,
@@ -844,7 +892,7 @@
           },
           "tr_ns": {
             "status": "measured",
-            "value": 1.4861257627204203,
+            "value": 1.4861254834841509,
             "bar": 1.4861257630541513,
             "band": [
               1.4118194749014439,
@@ -854,7 +902,7 @@
           },
           "td_off_ns": {
             "status": "measured",
-            "value": 15.013766046513997,
+            "value": 15.01389462883606,
             "bar": 15.01376605189435,
             "band": [
               14.263077749299633,
@@ -864,7 +912,7 @@
           },
           "tf_ns": {
             "status": "measured",
-            "value": 2.24602046309009,
+            "value": 2.245969400664318,
             "bar": 2.2460204524818494,
             "band": [
               2.133719429857757,
@@ -874,26 +922,39 @@
           },
           "e_on_uj": {
             "status": "measured",
-            "value": 0.26661377339795833,
-            "bar": 0.26661377339795833,
+            "value": 0.264632765336728,
+            "bar": 0.26463292641952585,
             "band": [
-              0.25328308472806044,
-              0.2799444620678562
+              0.25140128009854956,
+              0.27786457274050214
             ],
-            "pass": true
+            "pass": true,
+            "actual_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "actual_energy_definition_kind": "signed",
+            "bar_energy_definition_kind": "signed",
+            "energy_definition_comparison": "comparable"
           },
           "e_off_uj": {
             "status": "measured",
-            "value": 0.2304911390776104,
-            "bar": 0.2304911390776104,
+            "value": 0.22953768056885313,
+            "bar": 0.22955729269092046,
             "band": [
-              0.21896658212372988,
-              0.24201569603149092
+              0.21807942805637442,
+              0.2410351573254665
             ],
-            "pass": true
+            "pass": true,
+            "actual_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "actual_energy_definition_kind": "signed",
+            "bar_energy_definition_kind": "signed",
+            "energy_definition_comparison": "comparable"
           }
         },
         "all_within_band": true,
+        "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+        "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+        "energy_definition_comparison": "comparable",
         "used_for_verdict": false,
         "diagnostic_only": true,
         "scored": false,
@@ -913,32 +974,32 @@
         "clock_spread": {
           "median": {
             "solver": {
-              "golden": 1.527,
-              "urom": 0.288
+              "golden": 1.46,
+              "urom": 0.292
             },
             "wall": {
-              "golden": 2.2927713000026415,
-              "urom": 0.7620623000002524
+              "golden": 2.2222270000056596,
+              "urom": 0.7497499000019161
             }
           },
           "min": {
             "solver": {
-              "golden": 1.519,
-              "urom": 0.271
+              "golden": 1.446,
+              "urom": 0.291
             },
             "wall": {
-              "golden": 2.281334399998741,
-              "urom": 0.7467430999968201
+              "golden": 2.1981001000021934,
+              "urom": 0.7421470999979647
             }
           },
           "max": {
             "solver": {
-              "golden": 1.532,
-              "urom": 0.294
+              "golden": 1.462,
+              "urom": 0.298
             },
             "wall": {
-              "golden": 2.342682900001819,
-              "urom": 0.787898700000369
+              "golden": 2.241220500000054,
+              "urom": 0.7505156000042916
             }
           },
           "missing": [],
@@ -949,29 +1010,29 @@
           "golden": true,
           "urom": true
         },
-        "solver_speedup": 5.302083333333333,
-        "wall_speedup": 3.0086402384711617,
+        "solver_speedup": 5.0,
+        "wall_speedup": 2.96395771443248,
         "solver_speedup_ci95": {
-          "point": 5.302083333333333,
-          "low": 5.166666666666667,
-          "high": 5.6531365313653135,
+          "point": 5.006849315068493,
+          "low": 4.852348993288591,
+          "high": 5.017182130584192,
           "n": 3,
           "confidence": 0.95,
           "n_resamples": 2000
         },
         "wall_speedup_ci95": {
-          "point": 3.055045838399385,
-          "low": 2.909982336563784,
-          "high": 3.074135671061333,
+          "point": 2.9609337900410764,
+          "low": 2.9317777834936365,
+          "high": 3.0199141113752255,
           "n": 3,
           "confidence": 0.95,
           "n_resamples": 2000
         },
-        "recorded_solver_speedup": 5.302083333333333,
+        "recorded_solver_speedup": 5.0,
         "recorded_solver_speedup_ci95": {
-          "point": 5.302083333333333,
-          "low": 5.166666666666667,
-          "high": 5.6531365313653135,
+          "point": 5.006849315068493,
+          "low": 4.852348993288591,
+          "high": 5.017182130584192,
           "n": 3,
           "confidence": 0.95,
           "n_resamples": 2000
@@ -1069,11 +1130,11 @@
   "runtime": {
     "iterations": {
       "golden": 131558.0,
-      "urom": 10195.0
+      "urom": 10133.0
     },
     "points": {
       "golden": 44050.0,
-      "urom": 2868.0
+      "urom": 2869.0
     },
     "t_last": {
       "golden": 0.000176,
@@ -1081,41 +1142,41 @@
     },
     "repeats": 3,
     "solver_time_s": {
-      "golden": 1.527,
-      "urom": 0.288
+      "golden": 1.46,
+      "urom": 0.292
     },
     "wall_time_s": {
-      "golden": 2.2927713000026415,
-      "urom": 0.7620623000002524
+      "golden": 2.2222270000056596,
+      "urom": 0.7497499000019161
     },
     "median": {
       "solver": {
-        "golden": 1.527,
-        "urom": 0.288
+        "golden": 1.46,
+        "urom": 0.292
       },
       "wall": {
-        "golden": 2.2927713000026415,
-        "urom": 0.7620623000002524
+        "golden": 2.2222270000056596,
+        "urom": 0.7497499000019161
       }
     },
     "min": {
       "solver": {
-        "golden": 1.519,
-        "urom": 0.271
+        "golden": 1.446,
+        "urom": 0.291
       },
       "wall": {
-        "golden": 2.281334399998741,
-        "urom": 0.7467430999968201
+        "golden": 2.1981001000021934,
+        "urom": 0.7421470999979647
       }
     },
     "max": {
       "solver": {
-        "golden": 1.532,
-        "urom": 0.294
+        "golden": 1.462,
+        "urom": 0.298
       },
       "wall": {
-        "golden": 2.342682900001819,
-        "urom": 0.787898700000369
+        "golden": 2.241220500000054,
+        "urom": 0.7505156000042916
       }
     },
     "completion": {
@@ -1127,20 +1188,20 @@
     "n_pulses": 20,
     "max_step": null,
     "method_label": "trap/default",
-    "solver_speedup": 5.302083333333333,
-    "wall_speedup": 3.0086402384711617,
+    "solver_speedup": 5.0,
+    "wall_speedup": 2.96395771443248,
     "solver_speedup_ci95": {
-      "point": 5.302083333333333,
-      "low": 5.166666666666667,
-      "high": 5.6531365313653135,
+      "point": 5.006849315068493,
+      "low": 4.852348993288591,
+      "high": 5.017182130584192,
       "n": 3,
       "confidence": 0.95,
       "n_resamples": 2000
     },
     "wall_speedup_ci95": {
-      "point": 3.055045838399385,
-      "low": 2.909982336563784,
-      "high": 3.074135671061333,
+      "point": 2.9609337900410764,
+      "low": 2.9317777834936365,
+      "high": 3.0199141113752255,
       "n": 3,
       "confidence": 0.95,
       "n_resamples": 2000
@@ -1152,11 +1213,11 @@
     },
     "iterations": {
       "golden": 131558.0,
-      "urom": 10195.0
+      "urom": 10133.0
     },
     "points": {
       "golden": 44050.0,
-      "urom": 2868.0
+      "urom": 2869.0
     },
     "global_claim": false,
     "min_default_gear": null,
@@ -1166,16 +1227,16 @@
     "waveform_gate_retired": false,
     "energy_only_claim": false
   },
-  "spice_log_tail": "LTspice 26.1.1 for Windows\nCircuit: C:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_ny1_7sw7\\tran.net\nStart Time: Sat Nov 21 18:18:53 2026\nsolver = Normal\nMaximum thread count: 16\ntnom = 27\ntemp = 25\nmethod = modified trap\nAsciiRawFile = true\nCompress1stOrder = true\nCompress2ndOrder = true\nDirect Newton iteration succeeded in finding operating point.\nTotal elapsed time: 0.294 seconds.\nTotal iterations: 10195\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_ny1_7sw7\\tran.net\n\n",
+  "spice_log_tail": "LTspice 26.1.1 for Windows\nCircuit: C:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_rwl4keza\\tran.net\nStart Time: Sat Nov 21 21:48:18 2026\nsolver = Normal\nMaximum thread count: 16\ntnom = 27\ntemp = 25\nmethod = modified trap\nAsciiRawFile = true\nCompress1stOrder = true\nCompress2ndOrder = true\nDirect Newton iteration succeeded in finding operating point.\nTotal elapsed time: 0.291 seconds.\nTotal iterations: 10133\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_rwl4keza\\tran.net\n\n",
   "dpt_run": {
     "completed": true,
-    "iterations": 18863,
+    "iterations": 18860,
     "trace_points": 7140,
     "golden_trace_points": 10189,
     "t_last": 1.4e-05,
     "waveform": {
-      "vds_rel_rmse_pct": 1.9837792226980693,
-      "id_rel_rmse_pct": 1.2592453220640945,
+      "vds_rel_rmse_pct": 1.983809513460573,
+      "id_rel_rmse_pct": 1.2592420928061505,
       "compare_points": 7000,
       "compare_grid_step_s": 2.0002857551078724e-09,
       "current_definition": "abs(I(Lload) - I(Dclamp))",
@@ -1183,24 +1244,27 @@
       "role": "fidelity measurement"
     },
     "metrics": {
-      "td_on_ns": 5.40831482343574,
-      "tr_ns": 1.4861257627204203,
-      "td_off_ns": 15.013766046513997,
-      "tf_ns": 2.24602046309009,
-      "dv_dt_max_v_per_ns": 158.230560768,
-      "di_dt_max_a_per_ns": 267.31460529548053,
-      "e_on_uj": 0.26661377339795833,
-      "e_off_uj": 0.2304911390776104,
+      "td_on_ns": 5.408315249623755,
+      "tr_ns": 1.4861254834841509,
+      "td_off_ns": 15.01389462883606,
+      "tf_ns": 2.245969400664318,
+      "dv_dt_max_v_per_ns": 158.195073024,
+      "di_dt_max_a_per_ns": 267.1169184580137,
+      "e_on_uj": 0.264632765336728,
+      "e_off_uj": 0.22953768056885313,
       "e_oss_uj": null,
       "i_peak_a": 13.444267272949219,
-      "wall_clock_s": 0.9392380000026606
+      "wall_clock_s": 0.9353646000017761,
+      "energy_current_definition": "I(Lload)-I(Dclamp) signed"
     },
     "current_definition": "abs(I(Lload) - I(Dclamp))",
+    "signed_current_definition": "I(Lload)-I(Dclamp)",
+    "energy_current_definition": "I(Lload)-I(Dclamp) signed",
     "error": null
   },
   "dpt_waveform": {
-    "vds_rel_rmse_pct": 1.9837792226980693,
-    "id_rel_rmse_pct": 1.2592453220640945,
+    "vds_rel_rmse_pct": 1.983809513460573,
+    "id_rel_rmse_pct": 1.2592420928061505,
     "compare_points": 7000,
     "compare_grid_step_s": 2.0002857551078724e-09,
     "current_definition": "abs(I(Lload) - I(Dclamp))",
@@ -1230,24 +1294,27 @@
         "tf_ns": 1.6618198865766909,
         "dv_dt_max_v_per_ns": 600.4277248000001,
         "di_dt_max_a_per_ns": 277.8112856371706,
-        "e_on_uj": 0.37956058084198213,
-        "e_off_uj": 0.9534493410718745,
+        "e_on_uj": 0.3785407247197336,
+        "e_off_uj": 0.36999258630018145,
         "e_oss_uj": null,
         "i_peak_a": 13.432002067564142,
-        "wall_clock_s": 0.9828436999996484
+        "wall_clock_s": 0.9226142999978038,
+        "energy_current_definition": "I(Lload)-I(Dclamp) signed"
       },
       "current_definition": "abs(I(Lload) - I(Dclamp))",
+      "signed_current_definition": "I(Lload)-I(Dclamp)",
+      "energy_current_definition": "I(Lload)-I(Dclamp) signed",
       "error": null
     },
     "urom": {
       "completed": true,
-      "iterations": 18863,
+      "iterations": 18860,
       "trace_points": 7140,
       "golden_trace_points": 10189,
       "t_last": 1.4e-05,
       "waveform": {
-        "vds_rel_rmse_pct": 1.9837792226980693,
-        "id_rel_rmse_pct": 1.2592453220640945,
+        "vds_rel_rmse_pct": 1.983809513460573,
+        "id_rel_rmse_pct": 1.2592420928061505,
         "compare_points": 7000,
         "compare_grid_step_s": 2.0002857551078724e-09,
         "current_definition": "abs(I(Lload) - I(Dclamp))",
@@ -1255,19 +1322,22 @@
         "role": "fidelity measurement"
       },
       "metrics": {
-        "td_on_ns": 5.40831482343574,
-        "tr_ns": 1.4861257627204203,
-        "td_off_ns": 15.013766046513997,
-        "tf_ns": 2.24602046309009,
-        "dv_dt_max_v_per_ns": 158.230560768,
-        "di_dt_max_a_per_ns": 267.31460529548053,
-        "e_on_uj": 0.26661377339795833,
-        "e_off_uj": 0.2304911390776104,
+        "td_on_ns": 5.408315249623755,
+        "tr_ns": 1.4861254834841509,
+        "td_off_ns": 15.01389462883606,
+        "tf_ns": 2.245969400664318,
+        "dv_dt_max_v_per_ns": 158.195073024,
+        "di_dt_max_a_per_ns": 267.1169184580137,
+        "e_on_uj": 0.264632765336728,
+        "e_off_uj": 0.22953768056885313,
         "e_oss_uj": null,
         "i_peak_a": 13.444267272949219,
-        "wall_clock_s": 0.9392380000026606
+        "wall_clock_s": 0.9353646000017761,
+        "energy_current_definition": "I(Lload)-I(Dclamp) signed"
       },
       "current_definition": "abs(I(Lload) - I(Dclamp))",
+      "signed_current_definition": "I(Lload)-I(Dclamp)",
+      "energy_current_definition": "I(Lload)-I(Dclamp) signed",
       "error": null
     }
   },
@@ -1317,8 +1387,8 @@
         "role": "control: golden self-comparison, not a fidelity measure"
       },
       "urom": {
-        "vds_rel_rmse_pct": 1.9837792226980693,
-        "id_rel_rmse_pct": 1.2592453220640945,
+        "vds_rel_rmse_pct": 1.983809513460573,
+        "id_rel_rmse_pct": 1.2592420928061505,
         "compare_points": 7000,
         "compare_grid_step_s": 2.0002857551078724e-09,
         "current_definition": "abs(I(Lload) - I(Dclamp))",
@@ -1388,32 +1458,32 @@
       "clock_spread": {
         "median": {
           "solver": {
-            "golden": 1.527,
-            "urom": 0.288
+            "golden": 1.46,
+            "urom": 0.292
           },
           "wall": {
-            "golden": 2.2927713000026415,
-            "urom": 0.7620623000002524
+            "golden": 2.2222270000056596,
+            "urom": 0.7497499000019161
           }
         },
         "min": {
           "solver": {
-            "golden": 1.519,
-            "urom": 0.271
+            "golden": 1.446,
+            "urom": 0.291
           },
           "wall": {
-            "golden": 2.281334399998741,
-            "urom": 0.7467430999968201
+            "golden": 2.1981001000021934,
+            "urom": 0.7421470999979647
           }
         },
         "max": {
           "solver": {
-            "golden": 1.532,
-            "urom": 0.294
+            "golden": 1.462,
+            "urom": 0.298
           },
           "wall": {
-            "golden": 2.342682900001819,
-            "urom": 0.787898700000369
+            "golden": 2.241220500000054,
+            "urom": 0.7505156000042916
           }
         },
         "missing": [],
@@ -1475,6 +1545,7 @@
       "source": "reports/comparison/<vendor>/tier3_validation.json#dpt_comparison.<metric>.golden (device-current golden DPT); independent of this pipeline's own recorded Tier-2 table",
       "kind": "measured",
       "golden_column": "dpt_comparison.<metric>.golden",
+      "energy_current_definition": "the recorded tier3_validation.json rows carry no energy_current_definition and are legacy abs; a signed measured energy is reported as definition_mismatch instead of being scored against them",
       "tier2_regression": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics",
       "tier2_regression_role": "diagnostic only: reported as G4_tier2_regression and never scored in G4_timing_energy or in the verdict"
     },

@@ -52,6 +52,7 @@ class RunMetrics:
     e_off_uj: float
     vds_on_mean_v: float       # conduction drop during on-window
     i_peak_a: float            # turn-on current overshoot
+    energy_current_definition: str = "abs fallback (signed trace unavailable)"
 
 
 @dataclass
@@ -66,6 +67,7 @@ class SwitchFitness:
     passed: bool                  # all gates within tolerance
     evaluable: bool = True             # False when crossings/spans prevent a fair gate
     verdict: str = ""
+    energy_definition_comparison: str = "comparable"
 
     def summary(self) -> str:
         lines = [
@@ -77,6 +79,9 @@ class SwitchFitness:
             lines.append(f"{k:>8}: {v:+7.2f}%")
         for k, v in self.energy_rel_err_pct.items():
             lines.append(f"{k:>8}: {v:+7.2f}%")
+        lines.append(
+            f"energy current: golden={self.golden.energy_current_definition}; "
+            f"tier2={self.tier2.energy_current_definition}")
         lines.append(f"VERDICT: {self.verdict}")
         return "\n".join(lines)
 
@@ -97,13 +102,24 @@ def _metrics_from_run(run: SwitchingRun) -> RunMetrics:
     falling = np.where((run.v_gs[:-1] > 0.5 * plateau)
                        & (run.v_gs[1:] <= 0.5 * plateau))[0]
 
+    # Switching energy integrates the signed device current when the run
+    # carries one.  A ``SwitchingRun`` has only the absolute magnitude, so
+    # the fallback keeps that trace and says so instead of inventing a sign.
+    signed_i = getattr(run, "i_d_signed", None)
+    i_energy = (run.i_d if signed_i is None
+                else np.asarray(signed_i, dtype=float))
+    energy_definition = (
+        f"{getattr(run, 'current_definition', 'I(Rload)')} signed"
+        if signed_i is not None else
+        f"{getattr(run, 'current_definition', 'I(Rload)')} abs fallback")
+
     def _energy_around(idx_arr):
         if len(idx_arr) == 0:
             return float("nan")
         i = int(idx_arr[-1])
         lo = max(0, i - 200)
         hi = min(len(run.time) - 1, i + 200)
-        return compute_switching_energy(run.time, run.v_ds, run.i_d,
+        return compute_switching_energy(run.time, run.v_ds, i_energy,
                                         float(run.time[lo]),
                                         float(run.time[hi]))
 
@@ -122,6 +138,7 @@ def _metrics_from_run(run: SwitchingRun) -> RunMetrics:
         e_off_uj=e_off,
         vds_on_mean_v=vds_on_mean,
         i_peak_a=float(np.max(run.i_d)),
+        energy_current_definition=energy_definition,
     )
 
 
@@ -130,6 +147,16 @@ def _rel_err_pct(a: float, b: float) -> float:
     if not (np.isfinite(a) and np.isfinite(b)) or abs(b) < 1e-12:
         return float("nan")
     return (a - b) / abs(b) * 100.0
+
+
+def _energy_kind(definition: str | None) -> str:
+    """Classify a RunMetrics energy-current label as signed, abs or unknown."""
+    text = (definition or "").strip().lower()
+    if "abs fallback" in text or text.startswith("abs"):
+        return "abs"
+    if text.endswith("signed"):
+        return "signed"
+    return "unknown"
 
 
 def compare_switching_fitness(
@@ -191,6 +218,10 @@ def compare_switching_fitness(
 
     mg = _metrics_from_run(run_g)
     mt = _metrics_from_run(run_t)
+    golden_kind = _energy_kind(mg.energy_current_definition)
+    tier2_kind = _energy_kind(mt.energy_current_definition)
+    energy_comparable = (golden_kind == tier2_kind
+                         and golden_kind != "unknown")
 
     timing_errs = {
         "td_on": _rel_err_pct(mt.td_on_ns, mg.td_on_ns),
@@ -198,10 +229,15 @@ def compare_switching_fitness(
         "td_off": _rel_err_pct(mt.td_off_ns, mg.td_off_ns),
         "tf": _rel_err_pct(mt.tf_ns, mg.tf_ns),
     }
-    energy_errs = {
-        "e_on": _rel_err_pct(mt.e_on_uj, mg.e_on_uj),
-        "e_off": _rel_err_pct(mt.e_off_uj, mg.e_off_uj),
-    }
+    if energy_comparable:
+        energy_errs = {
+            "e_on": _rel_err_pct(mt.e_on_uj, mg.e_on_uj),
+            "e_off": _rel_err_pct(mt.e_off_uj, mg.e_off_uj),
+        }
+    else:
+        # Signed and absolute integrations are different measurements; a
+        # relative error would be a fabricated comparison.
+        energy_errs = {"e_on": float("nan"), "e_off": float("nan")}
 
     # align time grids before comparing waveforms
     t_common = np.linspace(run_g.time[0], run_g.time[-1],
@@ -219,7 +255,13 @@ def compare_switching_fitness(
 
     evaluable = (len(finite_timing) == len(timing_errs)
                  and len(finite_energy) == len(energy_errs))
-    if not evaluable:
+    if not energy_comparable:
+        verdict = ("N/A - energy current definitions differ: "
+                   f"golden {mg.energy_current_definition}; tier2 "
+                   f"{mt.energy_current_definition}")
+        passed = False
+        evaluable = False
+    elif not evaluable:
         missing = [k for k, v in {**timing_errs, **energy_errs}.items()
                    if not np.isfinite(v)]
         verdict = ("N/A - level crossing missing for: " + ",".join(missing))
@@ -248,4 +290,6 @@ def compare_switching_fitness(
         waveform_rel_rmse_pct=err.relative_rmse_pct,
         passed=passed,
         verdict=verdict,
+        energy_definition_comparison=(
+            "comparable" if energy_comparable else "definition_mismatch"),
     )

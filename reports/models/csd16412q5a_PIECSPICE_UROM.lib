@@ -20,7 +20,8 @@ C_ISS gi ss 1.824741e-09
 C_RSS gi di 8.148452e-11
 
 * --- body diode (Curve 6) ---
-.MODEL D_BD_csd16412q5a_PIECSPICE_UROM D(IS=1.000000e-15 N=1.012 RS=1.087120e-02)
+* body-diode provenance: measured Curve 6 forward (Vsd,Isd) sweep (config/outputs/csd16412q5a/curve6_body_diode.yaml); bounded least-squares fit of I=IS*(exp((V-I*RS)/(N*Vt))-1) on log10(current), Vt=0.026 V; IS=3.923903e-13 N=1.008 RS=4.920602e-03; RMS log10 error=7.455913e-05 dec (27/50 samples, >=1e-06*Imax)
+.MODEL D_BD_csd16412q5a_PIECSPICE_UROM D(IS=3.923903e-13 N=1.008 RS=4.920602e-03)
 D_BODY ss di D_BD_csd16412q5a_PIECSPICE_UROM
 
 .ENDS csd16412q5a_PIECSPICE_UROM

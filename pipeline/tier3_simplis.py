@@ -43,13 +43,19 @@ from pipeline.tier3 import (
     _device_current,
     _DEVICE_CURRENT,
     _log_iterations,
+    _recorded_energy_definitions,
     _rel_err,
+    _signed_device_current,
     _waveform_errors,
 )
 from simulation.engine import SpiceEngine, TranDirective
 from simulation.netlist_text import NetlistBuilder
 from simulation.testbenches.capacitance import CapacitanceTestbench, F_MEAS_DEFAULT
-from simulation.testbenches.double_pulse import DoublePulseRun, extract_dpt_metrics
+from simulation.testbenches.double_pulse import (
+    DoublePulseRun,
+    _cross,
+    extract_dpt_metrics,
+)
 from simulation.testbenches.dpt_trajectory import capture_trajectory
 from simulation.testbenches.speedup_bench import _pulse_train, run_inductive_benchmark
 
@@ -84,6 +90,118 @@ _CV_SINGLE_BIAS_LIMITATION = (
     "Only one persisted C(V) sweep at Vgs=0 is available; no multi-bias "
     "C-V set exists. Charge tables are fitted from that single sweep and no "
     "bias axis was invented from scalar equivalents.")
+
+# ``extract_dpt_metrics`` closes the turn-off window at the 90 % Vds crossing
+# plus this tail. The decomposition below repeats the constant so its total
+# reproduces the scored ``e_off_uj`` exactly; the offline test cross-checks the
+# two, so a change to the bench tail fails loudly instead of drifting.
+_ENERGY_TAIL_S = 100e-9
+
+_ENERGY_DECOMPOSITION_RULE = (
+    "Measured split of the extract_dpt_metrics turn-off window "
+    "[gate 0.9*plateau falling, drain 0.9*vbus rising + 100 ns]: transition = "
+    "[gate fall, Vds 10 %], rise = [Vds 10 %, 90 %], tail = [Vds 90 %, "
+    "+100 ns]. e_off_uj / the *_uj parts integrate the ABSOLUTE current "
+    "magnitude and are kept only to expose the rectification; the scored "
+    "energy is e_off_signed_uj / the *_signed_uj parts, which is what "
+    "extract_dpt_metrics uses when the run carries the signed device current. "
+    "rectified_tail_uj = tail - signed tail is zero-mean post-turn-off "
+    "ringing converted into apparent loss by abs(), not device dissipation. "
+    "Diagnostic only: no correction element is emitted.")
+
+
+def turn_off_energy_decomposition(
+    time, v_ds, i_d, v_gs, v_bus, *, i_d_signed: np.ndarray | None = None,
+) -> dict | None:
+    """Split the scored turn-off energy window into measured segments.
+
+    Uses the same crossing rule and integrator as ``extract_dpt_metrics``, so
+    the totals are the metric's own integrals (exact, not a re-derivation).
+    ``e_off_uj`` and the unsigned parts integrate the absolute magnitude that
+    the pre-fix metric used; ``e_off_signed_uj`` and the ``*_signed_uj`` parts
+    integrate ``i_d_signed`` and are the scored values. The segments answer
+    one question: how much of that energy is overlap during the transition
+    and how much is the post-crossing tail. Without ``i_d_signed`` the signed
+    keys are reported as absent rather than guessed.
+
+    Returns ``None`` when the configured edges are not present in the
+    waveform: a window that does not exist is not a zero-energy window.
+    """
+    t = np.asarray(time, dtype=float)
+    vds = np.asarray(v_ds, dtype=float)
+    cur = np.asarray(i_d, dtype=float)
+    gate = np.asarray(v_gs, dtype=float)
+    if not (t.size == vds.size == cur.size == gate.size):
+        raise ValueError(
+            "turn-off decomposition needs matched waveform arrays")
+    if t.size < 2:
+        return None
+    signed = None
+    if i_d_signed is not None:
+        signed = np.asarray(i_d_signed, dtype=float)
+        if signed.size != t.size:
+            raise ValueError("i_d_signed must match the sample grid")
+    plateau = float(np.percentile(gate, 95))
+    if not np.isfinite(plateau) or plateau <= 0.0:
+        return None  # the gate never drove: no turn-off window exists
+    g_off = _cross(t, gate, 0.9 * plateau, rising=False, last=True)
+    ds10 = _cross(t, vds, 0.1 * float(v_bus), rising=True, last=True)
+    v_off = _cross(t, vds, 0.9 * float(v_bus), rising=True, last=True)
+    if g_off is None or ds10 is None or v_off is None:
+        return None
+    end = v_off + _ENERGY_TAIL_S
+    from metrics.loss import compute_switching_energy
+    from scipy.integrate import trapezoid
+
+    # Integer segment cuts, not time masks: adjacent segments share the
+    # boundary sample, so the parts partition the scored window exactly
+    # instead of dropping the trapezoid that spans each interpolated crossing.
+    inside = np.where((t >= g_off) & (t <= end))[0]
+    if inside.size < 2:
+        return None
+    i0, i3 = int(inside[0]), int(inside[-1])
+
+    def cut(value):
+        k = int(np.searchsorted(t, value, side="left"))
+        return min(max(k, i0), i3)
+
+    k1, k2 = cut(ds10), cut(v_off)
+    k1 = max(k1, i0)
+    k2 = max(k2, k1)
+
+    def segment(curve, a, b):
+        if b <= a:
+            return 0.0
+        sub = slice(a, b + 1)
+        return float(trapezoid(vds[sub] * curve[sub], t[sub])) * 1e6
+
+    parts = {
+        "transition_uj": segment(cur, i0, k1),
+        "rise_uj": segment(cur, k1, k2),
+        "tail_uj": segment(cur, k2, i3),
+    }
+    out = {
+        "rule": _ENERGY_DECOMPOSITION_RULE,
+        "current_identity": "abs(I(Lload)-I(Dclamp)) magnitude",
+        "window": {"gate_fall_s": g_off, "vds_10pct_s": ds10,
+                   "vds_90pct_s": v_off, "tail_s": _ENERGY_TAIL_S},
+        "e_off_uj": compute_switching_energy(t, vds, cur, g_off, end),
+        "parts_sum_uj": float(sum(parts.values())),
+        **parts,
+        "tail_negative_fraction": None,
+    }
+    if signed is not None:
+        tail = (t >= v_off) & (t <= end)
+        out["transition_signed_uj"] = segment(signed, i0, k1)
+        out["rise_signed_uj"] = segment(signed, k1, k2)
+        out["tail_signed_uj"] = segment(signed, k2, i3)
+        out["e_off_signed_uj"] = compute_switching_energy(
+            t, vds, signed, g_off, end)
+        out["rectified_tail_uj"] = (
+            out["tail_uj"] - out["tail_signed_uj"])
+        out["tail_negative_fraction"] = (
+            float(np.mean(signed[tail] < 0.0)) if np.any(tail) else None)
+    return out
 
 
 @dataclass(frozen=True)
@@ -1455,7 +1573,8 @@ def _run_emitted_dpt(lib_path: Path, vendor: str):
         v_gs=np.asarray(res.get("V(gate)")),
         v_bus=dpt["vbus"], i_load=dpt["i_load_target"],
         l_load=dpt["l_load"], vgs_on=dpt["vgs_on"],
-        wall_clock_s=float(wall), t2_on=dpt["t2_on"])
+        wall_clock_s=float(wall), t2_on=dpt["t2_on"],
+        i_d_signed=_signed_device_current(res))
     return run, res.log_text, current_def
 
 
@@ -1522,6 +1641,8 @@ def _measure_candidate(candidate_lib: Path, vendor: str, traj, dpt: dict,
             "iterations": None, "t_last_s": None,
             "forced_2ns_wall_s": None,
             "error": None, "waveform": {},
+            "energy_decomposition": None,
+            "energy_current_definition": None,
             "current_definition": None}
     wave, rom_metrics, log = {}, {}, ""
     try:
@@ -1539,6 +1660,13 @@ def _measure_candidate(candidate_lib: Path, vendor: str, traj, dpt: dict,
             wave = _waveform_errors(run, traj)
             info["waveform"] = wave
             rom_metrics = extract_dpt_metrics(run)
+            info["energy_current_definition"] = rom_metrics.get(
+                "energy_current_definition")
+            v_ds, v_gs = getattr(run, "v_ds", None), getattr(run, "v_gs", None)
+            if v_ds is not None and v_gs is not None:
+                info["energy_decomposition"] = turn_off_energy_decomposition(
+                    run.time, v_ds, run.i_d, v_gs, dpt["vbus"],
+                    i_d_signed=getattr(run, "i_d_signed", None))
         else:
             info["error"] = (
                 f"incomplete: {n3} trace points, t_last={t_last:.3g} s")
@@ -1552,6 +1680,8 @@ def _measure_candidate(candidate_lib: Path, vendor: str, traj, dpt: dict,
               f"{type(exc).__name__}", flush=True)
 
     comparison = {}
+    recorded_energy = _recorded_energy_definitions(vendor)
+    golden_energy_definition = golden.get("energy_current_definition")
     for m in METRICS:
         g, t3 = golden.get(m), rom_metrics.get(m)
         row = {"golden": g, "tier3": t3,
@@ -1559,6 +1689,13 @@ def _measure_candidate(candidate_lib: Path, vendor: str, traj, dpt: dict,
         if m in tier2:
             row["tier2"] = tier2[m]
             row["tier2_rel_err_pct"] = _rel_err(tier2[m], g)
+        if m in ("e_on_uj", "e_off_uj"):
+            row["golden_energy_current_definition"] = \
+                golden_energy_definition
+            row["tier3_energy_current_definition"] = (
+                rom_metrics.get("energy_current_definition"))
+            row["tier2_energy_current_definition"] = \
+                recorded_energy["tier2"]
         comparison[m] = row
     return {
         "library": str(candidate_lib.relative_to(ROOT)),
@@ -1631,8 +1768,14 @@ def run_vendor(vendor: str) -> dict:
         v_gs=traj.input[0], v_bus=dpt["vbus"],
         i_load=dpt["i_load_target"], l_load=dpt["l_load"],
         vgs_on=dpt["vgs_on"], wall_clock_s=capture_wall,
-        t2_on=dpt["t2_on"])
+        t2_on=dpt["t2_on"],
+        i_d_signed=np.asarray(traj.output[0], dtype=float))
     golden = extract_dpt_metrics(golden_run)
+    # Golden-side turn-off split on the SAME signed trace the scored energy
+    # uses; the measured difference is reported, never subtracted.
+    golden_energy = turn_off_energy_decomposition(
+        golden_run.time, golden_run.v_ds, golden_run.i_d, golden_run.v_gs,
+        dpt["vbus"], i_d_signed=golden_run.i_d_signed)
     current_defs = {"golden": _DEVICE_CURRENT, "tier3": None}
 
     # Same forced-2ns DPT bench and completion guard for EVERY candidate.
@@ -1791,9 +1934,34 @@ def run_vendor(vendor: str) -> dict:
             "static_rmse_scope": "channel_only_dc_capacitors_are_open",
         },
         "dpt_run": candidates[final]["dpt_run"],
-        "current_definitions": current_defs,
+        "energy_current_definition": {
+            "golden": golden.get("energy_current_definition"),
+            "tier3": candidates[final]["dpt_run"].get(
+                "energy_current_definition"),
+            "tier2": _recorded_energy_definitions(vendor)["tier2"],
+            "rule": ("switching energy integrates the signed device current "
+                     "I(Lload)-I(Dclamp); timing/G3 remain on its absolute "
+                     "magnitude"),
+        },
+        "current_definitions": {
+            **current_defs,
+            "energy": {
+                "golden": golden.get("energy_current_definition"),
+                "tier3": candidates[final]["dpt_run"].get(
+                    "energy_current_definition"),
+                "correction": "measurement correction: turn-on/turn-off "
+                "energy integrates the signed device current "
+                "I(Lload)-I(Dclamp); abs() rectified post-turn-off ringing "
+                "into apparent loss. Bars unchanged.",
+            },
+        },
         "dpt_waveform": candidates[final]["waveform"],
         "dpt_comparison": candidates[final]["dpt_comparison"],
+        "energy_decomposition": {
+            "golden": golden_energy,
+            "tier3": candidates[final]["dpt_run"].get(
+                "energy_decomposition"),
+        },
         "charge_candidates": {
             "modes": list(candidates),
             **candidates,

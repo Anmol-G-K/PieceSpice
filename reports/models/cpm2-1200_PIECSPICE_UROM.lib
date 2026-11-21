@@ -20,7 +20,8 @@ C_ISS gi ss 7.227357e-09
 C_RSS gi di 3.306089e-10
 
 * --- body diode (Curve 6) ---
-.MODEL D_BD_cpm2-1200_PIECSPICE_UROM D(IS=6.414485e-13 N=4.000 RS=2.950997e-02)
+* body-diode provenance: measured Curve 6 forward (Vsd,Isd) sweep (config/outputs/cpm2-1200/curve6_body_diode.yaml); bounded least-squares fit of I=IS*(exp((V-I*RS)/(N*Vt))-1) on log10(current), Vt=0.026 V; IS=3.747349e-12 N=3.860 RS=7.647955e-03; RMS log10 error=1.697151e-03 dec (46/81 samples, >=1e-06*Imax)
+.MODEL D_BD_cpm2-1200_PIECSPICE_UROM D(IS=3.747349e-12 N=3.860 RS=7.647955e-03)
 D_BODY ss di D_BD_cpm2-1200_PIECSPICE_UROM
 
 .ENDS cpm2-1200_PIECSPICE_UROM

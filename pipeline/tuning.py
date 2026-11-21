@@ -775,10 +775,19 @@ def make_dpt_simulator(
                 metrics={}, completed=False, points=points,
                 iterations=iterations, t_last=t_last,
             )
+        i_load_trace = np.asarray(result.get("I(Lload)"), dtype=float)
+        i_clamp_trace = result.traces.get("I(Dclamp)")
+        if i_clamp_trace is not None:
+            i_d_signed = i_load_trace - np.asarray(i_clamp_trace, dtype=float)
+            current_definition = "I(Lload)-I(Dclamp)"
+        else:
+            i_d_signed = i_load_trace
+            current_definition = (
+                "I(Lload) [fallback: I(Dclamp) not in raw]")
         run = DoublePulseRun(
             time=times,
             v_ds=np.asarray(result.get("V(drain)"), dtype=float),
-            i_d=np.abs(np.asarray(result.get("I(Lload)"), dtype=float)),
+            i_d=np.abs(i_d_signed),
             v_gs=np.asarray(result.get("V(gate)"), dtype=float),
             v_bus=float(dpt["vbus"]),
             i_load=float(dpt["i_load_target"]),
@@ -786,6 +795,8 @@ def make_dpt_simulator(
             vgs_on=float(dpt["vgs_on"]),
             wall_clock_s=float(wall),
             t2_on=float(dpt["t2_on"]),
+            current_definition=current_definition,
+            i_d_signed=i_d_signed,
         )
         return ConditionResult(
             metrics=extract_dpt_metrics(run),

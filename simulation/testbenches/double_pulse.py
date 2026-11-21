@@ -8,8 +8,9 @@ Circuit::
     first charges the inductor, the second is the device under test.
 
 The engine only sees netlist text; the bench owns the topology and the
-waveform extraction.  ``i_d`` is the inductor current (equal to the device
-current while the channel conducts).
+waveform extraction.  ``i_d`` is the signed inductor-minus-clamp current with
+``abs`` applied (the comparison magnitude); ``i_d_signed`` keeps the signed
+trace for switching-energy integration only.
 
 No conditions are hardcoded here: every voltage, current, inductance and
 pulse time comes from ``config/inputs/<vendor>.yaml`` -> ``dpt``.
@@ -25,10 +26,27 @@ import numpy as np
 from simulation.engine import SpiceEngine, TranDirective
 from simulation.netlist_text import NetlistBuilder
 
+# Records written before the signed-energy correction carry no
+# ``energy_current_definition`` field; their integrator used the absolute
+# current.  Never compare such a legacy bar row-wise with signed energy
+# without naming this fallback.
+LEGACY_ABS_ENERGY_DEFINITION = (
+    "abs (legacy record: no energy_current_definition field; the historical "
+    "integrator used the absolute device current)")
+SIGNED_ENERGY_SUFFIX = " signed"
+
 
 @dataclass
 class DoublePulseRun:
-    """Raw waveforms and measured simulator wall time of one DPT run."""
+    """Raw waveforms and measured simulator wall time of one DPT run.
+
+    ``i_d`` is the bench device-current identity with ``abs`` applied: it is
+    the magnitude used for waveform/G3/timing/peak comparisons. ``i_d_signed``
+    is the same trace BEFORE ``abs`` and is used only for switching-energy
+    integration, where a reversed current is recovered reactance rather than
+    dissipation. ``None`` means the caller did not measure it; the energy
+    metric then falls back to ``i_d`` and says so in its record.
+    """
 
     time: np.ndarray
     v_ds: np.ndarray
@@ -41,6 +59,7 @@ class DoublePulseRun:
     wall_clock_s: float
     t2_on: float = 0.0             # second pulse starts; used for DPT metrics
     current_definition: str = "I(Lload)-I(Dclamp)"
+    i_d_signed: np.ndarray | None = None   # I(Lload)-I(Dclamp) before abs()
 
 
 def _gate_pwl(t1_on: float, t1_width: float, t2_on: float,
@@ -109,10 +128,12 @@ def run_double_pulse(
     i_load_trace = np.asarray(result.get("I(Lload)"), dtype=float)
     i_clamp_trace = result.traces.get("I(Dclamp)")
     if i_clamp_trace is not None:
-        i_d = np.abs(i_load_trace - np.asarray(i_clamp_trace, dtype=float))
+        i_d_signed = i_load_trace - np.asarray(i_clamp_trace, dtype=float)
+        i_d = np.abs(i_d_signed)
         current_definition = "I(Lload)-I(Dclamp)"
     else:
-        i_d = np.abs(i_load_trace)
+        i_d_signed = i_load_trace
+        i_d = np.abs(i_d_signed)
         current_definition = "I(Lload) [fallback: I(Dclamp) not in raw]"
 
     return DoublePulseRun(
@@ -124,7 +145,8 @@ def run_double_pulse(
         l_load=float(l_load), vgs_on=float(vgs_on),
         t2_on=float(t2_on),
         wall_clock_s=float(elapsed),
-        current_definition=current_definition)
+        current_definition=current_definition,
+        i_d_signed=i_d_signed)
 
 
 def _cross(t: np.ndarray, y: np.ndarray, level: float, *,
@@ -148,12 +170,24 @@ def extract_dpt_metrics(run: DoublePulseRun,
     Energy windows start at the gate edge and end at the corresponding
     10 %/90 % drain crossing plus a 100 ns tail; they are edge-delimited,
     not a fixed sample count.  Missing crossings yield NaN.
+
+    Switching energy integrates the SIGNED device current (``i_d_signed``)
+    when the run carries it.  ``abs(I(Lload)-I(Dclamp))`` rectifies the
+    zero-mean current ringing after turn-off into apparent loss: during a
+    reversed excursion the device is returning stored reactance, not
+    dissipating.  Timing, slew and ``i_peak_a`` keep the absolute magnitude.
+    Without a signed trace the energy falls back to ``i_d`` and the record
+    says so through ``energy_current_definition`` (never silently).
     """
     from metrics.loss import compute_switching_energy
 
     plateau = float(np.percentile(run.v_gs, 95))
     d_hi, d_lo = 0.9 * run.v_bus, 0.1 * run.v_bus
     tail = 100e-9
+    i_energy = run.i_d if run.i_d_signed is None else run.i_d_signed
+    energy_identity = (
+        f"{run.current_definition} signed" if run.i_d_signed is not None
+        else f"{run.current_definition} abs fallback")
 
     def ns_or_nan(x):
         return float("nan") if x is None or x < 0 else float(x) * 1e9
@@ -178,7 +212,7 @@ def extract_dpt_metrics(run: DoublePulseRun,
     def energy(a, b):
         if a is None or b is None or b <= a:
             return float("nan")
-        return compute_switching_energy(run.time, run.v_ds, run.i_d,
+        return compute_switching_energy(run.time, run.v_ds, i_energy,
                                         a, b + tail)
 
     return {
@@ -193,4 +227,5 @@ def extract_dpt_metrics(run: DoublePulseRun,
         "e_oss_uj": float("nan") if e_oss_uj is None else float(e_oss_uj),
         "i_peak_a": float(np.max(run.i_d)),
         "wall_clock_s": run.wall_clock_s,
+        "energy_current_definition": energy_identity,
     }

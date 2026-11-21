@@ -20,7 +20,8 @@ C_ISS gi ss 1.949072e-10
 C_RSS gi di 9.805556e-12
 
 * --- body diode (Curve 6) ---
-.MODEL D_BD_epc2216_PIECSPICE_UROM D(IS=1.000000e-15 N=1.587 RS=3.135334e-02)
+* body-diode provenance: measured Curve 6 forward (Vsd,Isd) sweep (config/outputs/epc2216/curve6_body_diode.yaml); bounded least-squares fit of I=IS*(exp((V-I*RS)/(N*Vt))-1) on log10(current), Vt=0.026 V; IS=1.951332e-10 N=3.155 RS=3.135334e-02; RMS log10 error=4.888243e-02 dec (28/50 samples, >=0.001*Imax)
+.MODEL D_BD_epc2216_PIECSPICE_UROM D(IS=1.951332e-10 N=3.155 RS=3.135334e-02)
 D_BODY ss di D_BD_epc2216_PIECSPICE_UROM
 
 .ENDS epc2216_PIECSPICE_UROM

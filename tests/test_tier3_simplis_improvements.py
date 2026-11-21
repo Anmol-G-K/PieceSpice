@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+import pipeline.tier3_simplis as sm
 from common.types import PWLModelSpec
 from models.simplis_netlist_builder import (
     _charge_meta_lines,
@@ -37,8 +38,10 @@ from pipeline.tier3_simplis import (
     _select_cdg_data,
     _select_charge_candidate,
     _ChargeTables,
+    turn_off_energy_decomposition,
 )
 from simulation.testbenches.capacitance import CapacitanceTestbench
+from simulation.testbenches.double_pulse import DoublePulseRun, extract_dpt_metrics
 
 
 # The historical emitters, captured before the new options were added. The
@@ -352,3 +355,153 @@ def test_charge_tables_defaults_and_not_measured_header():
     assert all(line.isascii() for line in lines)
     # No metadata -> no added header lines at all.
     assert _charge_meta_lines({}) == []
+
+
+# ---- 6. turn-off energy decomposition (diagnostic, no correction) -----------
+
+_VBUS = 12.5
+
+
+def _dpt_waveform(*, ring: bool = True):
+    """Synthetic two-edge DPT: 10 A on-state, 20 ns Vds rise at full current.
+
+    ``ring`` adds a zero-mean current oscillation after the 90 % crossing,
+    which is what the vendor model's internal network does at turn-off. The
+    bench current identity is ``abs``, so that oscillation becomes apparent
+    loss without any dissipation.
+    """
+    t = np.arange(0.0, 201e-9, 0.25e-9)
+    vgs = np.where(t < 40e-9, 10.0, np.where(t < 45e-9, 10.0 - (t - 40e-9) / 5e-9 * 10.0, 0.0))
+    vds = np.where(t < 30e-9, _VBUS,
+                   np.where(t < 32e-9, _VBUS * (1.0 - (t - 30e-9) / 2e-9), 0.12))
+    rise = (t - 50e-9) / 1e-9
+    vds = np.where(t < 50e-9, vds,
+                   np.where(t < 51e-9, 0.12 + (_VBUS - 0.12) * rise, _VBUS))
+    signed = np.where(t < 50e-9, 10.0,
+                      np.where(t < 51e-9, 10.0 * (1.0 - (t - 50e-9) / 1e-9), 0.0))
+    if ring:
+        tail = t >= 51e-9
+        signed = np.where(
+            tail, 1.0 + 2.0 * np.sin(2.0 * np.pi * (t - 51e-9) / 4e-9), signed)
+    return t, vds, np.abs(signed), vgs, signed
+
+
+def _dpt_run(ring: bool = True, *, signed: bool = False) -> DoublePulseRun:
+    t, vds, i_abs, vgs, signed_curve = _dpt_waveform(ring=ring)
+    return DoublePulseRun(time=t, v_ds=vds, i_d=i_abs, v_gs=vgs,
+                          v_bus=_VBUS, i_load=10.0, l_load=1e-6,
+                          vgs_on=10.0, wall_clock_s=0.0, t2_on=0.0,
+                          i_d_signed=signed_curve if signed else None)
+
+
+def test_turn_off_decomposition_reproduces_the_scored_e_off():
+    run = _dpt_run()
+    t, vds, i_abs, vgs, signed = _dpt_waveform()
+    out = turn_off_energy_decomposition(
+        t, vds, i_abs, vgs, _VBUS, i_d_signed=signed)
+    assert out is not None
+    assert out["e_off_uj"] == pytest.approx(
+        extract_dpt_metrics(run)["e_off_uj"], rel=0.0, abs=0.0)
+    # With the signed trace the scored energy IS the signed integral; the
+    # decomposition must close on the same window, not on a re-derivation.
+    assert out["e_off_signed_uj"] == pytest.approx(
+        extract_dpt_metrics(_dpt_run(signed=True))["e_off_uj"],
+        rel=0.0, abs=0.0)
+    # The integer-segment parts partition that window exactly.
+    assert out["parts_sum_uj"] == pytest.approx(
+        out["e_off_uj"], rel=0.0, abs=1e-12)
+    assert out["parts_sum_uj"] == pytest.approx(
+        out["transition_uj"] + out["rise_uj"] + out["tail_uj"],
+        rel=0.0, abs=1e-12)
+    assert out["tail_uj"] > 0.0 and out["rise_uj"] > 0.0
+
+
+def test_turn_off_decomposition_exposes_rectified_ringing_tail():
+    t, vds, i_abs, vgs, signed = _dpt_waveform()
+    out = turn_off_energy_decomposition(
+        t, vds, i_abs, vgs, _VBUS, i_d_signed=signed)
+    # The signed tail oscillates about zero: abs() turns it into loss.
+    assert out["rectified_tail_uj"] > 0.0
+    assert out["rectified_tail_uj"] == pytest.approx(
+        out["tail_uj"] - out["tail_signed_uj"], rel=0.0, abs=1e-12)
+    assert out["tail_negative_fraction"] > 0.0
+    assert out["e_off_signed_uj"] < out["e_off_uj"]
+    # The signed segments partition the signed total exactly as well.
+    assert (out["transition_signed_uj"] + out["rise_signed_uj"]
+            + out["tail_signed_uj"]) == pytest.approx(
+                out["e_off_signed_uj"], rel=0.0, abs=1e-12)
+    # No ringing -> no rectification, and the keys stay measured.
+    flat = _dpt_waveform(ring=False)
+    no_ring = turn_off_energy_decomposition(
+        flat[0], flat[1], flat[2], flat[3], _VBUS, i_d_signed=flat[4])
+    assert no_ring["rectified_tail_uj"] == pytest.approx(0.0, abs=1e-12)
+    assert no_ring["tail_negative_fraction"] == 0.0
+
+
+def test_turn_off_decomposition_reports_none_without_signed_current():
+    t, vds, i_abs, vgs, _ = _dpt_waveform()
+    out = turn_off_energy_decomposition(t, vds, i_abs, vgs, _VBUS)
+    assert out["tail_negative_fraction"] is None
+    for key in ("rectified_tail_uj", "e_off_signed_uj", "tail_signed_uj"):
+        assert key not in out
+    assert out["e_off_uj"] > 0.0
+
+
+def test_turn_off_decomposition_returns_none_when_the_window_is_absent():
+    t, vds, i_abs, vgs, _ = _dpt_waveform(ring=False)
+    # Vds never reaches 90 % of the bus: there is no turn-off window.
+    assert turn_off_energy_decomposition(
+        t, vds * 0.5, i_abs, vgs, _VBUS) is None
+    # A gate that never drove is not a zero-energy turn-off either.
+    assert turn_off_energy_decomposition(
+        t, vds, i_abs, np.zeros_like(vgs), _VBUS) is None
+    with pytest.raises(ValueError, match="matched waveform arrays"):
+        turn_off_energy_decomposition(t[:-1], vds, i_abs, vgs, _VBUS)
+    with pytest.raises(ValueError, match="sample grid"):
+        turn_off_energy_decomposition(
+            t, vds, i_abs, vgs, _VBUS, i_d_signed=np.ones(3))
+
+
+def test_energy_tail_constant_is_pinned_to_the_scored_metric(monkeypatch):
+    run = _dpt_run()
+    t, vds, i_abs, vgs, _ = _dpt_waveform()
+    monkeypatch.setattr(sm, "_ENERGY_TAIL_S", 150e-9)
+    drifted = turn_off_energy_decomposition(t, vds, i_abs, vgs, _VBUS)
+    assert drifted["e_off_uj"] != pytest.approx(
+        extract_dpt_metrics(run)["e_off_uj"], rel=1e-6)
+
+
+def test_measure_candidate_attaches_the_measured_decomposition(monkeypatch):
+    t, vds, i_abs, vgs, signed = _dpt_waveform()
+    run = _dpt_run(signed=True)
+    monkeypatch.setattr(
+        sm, "_run_emitted_dpt",
+        lambda lib, vendor: (run, "Total iterations: 10\n", "tier3"))
+    monkeypatch.setattr(
+        sm, "_waveform_errors",
+        lambda r, traj: {"vds_rel_rmse_pct": 1.0, "id_rel_rmse_pct": 1.0})
+    traj = SimpleNamespace(
+        time=np.arange(0.0, 201e-9, 0.25e-9),
+        input=(vgs, vds), output=(signed,), pin_roles=_PIN_ROLES)
+    row = sm._measure_candidate(
+        sm.ROOT / "reports" / "models" / "TOY.lib", "TOY", traj,
+        {"vbus": _VBUS, "t_end": t[-1]}, {}, {})
+    decomposition = row["dpt_run"]["energy_decomposition"]
+    assert decomposition is not None
+    # The scored energy comes from the signed trace, and the split proves it.
+    assert decomposition["e_off_signed_uj"] == pytest.approx(
+        row["dpt_comparison"]["e_off_uj"]["tier3"], rel=0.0, abs=1e-12)
+    assert decomposition["e_off_uj"] > decomposition["e_off_signed_uj"]
+    assert decomposition["rectified_tail_uj"] > 0.0
+    assert decomposition["tail_negative_fraction"] > 0.0
+    # A run without the signed trace degrades to abs and invents no sign.
+    monkeypatch.setattr(
+        sm, "_run_emitted_dpt",
+        lambda lib, vendor: (_dpt_run(signed=False),
+                             "Total iterations: 10\n", "tier3"))
+    bare = sm._measure_candidate(
+        sm.ROOT / "reports" / "models" / "TOY2.lib", "TOY", traj,
+        {"vbus": _VBUS, "t_end": t[-1]}, {}, {})["dpt_run"][
+            "energy_decomposition"]
+    assert bare["tail_negative_fraction"] is None
+    assert "rectified_tail_uj" not in bare

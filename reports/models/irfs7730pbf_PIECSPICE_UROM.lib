@@ -20,7 +20,8 @@ C_ISS gi ss 6.891557e-09
 C_RSS gi di 2.730837e-10
 
 * --- body diode (Curve 6) ---
-.MODEL D_BD_irfs7730pbf_PIECSPICE_UROM D(IS=1.000000e-15 N=0.968 RS=2.590823e-03)
+* body-diode provenance: measured Curve 6 forward (Vsd,Isd) sweep (config/outputs/irfs7730pbf/curve6_body_diode.yaml); bounded least-squares fit of I=IS*(exp((V-I*RS)/(N*Vt))-1) on log10(current), Vt=0.026 V; IS=1.241716e-09 N=1.205 RS=1.141802e-03; RMS log10 error=1.380106e-01 dec (all 50 samples)
+.MODEL D_BD_irfs7730pbf_PIECSPICE_UROM D(IS=1.241716e-09 N=1.205 RS=1.141802e-03)
 D_BODY ss di D_BD_irfs7730pbf_PIECSPICE_UROM
 
 .ENDS irfs7730pbf_PIECSPICE_UROM
