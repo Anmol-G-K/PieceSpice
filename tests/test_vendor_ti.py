@@ -28,6 +28,9 @@ LIVE = pytest.mark.skipif(
     reason="live LTspice disabled via PIECESPICE_LIVE=0",
 )
 
+pytestmark = pytest.mark.skipif(
+    not TI_LIB.is_file(), reason="vendor TI library not present")
+
 
 def _ti_pin_roles():
     """Roles in the vendor header's positional order (semantic map, not guesswork)."""

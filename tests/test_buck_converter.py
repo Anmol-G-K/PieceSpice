@@ -28,6 +28,7 @@ from common.plotting import (
     plot_converter_benchmark,
     plot_converter_comparison,
 )
+from config.yaml_io import load_input
 from simulation.engine import SimResult
 from simulation.testbenches.buck_converter import (
     CONFIG_PATH,
@@ -40,6 +41,17 @@ from simulation.testbenches.buck_converter import (
 )
 
 SUB = "IDEAL_BUCK"
+
+ROOT = Path(__file__).resolve().parents[1]
+
+# SpiceModels/* is .gitignore'd (vendor models are not redistributed), so a
+# fresh clone or CI checkout has no EPC2216 golden library. Tests that compare
+# against that file skip; the offline synthetic/non-golden tests still run.
+_EPC2216_GOLDEN_LIBRARY = ROOT / str(load_input("epc2216")["library"])
+requires_epc2216_golden = pytest.mark.skipif(
+    not _EPC2216_GOLDEN_LIBRARY.is_file(),
+    reason=("EPC2216 golden vendor library is absent "
+            f"({_EPC2216_GOLDEN_LIBRARY}); SpiceModels/ is not redistributed"))
 
 
 def _library(tmp_path: Path, header: str = "d g s") -> Path:
@@ -315,6 +327,7 @@ def _comparison_runner(captured, *, golden=None, tier=None):
     return runner
 
 
+@requires_epc2216_golden
 def test_golden_vs_tier_comparison_runs_same_conditions():
     captured: list = []
     runner = _comparison_runner(
@@ -353,6 +366,7 @@ def test_golden_vs_tier_comparison_runs_same_conditions():
     assert golden_directive.end_time == pytest.approx(tier_directive.end_time)
 
 
+@requires_epc2216_golden
 def test_comparison_plot_is_one_by_three_with_east_legends(
         tmp_path, monkeypatch):
     captured: list = []
@@ -426,6 +440,7 @@ def test_live_buck_benchmark_measures_one_vendor_tier():
     assert out["traces"]["time"].size > 100
 
 
+@requires_epc2216_golden
 @pytest.mark.skipif(os.environ.get("PIECESPICE_LIVE", "1") != "1",
                     reason="live LTspice disabled via PIECESPICE_LIVE=0")
 def test_live_epc_golden_vs_tier2_comparison(tmp_path, monkeypatch):
