@@ -406,6 +406,14 @@ def _gate_ladder(model) -> str:
     return f"table({span},{pairs})"
 
 
+def _gate_ramp(model) -> str:
+    """Opt-in C1 gate factor: bounded hinge ramp on the transfer data."""
+    tv, tf = emitter.transfer_curve(model)
+    return "limit({},{},{})".format(
+        emit_transfer_ramp(tv, tf, eps_from_grid(tv), term="V(g,s)"),
+        emitter._f(0.0), emitter._f(tf[-1]))
+
+
 def test_gate_ramp_c1_default_is_off_and_byte_identical():
     model = _toy_model()
     assert emitter.EmissionPolicy().gate_ramp_c1 is False
@@ -421,9 +429,8 @@ def test_gate_ramp_c1_default_is_off_and_byte_identical():
 def test_gate_ramp_c1_replaces_only_the_gate_factor():
     model = _toy_model()
     tv, tf = emitter.transfer_curve(model)
-    eps = emitter.gate_ramp_eps(model)
     ladder = _gate_ladder(model)
-    ramp = emit_transfer_ramp(tv, tf, eps_from_grid(tv), term="V(g,s)")
+    ramp = _gate_ramp(model)
 
     default = emitter.emit_subcircuit(model, name="TOY_T3")
     opt_in = emitter.emit_subcircuit(model, name="TOY_T3",
@@ -449,6 +456,36 @@ def test_gate_ramp_c1_replaces_only_the_gate_factor():
     assert default.replace(channel, "") == opt_in.replace(
         next(ln for ln in opt_in.splitlines() if ln.startswith("G_CH ")),
         "")
+
+
+@pytest.mark.parametrize("vendor", ["cpm2-1200", "epc2216"])
+def test_gate_ramp_c1_is_flat_above_the_measured_vgs_span(vendor):
+    """No last-slope extrapolation: the emitted factor holds tf[-1]."""
+    model = _toy_model()
+    model.vendor = vendor
+    tv, tf = emitter.transfer_curve(model)
+    eps = emitter.gate_ramp_eps(model)
+    vgs_on = 10.0                       # both benches drive past tv[-1]
+    assert vgs_on > tv[-1] > tv[0]
+
+    # The bare anchored chain overshoots the measured top; the emitted
+    # limit(..., 0, tf[-1]) wrapper is what removes that extrapolation.
+    raw = float(np.asarray(smooth_relu_product(vgs_on, tv, tf, eps)))
+    assert raw > float(tf[-1])
+    text = emitter.emit_subcircuit(model, name="X_T3", gate_ramp_c1=True)
+    assert _gate_ramp(model) in text
+
+    pol = replace(emitter.emission_policy(model), gate_ramp_c1=True)
+    u = np.vstack([np.array([vgs_on, float(tv[-1])]),
+                   np.full(2, 5.0)])
+    closed = emitter.emitted_channel(model, u,
+                                     policy=replace(pol, gate_ramp_c1=False))
+    opt_in = emitter.emitted_channel(model, u, policy=pol)
+    assert np.array_equal(opt_in, closed)
+    # Mirrored factor at the clamped operating point is exactly the table top.
+    clamp = np.clip(np.asarray(smooth_relu_product(
+        u[0], tv, tf, eps), dtype=float), 0.0, float(tf[-1]))
+    assert np.array_equal(clamp, np.full(2, float(tf[-1])))
 
 
 def test_gate_ramp_c1_is_value_preserving_and_data_derived():
