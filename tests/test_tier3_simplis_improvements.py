@@ -505,3 +505,30 @@ def test_measure_candidate_attaches_the_measured_decomposition(monkeypatch):
             "energy_decomposition"]
     assert bare["tail_negative_fraction"] is None
     assert "rectified_tail_uj" not in bare
+
+
+def test_cdg_extend_below_first_keeps_onstate_capacitance():
+    """CDG with extend_cdg_below_first=True keeps slope0 active for Vdg < 0."""
+    from models.simplis_netlist_builder import _q_expression
+    pairs = [(0.0, 0.0), (5.0, 5e-10), (20.0, 8e-10)]
+    expr = _q_expression(pairs, "V(di,gi)", clamp_above_last=True,
+                         extend_below_first=True)
+    # First term is linear in V(di,gi) without abs() clamp at 0 V
+    assert "1.000000e-10*((V(di,gi))-(0.000000e+00))" in expr
+
+
+def test_select_cdg_data_preserves_low_vdg_from_primary():
+    """Negative-bias sweeps must not discard [0.1, |bias|] from Vgs=0 primary."""
+    from pipeline.tier3_simplis import _CVSweep, _select_cdg_data, CDG_AXIS_VDG
+    v = np.array([0.1, 1.0, 5.0, 20.0])
+    primary = _CVSweep(v=v, ciss=v*0+1e-9, coss=v*0+5e-10,
+                       crss=np.array([1e-10, 5e-11, 2e-11, 1e-11]),
+                       vgs_bias_v=0.0, temperature_c=25.0)
+    neg = _CVSweep(v=v, ciss=v*0+1e-9, coss=v*0+5e-10,
+                   crss=np.array([2e-11, 2e-11, 1.5e-11, 1e-11]),
+                   vgs_bias_v=-5.0, temperature_c=25.0)
+    axis, crss, cdg_axis, _, _ = _select_cdg_data([neg, primary], primary)
+    assert cdg_axis == CDG_AXIS_VDG
+    assert axis[0] == pytest.approx(0.1)
+    assert crss[0] == pytest.approx(1e-10)
+    assert axis[-1] == pytest.approx(25.0)

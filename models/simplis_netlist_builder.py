@@ -135,16 +135,29 @@ def charge_ramp_terms(pairs: Sequence[Tuple[float, float]]):
 
 
 def _q_expression(pairs: Sequence[Tuple[float, float]], term: str,
-                  clamp_above_last: bool = False) -> str:
+                  clamp_above_last: bool = False,
+                  extend_below_first: bool = False) -> str:
     """Delta-slope chained soft-abs expression for Q(term).
 
     ``clamp_above_last=True`` appends one final delta slope ``-last_slope``
     at the last breakpoint, so the emitted Q is constant above the measured
     range (a physical end segment) instead of extrapolating the last slope.
+
+    ``extend_below_first=True`` keeps the first segment's slope active for
+    ``term < v_0`` (e.g. CDG at Vdg < 0 when Vgs > Vds) instead of collapsing
+    capacitance to zero in the on-state.
     """
-    expr = _fmt(pairs[0][1])
-    last_slope = 0.0
-    for v_prev, delta in charge_ramp_terms(pairs):
+    terms = list(charge_ramp_terms(pairs))
+    if extend_below_first and terms:
+        v0, slope0 = terms[0]
+        expr = f"{_fmt(pairs[0][1])} + {slope0:.6e}*(({term})-({_fmt(v0)}))"
+        last_slope = slope0
+        ramp_terms = terms[1:]
+    else:
+        expr = _fmt(pairs[0][1])
+        last_slope = 0.0
+        ramp_terms = terms
+    for v_prev, delta in ramp_terms:
         last_slope += delta
         if abs(delta) == 0.0:
             continue
@@ -159,12 +172,13 @@ def _q_expression(pairs: Sequence[Tuple[float, float]], term: str,
 
 def _emit_cap(element: str, npos: str, nneg: str, term: str,
               pairs: Sequence[Tuple[float, float]], note: str,
-              *, clamp_above_last: bool = False) -> List[str]:
+              *, clamp_above_last: bool = False,
+              extend_below_first: bool = False) -> List[str]:
     """Emit one charge-conserving capacitor line (plus its comment)."""
     return [
         f"* {element}: {note}; {len(pairs)} (V,Q) points",
         f"{element} {npos} {nneg} Q="
-        f"{{{_q_expression(pairs, term, clamp_above_last)}}}",
+        f"{{{_q_expression(pairs, term, clamp_above_last, extend_below_first)}}}",
     ]
 
 
@@ -226,6 +240,7 @@ def build_simplis_subcircuit(
     name: str | None = None,
     subckt_name: str | None = None,
     clamp_charge_above_last: bool = False,
+    extend_cdg_below_first: bool = False,
     charge_meta: dict | None = None,
     temperature_c: float | None = None,
     vgs_bias_v: float | None = None,
@@ -376,7 +391,8 @@ def build_simplis_subcircuit(
         charge.extend(_emit_cap(
             "CDG", "di", "gi", "V(di,gi)", cdg_pairs,
             "drain-gate charge on the Vdg axis, measured breakpoints",
-            clamp_above_last=clamp_charge_above_last))
+            clamp_above_last=clamp_charge_above_last,
+            extend_below_first=extend_cdg_below_first))
         charge.append("* RGS: documented Level-2 gate-source bleed (10 MOhm)")
         charge.append(RGS_LINE)
         charge.append("")

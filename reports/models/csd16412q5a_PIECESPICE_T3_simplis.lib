@@ -1,15 +1,15 @@
 * PieceSpice Tier 3 SIMPLIS Level-2 charge-table model for csd16412q5a
-* Generated from fitted PWLModelSpec (K=5 Vgs curves, 101 Vds breakpoints)
+* Generated from fitted PWLModelSpec (K=10 Vgs curves, 101 Vds breakpoints)
 .SUBCKT csd16412q5a_PIECESPICE_T3_simplis d g s
 * Pins: 1=Drain(d) 2=Gate(g) 3=Source(s)
 
 * --- parasitics ---
-RG g gi 1.500000e+00
+RG g gi 6.557889e-01
 RD d di 1.000000e-04
 RS s ss 1.000000e-04
 
 * --- channel: tanh-knee behavioral source (Curves 1+2) ---
-G_CH di ss VALUE = {((0.000000e+00 + 0.000000e+00*((V(gi,ss)-0.000000e+00)+abs((V(gi,ss))-0.000000e+00))/2 + 2.676037e+01*((V(gi,ss)-1.882370e+00)+abs((V(gi,ss))-1.882370e+00))/2 + 1.452657e+01*((V(gi,ss)-4.500000e+00)+abs((V(gi,ss))-4.500000e+00))/2 + 8.770895e-01*((V(gi,ss)-5.000000e+00)+abs((V(gi,ss))-5.000000e+00))/2 + 2.684093e-01*((V(gi,ss)-6.000000e+00)+abs((V(gi,ss))-6.000000e+00))/2 + -6.683061e-01*((V(gi,ss)-8.000000e+00)+abs((V(gi,ss))-8.000000e+00))/2)*tanh(V(di,ss)/(2.351466e+00 + 0.000000e+00*((V(gi,ss)-0.000000e+00)+abs((V(gi,ss))-0.000000e+00))/2 + -2.134790e-01*((V(gi,ss)-4.500000e+00)+abs((V(gi,ss))-4.500000e+00))/2 + 2.957599e-01*((V(gi,ss)-5.000000e+00)+abs((V(gi,ss))-5.000000e+00))/2 + 1.300568e-01*((V(gi,ss)-6.000000e+00)+abs((V(gi,ss))-6.000000e+00))/2 + 1.475476e-02*((V(gi,ss)-8.000000e+00)+abs((V(gi,ss))-8.000000e+00))/2)))}
+G_CH di ss VALUE = {((0.000000e+00 + 0.000000e+00*((V(gi,ss)-0.000000e+00)+abs((V(gi,ss))-0.000000e+00))/2 + 4.878069e-01*((V(gi,ss)-1.882370e+00)+abs((V(gi,ss))-1.882370e+00))/2 + 1.272929e+01*((V(gi,ss)-2.318641e+00)+abs((V(gi,ss))-2.318641e+00))/2 + 2.119349e+01*((V(gi,ss)-2.754913e+00)+abs((V(gi,ss))-2.754913e+00))/2 + 2.686701e+00*((V(gi,ss)-3.191185e+00)+abs((V(gi,ss))-3.191185e+00))/2 + 1.902736e-01*((V(gi,ss)-3.627457e+00)+abs((V(gi,ss))-3.627457e+00))/2 + 7.743534e-01*((V(gi,ss)-4.063728e+00)+abs((V(gi,ss))-4.063728e+00))/2 + 3.225029e+00*((V(gi,ss)-4.500000e+00)+abs((V(gi,ss))-4.500000e+00))/2 + 8.770895e-01*((V(gi,ss)-5.000000e+00)+abs((V(gi,ss))-5.000000e+00))/2 + 2.684093e-01*((V(gi,ss)-6.000000e+00)+abs((V(gi,ss))-6.000000e+00))/2 + -6.683061e-01*((V(gi,ss)-8.000000e+00)+abs((V(gi,ss))-8.000000e+00))/2)*tanh(V(di,ss)/(2.351466e+00 + 0.000000e+00*((V(gi,ss)-0.000000e+00)+abs((V(gi,ss))-0.000000e+00))/2 + -8.581056e-13*((V(gi,ss)-2.318641e+00)+abs((V(gi,ss))-2.318641e+00))/2 + 1.365029e-12*((V(gi,ss)-2.754913e+00)+abs((V(gi,ss))-2.754913e+00))/2 + -1.268327e-12*((V(gi,ss)-3.191185e+00)+abs((V(gi,ss))-3.191185e+00))/2 + 1.021074e-11*((V(gi,ss)-3.627457e+00)+abs((V(gi,ss))-3.627457e+00))/2 + -2.183640e-11*((V(gi,ss)-4.063728e+00)+abs((V(gi,ss))-4.063728e+00))/2 + -2.134790e-01*((V(gi,ss)-4.500000e+00)+abs((V(gi,ss))-4.500000e+00))/2 + 2.957599e-01*((V(gi,ss)-5.000000e+00)+abs((V(gi,ss))-5.000000e+00))/2 + 1.300568e-01*((V(gi,ss)-6.000000e+00)+abs((V(gi,ss))-6.000000e+00))/2 + 1.475476e-02*((V(gi,ss)-8.000000e+00)+abs((V(gi,ss))-8.000000e+00))/2)))}
 
 * --- SIMPLIS Level-2 three-capacitor charge model (AC Curve 4) ---
 * CGS=Ciss-Crss, CDS=Coss-Crss, CDG=Crss (single AC sweep at Vgs=0)
@@ -20,13 +20,13 @@ G_CH di ss VALUE = {((0.000000e+00 + 0.000000e+00*((V(gi,ss)-0.000000e+00)+abs((
 * Q= chains: constant (C=0) below the first breakpoint; above the last breakpoint a physical end segment clamps the slope to zero so Q stays constant (no table() end-clamp)
 * C-V provenance: cdg_axis=vdg_at_vgs_bias
 * C-V gate drive: vgs_bias_v=0 V; temperature_c=25 C
-* C-V measured error: max_cap_error_pct=18.61; budget_pct=10
-* CGS is nearly linear: C=3.791204e-10 F
-CGS gi ss 3.791204e-10
+* C-V measured error: max_cap_error_pct=14.87; budget_pct=10
+* CGS is nearly linear: C=3.795984e-10 F
+CGS gi ss 3.795984e-10
 * CDS: drain-source charge, measured breakpoints; 10 (V,Q) points
-CDS di ss Q={0.000000e+00 + 9.311415e-10*((V(di,ss)-(0.000000e+00))+abs((V(di,ss))-(0.000000e+00)))/2 + -1.217311e-10*((V(di,ss)-(1.725424e-01))+abs((V(di,ss))-(1.725424e-01)))/2 + -1.458365e-10*((V(di,ss)-(9.633193e-01))+abs((V(di,ss))-(9.633193e-01)))/2 + -9.373893e-11*((V(di,ss)-(1.955233e+00))+abs((V(di,ss))-(1.955233e+00)))/2 + -7.385718e-11*((V(di,ss)-(2.989891e+00))+abs((V(di,ss))-(2.989891e+00)))/2 + -5.746690e-11*((V(di,ss)-(4.572064e+00))+abs((V(di,ss))-(4.572064e+00)))/2 + -4.413562e-11*((V(di,ss)-(6.068531e+00))+abs((V(di,ss))-(6.068531e+00)))/2 + -4.107588e-11*((V(di,ss)-(8.054802e+00))+abs((V(di,ss))-(8.054802e+00)))/2 + -2.913296e-11*((V(di,ss)-(1.069119e+01))+abs((V(di,ss))-(1.069119e+01)))/2 + -3.241664e-10*((V(di,ss)-(1.250000e+01))+abs((V(di,ss))-(1.250000e+01)))/2}
-* CDG: drain-gate charge on the Vdg axis, measured breakpoints; 7 (V,Q) points
-CDG di gi Q={0.000000e+00 + 1.987909e-11*((V(di,gi)-(0.000000e+00))+abs((V(di,gi))-(0.000000e+00)))/2 + -2.138467e-12*((V(di,gi)-(5.310374e+00))+abs((V(di,gi))-(5.310374e+00)))/2 + -2.652020e-12*((V(di,gi)-(7.252600e+00))+abs((V(di,gi))-(7.252600e+00)))/2 + 6.042666e-12*((V(di,gi)-(1.919049e+01))+abs((V(di,gi))-(1.919049e+01)))/2 + 5.131633e-12*((V(di,gi)-(2.134869e+01))+abs((V(di,gi))-(2.134869e+01)))/2 + -1.485112e-12*((V(di,gi)-(2.669973e+01))+abs((V(di,gi))-(2.669973e+01)))/2 + -2.477779e-11*((V(di,gi)-(3.000000e+01))+abs((V(di,gi))-(3.000000e+01)))/2}
+CDS di ss Q={0.000000e+00 + 9.310504e-10*((V(di,ss)-(0.000000e+00))+abs((V(di,ss))-(0.000000e+00)))/2 + -1.217247e-10*((V(di,ss)-(1.725424e-01))+abs((V(di,ss))-(1.725424e-01)))/2 + -1.458273e-10*((V(di,ss)-(9.633193e-01))+abs((V(di,ss))-(9.633193e-01)))/2 + -9.373192e-11*((V(di,ss)-(1.955233e+00))+abs((V(di,ss))-(1.955233e+00)))/2 + -7.385098e-11*((V(di,ss)-(2.989891e+00))+abs((V(di,ss))-(2.989891e+00)))/2 + -5.746169e-11*((V(di,ss)-(4.572064e+00))+abs((V(di,ss))-(4.572064e+00)))/2 + -4.413137e-11*((V(di,ss)-(6.068531e+00))+abs((V(di,ss))-(6.068531e+00)))/2 + -4.107173e-11*((V(di,ss)-(8.054802e+00))+abs((V(di,ss))-(8.054802e+00)))/2 + -2.912992e-11*((V(di,ss)-(1.069119e+01))+abs((V(di,ss))-(1.069119e+01)))/2 + -3.241208e-10*((V(di,ss)-(1.250000e+01))+abs((V(di,ss))-(1.250000e+01)))/2}
+* CDG: drain-gate charge on the Vdg axis, measured breakpoints; 9 (V,Q) points
+CDG di gi Q={0.000000e+00 + 7.284894e-11*((V(di,gi))-(0.000000e+00)) + -1.773300e-11*((V(di,gi)-(1.697121e+00))+abs((V(di,gi))-(1.697121e+00)))/2 + -1.036079e-11*((V(di,gi)-(3.968503e+00))+abs((V(di,gi))-(3.968503e+00)))/2 + -6.868004e-12*((V(di,gi)-(6.991482e+00))+abs((V(di,gi))-(6.991482e+00)))/2 + -4.414914e-12*((V(di,gi)-(1.069119e+01))+abs((V(di,gi))-(1.069119e+01)))/2 + -3.258859e-12*((V(di,gi)-(1.419049e+01))+abs((V(di,gi))-(1.419049e+01)))/2 + -2.948855e-12*((V(di,gi)-(1.883513e+01))+abs((V(di,gi))-(1.883513e+01)))/2 + -2.178708e-12*((V(di,gi)-(2.500000e+01))+abs((V(di,gi))-(2.500000e+01)))/2 + -2.508581e-11*((V(di,gi)-(3.000000e+01))+abs((V(di,gi))-(3.000000e+01)))/2}
 * RGS: documented Level-2 gate-source bleed (10 MOhm)
 RGS gi ss 1e7
 

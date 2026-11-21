@@ -1228,26 +1228,40 @@ def _declared_cv_metadata(cfg: dict) -> tuple[float | None, float | None]:
 
 
 def _select_cdg_data(sweeps, primary):
-    """Pick a measured Cgd table, preferring a genuine bias-aware sweep.
+    """Pick a measured Cgd table on Vdg = Vds - Vgs, preserving low-Vdg data.
 
-    Returns ``(v, c, axis, source_bias_v, limitation)``. A bias-aware sweep
-    supplies Cgd on the measured Vdg = Vds - Vgs axis (non-negative part
-    only, because the anchored charge integral starts at 0 V). Without one,
-    the legacy Vgs=0 Vds axis is kept and the limitation is returned.
+    Returns ``(v, c, axis, source_bias_v, limitation)``. Negative-bias sweeps
+    (Vgs_bias < 0) shift Vdg = Vds - Vgs_bias upward so they lack [0, |bias|];
+    discarding Vgs=0 would replace the critical Miller-region Crss(0..5V) with
+    a single linear chord. Keep Vgs=0 (primary) as the base Vdg >= 0 curve and
+    extend above primary.v[-1] from negative-bias sweeps when available.
     """
+    base_v = np.asarray(primary.v, dtype=float)
+    base_c = np.asarray(primary.crss, dtype=float)
     biased = [s for s in sweeps
               if s.vgs_bias_v is not None and s.vgs_bias_v != 0.0]
-    for sweep in sorted(biased, key=lambda s: -abs(float(s.vgs_bias_v))):
+    if not biased:
+        return (primary.v, primary.crss, CDG_AXIS_VGS0, None,
+                _CDG_VGS0_LIMITATION)
+    v_parts = [base_v]
+    c_parts = [base_c]
+    v_max = float(base_v[-1])
+    used_bias = float(sorted(
+        biased, key=lambda s: -abs(float(s.vgs_bias_v)))[0].vgs_bias_v)
+    for sweep in sorted(biased, key=lambda s: float(s.vgs_bias_v)):
         bias = float(sweep.vgs_bias_v)
-        axis, idx = np.unique(np.asarray(sweep.v, dtype=float) - bias,
-                              return_index=True)
-        crss = np.asarray(sweep.crss, dtype=float)[idx]
-        keep = axis >= 0.0
-        axis, crss = axis[keep], crss[keep]
-        if axis.size >= 2:
-            return axis, crss, CDG_AXIS_VDG, bias, None
-    return (primary.v, primary.crss, CDG_AXIS_VGS0, None,
-            _CDG_VGS0_LIMITATION)
+        axis = np.asarray(sweep.v, dtype=float) - bias
+        crss = np.asarray(sweep.crss, dtype=float)
+        ext = axis > v_max + 1e-9
+        if np.any(ext):
+            v_parts.append(axis[ext])
+            c_parts.append(crss[ext])
+            v_max = float(axis[ext][-1])
+            used_bias = bias
+    v_out = np.concatenate(v_parts)
+    c_out = np.concatenate(c_parts)
+    order = np.argsort(v_out)
+    return v_out[order], c_out[order], CDG_AXIS_VDG, used_bias, None
 
 
 def _charge_meta_from_details(details: dict) -> dict:
@@ -1336,6 +1350,33 @@ def _build_spec(
     except (FileNotFoundError, KeyError, ValueError):
         pass
 
+    # Enrich sub-plateau transfer knee from Curve 2 so G_CH follows the real
+    # quadratic turn-on between Vth and the first Curve-1 Vgs family.
+    try:
+        c2 = load_output(vendor, "curve2_transfer_characteristic")["extracted"]
+        c2_vgs = fitting._arr(c2["curve_vgs"])
+        c2_id = fitting._arr(c2["curve_id"])
+        above_vth = [(i, v) for i, v in enumerate(vgs_values) if v > v_th + 1e-6]
+        if above_vth and c2_vgs.size >= 4:
+            i1, vgs1 = above_vth[0]
+            id_at_1 = float(np.interp(vgs1, c2_vgs, c2_id))
+            if id_at_1 > 1e-9:
+                mids = np.linspace(v_th, vgs1, 7)[1:-1]
+                new_vgs = list(vgs_values[:i1])
+                new_rows = list(breakpoints_id[:i1])
+                base_row = np.asarray(breakpoints_id[i1], dtype=float)
+                for vm in mids:
+                    ratio = float(np.clip(
+                        np.interp(vm, c2_vgs, c2_id) / id_at_1, 0.0, 1.0))
+                    new_vgs.append(float(vm))
+                    new_rows.append((ratio * base_row).tolist())
+                new_vgs.extend(vgs_values[i1:])
+                new_rows.extend(breakpoints_id[i1:])
+                vgs_values = new_vgs
+                breakpoints_id = new_rows
+    except (FileNotFoundError, KeyError, TypeError, ValueError):
+        pass
+
     b_vsd: list = []
     b_isd: list = []
     try:
@@ -1394,6 +1435,15 @@ def _build_spec(
         name: integrate_charge(v, curve, v_ref=cap_ref).c_eq_charge
         for name, curve in (("ciss", ciss), ("coss", coss), ("crss", crss))
     }
+    parasitics = dict(_PARASITICS)
+    try:
+        c4_ext = load_output(vendor, "curve4_capacitances")["extracted"]
+        rg_val = c4_ext.get("r_gate_ohm")
+        if rg_val is not None and math.isfinite(float(rg_val)) and float(rg_val) > 0.0:
+            parasitics["r_gate"] = float(rg_val)
+    except (FileNotFoundError, KeyError, TypeError, ValueError):
+        pass
+
     spec = PWLModelSpec(
         device_name=device,
         tier=3,
@@ -1411,7 +1461,7 @@ def _build_spec(
         body_diode_vsd=b_vsd,
         body_diode_isd=b_isd,
         metadata={
-            **_PARASITICS,
+            **parasitics,
             "c_iss_lin": c_eq["ciss"],
             "c_oss_lin": c_eq["coss"],
             "c_rss_lin": c_eq["crss"],
@@ -1750,6 +1800,7 @@ def run_vendor(vendor: str) -> dict:
             spec, charge_mode=mode.removeprefix("hybrid_"),
             channel_fit=hybrid_fit if mode.startswith("hybrid_") else None,
             clamp_charge_above_last=True,
+            extend_cdg_below_first=True,
             charge_meta=charge_meta)
         for mode in modes}
     for mode, text in texts.items():
@@ -1825,7 +1876,8 @@ def run_vendor(vendor: str) -> dict:
             f"{lib.stem}_hybrid_ann_residual_{selection}_charge.lib")
         residual_text = build_simplis_subcircuit(
             spec, charge_mode=selection, residual_fit=residual_fit,
-            clamp_charge_above_last=True, charge_meta=charge_meta)
+            clamp_charge_above_last=True,
+            extend_cdg_below_first=True, charge_meta=charge_meta)
         if not residual_text.isascii():
             raise RuntimeError(f"{vendor}: residual netlist is not ASCII")
         residual_lib.write_text(residual_text, encoding="ascii")
