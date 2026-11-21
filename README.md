@@ -9,7 +9,7 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![LTspice](https://img.shields.io/badge/LTspice-26-orange)](https://www.analog.com/en/resources/design-tools-and-calculators/ltspice-simulator.html)
 [![spicelib](https://img.shields.io/badge/spicelib-powered-yellow)](https://pypi.org/project/spicelib/)
-[![Tests](https://img.shields.io/badge/tests-719%20passed%20%C2%B7%204%20skipped%20%C2%B7%201%20warning-brightgreen?logo=pytest&logoColor=white)](#testing)
+[![Tests](https://img.shields.io/badge/tests-822%20passed%20%C2%B7%200%20skipped%20%C2%B7%201%20warning-brightgreen?logo=pytest&logoColor=white)](#testing)
 [![License](https://img.shields.io/badge/license-TBD-lightgrey)]()
 [![uv](https://img.shields.io/badge/managed%20with-uv-dead00?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
 
@@ -63,9 +63,13 @@ is not a fifth tier.
   for offline post-processing. The DPT waveform gate is retired by design:
   no dv/dt, Miller droop, ringing or reverse-recovery fidelity is claimed.
   Solver stabilization uses a measured linear Curve-4 Coss and a measured
-  Vgs=0 off-state Roff; energy rows are source self-consistency and
-  efficiency is N/A without an explicit converter output power. Speed is
-  measured on the existing inductive bench only; no converter bench exists.
+  Vgs=0 off-state Roff; DPT/LUT energy rows are source self-consistency and
+  the recorded efficiency stays N/A until converter output power is measured.
+  Speed stays scoped to the inductive bench. A measured buck bench and
+  notebook 04 now exist: EPC2216 Tier-2 completes at Vout 5.3053 V /
+  96.91 % versus golden 5.3077 V / 97.55 %. Missing or aborted arms remain
+  N/A (Tier-3 `v1` timed out at the 180 s bench guard); no every-tier result
+  or portable speedup is claimed.
 
 | | Fidelity | Speed | Robustness |
 |---|---|---|---|
@@ -406,7 +410,7 @@ rows use the same benches: emitted ROM vs golden, static via the live LTspice
 `I(Lload)-I(Dclamp)` on both sides, interpolated onto the golden grid; the
 separate 20-pulse adaptive bench uses 3 repeats, 176 µs, medians and a guard
 on every row (EPC golden alone at the documented 100 ns cap; CPM2 golden
-adaptive aborts, so its ratio is N/A). Fidelity means matching the golden's
+completes with its 4th `Tj` port driven, 1.10037× / 1.00592×). Fidelity means matching the golden's
 terminal curves and waveforms, not datasheet ratings (the caveat above);
 only quantities that were actually measured are reported, N/A is returned
 whenever a bench does not complete, and no global or portable speed claim is
@@ -431,9 +435,9 @@ emission experiment was likewise measured, closed and reverted, leaving the
 restored four-line emitter. `simplis` adds a second Tier-3 configuration with
 Tier-2 static parity and mixed DPT fidelity on the regenerated device-current
 metric (TI Vds 5.116 % vs `v1` 2.925 %, +2.191 pp), with guarded 20-pulse
-adaptive solver speedups 1.07054× / 5.14545× / 1.14729× / N/A (wall
-1.04492× / 2.92373× / 1.06856× / N/A; IRFS / TI / EPC / CPM2, whose golden
-adaptive run aborts). Only TI exceeds 5×, and only in solver time, because
+adaptive solver speedups 1.07054× / 5.14545× / 1.14729× / 1.10037× (wall
+1.04492× / 2.92373× / 1.06856× / 1.00592×; IRFS / TI / EPC / CPM2, with
+CPM2's golden completed with its 4th `Tj` port driven). Only TI exceeds 5×, and only in solver time, because
 TI's golden is globally stiff; the other completed goldens already ride the
 adaptive step ceiling. Fidelity is maintained at the recorded levels in the
 tables below, with the edge-timing limit stated after the timing table.
@@ -587,13 +591,11 @@ Tier-4, `method=LTspice default/trap (both arms)`), with EPC's golden alone
 at its documented 100 ns cap; N/A is reported whenever a bench does not
 complete. Completion guards: emitted DPT on **4/4** devices
 (`t_last = 1.4e-5 s`, positive iterations, ≥50 % of golden trace points);
-speed on **3/4** (no error, positive iterations/points, full-schedule
-`.tran` stop, 3 repeats). CPM2 speed is contract-excluded under VM-10: the
-vendor notes at the record root disclose that older text reported a golden
-adaptive failure (`no raw output`, `rc=1`) while the legacy
-`speedup_benchmark.json#cases.long_adaptive` arm holds a completed golden
-(`golden_completed=true`); both readings are disclosed and neither yields a
-Tier-4 ratio. The bench discards per-run time vectors, so speed `t_last` is
+speed on **4/4** (no error, positive iterations/points, full-schedule
+`.tran` stop, 3 repeats). CPM2's 4th `Tj` port is driven in both arms, so its
+adaptive golden completes and Tier-4 measures 1.3618× solver / 1.1586× wall
+(12,492 → 5,320 iterations); VM-10 is a 3-pin harness bug, not a contract
+exclusion. The bench discards per-run time vectors, so speed `t_last` is
 N/A and `end_time_s` is schedule metadata, not a measured trace endpoint.
 *AES-STD100 caveat above applies: golden-vs-model figures, not datasheet
 ratings.*
@@ -611,10 +613,12 @@ construction**: the LUT value and the compared "golden" value share the same
 `tier4_validation.json#energy_comparison.e_on_uj` and
 `#energy_comparison.e_off_uj`: `source_shared: true`,
 `independent_energy_gate: false`, `kind: source_self_consistency`. Those rows
-are source self-consistency, not an independent converter validation — no
-converter bench was built. Efficiency is N/A on all four devices
-(`output_power_required`): E_on/E_off/r_on are evaluated offline, and
-Vbus×Iload is DC bus input power, not converter output power. The loss LUT's
+are source self-consistency, not an independent converter validation. The
+recorded Tier-4 efficiency gate remains `N/A` (`output_power_required`):
+E_on/E_off/r_on are evaluated offline, and Vbus×Iload is DC bus input power,
+not converter output power. A separate measured buck bench now supplies
+converter output power: EPC2216 Tier-4 measures 99.87 % there when the run
+completes, while incomplete arms keep their guard reason. The loss LUT's
 finite-node provenance is vendor-specific: IRFS and TI have one `constant_node`
 (`1×1` grid), EPC and CPM2 have `grid_interpolation` with 3 and 4 finite
 nodes respectively; off-node queries are NaN and no unmeasured corner is
@@ -624,16 +628,23 @@ iterations) and is not presented as a portable speed class. No unmeasured
 superlative is claimed.
 
 **DPT timing and energy — golden / Tier-3 / Tier-2.** `tr`, `tf` in ns;
-`e_on`, `e_off` in µJ. All Tier-3 crossings now exist on every device
-(the earlier IRFS N/A cells were a second-pulse turn-on failure, fixed
-2026-11-19); values are never imputed.
+`e_on`, `e_off` in µJ. Switching energy integrates the **signed** device
+current `I(Lload)-I(Dclamp)` on both golden and ROM arms
+(`energy_current_definition` in every record); `abs()` applies only to G3,
+timing and peak comparisons. Rectifying the current turns zero-mean
+post-turn-off ringing into apparent loss: the retired abs-integrated golden
+e_off was 0.953449 µJ (TI) and 1.652084 µJ (CPM2), versus the signed values
+below. Every energy row carries a signed/abs label; a mismatch is
+`definition_mismatch`, never a silently scored numeric error. All Tier-3
+crossings now exist on every device (the earlier IRFS N/A cells were a
+second-pulse turn-on failure, fixed 2026-11-19); values are never imputed.
 
 | Device | tr (ns) G / T3 / T2 | tf (ns) G / T3 / T2 | e_on (µJ) G / T3 / T2 | e_off (µJ) G / T3 / T2 |
 |---|---|---|---|---|
-| IRFS7730PBF | 25.84 / 1.184 / 2.893 | 26.54 / 1.473 / 2.529 | 45.43 / 7.938 / 12.93 | 77.72 / 6.922 / 14.21 |
-| CSD16412Q5A | 1.096 / 0.106 / 1.486 | 1.662 / 0.624 / 2.246 | 0.380 / 0.336 / 0.267 | 0.953 / 0.151 / 0.230 |
-| EPC2216 | 0.846 / 1.485 / 0.838 | 1.227 / 2.255 / 1.343 | 0.398 / 0.616 / 0.542 | 0.238 / 0.372 / 0.435 |
-| CPM2-1200 | 4.703 / 0.850 / 4.123 | 4.139 / 2.429 / 8.789 | 2.791 / 1.811 / 3.239 | 1.652 / 0.871 / 3.459 |
+| IRFS7730PBF | 25.84 / 1.184 / 2.893 | 26.54 / 1.473 / 2.529 | 45.25 / 7.938 / 12.88 | 77.72 / 3.316 / 12.87 |
+| CSD16412Q5A | 1.096 / 0.106 / 1.486 | 1.662 / 0.624 / 2.246 | 0.379 / 0.336 / 0.265 | 0.370 / 0.098 / 0.230 |
+| EPC2216 | 0.846 / 1.485 / 0.838 | 1.227 / 2.255 / 1.343 | 0.398 / 0.616 / 0.542 | 0.231 / 0.367 / 0.388 |
+| CPM2-1200 | 4.703 / 0.850 / 4.123 | 4.139 / 2.429 / 8.789 | 2.760 / 1.811 / 3.214 | 1.420 / 0.698 / 3.314 |
 
 *AES-STD100 caveat above applies.*
 
@@ -720,18 +731,24 @@ canonical and keyed paths never clobber each other. A fixed-topology tuning
 API exists, but the final run reports `tuning.verdict="not_run"`
 (`tuning.mode="off"`).
 
-**Test suite (final executed runs).** Full live suite: **719 passed, 4 skipped,
-1 warning** (`uv run pytest`, 356.55 s). The LTspice-free CI command
-separately reports **713 passed, 9 skipped, 1 deselected, 1 warning**
-(`PIECESPICE_LIVE=0 uv run pytest -q --deselect
-tests/test_netlist_builder.py::test_tier2_simulates_and_matches`), and the live
-engine module alone reports **19 passed**. GitHub CI run **44906010257** on
-commit **4535c38** finished both jobs successfully. No other count is claimed.
+**Test suite (measured; CI line pending orchestrator final sync).** Full live
+suite: **822 passed, 0 skipped, 1 warning** (`uv run pytest`). The live
+engine module alone reports **19 passed**. T6.2a closed the four former
+skips on the LTspice backend — `test_vendor_ti`,
+`test_netlist_builder.py::test_fit_pwl_model_generates_lib`,
+`test_parser.py::test_normalize_forward_referenced_params` and
+`test_parser.py::test_normalize_safe_functions` (29 passed / 0 skipped
+targeted). T6.3 removed `pyspice` from `pyproject.toml` and `uv.lock`
+(16 passed targeted); no PySpice import or dependency remains. Only the
+`PIECESPICE_LIVE` gates for CI remain as skips. The LTspice-free CI count
+and the GitHub CI line are pending the orchestrator's final sync; the
+earlier 713-pass CI result and its run hash are historical (pre-T6.2a) and
+are not current evidence.
 
 | Command | Passed | Skipped | Deselected | Warnings |
 |---|---|---|---|---|
-| `uv run pytest` (full live suite) | 719 | 4 | — | 1 |
-| `PIECESPICE_LIVE=0 uv run pytest -q --deselect tests/test_netlist_builder.py::test_tier2_simulates_and_matches` (LTspice-free CI) | 713 | 9 | 1 | 1 |
+| `uv run pytest` (full live suite) | 822 | 0 | — | 1 |
+| `PIECESPICE_LIVE=0 uv run pytest -q --deselect tests/test_netlist_builder.py::test_tier2_simulates_and_matches` (LTspice-free CI) | pending ORCHESTRATOR final sync | — | — | — |
 | Live engine module (`tests/test_engine_ltspice.py`) | 19 | — | — | — |
 
 *AES-STD100 caveat above applies to the fidelity figures these tests
@@ -752,24 +769,26 @@ PieceSpice/
 ├── config/
 │   ├── inputs/           # Per-vendor simulation conditions (YAML)
 │   ├── acceptance.yaml   # Numeric gate policy (recorded vs project values)
+│   ├── converter.yaml    # Buck bench operating point + model selection
 │   └── outputs/          # Extracted curve data (YAML)
 ├── data/                 # Captured golden switching waveforms (CSV)
 ├── docs/                 # Reports, plans, reference notes
 ├── figures/
-│   └── <vendor>/
-│       ├── 01_*, 02_*    # extraction / analysis figures
-│       ├── tier2/        # golden-vs-Tier-2 DPT figures
-│       └── tier3/        # golden-vs-Tier-3 DPT figures
+│   ├── <vendor>/
+│   │   ├── 01_*, 02_*    # extraction / analysis figures
+│   │   ├── tier2/        # golden-vs-Tier-2 DPT figures
+│   │   └── tier3/        # golden-vs-Tier-3 DPT figures
+│   └── converter/        # Buck waveforms + fixed-path 1x3 golden-vs-tier plots
 ├── metrics/              # Static/switching/loss/comparison metrics
 ├── models/               # netlist_builder (Tier-2), tpwl_netlist_builder
 │                         # (Tier-3), tier4_ideal_switch_builder (Tier-4)
-├── notebooks/            # 01 extraction · 02 approximation · 03 DPT · 05 validation
+├── notebooks/            # 01 extraction · 02 approximation · 03 DPT · 04 buck · 05 validation
 ├── parser/               # Subcircuit/pin parser (dialect transpiler retired)
 ├── pipeline/             # run_all_curves · fit_pwl_model · tier3 · tier4 ·
 │                         # registry (tier registry for the CLI)
 ├── reporting/            # Single-file HTML report generator
 ├── simulation/           # LTspice engine + benches (static/cap/gate-charge/
-│                         # switching/dpt_trajectory)
+│                         # switching/dpt_trajectory/buck_converter)
 ├── SpiceModels/          # Vendor libraries (read-only inputs)
 ├── tests/                # pytest suite
 └── scripts/              # Utility scripts (incl. run_tier3)
@@ -781,17 +800,19 @@ no re-export shims.
 Tier-4 is variant-free: `models/tier4_ideal_switch_builder.py` emits
 `reports/models/<vendor>_PIECESPICE_T4.lib` and the guarded record lands in
 `reports/comparison/<vendor>/tier4_validation.json`. Its loss LUT is comment
-metadata only; no converter bench or T4 figures directory exists.
+metadata only; the recorded DPT efficiency stays N/A (`output_power_required`),
+while `simulation/testbenches/buck_converter.py` measures completed arms and
+writes fixed `figures/converter/` plots.
 
 ---
 
 ## 🧪 Testing
 
 ```bash
-uv run pytest                # full live suite: 719 passed, 4 skipped, 1 warning
+uv run pytest                # full live suite: 822 passed, 0 skipped, 1 warning
 PIECESPICE_LIVE=0 uv run pytest -q \
   --deselect tests/test_netlist_builder.py::test_tier2_simulates_and_matches
-                             # LTspice-free CI: 713 passed, 9 skipped, 1 deselected
+                             # LTspice-free CI: final count pending ORCHESTRATOR sync
 uv run pytest tests/test_engine_ltspice.py -q   # live engine module: 19 passed
 uv run pytest tests/test_pwlf_fit.py -v    # single module
 ```
@@ -799,15 +820,13 @@ uv run pytest tests/test_pwlf_fit.py -v    # single module
 The suite covers the parser, every approximation engine (including the
 Tier-3 TPWL/DEIM path), metric math, netlist emission, YAML I/O and the
 LTspice log-diagnostics layer, plus live LTspice engine tests (transient,
-DC sweep, timeout, temperature). The synthesized Tier-2 subcircuit is
-exercised end-to-end through PySpice/ngspice at an operating point — that is
-the only remaining PySpice use, and it is scheduled for rewrite in
-`docs/migration_todo.md` T6.2a together with four skipped tests. The
-LTspice-free CI command deselects the one Tier-2 live match test and skips
-the live class (`PIECESPICE_LIVE=0`), so its 9 skips are expected; the full
-live run is the 719-passed baseline. GitHub CI run 44906010257 (commit
-4535c38) passed both jobs. Tier-3 has its own test module,
-`tests/test_tier3.py`.
+DC sweep, timeout, temperature). The four formerly skipped tests were
+rewritten on the LTspice backend under T6.2a with their PySpice imports
+removed, and T6.3 purged the `pyspice` dependency from `pyproject.toml` and
+`uv.lock`. The LTspice-free CI command deselects the one Tier-2 live match
+test and skips the live class (`PIECESPICE_LIVE=0`); only those gates remain.
+Its count and run hash are pending the orchestrator's final sync. Tier-3 has
+its own test module, `tests/test_tier3.py`.
 
 ---
 
@@ -819,7 +838,7 @@ live run is the 719-passed baseline. GitHub CI run 44906010257 (commit
 | [`02_piecewise_approximation`](notebooks/02_piecewise_approximation.ipynb) | Fit → compress → charge-integrate → smooth → synthesize → validate |
 | [`04a_simple_switching_subset`](notebooks/04a_simple_switching_subset.ipynb) | Golden-vs-Tier-2 resistive-load switching comparison (M4 subset) |
 | [`03_double_pulse_transients`](notebooks/03_double_pulse_transients.ipynb) | Clamped-inductive DPT: golden vs Tier-2 vs Tier-3 waveforms, timing and energy; writes `figures/<vendor>/tier2/` and `tier3/` |
-| [`04_buck_converter_benchmark`](notebooks/04_buck_converter_benchmark.ipynb) | *placeholder — buck bench not implemented; no speedup numbers* |
+| [`04_buck_converter_benchmark`](notebooks/04_buck_converter_benchmark.ipynb) | Executed 13-cell buck bench: measured EPC2216 golden-vs-Tier-2 Vout / I_L / I_C (1x3) and fixed `figures/converter/` plots; N/A guards retained |
 | [`05_comprehensive_validation_report`](notebooks/05_comprehensive_validation_report.ipynb) | Rewritten — Tier-2 **and** Tier-3 validation, measured numbers only, per-vendor table |
 
 ---
@@ -873,8 +892,9 @@ live run is the 719-passed baseline. GitHub CI run 44906010257 (commit
       EPC 1.2440× / 1.1019× at the golden 100 ns cap; CPM2 1.3618× / 1.1586×
       with the Tj port driven. The historical CPM2 N/A was a 3-pin harness bug,
       not a vendor defect. Waveform gate retired by design; energy rows are
-      DPT-source self-consistency, efficiency N/A without converter output
-      power, and no converter bench was built. The LUT supports a real
+      DPT-source self-consistency; the recorded efficiency stays N/A without
+      converter output power, while the measured buck bench reports 99.87 %
+      for completed Tier-4 arms. The LUT supports a real
       measured grid, an optional temperature axis, Ron/Vt parameters and a
       caller-configured thermal network; the current records are a 25 °C
       slice with `thermal.status="not_configured"`.
@@ -898,19 +918,21 @@ live run is the 719-passed baseline. GitHub CI run 44906010257 (commit
       [`phase_v_improvement_closure.md`](docs/plans/phase_v_improvement_closure.md).
 - [x] **M4** — Switching Dynamics & Double Pulse Testbench
       *(metrics, resistive-load subset and inductive DPT)*
-- [ ] **M5** — Switched-Mode Converter Benchmark & Speedup Evaluation
-      *(partial, not complete: Tier-4 adds measured inductive-bench speed —
-      IRFS 1.2212×, TI 6.4730×, EPC 1.2440× solver, CPM2 1.3618×; but **no
-      converter bench exists**. Tier-4 energy rows are DPT-source
-      self-consistency and efficiency is N/A without an explicit converter
-      output power. The established tiers' matched-condition and adaptive
-      numbers are in Measured Results; Tier-3 `v1` speed was audited closed
-      2026-11-20.)*
+- [x] **M5** — Switched-Mode Converter Benchmark & Speedup Evaluation
+      *(buck bench, `config/converter.yaml` + `simulation/testbenches/buck_converter.py`,
+      and executed notebook 04 are complete for measured arms. EPC2216
+      golden vs Tier-2: Vout 5.3077 / 5.3053 V, efficiency 97.55 / 96.91 %,
+      I_L 1.0761 / 1.0815 A, I_C 0.0146 / 0.0204 A; Tier-4 measures 99.87 %
+      on the same bench when it completes. Tier-3 `v1` timed out at the
+      180 s guard, so no every-tier claim is made. No portable speedup claim:
+      the recorded Tier-4 DPT efficiency remains N/A without converter
+      output power, and matched-condition/adaptive numbers stay in Measured
+      Results.)*
 - [x] **M6** — Automated HTML Reporting & CLI Polish
       *(the report renders only metrics it is given)*
 
-Backend: **LTspice 26 + spicelib**, out-of-process; the PySpice/ngspice path
-is retired. Known limitations and vendor-model quirks are tracked in
+Backend: **LTspice 26 + spicelib**, out-of-process; no PySpice/ngspice
+dependency remains. Known limitations and vendor-model quirks are tracked in
 [`vendor_model_defects.md`](vendor_model_defects.md) (VM-01…VM-12,
 HOST-01/HOST-02).
 

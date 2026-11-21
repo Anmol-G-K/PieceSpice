@@ -1,6 +1,7 @@
 """Tests for Tier-2 subcircuit synthesis (M3.5) and fitting pipeline (M3.6)."""
 
 import math
+import os
 
 import numpy as np
 import pytest
@@ -8,6 +9,13 @@ import pytest
 from approximation.smoother import eps_from_grid, emit_qoss_expr
 from common.types import PWLModelSpec
 from models.netlist_builder import build_tier2_subcircuit
+from simulation.engine import SpiceEngine
+from simulation.netlist_text import NetlistBuilder
+
+LIVE = pytest.mark.skipif(
+    os.environ.get("PIECESPICE_LIVE", "1") != "1",
+    reason="live LTspice disabled via PIECESPICE_LIVE=0",
+)
 
 
 @pytest.fixture
@@ -68,11 +76,9 @@ def test_ascii_only_netlist(sample_spec):
     text.encode("ascii")   # raises if any non-ascii slipped in
 
 
+@LIVE
 def test_tier2_simulates_and_matches(tmp_path):
-    """End-to-end: emit lib, instantiate in ngspice, check Id vs spec."""
-    from PySpice.Spice.Netlist import Circuit
-    from PySpice.Unit import u_V
-
+    """End-to-end: emit lib, instantiate in LTspice, check Id vs spec."""
     spec = PWLModelSpec(
         device_name="AccDev",
         breakpoints_vds=[0., 1., 2., 5., 10.],
@@ -83,40 +89,35 @@ def test_tier2_simulates_and_matches(tmp_path):
         rds_on=0.005, v_th=2.5,
         body_diode_vsd=[0.4, 0.7, 0.9],
         body_diode_isd=[0.01, 1.0, 10.0])
-    text = build_tier2_subcircuit(spec)
     lib = tmp_path / "acc.lib"
-    lib.write_text(text, encoding="ascii")
+    lib.write_text(build_tier2_subcircuit(spec), encoding="ascii")
     name = "AccDev_PIECESPICE_T2"
 
+    engine = SpiceEngine()
     expected = {5.0: 20.0, 10.0: 30.0}
     for vgs, want in expected.items():
-        c = Circuit(f"acc{vgs}")
-        c.include(str(lib))
-        c.X("M1", name, "d", "g", c.gnd)
-        c.V("ds", "d", c.gnd, 10)
-        c.V("gs", "g", c.gnd, vgs)
-        op = c.simulator(temperature=25,
-                         nominal_temperature=25).operating_point()
-        i_d = abs(float(op.branches["vds"][0]))
+        nb = NetlistBuilder(f"acc{vgs}")
+        nb.include(lib)
+        nb.v_dc("ds", "drain", "0", 10)
+        nb.v_dc("gs", "gate", "0", vgs)
+        nb.x_instance("m1", name, ["drain", "gate", "0"])
+        result = engine.run_op(nb.render())
+        i_d = abs(float(np.asarray(result.get("I(Vds)"))[0]))
         assert i_d == pytest.approx(want, rel=0.02), \
             f"vgs={vgs}: Id={i_d} vs {want}"
 
 
+@LIVE
 def test_fit_pwl_model_generates_lib(tmp_path):
-    """M3.6: pipeline stage consumes outputs YAML and emits a valid .lib.
-
-    Disabled: it needs a live LTspice install plus ~25 AC probe runs per
-    vendor. Tracked in docs/migration_todo.md T6.2a; re-enable together with
-    the other four skipped tests.
-    """
-    import pytest
-    pytest.skip("needs live LTspice + re-extraction of curve 4 "
-                "(docs/migration_todo.md T6.2a)")
+    """M3.6: pipeline stage consumes the extracted curves and emits a valid .lib."""
     from pipeline.fitting import fit_pwl_model
+
     lib = fit_pwl_model("csd16412q5a", out_dir=tmp_path)
     assert lib.exists()
+    assert lib.name == "csd16412q5a_PIECESPICE_T2.lib"
     text = lib.read_text(encoding="ascii")
-    assert ".SUBCKT" in text and ".ENDS" in text
+    assert ".SUBCKT csd16412q5a_PIECESPICE_T2 d g s" in text
+    assert ".ENDS csd16412q5a_PIECESPICE_T2" in text
     assert "G_CH" in text and "C_QOSS" in text
 
 

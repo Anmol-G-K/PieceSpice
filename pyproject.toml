@@ -12,7 +12,6 @@ dependencies = [
     "polars>=1.43.2",
     "pwlf>=2.6.0",
     "pydantic>=2.13.4",
-    "pyspice>=1.5",
     "pyyaml>=6.0.3",
     "rdp>=0.8",
     "rich>=15.0.0",

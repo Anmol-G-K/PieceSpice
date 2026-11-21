@@ -1,0 +1,80 @@
+# PieceSpice buck-converter benchmark configuration
+# (schema piecespice.converter-bench/1.0).
+#
+# This file is the single source of truth for the M5 converter benchmark.
+# Every numeric value is an application requirement and may be changed here
+# only; simulation/testbenches/buck_converter.py contains no vendor defaults.
+# A malformed file or a missing tier/vendor entry fails closed instead of
+# falling back to a built-in value.
+
+schema: piecespice.converter-bench/1.0
+
+conditions:
+  # Bus and operating point.
+  vbus_v: 12.0
+  vout_target_v: 5.0          # reference only; never used to synthesize Vout
+  f_sw_hz: 200000.0
+  duty: 0.45
+  # Power stage.
+  l_h: 22.0e-6
+  inductor_dcr_ohm: 0.006
+  c_out_f: 47.0e-6
+  r_load_ohm: 5.0
+  dead_time_s: 50.0e-9
+  edge_time_s: 20.0e-9
+  output_filter:
+    esr_ohm: 0.004
+  simulation:
+    cycles: 300
+    settling_cycles: 240       # measurement window starts here
+    max_step_fraction_of_period: 0.01
+    timeout_s: 180.0
+    temperature_c: 25.0
+    settling_rel_tolerance_pct: 2.0
+
+freewheel:
+  # "synchronous": second DUT instance + complementary gate drive.
+  # "diode": ideal body diode / Schottky freewheel leg (non-synchronous buck).
+  mode: synchronous
+  diode:
+    saturation_current_a: 1.0e-12
+    emission_coefficient: 1.05
+    series_resistance_ohm: 0.01
+    junction_capacitance_f: 100.0e-12
+
+model_selection:
+  # Per-tier model selection. Variants map onto pipeline.registry.lib_path;
+  # tier 4 and tier 2 are variant-free, but the key stays explicit.
+  tiers:
+    tier2:
+      tier: 2
+      variant: v1
+    tier3:
+      tier: 3
+      variant: v1
+    tier3_simplis:
+      tier: 3
+      variant: simplis
+    urom:
+      tier: 3
+      variant: urom
+    tier4:
+      tier: 4
+      variant: v1
+  default:
+    vendor: epc2216
+    tier: tier2
+
+vendors:
+  # Gate drive is a vendor property (Si 10 V, GaN 5 V, SiC 20 V); it lives in
+  # config, not in the bench. Optional keys (vbus_v, duty, l_h, c_out_f,
+  # r_load_ohm, f_sw_hz, dead_time_s, edge_time_s) override the conditions
+  # block for that vendor only.
+  irfs7730pbf:
+    vgs_on_v: 10.0
+  csd16412q5a:
+    vgs_on_v: 10.0
+  epc2216:
+    vgs_on_v: 5.0
+  cpm2-1200:
+    vgs_on_v: 20.0

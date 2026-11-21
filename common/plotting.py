@@ -483,3 +483,207 @@ def plot_dual_axis(
     if show:
         plt.show()
     return fig, (ax1, ax2)
+
+
+# ---------------------------------------------------------------------------
+# Converter benchmark. One helper owns the four-panel geometry, the mandatory
+# EAST legend and the ``figures/converter/`` output; notebooks pass the result
+# dict from simulation.testbenches.buck_converter unchanged.
+# ---------------------------------------------------------------------------
+
+def plot_converter_benchmark(
+    result: dict,
+    *,
+    filename: Optional[str] = None,
+    save_path=None,
+    figsize: Tuple[float, float] = (12.0, 8.8),
+    show: bool = False,
+) -> Tuple[plt.Figure, np.ndarray]:
+    """Four panels: Vout, inductor current, switch node, power/loss summary.
+
+    ``result`` is the record returned by
+    :func:`simulation.testbenches.buck_converter.run_converter_benchmark`.
+    All axes use the house style (EAST-outside legends, engineering units,
+    dashed grid). If ``save_path`` is omitted the figure is written at 300 dpi
+    to ``figures/converter/<vendor>_<tier>_buck.png`` -- a fixed directory,
+    never a per-run folder.
+    """
+    setup_style()
+    traces = result.get("traces") or {}
+    if "time" not in traces:
+        raise ValueError("converter result has no 'time' trace to plot")
+    t = np.asarray(traces["time"], dtype=float)
+    vout = np.asarray(traces.get("vout_v", []), dtype=float)
+    i_l = np.asarray(traces.get("i_l_a", []), dtype=float)
+    v_sw = np.asarray(traces.get("v_sw_v", []), dtype=float)
+    if vout.size != t.size or i_l.size != t.size or v_sw.size != t.size:
+        raise ValueError("converter result traces must share the time axis")
+
+    conditions = result.get("conditions") or {}
+    target = conditions.get("vout_target_v")
+    window = (result.get("extraction") or {}).get("window_s")
+    vendor = str(result.get("vendor") or "unknown")
+    tier = str(result.get("tier_key") or result.get("tier") or "model")
+
+    fig, axs = plt.subplots(2, 2, figsize=figsize, layout="constrained")
+    ax_v, ax_i = axs[0]
+    ax_sw, ax_loss = axs[1]
+
+    ax_v.plot(t, vout, label="Vout")
+    if target is not None:
+        ax_v.axhline(float(target), ls=":", color="0.35",
+                     label=f"target {float(target):g} V")
+    if window:
+        ax_v.axvline(float(window[0]), ls="--", color="tab:red", lw=1.0,
+                     label="measurement window")
+    ax_v.set_ylabel("Output voltage")
+    ax_v.set_title("Output voltage")
+    _apply_eng_formatter(ax_v, "x", "s")
+    _apply_eng_formatter(ax_v, "y", "V")
+    _east_legend(ax_v)
+
+    ax_i.plot(t, i_l, label="I_L")
+    ax_i.set_ylabel("Inductor current")
+    ax_i.set_title("Inductor current")
+    _apply_eng_formatter(ax_i, "x", "s")
+    _apply_eng_formatter(ax_i, "y", "A")
+    _east_legend(ax_i)
+
+    ax_sw.plot(t, v_sw, label="V_sw", lw=1.2)
+    ax_sw.set_xlabel("Time")
+    ax_sw.set_ylabel("Switch-node voltage")
+    ax_sw.set_title("Switch node")
+    _apply_eng_formatter(ax_sw, "x", "s")
+    _apply_eng_formatter(ax_sw, "y", "V")
+    _east_legend(ax_sw)
+
+    # Power budget: only measured terms are drawn; N/A terms are named in the
+    # title instead of being plotted as a fabricated zero.
+    loss = result.get("loss") or {}
+    terms = (
+        ("P_in", result.get("pin_w")),
+        ("P_out", result.get("pout_w")),
+        ("HS cond.", loss.get("high_side_conduction_w")),
+        ("LS cond.", loss.get("low_side_conduction_w")),
+        ("freewheel", loss.get("freewheel_conduction_w")),
+        ("L DCR", loss.get("inductor_dcr_w")),
+        ("C ESR", loss.get("output_esr_w")),
+        ("sw residual", loss.get("switching_residual_w")),
+    )
+    labels = [label for label, value in terms
+              if value is not None and np.isfinite(float(value))]
+    values = [float(value) for _, value in terms
+              if value is not None and np.isfinite(float(value))]
+    if values:
+        ax_loss.bar(labels, values, color="tab:blue")
+        ax_loss.tick_params(axis="x", labelrotation=20)
+    else:
+        ax_loss.text(0.5, 0.5, "power terms N/A", ha="center", va="center",
+                     transform=ax_loss.transAxes)
+        ax_loss.set_xticks([])
+    efficiency = result.get("efficiency")
+    if efficiency is not None and np.isfinite(float(efficiency)):
+        eff_text = f"efficiency = {float(efficiency) * 100.0:.2f} %"
+    else:
+        reason = result.get("reason") or "unmeasured"
+        eff_text = f"efficiency = N/A ({reason})"
+    ax_loss.set_title(f"Power budget | {eff_text}", fontsize=12)
+    ax_loss.set_ylabel("Power")
+    _apply_eng_formatter(ax_loss, "y", "W")
+
+    if save_path is None:
+        filename = filename or f"{vendor}_{tier}_buck.png"
+        save_path = figure_path("converter", filename)
+    else:
+        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(save_path, dpi=300, bbox_inches="tight")
+    if show:
+        plt.show()
+    return fig, axs
+
+
+def _comparison_run_trace(run, key: str):
+    """Return ``(time, values)`` only for a completed, measured trace."""
+    if not isinstance(run, dict):
+        return None
+    if not run.get("completed") or run.get("status") not in (
+            "measured", "not_settled"):
+        return None
+    traces = run.get("traces") or {}
+    time = traces.get("time")
+    values = traces.get(key)
+    if time is None or values is None:
+        return None
+    t = np.asarray(time, dtype=float)
+    y = np.asarray(values, dtype=float)
+    if t.size != y.size or t.ndim != 1 or y.ndim != 1:
+        return None
+    finite = np.isfinite(t) & np.isfinite(y)
+    if int(finite.sum()) < 2:
+        return None
+    return t[finite], y[finite]
+
+
+def plot_converter_comparison(
+    result: dict,
+    *,
+    filename: Optional[str] = None,
+    show: bool = False,
+    figsize: Tuple[float, float] = (15.0, 4.8),
+) -> Tuple[plt.Figure, np.ndarray]:
+    """Golden-vs-tier buck comparison: exactly one row of three panels.
+
+    Panels are Vout, inductor current and capacitor current. Each run is
+    plotted only when it completed and carries the trace; an N/A run is
+    labelled in the panel, never drawn as a fabricated zero. Fixed output:
+    ``figures/converter/<vendor>_<tier>_buck_compare.png`` at 300 dpi with
+    EAST-outside legends and engineering-unit axes.
+    """
+    setup_style()
+    golden = result.get("golden") or {}
+    tier = result.get("tier") or {}
+    vendor = str(result.get("vendor") or "unknown")
+    tier_key = str(result.get("tier_key") or "tier")
+    golden_label = "golden"
+    tier_label = f"tier ({tier_key})"
+
+    fig, axes = plt.subplots(1, 3, figsize=figsize, layout="constrained")
+    specs = (
+        ("Output voltage", "vout_v", "V"),
+        ("Inductor current", "i_l_a", "A"),
+        ("Capacitor current", "i_cap_a", "A"),
+    )
+    styles = (
+        ("golden", golden, golden_label, "tab:blue", "-"),
+        ("tier", tier, tier_label, "tab:red", "--"),
+    )
+    for ax, (title, key, unit) in zip(axes, specs):
+        plotted = 0
+        n_a: list[str] = []
+        for name, run, label, color, linestyle in styles:
+            traced = _comparison_run_trace(run, key)
+            if traced is None:
+                state = run.get("status") or "no trace"
+                n_a.append(f"{name}: N/A ({state})")
+                continue
+            t, y = traced
+            ax.plot(t, y, color=color, linestyle=linestyle, label=label)
+            plotted += 1
+        ax.set_title(title)
+        ax.set_xlabel("Time")
+        ax.set_ylabel(title)
+        _apply_eng_formatter(ax, "x", "s")
+        _apply_eng_formatter(ax, "y", unit)
+        if plotted:
+            _east_legend(ax)
+        for index, text in enumerate(n_a):
+            ax.text(0.02, 0.96 - 0.09 * index, text, transform=ax.transAxes,
+                    va="top", ha="left", fontsize=9, color="0.3")
+
+    fig.suptitle(f"Buck converter comparison: golden vs {tier_key}")
+    filename = filename or f"{vendor}_{tier_key}_buck_compare.png"
+    path = figure_path("converter", filename)
+    fig.savefig(path, dpi=300, bbox_inches="tight")
+    if show:
+        plt.show()
+    return fig, axes
