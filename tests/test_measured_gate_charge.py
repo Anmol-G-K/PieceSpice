@@ -207,9 +207,9 @@ def test_irfs_measured_tables_compact_to_expected_counts():
     assert prov["qgs_points"] == 399
     assert prov["qgs_emitted_points"] == 3
     assert prov["qgd_points"] == 26
-    assert prov["qgd_emitted_points"] == 12
-    assert prov["qgd_cv_bias_aware"] is False
-    assert prov["qgd_axis"] == "Vdg = Vds (legacy identity)"
+    assert prov["qgd_emitted_points"] == 9
+    assert prov["qgd_cv_bias_aware"] is True
+    assert prov["qgd_axis"] == "Vdg = Vds - Vgs_bias (bias-aware Crss sweep)"
 
 
 def test_compaction_fails_when_budget_unmet_within_cap():

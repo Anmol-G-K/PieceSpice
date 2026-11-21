@@ -124,6 +124,7 @@ KEYS = {
     "ciss_curve_f": "Full Curve-4 Ciss vs Vds AC sweep [F]",
     "coss_curve_f": "Full Curve-4 Coss vs Vds AC sweep [F]",
     "crss_curve_f": "Full Curve-4 Crss vs Vds AC sweep [F]",
+    "r_gate_ohm": "Internal series gate resistance [Ohm]",
     "cv_sweeps": "Optional multi-bias Curve-4 C(V) sweeps, one dict per Vgs bias",
     # gate charge
     "v_plateau_v": "Miller plateau voltage [V]",
