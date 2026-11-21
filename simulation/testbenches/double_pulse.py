@@ -40,6 +40,7 @@ class DoublePulseRun:
     vgs_on: float
     wall_clock_s: float
     t2_on: float = 0.0             # second pulse starts; used for DPT metrics
+    current_definition: str = "I(Lload)-I(Dclamp)"
 
 
 def _gate_pwl(t1_on: float, t1_width: float, t2_on: float,
@@ -105,15 +106,25 @@ def run_double_pulse(
             "DPT requires V(drain) and I(Lload); got "
             f"{sorted(result.traces)}")
 
+    i_load_trace = np.asarray(result.get("I(Lload)"), dtype=float)
+    i_clamp_trace = result.traces.get("I(Dclamp)")
+    if i_clamp_trace is not None:
+        i_d = np.abs(i_load_trace - np.asarray(i_clamp_trace, dtype=float))
+        current_definition = "I(Lload)-I(Dclamp)"
+    else:
+        i_d = np.abs(i_load_trace)
+        current_definition = "I(Lload) [fallback: I(Dclamp) not in raw]"
+
     return DoublePulseRun(
         time=np.asarray(result.get("time"), dtype=float),
         v_ds=np.asarray(result.get("V(drain)"), dtype=float),
-        i_d=np.abs(np.asarray(result.get("I(Lload)"), dtype=float)),
+        i_d=i_d,
         v_gs=np.asarray(result.get("V(gate)"), dtype=float),
         v_bus=float(vbus), i_load=float(i_load_target),
         l_load=float(l_load), vgs_on=float(vgs_on),
         t2_on=float(t2_on),
-        wall_clock_s=float(elapsed))
+        wall_clock_s=float(elapsed),
+        current_definition=current_definition)
 
 
 def _cross(t: np.ndarray, y: np.ndarray, level: float, *,
