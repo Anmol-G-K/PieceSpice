@@ -135,6 +135,16 @@ def _yn(value) -> str:
     return {True: "yes", False: "no", None: "N/A"}.get(value, "N/A")
 
 
+def _ci(ci) -> str:
+    """Render a recorded bootstrap interval, or N/A when absent."""
+    if not isinstance(ci, dict):
+        return "N/A"
+    low, high = ci.get("low"), ci.get("high")
+    if low is None or high is None:
+        return "N/A"
+    return f"[{_num(low)}, {_num(high)}]"
+
+
 def _validation_record(vendor: str, tier: int,
                        variant: str = registry.DEFAULT_VARIANT,
                        basis: str = "tier2") -> dict:
@@ -227,14 +237,23 @@ def _unified_summary(record: dict) -> None:
     elif record.get("emitted_lib_sha256"):
         console.print(f"  identity: sha256={record['emitted_lib_sha256']}")
     console.print(
-        f"  verdict={record.get('verdict') or 'N/A'} "
-        f"all_pass={_yn(gates.get('all_pass'))}")
+        f"  verdict={record.get('overall_verdict') or record.get('verdict') or 'N/A'} "
+        f"overall_verdict={record.get('overall_verdict') or 'N/A'} "
+        f"fidelity_verdict={record.get('fidelity_verdict') or 'N/A'} "
+        f"timing_verdict={record.get('timing_verdict') or 'N/A'} "
+        f"speed_verdict={record.get('speed_verdict') or 'N/A'} "
+        f"all_pass={_yn(gates.get('all_pass'))} "
+        f"fidelity_all_pass={_yn(gates.get('fidelity_all_pass'))} "
+        f"timing_all_pass={_yn(gates.get('timing_all_pass'))} "
+        f"speed_all_pass={_yn(gates.get('speed_all_pass'))}")
     for name in ("G0", "G1_static", "G2_derivative", "G3_dpt_waveform",
-                 "G4_timing_energy", "G5_speed", "G6_charge"):
+                 "G4_timing_energy", "G4_tier2_regression", "G5_speed",
+                 "G6_charge"):
         gate = gates.get(name) or {}
         console.print(
             f"  {name}: pass={_yn(gate.get('pass'))} "
-            f"status={gate.get('status') or 'N/A'}")
+            f"status={gate.get('status') or 'N/A'}"
+            + (" (diagnostic only)" if gate.get("diagnostic_only") else ""))
     speed = record.get("speed_adaptive_20") or {}
     console.print(
         "  speed row: "
@@ -242,7 +261,10 @@ def _unified_summary(record: dict) -> None:
         f"max_step={_num(speed.get('max_step'))} "
         f"method={speed.get('method_label') or 'N/A'} "
         f"solver={_num(speed.get('solver_speedup'))}x "
+        f"solver_ci95={_ci(speed.get('solver_speedup_ci95'))} "
+        f"effect_min={_num(speed.get('effect_min_solver_speedup'))} "
         f"wall={_num(speed.get('wall_speedup'))}x "
+        f"wall_ci95={_ci(speed.get('wall_speedup_ci95'))} "
         f"global_claim={_yn(speed.get('global_claim'))}")
     runtime = record.get("runtime") or {}
     for arm in ("golden", "urom"):

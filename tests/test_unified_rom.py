@@ -27,10 +27,13 @@ from cli.main import app
 from common.types import PWLModelSpec
 from pipeline import registry, unified_rom as urom
 _REAL_BUILD_EMITTED = urom._build_emitted
+_RUN_DPT_ARM_SOURCE = inspect.getsource(urom._run_dpt_arm)
 VENDOR = "irfs7730pbf"
 _runner = CliRunner()
 GATE_NAMES = ("G0", "G1_static", "G2_derivative", "G3_dpt_waveform",
               "G4_timing_energy", "G5_speed", "G6_charge")
+SPLIT_VERDICTS = ("fidelity_verdict", "timing_verdict", "speed_verdict",
+                  "overall_verdict")
 
 
 @pytest.fixture(autouse=True)
@@ -55,13 +58,28 @@ def _flat(output: str) -> str:
 # ---------------------------------------------------------------------------
 # synthetic, explicitly non-measured control-flow fixtures
 # ---------------------------------------------------------------------------
-def _arm(solver: float, wall: float, *, complete: bool = True) -> dict:
+def _arm(solver: float, wall: float, *, complete: bool = True,
+         repeats: int = 3) -> dict:
+    # Per-repeat clocks are paired by schedule index.  The multiplicative
+    # probe keeps each golden/ROM ratio equal to the nominal point ratio, so
+    # a bootstrap CI over the paired ratios is non-degenerate in shape only
+    # (never a PieceSpice measurement).
+    per_repeat = []
+    jitter = (1.0, 1.02, 0.98)
+    for i in range(repeats):
+        scale = jitter[i % len(jitter)]
+        per_repeat.append({
+            "iterations": 100, "points": 1000, "t_last": 1.0,
+            "solver_time_s": solver * scale,
+            "wall_time_s": wall * scale,
+        })
     return {
         "iterations": 100, "points": 1000, "t_last": 1.0,
         "solver_time_s": solver, "wall_time_s": wall,
         "solver_min_s": solver * 0.95, "solver_max_s": solver * 1.05,
         "wall_min_s": wall * 0.95, "wall_max_s": wall * 1.05,
         "completion": complete,
+        "per_repeat": per_repeat,
     }
 
 def _synthetic_spec(**fields) -> PWLModelSpec:
@@ -114,7 +132,15 @@ def _observations(method: str = "trap/default") -> dict:
             "peak_normalised_rmse_pct": 1.0,
         },
         "derivative": {"pass": True, "status": "measured"},
-        "timing_energy": {"pass": True, "status": "measured", "rows": {}},
+        "timing_energy": {
+            "pass": True, "status": "measured", "rows": {},
+            "bar_source": urom.GOLDEN_DPT_BAR_SOURCE,
+            "tier2_regression": {
+                "status": "measured", "rows": {},
+                "all_within_band": True, "used_for_verdict": False,
+                "diagnostic_only": True,
+            },
+        },
     }
     obs["clock_spread"] = urom._clock_spread_record(obs["speed"])
     obs["equal_sandbox"]["clock_spread"] = obs["clock_spread"]
@@ -133,13 +159,20 @@ def _observations(method: str = "trap/default") -> dict:
 
 
 def _record(vendor: str = VENDOR, method: str = "trap/default") -> dict:
+    tables = {"q_oss": True, "q_iss": True, "q_rss": True}
     return {
         "schema": urom.SCHEMA,
         "vendor": vendor,
         "method": method,
         "c1": {
             "status": "measured", "monotone_q": True,
+            "monotone_q_by_table": dict(tables),
+            "all_charge_monotone": True,
             "q_zero_anchored": True,
+            "q_zero_anchored_by_table": {k: True for k in tables},
+            "all_charge_zero_anchored": True,
+            "applicable_tables": sorted(tables),
+            "not_applicable_tables": [],
             "charge_fit_error_pct": 0.0, "q_zero": 0.0, "q_max": 1.0,
             "breakpoint_crossings": {"q_oss": 0, "q_iss": 0, "q_rss": 0},
             "c_ds_scaling_excluded": True,
@@ -149,6 +182,17 @@ def _record(vendor: str = VENDOR, method: str = "trap/default") -> dict:
         "speed_adaptive_20": {
             "n_pulses": urom.SPEED_N_PULSES, "max_step": None,
             "method_label": method,
+            "solver_speedup": 2.0,
+            "wall_speedup": 2.0,
+            "solver_speedup_ci95": {
+                "point": 2.0, "low": 2.0, "high": 2.0, "n": 3,
+                "confidence": urom.SPEED_CI_CONFIDENCE,
+                "n_resamples": urom.SPEED_CI_RESAMPLES},
+            "wall_speedup_ci95": {
+                "point": 2.0, "low": 2.0, "high": 2.0, "n": 3,
+                "confidence": urom.SPEED_CI_CONFIDENCE,
+                "n_resamples": urom.SPEED_CI_RESAMPLES},
+            "effect_min_solver_speedup": urom.SPEED_EFFECT_MIN,
             "t_last": {"golden": 1.0, "urom": 1.0},
             "iterations": {"golden": 100, "urom": 100},
             "points": {"golden": 1000, "urom": 1000},
@@ -169,11 +213,22 @@ def _cli_record() -> dict:
     rec["variant"] = registry.UNIFIED_VARIANT
     rec["channel_basis"] = "ann"
     rec["verdict"] = "reject"
+    rec["fidelity_verdict"] = "accept"
+    rec["timing_verdict"] = "reject"
+    rec["speed_verdict"] = "reject"
+    rec["overall_verdict"] = "reject"
     rec["gates"] = {name: {"pass": name != "G5_speed", "status": "measured"}
                     for name in GATE_NAMES}
+    rec["gates"]["G4_tier2_regression"] = {
+        "pass": False, "status": "measured", "diagnostic_only": True}
     rec["gates"]["all_pass"] = False
+    rec["gates"]["fidelity_all_pass"] = True
+    rec["gates"]["timing_all_pass"] = False
+    rec["gates"]["speed_all_pass"] = False
     rec["speed_adaptive_20"]["solver_speedup"] = None
     rec["speed_adaptive_20"]["wall_speedup"] = None
+    rec["speed_adaptive_20"]["solver_speedup_ci95"] = None
+    rec["speed_adaptive_20"]["wall_speedup_ci95"] = None
     rec["emitted_lib"] = (
         f"reports/models/{VENDOR}_PIECSPICE_UROM.lib")
     rec["runtime"] = {
@@ -457,6 +512,48 @@ def test_schema_and_provenance_pin_spec_invariants():
     assert urom.STATIC_BARS_PCT == {
         "irfs7730pbf": 7.0683, "csd16412q5a": 8.4935,
         "epc2216": 2.0394, "cpm2-1200": 3.4287}
+
+
+def test_record_provenance_hashes_environment_and_inputs(monkeypatch,
+                                                        tmp_path):
+    from common import provenance as prov
+
+    assert urom.environment_metadata is prov.environment_metadata
+    assert urom.file_hashes is prov.file_hashes
+    present = tmp_path / "present.yaml"
+    present.write_text("x: 1\n", encoding="utf-8")
+    hashes = prov.file_hashes({
+        "present": present,
+        "missing": tmp_path / "missing.yaml",
+    })
+    assert len(hashes["present"]) == 64
+    assert hashes["missing"] is None
+
+    source = inspect.getsource(urom.run_unified)
+    assert '"environment": environment_metadata()' in source
+    assert "file_hashes(input_paths)" in source
+    assert '"input_hashes": input_hashes' in source
+    assert '"record_inputs": list(input_paths)' in source
+    # The required input set is named explicitly, including every curve.
+    assert 'f"config/inputs/{vendor}.yaml"' in source
+    assert '"vendor_library:' in source
+    assert 'glob("curve*.yaml")' in source
+    assert '"emitted_lib": lib' in source
+    for key in ("record_inputs", "speed_effect_min", "speed_speedup_ci",
+                "derivative_sign_gate", "charge_monotonicity",
+                "tier2_regression_gate"):
+        assert key in urom.PROVENANCE
+
+
+def test_record_contract_declares_current_definition_and_speed_ci():
+    source = inspect.getsource(urom.run_unified)
+    assert '"current_definition": compare.get("current_definition")' in source
+    assert '"current_definition_by_arm"' in source
+    assert 'record["speed_adaptive_20"]' not in source  # built via _speed_row
+    row_source = inspect.getsource(urom._speed_row)
+    assert '"solver_speedup_ci95"' in row_source
+    assert '"wall_speedup_ci95"' in row_source
+    assert "SPEED_EFFECT_MIN" in row_source
 
 
 def test_dpt_bars_provenance_names_the_tier2_control_row():
@@ -780,6 +877,13 @@ def test_baseline_gates_pass_only_on_pinned_measured_bars():
     gates = _gates()
     assert all(gates[name]["pass"] is True for name in GATE_NAMES)
     assert gates["all_pass"] is True
+    assert gates["fidelity_all_pass"] is True
+    assert gates["timing_all_pass"] is True
+    assert gates["speed_all_pass"] is True
+    assert urom.FIDELITY_GATES == ("G0", "G1_static", "G2_derivative",
+                                   "G3_dpt_waveform", "G6_charge")
+    assert urom.TIMING_GATES == ("G4_timing_energy",)
+    assert urom.SPEED_GATES == ("G5_speed",)
     g1 = gates["G1_static"]["detail"]
     assert g1["bar_pct"] == urom.STATIC_BARS_PCT[VENDOR]
     assert g1["band_pp"] == urom.G1_BAND_PP == 0.05
@@ -790,7 +894,13 @@ def test_baseline_gates_pass_only_on_pinned_measured_bars():
     assert g5["method_label"] == "trap/default"
     assert g5["global_claim"] is False
     assert g5["min_default_gear"] is None
+    assert g5["effect_min"] == urom.SPEED_EFFECT_MIN == 1.05
+    assert g5["solver_effect_ok"] is True
+    assert g5["solver_ci_low_above_one"] is True
     assert gates["G6_charge"]["detail"]["budget_pct"] == 0.5
+    verdicts = urom._verdicts(gates)
+    assert set(verdicts) == set(SPLIT_VERDICTS)
+    assert all(verdicts[key] == "accept" for key in SPLIT_VERDICTS)
 
 
 @pytest.mark.parametrize("mutate", [
@@ -958,6 +1068,14 @@ def test_speed_row_withholds_ratios_until_completion_counts_exist():
     assert row["iterations"]["golden"] == row["iterations"]["urom"] == 100
     assert row["points"]["golden"] == row["points"]["urom"] == 1000
     assert row["global_claim"] is False and row["min_default_gear"] is None
+    assert row["effect_min_solver_speedup"] == urom.SPEED_EFFECT_MIN == 1.05
+    solver_ci = row["solver_speedup_ci95"]
+    assert solver_ci["point"] == pytest.approx(2.0)
+    assert solver_ci["low"] > 1.0
+    assert solver_ci["n"] == 3
+    assert solver_ci["confidence"] == urom.SPEED_CI_CONFIDENCE == 0.95
+    assert solver_ci["n_resamples"] == urom.SPEED_CI_RESAMPLES
+    assert row["wall_speedup_ci95"]["point"] == pytest.approx(2.0)
     assert "aborts are failures" in row["completion_basis"]
     assert "3 interleaved repeats" in row["completion_basis"]
     assert "0.999" in row["completion_basis"]
@@ -966,9 +1084,135 @@ def test_speed_row_withholds_ratios_until_completion_counts_exist():
     missing = urom._speed_row(plan, speed)
     assert missing["solver_speedup"] is None
     assert missing["wall_speedup"] is None
+    assert missing["solver_speedup_ci95"] is None
+    assert missing["wall_speedup_ci95"] is None
     assert missing["method_label"] == "trap/default"
     assert missing["n_pulses"] == 20
     assert missing["t_last"]["urom"] == 1.0
+
+
+def _speed_plan(method: str = "trap/default") -> dict:
+    return {"method_label": method,
+            "speed": {"n_pulses": urom.SPEED_N_PULSES, "max_step": None}}
+
+
+def _speed_observations(golden: dict, rom: dict) -> dict:
+    obs = _observations()
+    obs["speed"] = {"repeats": urom.SPEED_REPEATS,
+                    "n_pulses": urom.SPEED_N_PULSES,
+                    "golden": golden, "urom": rom}
+    obs["clock_spread"] = urom._clock_spread_record(obs["speed"])
+    obs["equal_sandbox"]["clock_spread"] = obs["clock_spread"]
+    return obs
+
+
+def test_paired_speedup_ci_pairs_repeats_and_fails_closed():
+    speed = {"golden": _arm(2.0, 2.2), "urom": _arm(1.0, 1.1)}
+    ci = urom._paired_speedup_ci(speed, "solver_time_s")
+    assert ci["point"] == pytest.approx(2.0)
+    assert ci["low"] == pytest.approx(2.0)
+    assert ci["n"] == 3
+    assert ci["confidence"] == 0.95
+    slower = {"golden": _arm(1.0, 1.1), "urom": _arm(2.0, 2.2)}
+    slower_ci = urom._paired_speedup_ci(slower, "solver_time_s")
+    assert slower_ci["point"] == pytest.approx(0.5)
+    assert slower_ci["high"] < 1.0
+
+    unpaired = {"golden": _arm(2.0, 2.2),
+                "urom": _arm(1.0, 1.1, repeats=2)}
+    assert urom._paired_speedup_ci(unpaired, "solver_time_s") is None
+    no_rows = {"golden": _arm(2.0, 2.2), "urom": _arm(1.0, 1.1)}
+    no_rows["urom"]["per_repeat"] = []
+    assert urom._paired_speedup_ci(no_rows, "solver_time_s") is None
+
+
+def test_epc_solver_ratio_0_6457_never_passes_the_speed_gate():
+    speed = {"golden": _arm(0.6457, 0.8), "urom": _arm(1.0, 1.2)}
+    obs = _speed_observations(speed["golden"], speed["urom"])
+    rec = _record()
+    rec["speed_adaptive_20"] = urom._speed_row(_speed_plan(), speed)
+    gates = _gates(obs, rec)
+    g5 = gates["G5_speed"]
+    assert g5["pass"] is False
+    assert g5["detail"]["solver_speedup"] == pytest.approx(0.6457)
+    assert g5["detail"]["solver_effect_ok"] is False
+    assert gates["speed_all_pass"] is False
+    verdicts = urom._verdicts(gates)
+    assert verdicts["speed_verdict"] == "reject"
+    assert verdicts["overall_verdict"] == "reject"
+    # A slower model must never pass a speed gate.
+    assert g5["detail"]["solver_speedup_ci95"]["high"] < 1.0
+
+
+def test_g5_requires_the_effect_minimum_not_just_a_ratio_above_one():
+    speed = {"golden": _arm(1.02, 1.2), "urom": _arm(1.0, 1.1)}
+    obs = _speed_observations(speed["golden"], speed["urom"])
+    rec = _record()
+    rec["speed_adaptive_20"] = urom._speed_row(_speed_plan(), speed)
+    gates = _gates(obs, rec)
+    g5 = gates["G5_speed"]
+    assert g5["detail"]["solver_speedup"] == pytest.approx(1.02)
+    assert g5["detail"]["effect_min"] == 1.05
+    assert g5["detail"]["solver_effect_ok"] is False
+    assert g5["pass"] is False
+    assert urom._verdicts(gates)["speed_verdict"] == "reject"
+
+
+def test_g5_requires_a_measured_paired_ci_even_with_a_fast_point_ratio():
+    speed = {"golden": _arm(2.0, 2.2), "urom": _arm(1.0, 1.1)}
+    obs = _speed_observations(speed["golden"], speed["urom"])
+    # Break the pairing: the point ratio is still 2.0, the CI is unmeasured.
+    obs["speed"]["urom"]["per_repeat"] = (
+        obs["speed"]["urom"]["per_repeat"][:2])
+    rec = _record()
+    rec["speed_adaptive_20"] = urom._speed_row(_speed_plan(), obs["speed"])
+    gates = _gates(obs, rec)
+    g5 = gates["G5_speed"]
+    assert g5["detail"]["solver_speedup"] == pytest.approx(2.0)
+    assert g5["detail"]["solver_speedup_ci95"] is None
+    assert g5["detail"]["solver_ci_low_above_one"] is False
+    assert g5["status"] == "not_measured"
+    assert g5["pass"] is False
+    assert urom._verdicts(gates)["speed_verdict"] == "reject"
+
+
+def test_split_verdicts_isolate_timing_from_fidelity_and_speed():
+    obs = _observations()
+    obs["timing_energy"]["pass"] = False
+    gates = _gates(obs)
+    assert gates["timing_all_pass"] is False
+    assert gates["fidelity_all_pass"] is True
+    assert gates["speed_all_pass"] is True
+    verdicts = urom._verdicts(gates)
+    assert verdicts["timing_verdict"] == "reject"
+    assert verdicts["fidelity_verdict"] == "accept"
+    assert verdicts["speed_verdict"] == "accept"
+    assert verdicts["overall_verdict"] == "reject"
+    assert gates["all_pass"] is False
+
+    obs = _observations()
+    # A completing but slower arm isolates the speed verdict: the sandbox
+    # completion guard (G0) stays satisfied, only the speed effect fails.
+    obs["speed"]["golden"] = _arm(0.6457, 0.8)
+    obs["speed"]["urom"] = _arm(1.0, 1.2)
+    obs["clock_spread"] = urom._clock_spread_record(obs["speed"])
+    obs["equal_sandbox"]["clock_spread"] = obs["clock_spread"]
+    gates = _gates(obs)
+    verdicts = urom._verdicts(gates)
+    assert gates["G0"]["pass"] is True
+    assert verdicts["fidelity_verdict"] == "accept"
+    assert verdicts["timing_verdict"] == "accept"
+    assert verdicts["speed_verdict"] == "reject"
+    assert verdicts["overall_verdict"] == "reject"
+
+
+def test_verdict_alias_is_the_overall_verdict_contract():
+    src = inspect.getsource(urom.run_unified)
+    assert 'record.update(_verdicts(record["gates"]))' in src
+    assert 'record["verdict"] = record["overall_verdict"]' in src
+    for field in ("fidelity_verdict", "timing_verdict", "speed_verdict",
+                  "overall_verdict"):
+        assert f'"{field}"' in inspect.getsource(urom._verdicts)
 
 
 def test_runtime_record_serializes_wall_min_max_alongside_solver():
@@ -999,8 +1243,14 @@ def test_runtime_record_serializes_wall_min_max_alongside_solver():
 
 
 @pytest.mark.parametrize("mutate", [
-    lambda c: c.update(q_zero_anchored=False),
-    lambda c: c.update(monotone_q=False),
+    lambda c: c["monotone_q_by_table"].update(q_oss=False),
+    lambda c: c["monotone_q_by_table"].update(q_iss=False),
+    lambda c: c["monotone_q_by_table"].update(q_rss=False),
+    lambda c: c.update(all_charge_monotone=False),
+    lambda c: c["q_zero_anchored_by_table"].update(q_iss=False),
+    lambda c: c.update(all_charge_zero_anchored=False),
+    lambda c: c.update(monotone_q_by_table={}),
+    lambda c: c.pop("monotone_q_by_table"),
     lambda c: c.update(charge_fit_error_pct=None),
     lambda c: c.update(charge_fit_error_pct=urom.CHARGE_BUDGET_PCT + 1.0),
     lambda c: c.update(c_ds_scaling_excluded=False),
@@ -1014,6 +1264,32 @@ def test_g6_rejects_charge_offset_budget_and_cds_scaling(mutate):
     gates = _gates(_observations(), rec)
     assert gates["G6_charge"]["pass"] is False
     assert gates["all_pass"] is False
+
+
+def test_g6_requires_every_applicable_charge_table_to_be_monotone():
+    rec = _record()
+    rec["c1"]["monotone_q_by_table"]["q_rss"] = False
+    rec["c1"]["all_charge_monotone"] = False
+    gates = _gates(_observations(), rec)
+    g6 = gates["G6_charge"]
+    assert g6["pass"] is False
+    detail = g6["detail"]
+    assert detail["monotone_q_by_table"]["q_rss"] is False
+    assert detail["all_charge_monotone"] is False
+    assert detail["applicable_tables"] == ["q_iss", "q_oss", "q_rss"]
+
+
+def test_g6_fails_closed_when_no_charge_table_is_measured():
+    rec = _record()
+    rec["c1"].update({
+        "monotone_q_by_table": {"q_oss": None, "q_iss": None,
+                                "q_rss": None},
+        "all_charge_monotone": False,
+        "applicable_tables": [],
+    })
+    gates = _gates(_observations(), rec)
+    assert gates["G6_charge"]["pass"] is False
+    assert gates["G6_charge"]["detail"]["applicable_tables"] == []
 
 
 @pytest.mark.parametrize("verdict", ["reject", "infeasible"])
@@ -1162,9 +1438,17 @@ def test_cli_fit_and_validate_urom_print_gate_record_without_bench(monkeypatch):
         assert "Unified one-ROM" in text
         assert "variant=urom basis=ann method=trap/default" in text
         assert "all_pass=no" in text and "verdict=reject" in text
+        for tenant in ("overall_verdict=reject", "fidelity_verdict=accept",
+                       "timing_verdict=reject", "speed_verdict=reject",
+                       "fidelity_all_pass=yes", "timing_all_pass=no",
+                       "speed_all_pass=no", "G4_tier2_regression",
+                       "(diagnostic only)"):
+            assert tenant in text
         for name in GATE_NAMES:
             assert name in text
         assert "solver=N/Ax" in text and "wall=N/Ax" in text
+        assert "solver_ci95=N/A" in text and "wall_ci95=N/A" in text
+        assert "effect_min=1.05" in text
         assert "complete=no" in text
         assert "Tier-3 DPT" not in text
     assert calls == [(VENDOR, 3, "urom", "tier2")] * 2
@@ -1380,6 +1664,17 @@ def test_timing_band_rejects_a_tiny_never_turn_on_delay():
     assert urom._timing_band(None) is None
 
 
+def test_timing_band_uses_an_absolute_floor_for_near_zero_bars():
+    band = urom._timing_band(0.0)
+    assert band == (-urom.TIMING_BAND_ABS, urom.TIMING_BAND_ABS)
+    assert urom.TIMING_BAND_ABS == 1e-12
+    # A zero bar is not auto-passed: a clearly non-zero value fails.
+    assert not (band[0] <= 1e-9 <= band[1])
+    tiny = urom._timing_band(1e-13)
+    half = max(1e-13 * urom.TIMING_BAND_REL, urom.TIMING_BAND_ABS)
+    assert tiny == pytest.approx((1e-13 - half, 1e-13 + half))
+
+
 def _write_dpt_metrics(monkeypatch, tmp_path, payload):
     folder = tmp_path / "reports" / "comparison" / VENDOR
     folder.mkdir(parents=True, exist_ok=True)
@@ -1388,48 +1683,84 @@ def _write_dpt_metrics(monkeypatch, tmp_path, payload):
     monkeypatch.setattr(urom.registry, "ROOT", tmp_path)
 
 
-def test_timing_bars_select_column_by_emit_mode(monkeypatch, tmp_path):
+def _write_tier3_validation(monkeypatch, tmp_path, golden: dict,
+                            *, names=("golden", "tier3", "tier2")):
+    folder = tmp_path / "reports" / "comparison" / VENDOR
+    folder.mkdir(parents=True, exist_ok=True)
+    comparison = {metric: {name: value for name in names}
+                  for metric, value in golden.items()}
+    (folder / "tier3_validation.json").write_text(
+        json.dumps({"dpt_comparison": comparison}), encoding="utf-8")
+    monkeypatch.setattr(urom.registry, "ROOT", tmp_path)
+
+
+def test_g4_golden_bars_come_from_tier3_validation_not_tier2(monkeypatch,
+                                                              tmp_path):
     golden = {"td_on_ns": 11.0, "tr_ns": 10.0, "td_off_ns": 13.0,
               "tf_ns": 12.0, "e_on_uj": 14.0, "e_off_uj": 15.0}
-    tier2 = {k: v + 1.0 for k, v in golden.items()}  # synthetic, not measured
-    _write_dpt_metrics(monkeypatch, tmp_path,
-                       {"golden_metrics": golden, "tier2_metrics": tier2})
-    assert urom._timing_bars(VENDOR, emit="ann") == golden
-    assert urom._timing_bars(VENDOR, emit="tier2") == tier2
-    assert urom.TIMING_BAR_COLUMN == {
-        "ann": "golden_metrics", "hybrid": "golden_metrics",
-        "tier2": "tier2_metrics"}
-
-
-def test_g4_bar_source_names_the_column_used_by_each_emit():
-    ann_src = urom._timing_bars_source("ann")
-    tier2_src = urom._timing_bars_source("tier2")
-    assert "#golden_metrics" in ann_src
-    assert "#tier2_metrics" in tier2_src
-    assert "fallback decision" in tier2_src
-    prov = urom.PROVENANCE["timing_energy_bars"]
-    assert "golden_metrics" in prov["source"]
-    assert "tier2_metrics" in prov["source"]
-    assert "tier2_metrics" in urom.PROVENANCE["timing_band"]["source"]
-
-
-def test_tier2_g4_passes_against_its_own_recorded_table(monkeypatch, tmp_path):
-    # Structural probes, not PieceSpice measurements: the C0 row must be
-    # scored against tier2_metrics, never the golden column.
-    golden = {k: 100.0 for k in ("td_on_ns", "tr_ns", "td_off_ns", "tf_ns",
-                                  "e_on_uj", "e_off_uj")}
+    dpt_golden = {k: 100.0 for k in golden}   # synthetic, not measured
     tier2 = {k: 20.0 for k in golden}
     _write_dpt_metrics(monkeypatch, tmp_path,
+                       {"golden_metrics": dpt_golden, "tier2_metrics": tier2})
+    _write_tier3_validation(monkeypatch, tmp_path, golden)
+    # The independent G4 bar is the device-current golden comparison; the
+    # pipeline's own dpt_metrics golden and Tier-2 tables never move it.
+    assert urom._timing_bars(VENDOR) == golden
+    assert urom._tier2_regression_bars(VENDOR) == tier2
+    assert urom.GOLDEN_DPT_BAR_SOURCE.endswith(
+        "tier3_validation.json#dpt_comparison.<metric>.golden")
+    assert urom.TIER2_REGRESSION_BAR_SOURCE.endswith(
+        "dpt_metrics.json#tier2_metrics")
+    source = urom._timing_bars_source()
+    assert "tier3_validation.json#dpt_comparison.<metric>.golden" in source
+    regression_source = urom._tier2_regression_source()
+    assert "#tier2_metrics" in regression_source
+    assert "diagnostic only" in regression_source
+    prov = urom.PROVENANCE["timing_energy_bars"]
+    assert "tier3_validation.json" in prov["source"]
+    assert "dpt_comparison.<metric>.golden" in prov["golden_column"]
+    assert prov["tier2_regression_role"].startswith("diagnostic only")
+    assert "tier3_validation.json" in urom.PROVENANCE["timing_band"]["source"]
+    assert urom.PROVENANCE["tier2_regression_gate"]["source"] == (
+        urom.TIER2_REGRESSION_BAR_SOURCE)
+
+
+def test_g4_scores_the_golden_bar_even_when_tier2_regresses(monkeypatch,
+                                                             tmp_path):
+    golden = {k: 10.0 for k in urom._TIMING_METRICS}
+    tier2 = {k: 20.0 for k in urom._TIMING_METRICS}
+    _write_dpt_metrics(monkeypatch, tmp_path,
                        {"golden_metrics": golden, "tier2_metrics": tier2})
-    bars = urom._timing_bars(VENDOR, emit="tier2")
-    actual = {"td_on_ns": 20.0, "tr_ns": 20.0, "td_off_ns": 20.0,
-              "tf_ns": 20.0, "e_on_uj": 20.0, "e_off_uj": 20.0}
-    assert all(urom._timing_band(bars[k])[0] <= actual[k]
-               <= urom._timing_band(bars[k])[1] for k in actual)
-    # The same actual row would fail hard against the golden bar.
-    golden_bars = urom._timing_bars(VENDOR, emit="ann")
-    assert not all(urom._timing_band(golden_bars[k])[0] <= actual[k]
-                   <= urom._timing_band(golden_bars[k])[1] for k in actual)
+    _write_tier3_validation(monkeypatch, tmp_path, golden)
+    actual = {k: 10.0 for k in golden}
+    rows, ok = urom._timing_score_rows(actual, urom._timing_bars(VENDOR))
+    assert ok is True
+    assert rows["td_on_ns"]["bar"] == 10.0
+    regression_rows, regression_ok = urom._timing_score_rows(
+        actual, urom._tier2_regression_bars(VENDOR))
+    assert regression_ok is False
+    assert regression_rows["td_on_ns"]["bar"] == 20.0
+
+    obs = _observations()
+    obs["timing_energy"]["pass"] = ok
+    obs["timing_energy"]["rows"] = rows
+    obs["timing_energy"]["tier2_regression"] = {
+        "status": "measured", "rows": regression_rows,
+        "all_within_band": regression_ok, "used_for_verdict": False,
+        "diagnostic_only": True,
+    }
+    gates = _gates(obs)
+    assert gates["G4_timing_energy"]["pass"] is True
+    diagnostic = gates["G4_tier2_regression"]
+    assert diagnostic["pass"] is False
+    assert diagnostic["diagnostic_only"] is True
+    assert diagnostic["scored"] is False
+    assert diagnostic["detail"]["used_for_verdict"] is False
+    assert gates["timing_all_pass"] is True
+    assert urom._verdicts(gates)["timing_verdict"] == "accept"
+    # The diagnostic may fail without touching the overall verdict.
+    assert gates["all_pass"] is True
+    assert urom._verdicts(gates)["overall_verdict"] == "accept"
 
 
 # ---------------------------------------------------------------------------
@@ -1471,6 +1802,40 @@ def test_tier2_g2_passes_from_emitted_sweep_and_cutoff_anchor():
     assert checks["cutoff_probe_vgs"] == pytest.approx(1.5)
     assert checks["reason"] != "no static sweep rows"
     assert checks["activation"] is None  # pass cannot depend on an ANN record
+    assert checks["gm_min"] >= 0.0 and checks["gds_min"] >= 0.0
+    assert checks["gm_negative_fraction"] == pytest.approx(0.0)
+    assert checks["gds_negative_fraction"] == pytest.approx(0.0)
+    sign_gate = checks["derivative_sign_gate"]
+    assert sign_gate["pass"] is True
+    assert sign_gate["max_negative_fraction"] == (
+        urom.DERIVATIVE_NEGATIVE_FRACTION_MAX) == 0.01
+
+
+def test_g2_rejects_a_clearly_negative_gm_sweep():
+    # Synthetic rows whose drain current falls as Vgs rises: gm < 0 everywhere.
+    rows = [
+        (3.0, [0.0, 2.0, 10.0], 0.0, [0.0, 8.0, 4.0]),
+        (6.0, [0.0, 2.0, 10.0], 0.0, [0.0, 4.0, 2.0]),
+    ]
+    checks = urom._derivative_checks(rows, _channel_spec(), {}, "tier2")
+    assert checks["pass"] is False
+    assert checks["gm_min"] < 0.0
+    assert checks["gm_negative_fraction"] > (
+        urom.DERIVATIVE_NEGATIVE_FRACTION_MAX)
+    assert "gm_negative_fraction" in checks["reason"]
+    assert checks["derivative_sign_gate"]["pass"] is False
+    # The measured fractions stay in the result as diagnostics.
+    assert 0.0 <= checks["gm_negative_fraction"] <= 1.0
+
+
+def test_g2_sign_fractions_fail_closed_when_not_measured():
+    rows = [(3.0, [0.0, 2.0, 10.0], 0.0, [np.nan, np.nan, np.nan])]
+    checks = urom._derivative_checks(rows, _channel_spec(), {}, "tier2")
+    assert checks["pass"] is False
+    assert checks["gm_negative_fraction"] is None
+    assert checks["gds_negative_fraction"] is None
+    assert checks["derivative_sign_gate"]["status"] == "not_measured"
+    assert "derivative_sign_fractions_not_measured" in checks["reason"]
 
 
 def test_tier2_g2_probes_vgs_zero_when_builder_emits_no_vth_anchor():
@@ -1669,6 +2034,76 @@ def test_charge_checks_mirror_channel_saturation_and_catch_broken_anchor(
         spec, {})["per_table"]
 
 
+def test_charge_checks_emit_monotonicity_for_every_applicable_table():
+    checks = urom._charge_checks(_channel_spec(), {})
+    assert checks["monotone_q_by_table"] == {
+        "q_oss": True, "q_iss": True, "q_rss": True}
+    assert checks["all_charge_monotone"] is True
+    assert checks["q_zero_anchored_by_table"] == {
+        "q_oss": True, "q_iss": True, "q_rss": True}
+    assert checks["all_charge_zero_anchored"] is True
+    assert checks["applicable_tables"] == ["q_iss", "q_oss", "q_rss"]
+    assert checks["not_applicable_tables"] == []
+
+
+def test_charge_checks_mark_nonmonotone_tables_as_failures():
+    spec = _channel_spec()
+    spec.q_rss_charge_c = [0.0, 2.0e-12, 1.0e-12]  # synthetic regression
+    checks = urom._charge_checks(spec, {})
+    assert checks["monotone_q_by_table"]["q_rss"] is False
+    assert checks["all_charge_monotone"] is False
+    rec = _record()
+    rec["c1"] = checks
+    gates = _gates(_observations(), rec)
+    assert gates["G6_charge"]["pass"] is False
+    assert gates["G6_charge"]["detail"]["monotone_q_by_table"]["q_rss"] is False
+
+
+def test_charge_checks_mark_empty_tables_not_applicable_not_a_pass():
+    spec = _synthetic_spec(
+        breakpoints_vds=[0.0, 2.0, 10.0],
+        breakpoints_id=[[0.0, 4.0, 8.0]],
+        vgs_values=[3.0],
+        v_th=1.5,
+        q_oss_vs_v=[0.0, 5.0, 10.0],
+        q_oss_charge_c=[0.0, 1.0e-12, 3.0e-12],
+        q_iss_vs_v=[], q_iss_charge_c=[],
+        q_rss_vs_v=[], q_rss_charge_c=[],
+    )
+    checks = urom._charge_checks(spec, {})
+    assert checks["monotone_q_by_table"]["q_iss"] is None
+    assert checks["monotone_q_by_table"]["q_rss"] is None
+    assert checks["per_table"]["q_iss"]["status"] == "not_applicable"
+    assert checks["per_table"]["q_rss"]["status"] == "not_applicable"
+    assert "q_iss" in checks["not_applicable_tables"]
+    assert checks["applicable_tables"] == ["q_oss"]
+    assert checks["all_charge_monotone"] is True
+    # An empty table never becomes a monotone pass, and the overall status
+    # fails closed because a table the emitter may write has no source data.
+    assert checks["monotone_q_by_table"]["q_iss"] is not True
+    assert checks["status"] == "not_measured"
+
+
+def test_charge_zero_anchor_applies_to_every_applicable_table():
+    spec = _channel_spec()
+    spec.q_iss_charge_c = [1.0e-12, 2.0e-12, 4.0e-12]  # synthetic offset
+    checks = urom._charge_checks(spec, {})
+    assert checks["q_zero_anchored_by_table"]["q_iss"] is False
+    assert checks["all_charge_zero_anchored"] is False
+    rec = _record()
+    rec["c1"] = checks
+    assert _gates(_observations(), rec)["G6_charge"]["pass"] is False
+
+
+def test_g6_applicable_tables_match_the_ann_three_table_contract():
+    spec = _channel_spec()
+    spec.metadata["urom_channel_basis"] = "ann"
+    checks = urom._charge_checks(spec, {})
+    assert checks["applicable_tables"] == ["q_iss", "q_oss", "q_rss"]
+    assert checks["all_charge_monotone"] is True
+    assert checks["all_charge_zero_anchored"] is True
+
+
 def test_pwl_spec_keeps_fallback_when_curve3_has_no_positive_rds(monkeypatch):
     from pipeline import fitting
 
@@ -1714,10 +2149,78 @@ def _synthetic_traj(n: int, t_end: float = 14.0e-6,
         output=np.vstack([ids, np.zeros_like(t)]), result=result)
 
 
-def _synthetic_arm(n: int = 7101, t_end: float = 14.0e-6) -> dict:
+def _synthetic_arm(n: int = 7101, t_end: float = 14.0e-6,
+                   current_definition: str = urom.DPT_CURRENT_WITH_DCLAMP
+                   ) -> dict:
     t = np.linspace(0.0, t_end, n)
     return {"time": t, "vds": np.linspace(0.0, 12.0, n),
-            "ids": np.linspace(0.0, 13.0, n)}
+            "ids": np.linspace(0.0, 13.0, n),
+            "current_definition": current_definition}
+
+
+def test_device_current_uses_the_difference_identity_and_explicit_fallback():
+    class _FakeResult:
+        def __init__(self, traces):
+            self.traces = traces
+
+        def get(self, key):
+            return self.traces[key]
+
+    traces = {"I(Lload)": np.array([1.0, 2.0, 3.0]),
+              "I(Dclamp)": np.array([0.5, 0.5, 0.5])}
+    current, definition = urom._dpt_device_current(_FakeResult(traces))
+    assert definition == urom.DPT_CURRENT_WITH_DCLAMP
+    assert np.allclose(current, [0.5, 1.5, 2.5])
+
+    fallback = {"I(Lload)": np.array([-1.0, 2.0])}
+    current, definition = urom._dpt_device_current(_FakeResult(fallback))
+    assert definition == urom.DPT_CURRENT_FALLBACK
+    assert "fallback" in definition
+    assert np.allclose(current, [1.0, 2.0])
+
+    source = _RUN_DPT_ARM_SOURCE
+    assert '"current_definition": current_definition' in source
+    assert '"ids": device_current' in source
+
+
+def test_h2_reference_current_uses_the_same_device_identity(monkeypatch):
+    import simulation.testbenches.dpt_trajectory as dptmod
+
+    monkeypatch.setattr(dptmod, "_log_iterations", lambda _text: 100)
+    plan = {"dpt_t_end": 14.0e-6, "dpt_max_step": 2.0e-9}
+    source = inspect.getsource(urom._dpt_common_compare)
+    assert "traj.output[0]" in source
+    assert 'traj.result.get("I(Lload)")' not in source
+    result = urom._dpt_common_compare(
+        {"golden": _synthetic_arm(), "urom": _synthetic_arm()},
+        _synthetic_traj(7101), plan)
+    assert result["status"] == "measured"
+    assert result["current_definition"] == urom.DPT_CURRENT_WITH_DCLAMP
+    assert result["reference_current_definition"] == (
+        urom.DPT_CURRENT_WITH_DCLAMP)
+    assert result["current_identity_match"] is True
+    assert result["current_definition_by_arm"] == {
+        "golden": urom.DPT_CURRENT_WITH_DCLAMP,
+        "urom": urom.DPT_CURRENT_WITH_DCLAMP}
+    for label in ("golden", "urom"):
+        assert result["arms"][label]["current_definition"] == (
+            urom.DPT_CURRENT_WITH_DCLAMP)
+
+
+def test_h2_current_identity_mismatch_fails_closed(monkeypatch):
+    import simulation.testbenches.dpt_trajectory as dptmod
+
+    monkeypatch.setattr(dptmod, "_log_iterations", lambda _text: 100)
+    plan = {"dpt_t_end": 14.0e-6, "dpt_max_step": 2.0e-9}
+    raw = {"golden": _synthetic_arm(),
+           "urom": _synthetic_arm(
+               current_definition=urom.DPT_CURRENT_FALLBACK)}
+    result = urom._dpt_common_compare(raw, _synthetic_traj(7101), plan)
+    assert result["status"] == "not_measured"
+    assert result["current_identity_match"] is False
+    assert "device current definition" in result["reason"]
+    assert result["arms"] == {}
+    assert result["guard_ok"] is False
 
 
 def test_h2_reference_trajectory_fails_closed_on_short_capture(monkeypatch):
@@ -1957,29 +2460,34 @@ def test_hybrid_g2_never_passes_without_emitted_gann_probe():
     assert "hybrid_probe=hybrid_probe" in src
 
 
-def test_h5_common_golden_column_is_a_diagnostic_not_a_verdict(
+def test_h5_tier2_regression_is_a_diagnostic_gate_never_a_verdict(
         monkeypatch, tmp_path):
     golden = {k: 10.0 for k in urom._TIMING_METRICS}
     tier2 = {k: 20.0 for k in urom._TIMING_METRICS}
     _write_dpt_metrics(monkeypatch, tmp_path,
                        {"golden_metrics": golden, "tier2_metrics": tier2})
-    for emit in ("ann", "hybrid", "tier2"):
-        assert urom._common_timing_bars(VENDOR) == golden
-        assert urom._timing_bars(VENDOR, emit=emit) == (
-            tier2 if emit == "tier2" else golden)
-    rows, ok = urom._timing_score_rows({k: 20.0 for k in golden}, golden)
-    assert ok is False and rows["td_on_ns"]["pass"] is False
+    _write_tier3_validation(monkeypatch, tmp_path, golden)
+    assert urom._timing_bars(VENDOR) == golden
+    regression_rows, regression_ok = urom._timing_score_rows(
+        {k: 10.0 for k in golden}, urom._tier2_regression_bars(VENDOR))
+    assert regression_ok is False
+    assert regression_rows["td_on_ns"]["pass"] is False
 
     obs = _observations()
-    obs["timing_energy"]["cross_basis_diagnostic"] = {
-        "bar_column": "golden_metrics", "rows": rows,
+    obs["timing_energy"]["tier2_regression"] = {
+        "status": "measured", "rows": regression_rows,
         "all_within_band": False, "used_for_verdict": False,
+        "diagnostic_only": True,
     }
     gates = _gates(obs)
     assert gates["G4_timing_energy"]["pass"] is True
-    diag = gates["G4_timing_energy"]["detail"]["cross_basis_diagnostic"]
+    assert gates["G4_tier2_regression"]["pass"] is False
+    assert gates["G4_tier2_regression"]["diagnostic_only"] is True
+    diag = gates["G4_tier2_regression"]["detail"]
     assert diag["used_for_verdict"] is False
     assert diag["all_within_band"] is False
+    assert gates["timing_all_pass"] is True
+    assert gates["all_pass"] is True
 
 
 def test_h6_charge_checks_mirror_emitted_ann_widths_for_all_tables():
@@ -2091,9 +2599,11 @@ def test_hybrid_basis_is_explicit_and_canonical_c0_default_is_unchanged():
     assert set(urom.EMIT_MODES) == {"ann", "hybrid", "tier2"}
     assert "hybrid" in registry.UROM_BASES
     assert registry.UROM_BASES[0] == "tier2"
-    assert urom.TIMING_BAR_COLUMN == {
-        "ann": "golden_metrics", "hybrid": "golden_metrics",
-        "tier2": "tier2_metrics"}
+    # One independent golden G4 bar table for every basis: no basis-specific
+    # self-comparison column exists any more.
+    assert not hasattr(urom, "TIMING_BAR_COLUMN")
+    assert urom.GOLDEN_DPT_BAR_SOURCE.endswith(
+        "tier3_validation.json#dpt_comparison.<metric>.golden")
     sig = inspect.signature(urom.run_unified)
     assert sig.parameters["emit"].default == "tier2"
     for fn in (registry.fit, registry.validate):
@@ -2286,24 +2796,27 @@ def test_canonical_c0_irfs_measurement_passes_new_bar_but_fails_old(monkeypatch)
     assert old["detail"]["urom"]["bars_vds_id_pct"] == (8.529, 0.55)
 
 
-def test_hybrid_timing_bars_come_from_golden_with_explicit_provenance(
+def test_hybrid_timing_bars_come_from_the_independent_golden_dpt(
         monkeypatch, tmp_path):
     golden = {k: 10.0 for k in urom._TIMING_METRICS}
     tier2 = {k: 20.0 for k in urom._TIMING_METRICS}
     _write_dpt_metrics(monkeypatch, tmp_path,
                        {"golden_metrics": golden, "tier2_metrics": tier2})
-    assert urom._timing_bars(VENDOR, emit="hybrid") == golden
-    assert urom._timing_bars(VENDOR, emit="ann") == golden
-    assert urom._timing_bars(VENDOR, emit="tier2") == tier2
-    source = urom._timing_bars_source("hybrid")
-    assert "#golden_metrics" in source
-    assert "phase_vi_research_framework.md section 3.3" in source
-    assert "emit=hybrid" in source
-    assert urom.PROVENANCE["timing_energy_bars"]["hybrid_column"] == (
-        "golden_metrics")
+    _write_tier3_validation(monkeypatch, tmp_path, golden)
+    # Basis-independent: hybrid/ann/tier2 all score the same golden DPT table.
+    assert urom._timing_bars(VENDOR) == golden
+    assert urom._tier2_regression_bars(VENDOR) == tier2
+    source = urom._timing_bars_source()
+    assert "tier3_validation.json#dpt_comparison.<metric>.golden" in source
+    assert "independent" in source
+    assert urom.PROVENANCE["timing_energy_bars"]["golden_column"] == (
+        "dpt_comparison.<metric>.golden")
     source_text = inspect.getsource(urom.run_unified)
-    assert '"timing_bar_column": TIMING_BAR_COLUMN[emit]' in source_text
-    assert '"timing_bar_source": _timing_bars_source(emit)' in source_text
+    assert '"timing_bar_column": "dpt_comparison.<metric>.golden"' in (
+        source_text)
+    assert '"timing_bar_source": _timing_bars_source()' in source_text
+    assert '"tier2_regression": {' in source_text
+    assert '"used_for_verdict": False' in source_text
 
 
 def test_cli_explicit_hybrid_basis_is_displayed_and_passed(monkeypatch):

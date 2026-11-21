@@ -29,6 +29,11 @@ from typing import Any
 
 import numpy as np
 
+from common.provenance import (
+    bootstrap_ci,
+    environment_metadata,
+    file_hashes,
+)
 from common.types import (
     PWLModelSpec,
     _normalize_unified_metadata,
@@ -87,12 +92,32 @@ ENDPOINT_BAR_PCT = 4.13           # measured worst endpoint (spec 1.4)
 CHARGE_BUDGET_PCT = 0.5           # measured charge-fit budget (spec 1.4)
 TUNING_MAX_EVALS = 80             # bounded derivative-free optimizer budget
 TIMING_BAND_REL = 0.05           # explicit project-decision band (spec G4)
-# G4 bar column per channel basis (spec 6 fallback decision): the ANN
-# candidate is scored against the recorded golden table; the closed C0
-# fallback must return to its own recorded Tier-2 table.  No number is
-# re-measured or re-baselined here.
-TIMING_BAR_COLUMN = {"ann": "golden_metrics", "hybrid": "golden_metrics",
-                     "tier2": "tier2_metrics"}
+# Absolute floor for a near-zero timing/energy bar: 5 percent of zero is
+# zero, so a zero bar would otherwise accept any value.  The band is
+# max(5 percent of |bar|, TIMING_BAND_ABS).
+TIMING_BAND_ABS = 1.0e-12
+# Independent G4 bar: the device-current golden DPT comparison, never this
+# pipeline's own Tier-2 table.  A regression against the recorded Tier-2
+# metrics is reported separately and is diagnostic only.
+GOLDEN_DPT_BAR_SOURCE = (
+    "reports/comparison/<vendor>/tier3_validation.json"
+    "#dpt_comparison.<metric>.golden")
+TIER2_REGRESSION_BAR_SOURCE = (
+    "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics")
+# Bench device current identity (same identity as the golden trajectory).
+DPT_CURRENT_WITH_DCLAMP = "abs(I(Lload) - I(Dclamp))"
+DPT_CURRENT_FALLBACK = (
+    "abs(I(Lload)) [fallback: I(Dclamp) not present in the raw result]")
+# G2 physics gate: finite small-signal derivatives must be non-negative
+# almost everywhere; the measured fractions stay as diagnostics.
+DERIVATIVE_NEGATIVE_FRACTION_MAX = 0.01
+# Charge tables are anchored at zero charge at V=0 (same tolerance as the
+# former single q_oss anchor).
+CHARGE_ZERO_ANCHOR_ABS_C = 1.0e-15
+# G5: a speed verdict needs a real effect, not just a ratio above one.
+SPEED_EFFECT_MIN = 1.05
+SPEED_CI_CONFIDENCE = 0.95
+SPEED_CI_RESAMPLES = 2000
 ZERO_CURRENT_FRAC = 0.01         # anchor tolerance, not a measured current
 # Equal-sandbox completion guard from deep_spice_fidelity_speed_research.md
 # section 2.1 item 4: both arms must reach the same final time.
@@ -107,8 +132,6 @@ HYBRID_RESIDUAL_PROBE_LABEL = (
 HYBRID_ZERO_ABS_TOL = 1.0e-12
 HYBRID_ZERO_REL_TOL = 1.0e-9
 HYBRID_CUTOFF_PROBE_WIDTHS = 12.0
-# Shared G4 diagnostic column: the recorded golden timing/energy table.
-COMMON_TIMING_BAR_COLUMN = "golden_metrics"
 TUNING_METRICS = (
     "td_on_ns", "tr_ns", "td_off_ns", "tf_ns",
     "e_on_uj", "e_off_uj", "e_oss_uj", "i_peak_a",
@@ -154,11 +177,18 @@ PROVENANCE: dict[str, dict[str, Any]] = {
         },
     },
     "timing_energy_bars": {
-        "source": "reports/comparison/<vendor>/dpt_metrics.json#golden_metrics for emit=ann and emit=hybrid, #tier2_metrics for emit=tier2 (spec 6 fallback decision); README DPT timing and energy table",
+        "source": (
+            "reports/comparison/<vendor>/tier3_validation.json"
+            "#dpt_comparison.<metric>.golden (device-current golden DPT); "
+            "independent of this pipeline's own recorded Tier-2 table"
+        ),
         "kind": "measured",
-        "ann_column": "golden_metrics",
-        "hybrid_column": "golden_metrics",
-        "tier2_column": "tier2_metrics",
+        "golden_column": "dpt_comparison.<metric>.golden",
+        "tier2_regression": (
+            "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics"),
+        "tier2_regression_role": (
+            "diagnostic only: reported as G4_tier2_regression and never "
+            "scored in G4_timing_energy or in the verdict"),
     },
     "speed_n_pulses": {
         "source": "local://unified_rom_spec.md section 4.6 (speed_adaptive_20)",
@@ -200,9 +230,9 @@ PROVENANCE: dict[str, dict[str, Any]] = {
         "rationale": "O_GD is capped at one full Q_RSS at the top of the measured curve-4 sweep; Qoss is frozen and never used for this gate-side bound",
     },
     "timing_band": {
-        "source": "local://unified_rom_spec.md section 6 G4 (no worse than the recorded table); reports/comparison/<vendor>/dpt_metrics.json#golden_metrics (emit=ann or emit=hybrid) or #tier2_metrics (emit=tier2, spec 6 fallback decision)",
+        "source": "local://unified_rom_spec.md section 6 G4 (no worse than the recorded golden DPT); reports/comparison/<vendor>/tier3_validation.json#dpt_comparison.<metric>.golden; absolute floor TIMING_BAND_ABS",
         "kind": "project_decision",
-        "rationale": "5 percent band around each recorded timing/energy bar: a much smaller delay is not an improvement when the device never turns on; missing bars stay not_measured",
+        "rationale": "band = max(5 percent of |bar|, 1e-12) around each independent golden timing/energy bar: a much smaller delay is not an improvement when the device never turns on; a near-zero bar is not auto-passed; missing bars stay not_measured",
     },
     "zero_current_anchor": {
         "source": "local://unified_rom_spec.md section 2.3 (VDS=0 and Vth cutoff guards); models/netlist_builder.py:_channel_expression",
@@ -250,10 +280,35 @@ PROVENANCE: dict[str, dict[str, Any]] = {
         "kind": "source_derived",
         "rationale": "the probe evaluates the emitted G_CH expression; 3 cutoff widths only chooses where to sample, the 1 percent band is unchanged",
     },
-    "common_g4_column": {
-        "source": "reports/comparison/<vendor>/dpt_metrics.json#golden_metrics",
+    "tier2_regression_gate": {
+        "source": TIER2_REGRESSION_BAR_SOURCE,
         "kind": "measured",
-        "rationale": "cross-basis diagnostic only; the pinned basis-specific bar remains the G4 verdict bar",
+        "rationale": "self-consistency diagnostic only: it says whether the emitted model still matches this pipeline's own recorded Tier-2 row; it is never scored in G4_timing_energy or in any verdict",
+    },
+    "speed_effect_min": {
+        "source": "local://unified_rom_spec.md section 1.3 / 4.4 (equal-sandbox speed claim); project decision: a real speed effect needs a 1.05 solver ratio",
+        "kind": "project_decision",
+        "rationale": "a point ratio above 1.0 without a paired confidence interval is not evidence of a speed improvement; G5 also requires the 95 percent paired-bootstrap CI low above 1.0",
+    },
+    "speed_speedup_ci": {
+        "source": "common/provenance.py:bootstrap_ci (deterministic percentile bootstrap); SPEED_REPEATS interleaved paired repeats",
+        "kind": "project_decision",
+        "rationale": "the paired per-repeat solver and wall ratios are resampled 2000 times with seed 0; fewer than two finite samples collapse to the point estimate and a missing repeat list returns None",
+    },
+    "derivative_sign_gate": {
+        "source": "local://unified_rom_spec.md section 6 G2 (gm/gds physics gate); DERIVATIVE_NEGATIVE_FRACTION_MAX",
+        "kind": "project_decision",
+        "rationale": "at most 1 percent of finite small-signal derivative samples may be negative; the measured gm/gds minima and sign fractions stay as diagnostics and a missing fraction fails closed",
+    },
+    "charge_monotonicity": {
+        "source": "local://unified_rom_spec.md sections 1.4 and 6 G6 (charge tables and the 0.5 percent budget)",
+        "kind": "measured",
+        "rationale": "every emitted charge table (q_oss, q_iss, q_rss) must be non-decreasing and zero-anchored where applicable; an empty source table is not_applicable, never a pass",
+    },
+    "record_inputs": {
+        "source": "config/inputs/<vendor>.yaml, the vendor library, config/outputs/<vendor>/curve*.yaml, and the emitted lib",
+        "kind": "source_derived",
+        "rationale": "common/provenance.py:file_hashes hashes the exact inputs used for this record; a missing file stays null",
     },
     "hybrid_basis": {
         "source": "docs/plans/phase_vi_research_framework.md sections 2.2, 3.2 and 3.3 (C0 base plus ANN residual; independent data-driven ROM; golden timing bars)",
@@ -1267,6 +1322,23 @@ def _run_interleaved_speed(plan: dict, golden: dict, rom: dict,
     return out
 
 
+def _dpt_device_current(result) -> tuple[np.ndarray, str]:
+    """Bench device current with the golden trajectory's own identity.
+
+    The raw DPT save includes both the load and clamp currents, so the device
+    current is ``abs(I(Lload) - I(Dclamp))``.  Only when the raw result has no
+    ``I(Dclamp)`` trace does the explicit ``abs(I(Lload))`` fallback apply,
+    and the recorded ``current_definition`` names that fallback.
+    """
+    i_load = np.asarray(result.get("I(Lload)"), dtype=float)
+    traces = getattr(result, "traces", None)
+    dclamp = traces.get("I(Dclamp)") if isinstance(traces, Mapping) else None
+    if dclamp is None:
+        return np.abs(i_load), DPT_CURRENT_FALLBACK
+    return (np.abs(i_load - np.asarray(dclamp, dtype=float)),
+            DPT_CURRENT_WITH_DCLAMP)
+
+
 def _run_dpt_arm(plan: dict, label: str, deck: str, traj,
                  dpt_cfg: dict) -> dict:
     directive = TranDirective(step_time=plan["dpt_max_step"],
@@ -1276,10 +1348,11 @@ def _run_dpt_arm(plan: dict, label: str, deck: str, traj,
                          timeout_s=DPT_TIMEOUT_S)
     run = _one_transient(deck, directive, engine, timeout_s=DPT_TIMEOUT_S)
     result = run["result"]
+    device_current, current_definition = _dpt_device_current(result)
     dpt_run = DoublePulseRun(
         time=np.asarray(result.get("time")),
         v_ds=np.asarray(result.get("V(drain)")),
-        i_d=np.abs(np.asarray(result.get("I(Lload)"), dtype=float)),
+        i_d=device_current,
         v_gs=np.asarray(result.get("V(gate)")),
         v_bus=plan["vbus"], i_load=plan["i_load"],
         l_load=plan["l_load"], vgs_on=plan["vgs_on"],
@@ -1306,10 +1379,12 @@ def _run_dpt_arm(plan: dict, label: str, deck: str, traj,
         "golden_trace_points": len(traj.time),
         "t_last": run["t_last"], "waveform": waveform,
         "metrics": metrics,
+        "current_definition": current_definition,
         "_raw": {
             "time": np.asarray(result.get("time"), dtype=float),
             "vds": np.asarray(result.get("V(drain)"), dtype=float),
-            "ids": np.abs(np.asarray(result.get("I(Lload)"), dtype=float)),
+            "ids": device_current,
+            "current_definition": current_definition,
         },
         "error": metric_error,
     }
@@ -1336,14 +1411,31 @@ def _dpt_common_compare(raw: dict, traj, plan: dict) -> dict:
         "compare_grid_step_s": None, "compare_points": 0,
         "min_compare_points": None, "endpoints": {}, "arms": {},
         "guard_ok": False,
+        "current_definition": DPT_CURRENT_WITH_DCLAMP,
+        "reference_current_definition": DPT_CURRENT_WITH_DCLAMP,
+        "current_definition_by_arm": {}, "current_identity_match": None,
     }
     if not reference["completed"]:
         out["reason"] = "incomplete golden reference trajectory"
         return out
 
+    # The golden trajectory stores I(Lload) - I(Dclamp) in output[0]; both
+    # bench arms must use the same identity or the RMSE is meaningless.
+    definitions = {
+        label: ((raw.get(label) or {}).get("current_definition"))
+        for label in ("golden", "urom")}
+    out["current_definition_by_arm"] = definitions
+    out["current_identity_match"] = bool(all(
+        value == DPT_CURRENT_WITH_DCLAMP for value in definitions.values()))
+    if not out["current_identity_match"]:
+        out["reason"] = (
+            "device current definition differs between the golden "
+            "reference and the bench arms")
+        return out
+
     ref_t = np.asarray(traj.time, dtype=float)
     ref_v = np.asarray(traj.input[1], dtype=float)
-    ref_i = np.abs(np.asarray(traj.result.get("I(Lload)"), dtype=float))
+    ref_i = np.abs(np.asarray(traj.output[0], dtype=float))
     spans = {"vds": float(np.ptp(ref_v) or 1.0),
              "ids": float(np.ptp(ref_i) or 1.0)}
     endpoints: dict[str, dict[str, float | None]] = {
@@ -1429,6 +1521,7 @@ def _dpt_common_compare(raw: dict, traj, plan: dict) -> dict:
                 / spans["ids"]),
             "compare_points": n,
             "compare_grid_step_s": out["compare_grid_step_s"],
+            "current_definition": definitions[label],
             "status": "measured",
             "role": ("control: golden self-comparison, not a fidelity measure"
                      if label == "golden" else "fidelity measurement"),
@@ -1437,6 +1530,7 @@ def _dpt_common_compare(raw: dict, traj, plan: dict) -> dict:
     out["reason"] = "common grid over the equal overlapping window"
     out["guard_ok"] = bool(
         reference["completed"] and out["window_equal"]
+        and out["current_identity_match"]
         and out["compare_grid_step_s"] is not None
         and out["compare_grid_step_s"] > 0.0
         and out["compare_points"] >= out["min_compare_points"])
@@ -1736,8 +1830,11 @@ def _derivative_checks(rows: list, spec: PWLModelSpec, ann_record: dict,
     guarded G_CH expression from the library (Vgs below Vth and the low-Vds
     guard region) with ``ZERO_CURRENT_FRAC``.  Hybrid probes the emitted
     G_ANN residual at Vds=0, below Vth and at an on-state point; a missing
-    or unevaluable probe can never pass.  gm/gds sign fractions are
-    diagnostics only.  Every gate predicate must be measured.
+    or unevaluable probe can never pass.  gm/gds minima and sign fractions
+    are recorded diagnostics, and the fractions are also the physics gate:
+    at most ``DERIVATIVE_NEGATIVE_FRACTION_MAX`` of finite samples may be
+    negative, and a missing fraction fails closed.  Every gate predicate
+    must be measured.
     """
     result: dict[str, Any] = {
         "pass": False, "status": "not_measured",
@@ -1757,6 +1854,21 @@ def _derivative_checks(rows: list, spec: PWLModelSpec, ann_record: dict,
     vds_zero = bool(vds.size and abs(float(vds[0])) <= 1e-15
                     and float(np.max(np.abs(sim[:, 0]))) <= ZERO_CURRENT_FRAC
                     * (peak or 1.0))
+    signs = _derivative_sign_fractions(gm, gds)
+    gm_negative = signs["gm_negative_fraction"]
+    gds_negative = signs["gds_negative_fraction"]
+    sign_gate: dict[str, Any] = {
+        "max_negative_fraction": DERIVATIVE_NEGATIVE_FRACTION_MAX,
+        "gm_negative_fraction": gm_negative,
+        "gds_negative_fraction": gds_negative,
+        "status": ("not_measured"
+                   if gm_negative is None or gds_negative is None
+                   else "measured"),
+    }
+    sign_gate["pass"] = bool(
+        gm_negative is not None and gds_negative is not None
+        and gm_negative <= DERIVATIVE_NEGATIVE_FRACTION_MAX
+        and gds_negative <= DERIVATIVE_NEGATIVE_FRACTION_MAX)
 
     record = (ann_record.get("record") or {}) if emit == "ann" else {}
     ann_artifact: dict = {
@@ -1835,6 +1947,13 @@ def _derivative_checks(rows: list, spec: PWLModelSpec, ann_record: dict,
         failed.append("negative_charge_derivative")
     if not vds_zero:
         failed.append("vds_zero_anchor")
+    if sign_gate["status"] != "measured":
+        failed.append("derivative_sign_fractions_not_measured")
+    elif not sign_gate["pass"]:
+        if gm_negative > DERIVATIVE_NEGATIVE_FRACTION_MAX:
+            failed.append("gm_negative_fraction")
+        if gds_negative > DERIVATIVE_NEGATIVE_FRACTION_MAX:
+            failed.append("gds_negative_fraction")
     if cutoff_anchor is not True:
         failed.append("gate_cutoff_anchor")
     if emit == "ann" and not ann_ok:
@@ -1863,15 +1982,17 @@ def _derivative_checks(rows: list, spec: PWLModelSpec, ann_record: dict,
               "finite gm/gds; monotone Q; Vds=0 and gate-cutoff anchors near "
               "zero" + tail)
     result.update({
-        "pass": bool(finite and qmono and vds_zero and cutoff_anchor is True
-                     and ann_ok and hybrid_residual_ok),
+        "pass": bool(finite and qmono and vds_zero and sign_gate["pass"]
+                     and cutoff_anchor is True and ann_ok
+                     and hybrid_residual_ok),
         "status": "measured" if measured else "not_measured",
         "reason": reason,
         "gm_min": _json_safe(float(np.min(gm))),
         "gm_max": _json_safe(float(np.max(gm))),
         "gds_min": _json_safe(float(np.min(gds))),
         "gds_max": _json_safe(float(np.max(gds))),
-        **_derivative_sign_fractions(gm, gds),
+        **signs,
+        "derivative_sign_gate": sign_gate,
         "ann_channel_probe": ann_artifact,
         "hybrid_residual_probe": hybrid_artifact,
         "charge_derivative_non_negative": qmono,
@@ -1890,6 +2011,7 @@ _TIMING_METRICS = ("td_on_ns", "tr_ns", "td_off_ns", "tf_ns",
 
 
 def _timing_bars_for_column(vendor: str, column: str) -> dict:
+    """Read one recorded dpt_metrics table (diagnostic or regression only)."""
     path = (registry.ROOT / "reports" / "comparison" / vendor
             / "dpt_metrics.json")
     if not path.exists():
@@ -1899,23 +2021,35 @@ def _timing_bars_for_column(vendor: str, column: str) -> dict:
     return {k: bars.get(k) for k in _TIMING_METRICS}
 
 
-def _timing_bars(vendor: str, *, emit: str) -> dict:
-    """Recorded timing/energy bars for this channel basis; never a guess.
+def _golden_dpt_bars(vendor: str) -> dict:
+    """Independent G4 bars: the device-current golden DPT comparison.
 
-    ``ann`` and ``hybrid`` are scored against the recorded golden table;
-    the closed C0 ``tier2`` fallback returns to its own recorded Tier-2 table
-    (spec 6 fallback decision; hybrid per phase VI section 3.3).  No value is
-    re-measured or re-baselined here.
+    Read from ``tier3_validation.json#dpt_comparison.<metric>.golden``.  This
+    table is produced by the golden-vs-golden DPT validation, so it cannot
+    move with this pipeline's own Tier-2 row.
     """
-    if emit not in TIMING_BAR_COLUMN:
-        raise ValueError(f"unknown emit mode {emit!r}; expected "
-                         f"{tuple(TIMING_BAR_COLUMN)}")
-    return _timing_bars_for_column(vendor, TIMING_BAR_COLUMN[emit])
+    path = (registry.ROOT / "reports" / "comparison" / vendor
+            / "tier3_validation.json")
+    if not path.exists():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    comparison = data.get("dpt_comparison") or {}
+    bars: dict[str, float | None] = {}
+    for metric in _TIMING_METRICS:
+        row = comparison.get(metric)
+        bars[metric] = _num(row.get("golden")) if isinstance(row, Mapping) \
+            else None
+    return bars
 
 
-def _common_timing_bars(vendor: str) -> dict:
-    """One golden timing/energy table shared by both channel bases (H5)."""
-    return _timing_bars_for_column(vendor, COMMON_TIMING_BAR_COLUMN)
+def _timing_bars(vendor: str) -> dict:
+    """The single G4 verdict bar table: independent golden DPT metrics."""
+    return _golden_dpt_bars(vendor)
+
+
+def _tier2_regression_bars(vendor: str) -> dict:
+    """Diagnostic-only self-consistency bars (never scored in G4/verdict)."""
+    return _timing_bars_for_column(vendor, "tier2_metrics")
 
 
 def _timing_score_rows(actual: dict, bars: dict) -> tuple[dict, bool]:
@@ -1939,26 +2073,30 @@ def _timing_score_rows(actual: dict, bars: dict) -> tuple[dict, bool]:
     return compared, ok
 
 
-def _timing_bars_source(emit: str) -> str:
-    """Provenance label naming the G4 bar column actually used by ``emit``."""
-    column = TIMING_BAR_COLUMN[emit]
-    doc = ("docs/plans/phase_vi_research_framework.md section 3.3; "
-           if emit == "hybrid" else "")
-    return (f"reports/comparison/<vendor>/dpt_metrics.json#{column} "
-            f"({doc}spec 6 G4 fallback decision; emit={emit}); "
-            "README DPT timing and energy table")
+def _timing_bars_source() -> str:
+    """Provenance label naming the independent G4 golden bar table."""
+    return (f"{GOLDEN_DPT_BAR_SOURCE} (device-current golden DPT; "
+            "independent of dpt_metrics.json#tier2_metrics)")
+
+
+def _tier2_regression_source() -> str:
+    """Provenance label for the diagnostic Tier-2 self-comparison."""
+    return (f"{TIER2_REGRESSION_BAR_SOURCE} (diagnostic only; never "
+            "scored in G4_timing_energy or in the verdict)")
 
 
 def _timing_band(bar: float | None) -> tuple[float, float] | None:
     """Sourced band around a recorded timing/energy bar (spec G4).
 
     A much smaller delay is not automatically better: a device that never
-    turns on has a tiny delay.  A missing bar stays unmeasured.
+    turns on has a tiny delay.  The half-width is
+    ``max(5 percent of |bar|, TIMING_BAND_ABS)`` so a zero bar cannot accept
+    every value.  A missing bar stays unmeasured.
     """
     value = _num(bar)
     if value is None:
         return None
-    half = abs(value) * TIMING_BAND_REL
+    half = max(abs(value) * TIMING_BAND_REL, TIMING_BAND_ABS)
     return value - half, value + half
 
 
@@ -2110,14 +2248,21 @@ def _charge_checks(spec: PWLModelSpec, eps_by_table: dict, *,
         "q_rss": (spec.q_rss_vs_v, spec.q_rss_charge_c),
     }
     per_table: dict[str, dict] = {}
+    monotone_q_by_table: dict[str, bool | None] = {}
+    zero_anchored_by_table: dict[str, bool | None] = {}
     for name, (vv, qq) in tables.items():
         v = np.asarray(vv, dtype=float)
         q = np.asarray(qq, dtype=float)
         if v.size < 2 or q.size < 2 or v.size != q.size:
+            # An empty source table is explicitly not applicable; it is never
+            # rendered as a monotone pass for a table the emitter may emit.
             per_table[name] = {
-                "status": "not_measured", "charge_fit_error_pct": None,
-                "breakpoint_crossings": None,
+                "status": "not_applicable", "applicable": False,
+                "charge_fit_error_pct": None, "breakpoint_crossings": None,
+                "monotone_q": None, "q_zero_anchored": None,
             }
+            monotone_q_by_table[name] = None
+            zero_anchored_by_table[name] = None
             continue
         eps = emitted_by_element.get(name, 0.0)
         fitted = _ramp_numeric(vv, qq, eps, v)
@@ -2127,14 +2272,30 @@ def _charge_checks(spec: PWLModelSpec, eps_by_table: dict, *,
         _, _, delta = _chain_coefficients(vv, qq)
         signs = np.sign(delta[1:])
         crossings = int(np.count_nonzero(signs[1:] != signs[:-1]))
+        monotone = bool(np.all(np.diff(q) >= 0))
+        q0 = float(q[0])
+        anchored = bool(abs(q0) <= CHARGE_ZERO_ANCHOR_ABS_C)
+        monotone_q_by_table[name] = monotone
+        zero_anchored_by_table[name] = anchored
         per_table[name] = {
             "status": "measured" if error is not None else "not_measured",
+            "applicable": True,
             "charge_fit_error_pct": _json_safe(error),
             "breakpoint_crossings": crossings,
             "eps": eps, "q_max": _json_safe(q_max),
+            "monotone_q": monotone,
+            "q_zero_anchored": anchored,
             "q_zero_residual_c": _json_safe(fitted[0] - float(q[0])),
             "q_vmax_residual_c": _json_safe(fitted[-1] - float(q[-1])),
         }
+    applicable_tables = sorted(
+        name for name, value in monotone_q_by_table.items()
+        if value is not None)
+    all_charge_monotone = bool(applicable_tables) and all(
+        monotone_q_by_table[name] is True for name in applicable_tables)
+    all_charge_zero_anchored = bool(applicable_tables) and all(
+        zero_anchored_by_table.get(name) is True
+        for name in applicable_tables)
 
     channel = _channel_sat_ramp(spec)
     if channel is not None and spec.metadata.get("urom_channel_basis") != "ann":
@@ -2164,9 +2325,17 @@ def _charge_checks(spec: PWLModelSpec, eps_by_table: dict, *,
     q0 = float(q[0]) if q.size else None
     return {
         "status": status,
-        "monotone_q": bool(q.size > 1 and np.all(np.diff(q) >= 0)),
+        "monotone_q": monotone_q_by_table.get("q_oss"),
+        "monotone_q_by_table": monotone_q_by_table,
+        "all_charge_monotone": all_charge_monotone,
+        "q_zero_anchored_by_table": zero_anchored_by_table,
+        "all_charge_zero_anchored": all_charge_zero_anchored,
+        "applicable_tables": applicable_tables,
+        "not_applicable_tables": sorted(
+            name for name in monotone_q_by_table
+            if monotone_q_by_table[name] is None),
         "q_zero": _json_safe(q0),
-        "q_zero_anchored": bool(q0 is not None and abs(q0) <= 1e-15),
+        "q_zero_anchored": zero_anchored_by_table.get("q_oss"),
         "charge_fit_error_pct": max(errors) if status == "measured" else None,
         "charge_fit_basis": "numeric mirror of the emitted delta-slope ramp "
                             "chain against the source charge tables and the "
@@ -2193,6 +2362,64 @@ def _charge_checks(spec: PWLModelSpec, eps_by_table: dict, *,
 # ---------------------------------------------------------------------------
 # gates
 # ---------------------------------------------------------------------------
+# Split claims, never merged: fidelity, timing/energy and speed are separate
+# verdicts with their own scored gate sets.  The Tier-2 regression gate is
+# diagnostic and is deliberately absent from every scored set.
+FIDELITY_GATES = ("G0", "G1_static", "G2_derivative", "G3_dpt_waveform",
+                  "G6_charge")
+TIMING_GATES = ("G4_timing_energy",)
+SPEED_GATES = ("G5_speed",)
+DIAGNOSTIC_GATES = ("G4_tier2_regression",)
+
+
+def _speedup_point(golden: dict, rom: dict, key: str) -> float | None:
+    """Golden/ROM ratio for one clock; None unless both arms completed."""
+    if not (golden.get("completion") and rom.get("completion")):
+        return None
+    g = _num(golden.get(key))
+    r = _num(rom.get(key))
+    if g is None or r is None or r <= 0.0:
+        return None
+    return _num(g / r)
+
+
+def _paired_speedup_ci(speed: dict, key: str) -> dict | None:
+    """Paired per-repeat bootstrap CI of the golden/ROM ratio for one clock.
+
+    Repeats are paired by their interleaved schedule index.  A missing or
+    mismatched repeat list returns None; no ratio is fabricated from medians.
+    """
+    golden = (speed.get("golden") or {}).get("per_repeat") or []
+    rom = (speed.get("urom") or {}).get("per_repeat") or []
+    if not golden or not rom or len(golden) != len(rom):
+        return None
+    ratios: list[float] = []
+    for g_row, r_row in zip(golden, rom):
+        g = _num(g_row.get(key))
+        r = _num(r_row.get(key))
+        if g is None or r is None or r <= 0.0:
+            return None
+        ratios.append(g / r)
+    return bootstrap_ci(ratios, confidence=SPEED_CI_CONFIDENCE,
+                        n_resamples=SPEED_CI_RESAMPLES, seed=0)
+
+
+def _verdicts(gates: dict) -> dict:
+    """Split verdicts: fidelity, timing/energy and speed are independent."""
+    out = {
+        "fidelity_verdict": ("accept" if gates.get("fidelity_all_pass")
+                             else "reject"),
+        "timing_verdict": ("accept" if gates.get("timing_all_pass")
+                           else "reject"),
+        "speed_verdict": ("accept" if gates.get("speed_all_pass")
+                          else "reject"),
+    }
+    out["overall_verdict"] = (
+        "accept" if all(value == "accept" for value in out.values())
+        else "reject")
+    return out
+
+
 def _gate(passed: bool, status: str, detail: dict) -> dict:
     return {"pass": bool(passed), "status": status, "detail": detail}
 
@@ -2289,16 +2516,40 @@ def _evaluate_gates(record: dict, observations: dict) -> dict:
     timed = observations.get("timing_energy") or {}
     g4 = _gate(bool(timed.get("pass")), timed.get("status", "not_measured"),
                timed)
+    regression = timed.get("tier2_regression") or {}
+    regression_status = (regression.get("status") or "not_measured")
+    g4_regression = _gate(
+        regression.get("all_within_band") is True,
+        regression_status,
+        {**regression,
+         "diagnostic_only": True,
+         "scored": False,
+         "note": "Tier-2 self-comparison diagnostic; never part of "
+                 "G4_timing_energy, timing_all_pass or any verdict"})
+    g4_regression["diagnostic_only"] = True
+    g4_regression["scored"] = False
 
     speed_row = record["speed_adaptive_20"]
     has_counts = all(speed_row.get(k) for k in
                      ("n_pulses", "method_label", "t_last", "iterations",
                       "points"))
+    solver_point = _speedup_point(speed["golden"], speed["urom"],
+                                  "solver_time_s")
+    wall_point = _speedup_point(speed["golden"], speed["urom"], "wall_time_s")
+    solver_ci = _paired_speedup_ci(speed, "solver_time_s")
+    wall_ci = _paired_speedup_ci(speed, "wall_time_s")
+    solver_effect_ok = bool(
+        solver_point is not None and solver_point >= SPEED_EFFECT_MIN)
+    solver_ci_low = _num((solver_ci or {}).get("low"))
+    solver_ci_ok = bool(solver_ci_low is not None and solver_ci_low > 1.0)
     g5_pass = bool(has_counts and clock_ok
                    and speed["golden"]["completion"]
-                   and speed["urom"]["completion"])
+                   and speed["urom"]["completion"]
+                   and solver_effect_ok and solver_ci_ok)
+    g5_measured = bool(has_counts and solver_point is not None
+                       and solver_ci is not None)
     g5 = _gate(g5_pass,
-               "measured" if has_counts else "not_measured",
+               "measured" if g5_measured else "not_measured",
                {"scoped_row_valid": bool(has_counts),
                 "method_label": speed_row.get("method_label"),
                 "n_pulses": speed_row.get("n_pulses"),
@@ -2306,6 +2557,19 @@ def _evaluate_gates(record: dict, observations: dict) -> dict:
                 "clock_spread": clocks, "clock_spread_complete": clock_ok,
                 "completion": {"golden": speed["golden"]["completion"],
                                "urom": speed["urom"]["completion"]},
+                # Speed needs a real effect: the paired point ratio must
+                # reach SPEED_EFFECT_MIN and its 95 percent CI low must
+                # exceed 1.0 (a slower model never passes).
+                "solver_speedup": solver_point,
+                "wall_speedup": wall_point,
+                "solver_speedup_ci95": solver_ci,
+                "wall_speedup_ci95": wall_ci,
+                "recorded_solver_speedup": speed_row.get("solver_speedup"),
+                "recorded_solver_speedup_ci95":
+                    speed_row.get("solver_speedup_ci95"),
+                "effect_min": SPEED_EFFECT_MIN,
+                "solver_effect_ok": solver_effect_ok,
+                "solver_ci_low_above_one": solver_ci_ok,
                 # Spec 1.3/6: one declared-method row is scoped.  A global
                 # claim needs the default AND gear rows (min >= 1.5), so the
                 # recorded row carries no gear minimum here.  Surface those
@@ -2314,24 +2578,47 @@ def _evaluate_gates(record: dict, observations: dict) -> dict:
                 "min_default_gear": speed_row.get("min_default_gear")})
 
     crossings = charge.get("breakpoint_crossings") or {}
+    monotone_by_table = charge.get("monotone_q_by_table") or {}
+    zero_by_table = charge.get("q_zero_anchored_by_table") or {}
+    applicable_tables = sorted(
+        name for name, value in monotone_by_table.items()
+        if value is not None)
+    all_charge_monotone = bool(
+        charge.get("all_charge_monotone")
+        and applicable_tables
+        and all(monotone_by_table[name] is True
+                for name in applicable_tables))
+    all_charge_zero = bool(
+        charge.get("all_charge_zero_anchored") is True
+        and applicable_tables
+        and all(zero_by_table.get(name) is True
+                for name in applicable_tables))
     charge_measured = bool(
         charge.get("status") == "measured" and crossings
         and all(isinstance(v, int) and v >= 0 for v in crossings.values()))
     g6_pass = bool(
-        charge_measured and charge["monotone_q"] and charge["q_zero_anchored"]
-        and charge["charge_fit_error_pct"] is not None
+        charge_measured and all_charge_monotone and all_charge_zero
+        and charge.get("charge_fit_error_pct") is not None
         and charge["charge_fit_error_pct"] <= CHARGE_BUDGET_PCT
-        and charge["c_ds_scaling_excluded"]
+        and charge.get("c_ds_scaling_excluded")
         and tuning_ok)
     # Artifact Q(0)/Q(Vmax) residuals are diagnostics: the 0.5 % numeric
     # mirror budget remains the only charge verdict bar.
     g6 = _gate(g6_pass, "measured" if charge_measured else "not_measured",
-               {"monotone_q": charge["monotone_q"],
-                "q_zero_anchored": charge["q_zero_anchored"],
-                "charge_fit_error_pct": charge["charge_fit_error_pct"],
+               {"monotone_q": charge.get("monotone_q"),
+                "monotone_q_by_table": monotone_by_table,
+                "all_charge_monotone": all_charge_monotone,
+                "applicable_tables": applicable_tables,
+                "not_applicable_tables": sorted(
+                    name for name, value in monotone_by_table.items()
+                    if value is None),
+                "q_zero_anchored": charge.get("q_zero_anchored"),
+                "q_zero_anchored_by_table": zero_by_table,
+                "all_charge_zero_anchored": all_charge_zero,
+                "charge_fit_error_pct": charge.get("charge_fit_error_pct"),
                 "budget_pct": CHARGE_BUDGET_PCT,
                 "breakpoint_crossings": crossings,
-                "c_ds_scaling_excluded": charge["c_ds_scaling_excluded"],
+                "c_ds_scaling_excluded": charge.get("c_ds_scaling_excluded"),
                 "tuning_verdict": record["tuning"]["verdict"],
                 "tuning_status": tuning.get("status"),
                 "emitted_eps_by_element":
@@ -2341,9 +2628,20 @@ def _evaluate_gates(record: dict, observations: dict) -> dict:
                })
     gates: dict[str, Any] = {"G0": _gate(g0, "measured", equality),
              "G1_static": g1, "G2_derivative": g2, "G3_dpt_waveform": g3,
-             "G4_timing_energy": g4, "G5_speed": g5, "G6_charge": g6}
-    gates["all_pass"] = all(g["pass"] for k, g in gates.items()
-                            if k != "all_pass")
+             "G4_timing_energy": g4,
+             "G4_tier2_regression": g4_regression,
+             "G5_speed": g5, "G6_charge": g6}
+    gates["fidelity_all_pass"] = all(
+        gates[name]["pass"] for name in FIDELITY_GATES)
+    gates["timing_all_pass"] = all(
+        gates[name]["pass"] for name in TIMING_GATES)
+    gates["speed_all_pass"] = all(
+        gates[name]["pass"] for name in SPEED_GATES)
+    # The conjunction covers every scored gate; the Tier-2 regression gate
+    # is diagnostic and is excluded by construction (it is not scored).
+    gates["all_pass"] = bool(gates["fidelity_all_pass"]
+                             and gates["timing_all_pass"]
+                             and gates["speed_all_pass"])
     return gates
 
 
@@ -2354,12 +2652,19 @@ def _speed_row(plan: dict, speed: dict) -> dict:
         if counts_ready and rom["solver_time_s"] else None
     wall = _num(golden["wall_time_s"] / rom["wall_time_s"]) \
         if counts_ready and rom["wall_time_s"] else None
+    solver_ci = (_paired_speedup_ci(speed, "solver_time_s")
+                 if counts_ready else None)
+    wall_ci = (_paired_speedup_ci(speed, "wall_time_s")
+               if counts_ready else None)
     return {
         "n_pulses": plan["speed"]["n_pulses"],
         "max_step": plan["speed"]["max_step"],
         "method_label": plan["method_label"],
         "solver_speedup": solver,
         "wall_speedup": wall,
+        "solver_speedup_ci95": solver_ci,
+        "wall_speedup_ci95": wall_ci,
+        "effect_min_solver_speedup": SPEED_EFFECT_MIN,
         "t_last": {"golden": golden["t_last"], "urom": rom["t_last"]},
         "iterations": {"golden": golden["iterations"],
                        "urom": rom["iterations"]},
@@ -2547,7 +2852,8 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
     equality["clock_spread"] = clocks
     lib_text = lib.read_text(encoding="ascii")
     traj = capture_trajectory(vendor)
-    dpt_cfg = load_input(vendor)["dpt"]
+    cfg = load_input(vendor)
+    dpt_cfg = cfg["dpt"]
     dpt = {label: _run_dpt_arm(plan, label, deck, traj, dpt_cfg)
            for label, deck in dpt_decks.items()}
     raw = {label: dpt[label].pop("_raw") for label in dpt}
@@ -2567,26 +2873,36 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
     timing_energy: dict = {"pass": False, "status": "not_measured",
                            "reason": "no crossing extraction for this method"}
     if dpt["urom"]["completed"] and dpt["golden"]["completed"]:
-        reference = _timing_bars(vendor, emit=emit)
+        reference = _timing_bars(vendor)
         actual = dpt["urom"]["metrics"]
         compared, ok = _timing_score_rows(actual, reference)
-        common_bars = _common_timing_bars(vendor)
-        common_rows, common_ok = _timing_score_rows(actual, common_bars)
+        regression_bars = _tier2_regression_bars(vendor)
+        regression_rows, regression_ok = _timing_score_rows(
+            actual, regression_bars)
+        regression_measured = bool(
+            regression_rows
+            and all(row.get("status") == "measured"
+                    for row in regression_rows.values()))
         timing_energy = {
             "pass": ok,
             "status": "measured" if len(compared) == len(_TIMING_METRICS)
                       else "not_measured",
             "rows": compared,
-            "bar_column": TIMING_BAR_COLUMN[emit],
-            "band_source": _timing_bars_source(emit),
+            "bar_source": GOLDEN_DPT_BAR_SOURCE,
             "band_rel": TIMING_BAND_REL,
-            "cross_basis_diagnostic": {
-                "label": "common golden timing/energy table "
-                         "(cross-basis diagnostic; never scored)",
-                "bar_column": COMMON_TIMING_BAR_COLUMN,
-                "primary_bar_column": TIMING_BAR_COLUMN[emit],
-                "rows": common_rows, "all_within_band": common_ok,
+            "band_abs": TIMING_BAND_ABS,
+            # Self-consistency against this pipeline's own Tier-2 row: a
+            # diagnostic, never a G4 or verdict input.
+            "tier2_regression": {
+                "label": "Tier-2 self-comparison (diagnostic only; never "
+                         "scored)",
+                "bar_source": TIER2_REGRESSION_BAR_SOURCE,
+                "status": ("measured" if regression_measured
+                           else "not_measured"),
+                "rows": regression_rows,
+                "all_within_band": regression_ok,
                 "used_for_verdict": False,
+                "diagnostic_only": True,
             },
         }
 
@@ -2619,6 +2935,25 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
     record_path = _record_path_for_config(
         vendor, emit=emit, method=plan["method_label"],
         tuning=tuning, c1_variant=c1_variant)
+
+    def _label(path: Path) -> str:
+        try:
+            return path.relative_to(ROOT).as_posix()
+        except ValueError:
+            return path.as_posix()
+
+    input_paths: dict[str, Path] = {
+        f"config/inputs/{vendor}.yaml":
+            ROOT / "config" / "inputs" / f"{vendor}.yaml",
+        f"vendor_library:{Path(cfg['library']).name}":
+            Path(cfg["library"]),
+        "emitted_lib": lib,
+    }
+    for curve_path in sorted(
+            (ROOT / "config" / "outputs" / vendor).glob("curve*.yaml")):
+        input_paths[_label(curve_path)] = curve_path
+    input_hashes = file_hashes(input_paths)
+
     record: dict[str, Any] = {
         "schema": SCHEMA,
         "vendor": vendor,
@@ -2627,10 +2962,17 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
         "record_path": str(record_path.relative_to(ROOT)).replace("\\", "/"),
         "emit": emit,
         "channel_basis": emit,
-        "timing_bar_column": TIMING_BAR_COLUMN[emit],
-        "timing_bar_source": _timing_bars_source(emit),
+        "timing_bar_column": "dpt_comparison.<metric>.golden",
+        "timing_bar_source": _timing_bars_source(),
+        "timing_regression_source": _tier2_regression_source(),
         "tuning_mode": tuning,
         "emitted_lib_sha256": lib_sha256,
+        "environment": environment_metadata(),
+        "input_hashes": input_hashes,
+        "record_inputs": list(input_paths),
+        "current_definition": compare.get("current_definition"),
+        "current_definition_by_arm":
+            compare.get("current_definition_by_arm"),
         "c1_variant": c1_variant,
         "method": plan["method_label"],
         "equal_sandbox": equality,
@@ -2683,8 +3025,8 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
         "static": static,
         "equal_sandbox_detail": {
             "dpt_decks": equality, "speed_decks": speed_identity,
-            "timing_energy_bars_source":
-                _timing_bars_source(emit),
+            "timing_energy_bars_source": _timing_bars_source(),
+            "timing_regression_source": _tier2_regression_source(),
         },
         "urom_provenance": spec.metadata["urom_provenance"],
         "verdict": "pending",
@@ -2694,7 +3036,9 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
                  "static": static, "derivative": derivative,
                  "timing_energy": timing_energy, "clock_spread": clocks,
                  "dpt_compare": compare})
-    record["verdict"] = ("accept" if record["gates"]["all_pass"] else "reject")
+    record.update(_verdicts(record["gates"]))
+    # Aliased for existing readers; the split fields above are authoritative.
+    record["verdict"] = record["overall_verdict"]
     record = _json_safe(record)
 
     path = record_path
