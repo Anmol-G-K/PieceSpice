@@ -20,11 +20,12 @@ import numpy as np
 
 from approximation.ann_charge import AnnChargeFit, fit_charge_qv
 from approximation.ann_channel import AnnChannelFit, DptPoints, fit_channel_iv
+from approximation.ann_residual import fit_channel_residual
 from common.types import CurveData, trim_trailing_invalid
 from config.yaml_io import load_input, load_output
 from approximation.smoother import eps_from_grid
 
-__all__ = ["ann_fit_for_vendor"]
+__all__ = ["ann_fit_for_vendor", "hybrid_ann_fit_for_vendor"]
 
 _THRESHOLD_FACTOR = 0.5          # dI/dVds drop defining the ohmic/sat knee
 _DPT_MAX_POINTS = 60             # cap on extracted high-V/I training points
@@ -279,6 +280,164 @@ def ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True
         "device": cfg["device"],
         "channel_fit": channel_fit,
         "charge_fit": charge_fit,
+        "record": record,
+        "provenance": provenance,
+        "limitations": limitations,
+    }
+
+
+# Hybrid fit parameters.  The hybrid basis fits only the signed residual
+# current; C0 charge tables come from the closed Tier-2 spec unchanged.
+_CURVE4_SWEEP_KEYS = ("curve_vds", "ciss_curve_f", "coss_curve_f",
+                      "crss_curve_f")
+_HYBRID_ACTIVATION = "isru"
+_HYBRID_NEURONS = 6
+
+
+def _curve4_data_richness(vendor: str) -> Dict[str, Any]:
+    """Record full Curve-4 array presence/length as a diagnostic only.
+
+    The persisted sweep is consumed by the simplis charge basis.  The hybrid
+    basis neither requires it nor trains ANN charge nets from it, so an
+    absent or malformed array is reported, never raised.
+    """
+    note: Dict[str, Any] = {
+        "source": "curve4_capacitances.yaml",
+        "role": "data-richness diagnostic only; hybrid keeps C0 charge and "
+                "trains no ANN charge net",
+        "keys": {}, "n_samples": {}, "missing_keys": [],
+        "status": "unavailable",
+    }
+    try:
+        doc = load_output(vendor, "curve4_capacitances") or {}
+    except Exception as exc:  # diagnostic only; never gate the hybrid fit
+        note["reason"] = str(exc)
+        return note
+    if not isinstance(doc, dict):
+        note["reason"] = "curve4_capacitances.yaml is not a mapping"
+        return note
+    source = dict(doc)
+    extracted = doc.get("extracted") or {}
+    if isinstance(extracted, dict):
+        source.update(extracted)
+    present = {}
+    for key in _CURVE4_SWEEP_KEYS:
+        value = source.get(key)
+        present[key] = value is not None
+        note["keys"][key] = bool(present[key])
+        if isinstance(value, (list, tuple, np.ndarray)):
+            note["n_samples"][key] = len(value)
+    note["missing_keys"] = [k for k, ok in present.items() if not ok]
+    note["status"] = "available" if not note["missing_keys"] else "partial"
+    return note
+
+
+def hybrid_ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True,
+                              dpt_points: Optional[DptPoints] = None,
+                              activation: str = _HYBRID_ACTIVATION,
+                              neurons: int = _HYBRID_NEURONS) -> Dict[str, Any]:
+    """Fit the hybrid C0+signed-residual basis for *vendor* (no file writes).
+
+    The closed Tier-2 channel is evaluated by
+    :func:`models.netlist_builder.evaluate_tier2_channel`; the residual is
+    fitted to golden-minus-C0 on Curve-1 and, when supplied or captured, the
+    DPT samples.  C0 charge tables are copied unchanged by the emitter; this
+    fit trains no ANN charge nets and does not require the full Curve-4 C(V)
+    sweep (its array presence is only a data-richness note).  Returns the C0
+    spec, the residual fit object, a serialisable record and provenance.
+    No gate runs here.
+    """
+    from pipeline.fitting import build_pwl_spec
+
+    cfg = load_input(vendor)
+    cond = cfg["conditions"]
+    families, vmax = _channel_families(vendor, cond)
+    guard_width, guard_prov = _static_guard_width(families)
+    v_th = float(_extract(vendor, "curve7_threshold_voltage")["vth_v"])
+    v_sat = _v_sat(families)
+    curve4_note = _curve4_data_richness(vendor)
+    spec = build_pwl_spec(vendor)
+
+    if dpt_points is not None:
+        dpt, dpt_prov = dpt_points, {
+            "source": "caller-supplied recorded DPT samples",
+            "status": "ok", "n_points": int(np.size(dpt_points.id)),
+            **dict(dpt_points.provenance),
+        }
+    elif include_dpt_points:
+        dpt, dpt_prov = _dpt_points(vendor, vmax)
+    else:
+        dpt, dpt_prov = None, {"source": "dpt_trajectory", "status": "disabled",
+                               "sample_indices": [], "n_points": 0,
+                               "reason": "include_dpt_points=False"}
+    channel_inputs: List[Any] = list(families)
+    if dpt is not None:
+        channel_inputs.append(dpt)
+    residual_fit = fit_channel_residual(
+        channel_inputs, spec, v_th=v_th, activation=activation,
+        neurons=neurons, guard_width=guard_width,
+        guard_width_provenance=guard_prov,
+        spec_source=f"pipeline.fitting.build_pwl_spec({vendor})")
+
+    record: Dict[str, Any] = {
+        "basis": "hybrid",
+        "vendor": vendor,
+        "device": cfg["device"],
+        "c0_channel": "closed Tier-2 G_CH from pipeline.fitting.build_pwl_spec",
+        "residual_expression": "Vds*(b2+sum(w2_i*phi(w1_i0*Vgs+"
+                               "w1_i1*Vds+b1_i)))*0.5*(1+tanh(alpha*(Vgs-Vth)))",
+        "activation": residual_fit.activation,
+        "neurons": residual_fit.neurons,
+        "guard_width_v": float(guard_width),
+        "residual_train_samples": residual_fit.diagnostics["train_samples"],
+        "residual_curve1_samples": residual_fit.diagnostics["curve1_samples"],
+        "residual_dpt_samples": residual_fit.diagnostics["dpt_samples"],
+        "residual_rel_rmse": residual_fit.diagnostics["residual_rel_rmse"],
+        "residual_zero_vds_max_abs_a":
+            residual_fit.diagnostics["zero_vds_max_abs_a"],
+        "residual_cutoff_attenuation":
+            residual_fit.diagnostics["cutoff_attenuation"],
+        "residual_derivative_diagnostics":
+            residual_fit.diagnostics["analytic_vs_finite_difference"],
+        "charge_basis": "unchanged closed Tier-2 C0 charge tables; "
+                        "no ANN charge fit in the hybrid basis",
+        "curve4_data_richness": curve4_note,
+        "optimizer": {
+            "residual": {k: residual_fit.diagnostics[k] for k in (
+                "optimizer_cost", "optimizer_starts_run", "optimizer_nfev",
+                "optimizer_njev", "optimizer_success",
+                "optimizer_termination_reason")},
+        },
+    }
+    provenance: Dict[str, Any] = {
+        "curves": ["curve1_output_characteristics.yaml",
+                   "curve7_threshold_voltage.yaml"],
+        "curve4_full_sweep": curve4_note,
+        "charge_basis": "closed Tier-2 C0 Q tables; no ANN charge fit",
+        "guard_width": guard_prov,
+        "v_th_source": "curve7_threshold_voltage:vth_v",
+        "v_sat_source": "curve1 top-Vgs curve, dI/dVds half-initial rule",
+        "v_sat_value": v_sat,
+        "dpt_samples": dpt_prov,
+        "residual_fit": residual_fit.provenance,
+        "c0_evaluator": "models.netlist_builder.evaluate_tier2_channel "
+                        "(closed Tier-2 G_CH, eps=0)",
+        "external_source_status": "conditional_until_url_and_section_pinned",
+    }
+    limitations = [
+        "C0 charge tables are emitted unchanged; no ANN charge net is "
+        "trained or attached by the hybrid basis.  Full Curve-4 arrays are "
+        "persisted for simplis and recorded only as a data-richness note.",
+        "Residual is fitted offline to golden-minus-C0; static fit quality "
+        "is not a fidelity gate and no speed number is implied here.",
+        "Physics guards (VDS=0 factor, tanh Vth cutoff) follow the existing "
+        "ANN study and remain CONDITIONAL until source URLs are pinned.",
+    ]
+    return {
+        "vendor": vendor,
+        "device": cfg["device"],
+        "c0_spec": spec,
+        "residual_fit": residual_fit,
         "record": record,
         "provenance": provenance,
         "limitations": limitations,

@@ -25,6 +25,7 @@ Design rules honored:
 
 from __future__ import annotations
 
+import math
 from typing import List
 
 import numpy as np
@@ -34,6 +35,7 @@ from approximation.smoother import (
     emit_transfer_ramp,
     fit_tanh_knee_ls,
     fit_tanh_plateau,
+    smooth_relu_product,
 )
 from common.types import PWLModelSpec, PWL_META_KEYS
 
@@ -79,23 +81,11 @@ def _fmt(x: float) -> str:
     return f"{x:.6e}"
 
 
-def _channel_expression(spec: PWLModelSpec, vgs_term: str, *,
-                        eps: float = 0.0) -> str:
-    """Behavioral channel current: PWL(Vgs) drive * tanh(Vds/vds_sat(Vgs)).
+def _channel_ramps(spec: PWLModelSpec) -> tuple[List[float], List[float], List[float]]:
+    """Return the (Vgs grid, transfer amplitude, saturation width) ramps.
 
-    The topology is unchanged from the original Tier-2 emitter (PWL transfer,
-    tanh saturation knee). What changes is how the knee width is chosen:
-    one least-squares fit per extracted output curve instead of a single
-    heuristic clamped from Rds(on) and the top-curve plateau. A global knee
-    systematically mis-shapes the low/mid Vds region of every Vgs family.
-    The width is bounded only by the sweep span (not the earlier 0.377*Vmax
-    cap, which bound high-Vgs CPM2 and IRFS curves). Transfer amplitude is
-    scaled by 1/tanh(Vmax/s); a fitted plateau is blended in at a fixed 25 %
-    only when its ratio to the extracted endpoint lies in [0.7, 1.3], a rule
-    that excludes unreliable near-zero curves without device-specific tuning.
-    eps is a smoothness-only option for the two PWL(Vgs) ramps: it is fed to
-    the shared delta-slope chain and leaves the fitted knee width, plateau
-    blend and Vth anchor untouched. eps = 0 is the closed Tier-2 emitter.
+    Single source of truth for the emitter and the offline numeric mirror:
+    both consume exactly the same fitted knee, plateau blend and Vth anchor.
     """
     if (len(spec.breakpoints_vds) < 2 or not spec.vgs_values
             or not spec.breakpoints_id):
@@ -127,17 +117,62 @@ def _channel_expression(spec: PWLModelSpec, vgs_term: str, *,
             amp = (1.0 - _PLATEAU_BLEND_W) * amp + _PLATEAU_BLEND_W * i_fit
         amplitudes.append(amp)
 
-    id_vals = amplitudes
-
     xs = [0.0] + drives
-    iv = [0.0] + id_vals
+    iv = [0.0] + amplitudes
     sv = [sat_vals[0]] + sat_vals
     v_th = float(spec.v_th)
     if 0.0 < v_th < min(drives):
         xs = [0.0, v_th] + drives
-        iv = [0.0, 0.0] + id_vals
+        iv = [0.0, 0.0] + amplitudes
         sv = [sat_vals[0], sat_vals[0]] + sat_vals
+    return xs, iv, sv
 
+
+def evaluate_tier2_channel(spec: PWLModelSpec, vgs, vds, *,
+                           eps: float = 0.0) -> np.ndarray:
+    """Numeric mirror of the emitted closed Tier-2 ``G_CH`` expression.
+
+    ``I = PWL(Vgs) * tanh(Vds / PWL_sat(Vgs))``.  The PWL grids, fitted tanh
+    knee, plateau blend and Vth anchor come from :func:`_channel_ramps`, the
+    one source of truth also used by ``_channel_expression``.  Both ramps are
+    evaluated with :func:`smooth_relu_product`, the numpy mirror of
+    ``delta_ramp_chain``, so ``eps > 0`` agrees with the emitted C1 chain and
+    ``eps = 0`` is the closed C0 channel.  Finite inputs give finite current;
+    no simulator is started.
+    """
+    xs, iv, sv = _channel_ramps(spec)
+    e = 0.0 if eps is None else float(eps)
+    if not math.isfinite(e) or e < 0.0:
+        raise ValueError("eps must be finite and >= 0")
+    g = np.asarray(vgs, dtype=float)
+    d = np.asarray(vds, dtype=float)
+    if not (np.all(np.isfinite(g)) and np.all(np.isfinite(d))):
+        raise ValueError("vgs and vds must be finite")
+    g, d = np.broadcast_arrays(g, d)
+    amp = np.asarray(smooth_relu_product(g, xs, iv, e), dtype=float)
+    sat = np.asarray(smooth_relu_product(g, xs, sv, e), dtype=float)
+    amp = np.reshape(amp, g.shape)
+    sat = np.reshape(sat, g.shape)
+    if np.any(sat <= 0.0):
+        raise ValueError("channel saturation width must be positive")
+    out = amp * np.tanh(d / sat)
+    if not np.all(np.isfinite(out)):
+        raise ValueError("channel evaluator produced non-finite current")
+    return out
+
+
+def _channel_expression(spec: PWLModelSpec, vgs_term: str, *,
+                        eps: float = 0.0) -> str:
+    """Behavioral channel current: PWL(Vgs) drive * tanh(Vds/vds_sat(Vgs)).
+
+    Topology and fitted scalars are unchanged from the closed Tier-2 emitter;
+    see :func:`_channel_ramps` (shared with :func:`evaluate_tier2_channel`)
+    for the tanh-knee fit, plateau blend and Vth anchor.  eps is a
+    smoothness-only option for the two PWL(Vgs) ramps: it is fed to the
+    shared delta-slope chain and leaves the fitted knee width, plateau
+    blend and Vth anchor untouched. eps = 0 is the closed Tier-2 emitter.
+    """
+    xs, iv, sv = _channel_ramps(spec)
     amp = emit_transfer_ramp(xs, iv, eps, term=vgs_term)
     sat = emit_transfer_ramp(xs, sv, eps, term=vgs_term)
     return f"({amp})*tanh(V(di,ss)/({sat}))"

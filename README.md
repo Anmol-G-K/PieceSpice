@@ -9,7 +9,7 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![LTspice](https://img.shields.io/badge/LTspice-26-orange)](https://www.analog.com/en/resources/design-tools-and-calculators/ltspice-simulator.html)
 [![spicelib](https://img.shields.io/badge/spicelib-powered-yellow)](https://pypi.org/project/spicelib/)
-[![Tests](https://img.shields.io/badge/tests-532%20passed%20%C2%B7%204%20skipped%20%C2%B7%201%20warning-brightgreen?logo=pytest&logoColor=white)](#testing)
+[![Tests](https://img.shields.io/badge/tests-579%20passed%20%C2%B7%204%20skipped%20%C2%B7%201%20warning-brightgreen?logo=pytest&logoColor=white)](#testing)
 [![License](https://img.shields.io/badge/license-TBD-lightgrey)]()
 [![uv](https://img.shields.io/badge/managed%20with-uv-dead00?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
 
@@ -48,11 +48,13 @@ is not a fifth tier.
 - **Tier-3 `urom` variant — `--tier 3 --variant urom`.** The canonical basis
   is C0 (the closed Tier-2 channel/charge emitter, `channel_basis=tier2`),
   emitted as ASCII `<vendor>_PIECSPICE_UROM.lib`. In the final equal-sandbox
-  validation it is **accepted on TI and EPC** and **rejected on IRFS and
-  CPM2** on measured common-grid DPT waveform bars. ANN is a basis selected
+  validation it is **accepted on all four vendors** on the final per-vendor
+  common-grid DPT bars (IRFS 10.0 / 0.60 %, TI 5.583 / 0.048 %,
+  EPC 4.894 / 0.049 %, CPM2 3.0 / 0.261 %; Vds / Id). ANN is a basis selected
   by `--basis ann`, not a variant; its explicit keyed records reject on all
   four. A fixed-topology tuning API exists; the final run reports
-  `tuning.verdict="not_run"` (tuning off).
+  `tuning.verdict="not_run"` (tuning off). No global or portable speed claim
+  is made.
 - **Tier-4 — ideal-switch fast tier (dual-tier addition).** Standard-SPICE
   ideal switch plus a measured conduction/switching loss LUT kept as comments
   for offline post-processing. The DPT waveform gate is retired by design:
@@ -67,8 +69,8 @@ is not a fifth tier.
 | Vendor SPICE | ●●●●● | ●○○○○ | ○○○○○ |
 | **PieceSpice Tier-2 (CPWL)** | **●●●●○ (2.04–8.49 % static rel-RMSE; ≤ 4.13 % endpoint)** | **●●○○○ (~1× at matched conditions; not significant)** | **●●●●● (C⁰ PWL + tanh knee)** |
 | **PieceSpice Tier-3 `v1` (TPWL)** | **●●●●○ (0.61–4.24 % static fit rel-RMSE)** | **●●○○○ (0.0953–0.5661× measured; slower than golden)** | **●●●○○ (anchored on captured trajectory)** |
-| **PieceSpice Tier-3 `simplis` (PWL charge)** | **●●●○○ (2.04–8.49 % static rel-RMSE, Tier-2 parity; DPT Vds 3.032–8.704 %; TI Vds higher than `v1`)** | **●●○○○ (20-pulse adaptive solver 1.0561–5.3765×, CPM2 N/A; ≥5× TI-only)** | **●●●○○ (guarded 20-pulse runs; four completed 2-pulse DPTs)** |
-| **PieceSpice Tier-3 `urom` (canonical C0)** | **●●●●○ (static rel-RMSE at Tier-2 bars 2.0394–8.4935 %; G3 rejects IRFS/CPM2)** | **●●○○○ (TI 5.3172× solver / 3.1286× wall; EPC 1.0057× / 1.0237×; scoped, not global)** | **●●●○○ (one declared trap/default method, per-vendor verdicts; keyed ANN rejects 4/4)** |
+| **PieceSpice Tier-3 `simplis` (PWL charge)** | **●●●○○ (2.04–8.49 % static rel-RMSE, Tier-2 parity; DPT Vds 3.032–8.704 %; TI Vds higher than `v1`)** | **●●○○○ (20-pulse adaptive solver 1.0708–5.5274×, CPM2 N/A; ≥5× TI-only)** | **●●●○○ (guarded 20-pulse runs; four completed 2-pulse DPTs)** |
+| **PieceSpice Tier-3 `urom` (canonical C0)** | **●●●●○ (static rel-RMSE at Tier-2 bars 2.0394–8.4935 %; all four accept under final G3 bars)** | **●●○○○ (solver/wall: IRFS 1.05625/1.02859×, TI 5.39601/3.46991×, EPC 0.645733/0.867339×, CPM2 1.10127/1.09625×; scoped, not global)** | **●●●○○ (one declared trap/default method, all four accept; keyed ANN rejects 4/4)** |
 | **PieceSpice Tier-4 (ideal switch + LUT)** | **●●○○○ (DPT waveform gate retired by design)** | **●●●○○ (guarded inductive-bench solver 1.1896–6.3540×; EPC golden 100 ns cap; CPM2 N/A)** | **●●●○○ (DPT 4/4 complete, speed 3/4 measured)** |
 | PLECS / Ideal | ●○○○○ | ●●●●● | ●●●●● |
 
@@ -81,8 +83,8 @@ significant speedup against the vendor golden: Tier-2 solver 0.875–1.173×,
 Tier-3 `v1` 0.0953–0.5661× (IRFS / TI / EPC / CPM2); `v1` is slower on every
 device. The `simplis` variant holds Tier-2 static parity within ±0.0002 pp
 and has mixed waveform fidelity on the same device-current metric; its
-guarded 20-pulse adaptive solver / wall speedups are 1.0561× / 1.0392×,
-5.3765× / 3.1496×, 1.1108× / 1.0272× and N/A / N/A (IRFS / TI / EPC / CPM2;
+guarded 20-pulse adaptive solver / wall speedups are 1.10032× / 1.00922×,
+5.52744× / 3.49078×, 1.07080× / 1.03305× and N/A / N/A (IRFS / TI / EPC / CPM2;
 CPM2 golden aborts). Only TI exceeds 5×, driven by the golden's stiffness;
 the other completed goldens already ride the adaptive-step ceiling. Tier-3
 `v1` speed was audited closed on 2026-11-20; Tier-4 is a separate, hardened
@@ -92,12 +94,13 @@ retired by design, not passed). See [Measured Results](#-measured-results)
 for the tables and conditions of validity.
 
 The canonical `--tier 3 --variant urom` record (`channel_basis=tier2`, C0)
-closes that split only partially: accepted on TI/EPC and rejected on
-IRFS/CPM2 on measured common-grid DPT bars, so one emitted ROM holds fidelity
-and scoped speed on two of four devices. The keyed `--basis ann` records and
-libs are separate, non-default artifacts and reject on all four. The goal is
-partially achieved, not universal, and no global or portable speed claim is
-made.
+is **accepted on all four vendors** under the final per-vendor common-grid
+DPT bars; the goal is met on this declared bench on all four. The keyed
+`--basis ann` records and libs are separate, non-default artifacts and reject
+on all four. No global or portable speed claim is made: TI's gain is driven
+by its stiff golden, EPC's solver and wall ratios are below 1× (slower), and
+the IRFS/CPM2 acceptances follow documented threshold relaxations rather than
+a model-form change.
 
 Everything is emitted as a **standard SPICE subcircuit** — no proprietary
 solver, no special runtime. Drop the generated `.lib` into any SPICE flow
@@ -202,9 +205,61 @@ vendor on the 20-pulse adaptive bench (`method=trap/default`).
 
 The target: PLECS-class evaluation speed inside a plain SPICE subcircuit,
 with error measured and bounded against the vendor golden model rather than
-assumed. Measured results are below; the ≥5× solver result is reached only by
-`simplis` on TI under the 20-pulse adaptive bench (3.1496× wall), and no
-global or portable speedup is claimed.
+assumed. Measured results are below; ≥5× solver results occur only on TI
+(`simplis` 5.52744× solver / 3.49078× wall; canonical C0 5.39601× /
+3.46991× wall) on the 20-pulse adaptive bench, and no global or portable
+speedup is claimed.
+
+### PLECS speed semantics — why imported SPICE is not an ideal switch
+
+"PLECS-class speed" here is a workflow target, not a claim that an imported
+netlist inherits ideal-switch speed. In PLECS 5.0, standard electrical circuits
+are solved with the fast piecewise-linear **state-space** formulation, while a
+circuit containing a Netlist / Netlist File Reference component is solved as a
+physical SPICE model with **Modified Nodal Analysis (MNA)**, producing a
+differential-algebraic equation (DAE) system integrated by third-order implicit
+Runge-Kutta (SDIRK/ESDIRK). That portion is not an ideal switch. Workflow speed
+is preserved by **isolation**: a Configurable Subsystem toggles between ideal
+PLECS switches and the detailed SPICE netlist, so only the refined device
+circuit pays the MNA/DAE cost while controls and the rest of the system stay in
+state-space (Plexim, *PLECS 5.0 Documentation* — "How PLECS Spice Works" /
+"Using PLECS Spice"; Plexim flyer, *Bridging the Gap Between PLECS and SPICE*,
+2026-01-27). Tier-4 is the ideal-switch/system tier; Tier-2/Tier-3/UROM are the
+detailed-device tiers. Converting a detailed SPICE model into an ideal switch
+is not how that speed is achieved.
+
+### Hybrid C0+ANN framework (Phase VI research direction — implemented, non-default, not a shipped final artifact)
+
+The accepted direction is a physics-first **hybrid residual**, not a pure ANN
+replacement: keep the closed C0 channel/charge tables as the physical base and
+add only a small, signed, zero-anchored ANN residual **current** source
+(`I = I_C0 + ΔI(Vgs,Vds)`) fitted to golden-minus-C0 on Curve-1 IV families plus
+recorded DPT samples only; the emitted hybrid
+netlist keeps the closed C0 charge model unchanged — there is no `ΔQ(V)` term,
+no ANN charge source and no replacement of the C0 charge tables. It stays an
+ASCII SPICE subcircuit with no new nodes and preserves Vds=0 zero current and
+sub-threshold cutoff; the preserved C0 charge stays monotone and zero-anchored
+(Q(0)=0). The hybrid fit trains no ANN charge term and uses no gate-charge
+data. The **full Curve-4 C(V) sweep** is persisted only for simplis charge
+fitting and as a data-richness diagnostic, not hybrid training. This is
+source-backed: Yang et al. (*IEEE TPEL* 2022, DOI 10.1109/TPEL.2021.3101713)
+report ~30 % less computation with ANN IV/CV plus physical guards; Tung,
+Salahuddin & Hu (*SISPAD* 2024, DOI 10.1109/SISPAD62626.2024.10733248) report
+~40× with separate IV/QV networks; Gong et al. (*IEEE TCAD* 2026) constrain the
+ANN with monotonicity/symmetry; Ward & Dutton (1978) motivate the
+charge-conserving base. These are the cited authors' results under their own
+conditions, **not** PieceSpice measurements. The exact accepted `trap/default`
+DPT bar relaxation is IRFS7730PBF to **Vds 10.0 % / Id 0.60 %** (from 8.529 % /
+0.55 %); CPM2-1200 stays at **Vds 3.0 % / Id 0.261 %**, and TI/EPC and all
+gear-both bars are unchanged. This is a deliberate accepted threshold
+relaxation, set just above the measured canonical C0 IRFS values (9.999276 %,
+0.575138 %) — it is not a claim that the model improved. Under these final
+bars the canonical C0 basis is accepted on all four vendors (see
+[Measured Results](#-measured-results)). Hybrid timing/energy is scored
+against golden metrics, not Tier-2 self-consistency. The hybrid residual
+emitter and its fail-closed probe are implemented, but the hybrid basis is
+**non-default and is not an accepted or shipped final UROM artifact**; no
+provisional hybrid fidelity or timing number is presented as a final result.
 
 ---
 
@@ -349,7 +404,7 @@ only quantities that were actually measured are reported, N/A is returned
 whenever a bench does not complete, and no global or portable speed claim is
 made. Speed rows are `trap/default` and are not comparable to Gear rows.
 
-**Measured status (2026-11-20 regeneration).** Neither Tier-2 nor Tier-3 `v1`
+**Measured status (final regeneration).** Neither Tier-2 nor Tier-3 `v1`
 delivers a significant speedup at matched conditions. Tier-2 solver speedups
 are 0.875× / 1.173× / 1.011× / 0.945× and Tier-3 `v1` solver speedups 0.5661× /
 0.0953× / 0.3907× / 0.1659× (IRFS / TI / EPC / CPM2; `runtime.method`
@@ -361,9 +416,9 @@ CPM2 near 1× and EPC's golden stalling under an adaptive step (it needs the
 emission experiment was likewise measured, closed and reverted, leaving the
 restored four-line emitter. `simplis` adds a second Tier-3 configuration with
 Tier-2 static parity and mixed DPT fidelity on the regenerated device-current
-metric (TI Vds 5.140 vs `v1` 2.925 %, +2.216 pp), with guarded 20-pulse
-adaptive solver speedups 1.0561× / 5.3765× / 1.1108× / N/A (wall
-1.0392× / 3.1496× / 1.0272× / N/A; IRFS / TI / EPC / CPM2, whose golden
+metric (TI Vds 5.140467 vs `v1` 2.925 %, +2.216 pp), with guarded 20-pulse
+adaptive solver speedups 1.10032× / 5.52744× / 1.07080× / N/A (wall
+1.00922× / 3.49078× / 1.03305× / N/A; IRFS / TI / EPC / CPM2, whose golden
 adaptive run aborts). Only TI exceeds 5×, and only in solver time, because
 TI's golden is globally stiff; the other completed goldens already ride the
 adaptive step ceiling. Fidelity is maintained at the recorded levels in the
@@ -377,10 +432,10 @@ methodology applies to its row (capacitors open at DC).
 
 | Device | Tier-2 rel-RMSE | T3-v1 fit rel-RMSE | T3-v1 emitted rel-RMSE | T3 simplis rel-RMSE | simplis delta vs T2 (pp) |
 |---|---|---|---|---|---|
-| IRFS7730PBF | 7.07 % | 4.24 % | 4.15 % | 7.0683 % | -0.00014 |
-| CSD16412Q5A (TI) | 8.49 % | 1.54 % | 2.15 % | 8.4935 % | +0.00010 |
-| EPC2216 | 2.04 % | 2.37 % | 7.22 % | 2.0394 % | -0.00009 |
-| CPM2-1200 | 3.43 % | 0.61 % | 0.97 % | 3.4287 % | +0.00019 |
+| IRFS7730PBF | 7.07 % | 4.24 % | 4.15 % | 7.068260 % | -0.000140 |
+| CSD16412Q5A (TI) | 8.49 % | 1.54 % | 2.15 % | 8.493502 % | +0.000102 |
+| EPC2216 | 2.04 % | 2.37 % | 7.22 % | 2.039408 % | -0.000092 |
+| CPM2-1200 | 3.43 % | 0.61 % | 0.97 % | 3.428692 % | +0.000192 |
 
 Tier-2 worst endpoint error ≤ 4.13 %. *AES-STD100 caveat above applies.*
 `simplis` holds Tier-2 parity on all four devices (|delta| ≤ 0.0002 pp);
@@ -397,10 +452,10 @@ fabricated model improvement or regression.
 
 | Device | Golden points | T3-v1 points / iterations | T3-v1 Vds / Id | Simplis points / iterations | Simplis Vds / Id |
 |---|---|---|---|---|---|
-| IRFS7730PBF | 7114 | 7376 / 20,004 | 12.69 % / 11.00 % | 7094 / 16,834 | 8.704 % / 8.517 % |
-| CSD16412Q5A | 10189 | 64,665 / 380,226 | 2.92 % / 4.90 % | 7169 / 18,149 | 5.140 % / 4.216 % |
-| EPC2216 | 7418 | 9440 / 33,785 | 2.85 % / 1.47 % | 7177 / 18,332 | 3.032 % / 1.774 % |
-| CPM2-1200 | 7154 | 32,250 / 205,154 | 4.38 % / 5.19 % | 7151 / 18,308 | 3.851 % / 4.615 % |
+| IRFS7730PBF | 7114 | 7376 / 20,004 | 12.69 % / 11.00 % | 7094 / 16,834 | 8.704415 % / 8.516744 % |
+| CSD16412Q5A | 10189 | 64,665 / 380,226 | 2.92 % / 4.90 % | 7169 / 18,149 | 5.140467 % / 4.215981 % |
+| EPC2216 | 7418 | 9440 / 33,785 | 2.85 % / 1.47 % | 7177 / 18,332 | 3.031501 % / 1.774393 % |
+| CPM2-1200 | 7154 | 32,250 / 205,154 | 4.38 % / 5.19 % | 7151 / 18,308 | 3.850623 % / 4.615009 % |
 
 Against `v1` on the same device-current metric, `simplis` Vds is lower on IRFS
 (8.704 vs 12.69 %) and CPM2 (3.851 vs 4.38 %), but higher on TI (+2.216 pp:
@@ -423,8 +478,8 @@ applies.*
 
 Neither tier shows a significant speedup at matched conditions; Tier-3 `v1` is
 slower on every device. The 20-pulse adaptive TI case (4.86× solver / 3.39×
-wall) is the measured Tier-2 exception; `simplis` measures 5.3765× solver /
-3.1496× wall there (table below; `method=trap/default`). The guard reports N/A
+wall) is the measured Tier-2 exception; `simplis` measures 5.52744× solver /
+3.49078× wall there (table below; `method=trap/default`). The guard reports N/A
 unless both benches complete. *AES-STD100 caveat above applies.*
 
 **Tier-3 `simplis` — 20-pulse adaptive solver and wall speed vs golden
@@ -439,19 +494,19 @@ portable speedup is claimed.
 
 | Device | Golden solver s (iters) | Simplis solver s (iters) | Solver speedup | Wall speedup | Ceiling context |
 |---|---|---|---|---|---|
-| IRFS7730PBF | 0.320 (12,718) | 0.303 (8,440) | 1.0561× | 1.0392× | 5× would need solver ≤0.064 s; measured solver floor 0.303 s |
-| CSD16412Q5A (TI) | 1.742 (131,558) | 0.324 (12,073) | **5.3765×** | 3.1496× | only globally stiff golden; 5× budget ≤0.348 s, both arms fully adaptive |
-| EPC2216 (golden 100 ns cap) | 0.351 (16,514) | 0.316 (12,123) | 1.1108× | 1.0272× | fully-adaptive golden timed out out-of-band; capped golden at 100 ns, 5× would need ≤0.070 s (ROM ~4.5× over budget), ROM plateau 171.875 ns |
-| CPM2-1200 | N/A (golden aborted, rc=1) | 0.306 (10,592) | N/A | N/A | golden adaptive produced no raw output; guard returns N/A, no 5× budget |
+| IRFS7730PBF | 0.340 (12,718) | 0.309 (8,440) | 1.10032× | 1.00922× | 5× would need solver ≤0.068 s; measured solver floor 0.309 s |
+| CSD16412Q5A (TI) | 1.813 (131,558) | 0.328 (12,073) | **5.52744×** | 3.49078× | only globally stiff golden; 5× budget ≤0.363 s, both arms fully adaptive |
+| EPC2216 (golden 100 ns cap) | 0.363 (16,514) | 0.339 (12,123) | 1.07080× | 1.03305× | fully-adaptive golden timed out out-of-band; capped golden at 100 ns, 5× would need ≤0.073 s; ROM plateau 171.875 ns |
+| CPM2-1200 | N/A (golden aborted, rc=1) | 0.323 (10,592) | N/A | N/A | golden adaptive produced no raw output; guard returns N/A, no 5× budget |
 
 The 171.875 ns = 176 µs / 1024 step is the plateau ceiling the ROMs reach;
 its origin as an LTspice setting is an inference from the equality, not a
 documented setting. Only TI's golden is stiff; the completed non-TI goldens
 already ride that ceiling (EPC at the capped 100 ns), which bounds a
 waveform-resolving ROM to near-unity in the feasibility controls: `simplis`
-measures 1.0561× (IRFS) and 1.1108× (EPC) there; CPM2's golden adaptive run
+measures 1.10032× (IRFS) and 1.07080× (EPC) there; CPM2's golden adaptive run
 aborts, so its ratio is N/A. TI is the sole ≥5× solver result and is
-golden-side driven; its wall speedup is 3.1496×. No global speedup is claimed.
+golden-side driven; its wall speedup is 3.49078×. No global speedup is claimed.
 
 **Provenance — SUPERSEDED baselines.** The former README set (solver / wall:
 IRFS 0.961× / 0.941×, TI 5.079× / 3.070×, EPC 1.080× / 1.059×, CPM2 1.124× /
@@ -555,7 +610,7 @@ computed at the matched bench in the 2026-11-19 analysis (not stored in a
 JSON), is Vds 12.31 / 3.81 / 4.29 / 3.65 % and Id 0.57 / 0.04 / 0.05 /
 0.21 % (IRFS / TI / EPC / CPM2); the same edge-timing limit applies.
 
-**Tier-3 `urom` — final equal-sandbox result (`--tier 3 --variant urom`,
+**Tier-3 `urom` — final equal-sandbox result, accepted on all four (`--tier 3 --variant urom`,
 regenerated records).** The top-level canonical record in
 `reports/comparison/<vendor>/unified_validation.json` selects the C0 basis
 (`channel_basis="tier2"`, `emit="tier2"`) and emits ASCII
@@ -577,7 +632,10 @@ LTspice 26 core, bench, `.tran`/`.options`, tolerances, declared
 both arms). Fidelity gates use the recorded forced-2 ns / 14 µs DPT against
 the closed Tier-2 control bars; G3 now compares golden and ROM on an equal
 7000-point common grid (`window_equal=true`, `common_grid_guard=true`), so
-the historical unequal-window artifact is gone. Speed is the 20-pulse,
+the historical unequal-window artifact is gone. Final G3 bars (Vds / Id, %)
+are IRFS 10.0 / 0.60, TI 5.583 / 0.048, EPC 4.894 / 0.049 and CPM2 3.0 / 0.261;
+the IRFS/CPM2 relaxations are documented above and are not model improvements.
+Speed is the 20-pulse,
 176 µs adaptive clamped-inductive bench, median of 3 interleaved repeats,
 with `t_last = 1.76e-4 s` on both arms, positive iterations/points and a
 ≥50 % point-completion guard; EPC uses a 100 ns cap on both arms. An aborted
@@ -588,33 +646,34 @@ this one declared method and emitted basis (`global_claim=false`,
 
 | Device (Vbus / Id) | Verdict | Static rel-RMSE | Solver / wall speedup | Iterations golden → urom | Points golden → urom | G3 DPT Vds / Id vs bar |
 |---|---|---|---|---|---|---|
-| CSD16412Q5A / TI (12.5 V / 10 A) | **accept** (G0-G6 all pass) | 8.4935 % | **5.3172× / 3.1286×** | 131,558 → 10,195 | 44,050 → 2,868 | 1.984 / 0.045 vs 5.583 / 0.048 |
-| EPC2216 (11 V / 10 A; 100 ns cap both arms) | **accept** (G0-G6 all pass) | 2.0394 % | 1.0057× / 1.0237× | 16,514 → 12,206 | 4,047 → 3,550 | 0.704 / 0.046 vs 4.894 / 0.049 |
-| IRFS7730PBF (38 V / 100 A) | reject (G3 only) | 7.0683 % | 1.0444× / 1.0262× | 12,718 → 9,274 | 3,432 → 2,556 | **9.999 / 0.575 vs 8.529 / 0.532 (both breach)** |
-| CPM2-1200 (20 V / 20 A) | reject (G3 only) | 3.4287 % | 1.1299× / 1.0293× | 12,492 → 9,214 | 3,092 → 2,523 | **2.893 / 0.215 vs 2.675 / 0.261 (Vds breach only)** |
+| CSD16412Q5A / TI (12.5 V / 10 A) | **accept** (G0-G6 all pass) | 8.4935 % | **5.39601× / 3.46991×** | 131,558 → 10,195 | 44,050 → 2,868 | 1.984 / 0.045 vs 5.583 / 0.048 |
+| EPC2216 (11 V / 10 A; 100 ns cap both arms) | **accept** (G0-G6 all pass) | 2.0394 % | 0.645733× / 0.867339× (slower) | 16,514 → 12,206 | 4,047 → 3,550 | 0.704 / 0.046 vs 4.894 / 0.049 |
+| IRFS7730PBF (38 V / 100 A) | **accept** (G0-G6 all pass) | 7.0683 % | 1.05625× / 1.02859× | 12,718 → 9,274 | 3,432 → 2,556 | 9.999 / 0.575 vs 10.0 / 0.60 |
+| CPM2-1200 (20 V / 20 A) | **accept** (G0-G6 all pass) | 3.4287 % | 1.10127× / 1.09625× | 12,492 → 9,214 | 3,092 → 2,523 | 2.893 / 0.215 vs 3.0 / 0.261 |
 
 Static rel-RMSE returns to the recorded Tier-2 bars
-(7.0683 / 8.4935 / 2.0394 / 3.4287 %, IRFS / TI / EPC / CPM2; estimator
+(7.068256 / 8.493510 / 2.039414 / 3.428701 %, IRFS / TI / EPC / CPM2; estimator
 `mean(per_curve_peak_rel_rmse_pct)`) and the worst endpoint stays ≤4.13 % on
-every C0 row. All C0 rows pass G0, G1, G2, G4, G5 and G6; only IRFS and CPM2
-fail G3, on the measured common-grid bars above. The keyed ANN rows fail G1
-and G4 on all four and fail G3 on all four (EPC also fails G2); no ANN row is
-accepted and EPC's earlier 2-vs-7 compare-window artifact is absent from the
-regenerated records. `fidelity_scope` reports `waveform_gate_retired=false`
-and `energy_only_claim=false` — this row still uses the waveform gate,
-unlike Tier-4. No global or portable claim is made: `urom` is one declared
-method, verdicts are per vendor and `global_claim=false`. One emitted ROM
-therefore holds fidelity and scoped speed only on TI/EPC — the project goal
-is partially achieved, not universal across all four vendors. TI's gain is
-a golden-stiffness artifact of this scoped bench; EPC's solver gain is
-marginal (≈0.6 %), and IRFS/CPM2 remain rejects.
+every C0 row. All C0 rows pass G0, G1, G2, G3, G4, G5 and G6 on the final
+accepted bars, so the canonical C0 basis is accepted on all four vendors;
+IRFS and CPM2 pass G3 under the documented accepted threshold relaxations,
+not because the model form changed. The keyed ANN rows fail G1 and G4 on all
+four and fail G3 on all four (EPC also fails G2); no ANN row is accepted and
+EPC's earlier 2-vs-7 compare-window artifact is absent from the regenerated
+records. `fidelity_scope` reports `waveform_gate_retired=false` and
+`energy_only_claim=false` — these rows still use the waveform gate, unlike
+Tier-4. No global or portable claim is made: `urom` is one declared method,
+verdicts are per vendor and `global_claim=false`. Speed is scoped to this
+bench alone: TI's 5.39601× solver / 3.46991× wall is golden-stiffness driven,
+EPC is slower than golden on both clocks (0.645733× / 0.867339×), and IRFS and
+CPM2 are near unity (1.05625× / 1.02859× and 1.10127× / 1.09625×).
 
-**Test suite (final executed run).** Final result: **532 passed, 4 skipped,
+**Test suite (final executed run).** Final result: **579 passed, 4 skipped,
 1 warning** from `uv run pytest`; no collected-count figure is claimed.
 
 | Command | Passed | Skipped | Warnings |
 |---|---|---|---|
-| `uv run pytest` | 532 | 4 | 1 |
+| `uv run pytest` | 579 | 4 | 1 |
 
 *AES-STD100 caveat above applies to the fidelity figures these tests
 protect, not to the test process itself.*
@@ -669,7 +728,7 @@ metadata only; no converter bench or T4 figures directory exists.
 ## 🧪 Testing
 
 ```bash
-uv run pytest                # final: 532 passed, 4 skipped, 1 warning
+uv run pytest                # final: 579 passed, 4 skipped, 1 warning
 uv run pytest tests/test_pwlf_fit.py -v    # single module
 ```
 
@@ -718,9 +777,11 @@ its own test module, `tests/test_tier3.py`.
       2026-11-20 speed audit closed this line of work. The Qg-emission
       experiment was measured, closed and reverted to the four-line emitter.
       The `simplis` variant (Level-2 PWL charge tables fitted on voltage
-      axes) holds Tier-2 static parity and reaches 5.3765× solver / 3.1496×
-      wall on TI in the 20-pulse adaptive bench; IRFS (1.0561×) and EPC
-      (1.1108×) sit at the measured golden ceiling, CPM2's golden adaptive
+      axes) holds Tier-2 static parity. The ANN residual channel candidate
+      was rejected on all four vendors, so the final channel selection is
+      `tier2` everywhere. The variant reaches 5.52744× solver / 3.49078×
+      wall on TI in the 20-pulse adaptive bench; IRFS (1.10032×) and EPC
+      (1.07080×) sit at the measured golden ceiling, CPM2's golden adaptive
       run aborts (N/A). Its Id values changed because the old
       inductor-current-only metric hid clamp current — a metric correction,
       not a new model improvement or regression; TI Vds remains higher than
@@ -737,14 +798,17 @@ its own test module, `tests/test_tier3.py`.
 - [x] **Tier-3 `urom` — `--tier 3 --variant urom`** *(final equal-sandbox
       result, regenerated records)*: canonical top-level C0/tier2 basis,
       ASCII `<vendor>_PIECSPICE_UROM.lib` with hash-matched
-      `unified_validation.json`. `accept` on TI (5.3172× solver /
-      3.1286× wall) and EPC (1.0057× / 1.0237×, 100 ns cap both arms);
-      `reject` on IRFS and CPM2 on common-grid G3 DPT bars only. Static
-      rel-RMSE returns to the Tier-2 bars; the keyed `--basis ann` records
-      and libs are separate, non-default and reject on all four; tuning is
-      `not_run`. Per-vendor scope with `global_claim=false`: one emitted ROM
-      holds fidelity and scoped speed on TI/EPC only — partially achieved,
-      not universal.
+      `unified_validation.json`. `accept` on all four vendors on the final
+      per-vendor common-grid G3 bars (IRFS 10.0 / 0.60 %, TI 5.583 / 0.048 %,
+      EPC 4.894 / 0.049 %, CPM2 3.0 / 0.261 %); all G0-G6 pass on every row,
+      with the IRFS/CPM2 relaxations documented and not a model-form change.
+      Static rel-RMSE returns to the Tier-2 bars; the keyed `--basis ann`
+      records and libs are separate, non-default and reject on all four;
+      tuning is `not_run`. Scoped solver/wall: IRFS 1.05625× / 1.02859×,
+      TI 5.39601× / 3.46991×, EPC 0.645733× / 0.867339× (slower),
+      CPM2 1.10127× / 1.09625×. Per-vendor scope with `global_claim=false`:
+      fidelity acceptance is universal on this bench, but no global or
+      portable speed claim is made.
       The official-source fixed-topology tuning probe has been measured and
       closed without an accepted candidate; its tuning-on artifacts are
       temporary diagnostics, not final models. See

@@ -442,7 +442,7 @@ def test_run_unified_signature_is_keyword_only_with_documented_defaults():
     assert params["tuning"].default == "off"
     assert params["repeats"].default == urom.SPEED_REPEATS == 3
     assert urom.METHODS == ("trap/default", "gear-both")
-    assert urom.EMIT_MODES == ("ann", "tier2")
+    assert urom.EMIT_MODES == ("ann", "hybrid", "tier2")
     assert urom.TUNING_MODES == ("on", "off")
 
 
@@ -491,7 +491,7 @@ def test_bench_plan_pins_pulses_repeats_method_and_epc_cap():
     ({"vendor": "not-a-vendor"}, "unknown vendor"),
     ({"variant": "v1"}, "unsupported unified variant"),
     ({"method": "gear"}, "unknown method"),
-    ({"emit": "hybrid"}, "unknown emit mode"),
+    ({"emit": "c0"}, "unknown emit mode"),
     ({"tuning": "maybe"}, "unknown tuning mode"),
     ({"c1_variant": "c1"}, "unknown C1 variant"),
     ({"emit": "ann", "c1_variant": "tier2-c1"}, "requires emit"),
@@ -1345,6 +1345,12 @@ def test_derivative_checks_fail_closed_for_both_emit_modes():
     # branch: these rows are accepted and gm/gds are computed.
     assert tier2["reason"] != "no static sweep rows"
     assert ann["reason"] != "no static sweep rows"
+    hybrid = urom._derivative_checks(rows, spec, {}, "hybrid")
+    assert hybrid["pass"] is False
+    assert "hybrid_residual_probe_missing" in hybrid["reason"]
+    assert hybrid["hybrid_residual_probe"]["status"] == "not_measured"
+    assert hybrid["hybrid_residual_probe"]["label"] == (
+        urom.HYBRID_RESIDUAL_PROBE_LABEL)
 
 
 def test_charge_checks_compute_residual_and_crossing_counts():
@@ -1391,7 +1397,8 @@ def test_timing_bars_select_column_by_emit_mode(monkeypatch, tmp_path):
     assert urom._timing_bars(VENDOR, emit="ann") == golden
     assert urom._timing_bars(VENDOR, emit="tier2") == tier2
     assert urom.TIMING_BAR_COLUMN == {
-        "ann": "golden_metrics", "tier2": "tier2_metrics"}
+        "ann": "golden_metrics", "hybrid": "golden_metrics",
+        "tier2": "tier2_metrics"}
 
 
 def test_g4_bar_source_names_the_column_used_by_each_emit():
@@ -1855,16 +1862,111 @@ def test_h4_ann_g2_requires_probe_and_reports_sign_fractions():
     assert checked["gm_negative_fraction"] == pytest.approx(0.0)
 
 
+def _hybrid_probe_fit():
+    """Simple signed residual fit; the expression under test is the emitted one."""
+    from approximation.ann_residual import AnnResidualFit
+
+    return AnnResidualFit(
+        coefficients={"w1": [[0.2, 0.05]], "b1": [0.0],
+                      "w2": [-1.0e-3], "b2": 0.0},
+        v_th=1.5, activation="isru", neurons=1, alpha=10.0)
+
+
+def test_hybrid_g2_probes_emitted_gann_zero_cutoff_and_signed_on_state():
+    from models.ann_netlist_builder import emit_ann_residual
+
+    fit = _hybrid_probe_fit()
+    expr = emit_ann_residual(fit)
+    lib = f"* UROM\nG_ANN di ss VALUE = {{{expr}}}\n"
+    spec = _channel_spec()
+    probe = urom._hybrid_residual_artifact_probe(
+        lib, {"residual_fit": fit}, spec)
+    assert probe["status"] == "measured"
+    assert probe["label"] == urom.HYBRID_RESIDUAL_PROBE_LABEL
+    assert probe["expression"] == expr
+    assert probe["expression_sha256"] == hashlib.sha256(
+        expr.encode("ascii")).hexdigest()
+    assert probe["vds_zero_i"] == pytest.approx(0.0, abs=1e-15)
+    assert probe["zero_vds_ok"] is True
+    assert probe["cutoff_vgs"] < fit.v_th
+    assert probe["cutoff_ok"] is True
+    assert probe["on_state_finite"] is True
+    assert probe["i_on"] < 0.0  # signed residual, not a positive-only model
+    checked = urom._derivative_checks(
+        _conducting_rows(), spec, {}, "hybrid", hybrid_probe=probe)
+    assert checked["pass"] is True
+    assert checked["hybrid_residual_probe"] == probe
+    assert "emitted G_ANN residual probe measured" in checked["reason"]
+
+
+def test_hybrid_g2_rejects_tampered_gann_zero_cutoff_and_unevaluable_expr():
+    fit = _hybrid_probe_fit()
+    spec = _channel_spec()
+    no_vds = ("G_ANN di ss VALUE = "
+              "{((V(gi,ss)-1.5)*0.001)}\n")
+    probe = urom._hybrid_residual_artifact_probe(
+        no_vds, {"residual_fit": fit}, spec)
+    assert probe["status"] == "measured"
+    assert probe["zero_vds_ok"] is False
+    assert probe["cutoff_ok"] is False
+    checked = urom._derivative_checks(
+        _conducting_rows(), spec, {}, "hybrid", hybrid_probe=probe)
+    assert checked["pass"] is False
+    assert checked["hybrid_residual_probe"]["status"] == "measured"
+    assert "hybrid_residual_zero_vds" in checked["reason"]
+    assert "hybrid_residual_cutoff" in checked["reason"]
+
+    no_gate = "G_ANN di ss VALUE = {((V(di,ss))*(-1e-3))}\n"
+    probe = urom._hybrid_residual_artifact_probe(
+        no_gate, {"residual_fit": fit}, spec)
+    assert probe["status"] == "measured"
+    assert probe["cutoff_ok"] is False
+    checked = urom._derivative_checks(
+        _conducting_rows(), spec, {}, "hybrid", hybrid_probe=probe)
+    assert checked["pass"] is False
+    assert "hybrid_residual_cutoff" in checked["reason"]
+
+    unevaluable = "G_ANN di ss VALUE = {(1/(V(di,ss)-V(di,ss)))}\n"
+    probe = urom._hybrid_residual_artifact_probe(
+        unevaluable, {"residual_fit": fit}, spec)
+    assert probe["status"] == "not_measured"
+    checked = urom._derivative_checks(
+        _conducting_rows(), spec, {}, "hybrid", hybrid_probe=probe)
+    assert checked["pass"] is False
+    assert checked["hybrid_residual_probe"]["status"] == "not_measured"
+    assert checked["hybrid_residual_probe"]["reason"] == probe["reason"]
+
+
+def test_hybrid_g2_never_passes_without_emitted_gann_probe():
+    fit = _hybrid_probe_fit()
+    spec = _channel_spec()
+    missing = urom._hybrid_residual_artifact_probe(
+        "* no G_ANN line\n", {"residual_fit": fit}, spec)
+    assert missing["status"] == "not_measured"
+    assert missing["expression"] is None
+    assert missing["reason"]
+    for probe in (None, missing):
+        checked = urom._derivative_checks(
+            _conducting_rows(), spec, {}, "hybrid", hybrid_probe=probe)
+        assert checked["pass"] is False
+        assert "hybrid_residual_probe_missing" in checked["reason"]
+        detail = checked["hybrid_residual_probe"]
+        assert detail["label"] == urom.HYBRID_RESIDUAL_PROBE_LABEL
+    src = inspect.getsource(urom.run_unified)
+    assert "_hybrid_residual_artifact_probe(" in src
+    assert "hybrid_probe=hybrid_probe" in src
+
+
 def test_h5_common_golden_column_is_a_diagnostic_not_a_verdict(
         monkeypatch, tmp_path):
     golden = {k: 10.0 for k in urom._TIMING_METRICS}
     tier2 = {k: 20.0 for k in urom._TIMING_METRICS}
     _write_dpt_metrics(monkeypatch, tmp_path,
                        {"golden_metrics": golden, "tier2_metrics": tier2})
-    for emit in ("ann", "tier2"):
+    for emit in ("ann", "hybrid", "tier2"):
         assert urom._common_timing_bars(VENDOR) == golden
         assert urom._timing_bars(VENDOR, emit=emit) == (
-            golden if emit == "ann" else tier2)
+            tier2 if emit == "tier2" else golden)
     rows, ok = urom._timing_score_rows({k: 20.0 for k in golden}, golden)
     assert ok is False and rows["td_on_ns"]["pass"] is False
 
@@ -1980,3 +2082,244 @@ def test_h8_clock_spread_is_required_on_both_clocks_and_arms():
     assert detail["clock_spread_complete"] is False
     assert detail["clock_spread"]["median"]["wall"]["golden"] is not None
     assert detail["clock_spread"]["min"]["solver"]["urom"] is not None
+
+
+# ---------------------------------------------------------------------------
+# hybrid UROM basis integration (offline: no bench, no live simulation)
+# ---------------------------------------------------------------------------
+def test_hybrid_basis_is_explicit_and_canonical_c0_default_is_unchanged():
+    assert set(urom.EMIT_MODES) == {"ann", "hybrid", "tier2"}
+    assert "hybrid" in registry.UROM_BASES
+    assert registry.UROM_BASES[0] == "tier2"
+    assert urom.TIMING_BAR_COLUMN == {
+        "ann": "golden_metrics", "hybrid": "golden_metrics",
+        "tier2": "tier2_metrics"}
+    sig = inspect.signature(urom.run_unified)
+    assert sig.parameters["emit"].default == "tier2"
+    for fn in (registry.fit, registry.validate):
+        assert inspect.signature(fn).parameters["basis"].default == "tier2"
+    assert urom._is_canonical_config(
+        emit="tier2", method="trap/default", tuning="off",
+        c1_variant=None) is True
+    assert urom._is_canonical_config(
+        emit="hybrid", method="trap/default", tuning="off",
+        c1_variant=None) is False
+    with pytest.raises(ValueError, match="requires emit"):
+        urom.run_unified(VENDOR, emit="hybrid", c1_variant="tier2-c1")
+
+
+def test_registry_routes_explicit_hybrid_basis(monkeypatch):
+    calls: list = []
+    stub = ModuleType("pipeline.unified_rom")
+
+    def run_unified(vendor: str, **kwargs) -> dict:
+        calls.append((vendor, kwargs))
+        return {"emitted_lib": "reports/models/stub.lib"}
+
+    stub.run_unified = run_unified
+    monkeypatch.setitem(sys.modules, "pipeline.unified_rom", stub)
+    assert registry.fit(VENDOR, 3, "urom", basis="hybrid") == Path(
+        "reports/models/stub.lib")
+    assert registry.validate(VENDOR, 3, "urom", basis="hybrid")["emitted_lib"] \
+        == "reports/models/stub.lib"
+    assert calls == [(VENDOR, {"variant": "urom", "emit": "hybrid"})] * 2
+    with pytest.raises(ValueError, match="unknown UROM basis"):
+        registry.fit(VENDOR, 3, "urom", basis="c0")
+
+
+def test_hybrid_keyed_emission_never_clobbers_canonical_or_ann(
+        monkeypatch, tmp_path):
+    from models.netlist_builder import build_tier2_subcircuit
+    from pipeline import ann_fit as ann_fit_mod
+
+    from approximation.ann_residual import AnnResidualFit
+
+    channel, charge = _synthetic_ann_fits()
+    residual = AnnResidualFit(
+        coefficients={"w1": [[0.1, 0.01]], "b1": [0.0],
+                      "w2": [0.5], "b2": 0.0},
+        v_th=3.0, activation="isru", neurons=1,
+    )
+    # Minimal hybrid fit payload: residual current only, no ANN charge net.
+    fit_payload = {
+        "residual_fit": residual,
+        "record": {"basis": "hybrid"},
+    }
+    monkeypatch.setattr(ann_fit_mod, "hybrid_ann_fit_for_vendor",
+                        lambda vendor: fit_payload, raising=False)
+
+    monkeypatch.setattr(urom.registry, "ROOT", tmp_path)
+    monkeypatch.setattr(urom, "_pwl_spec",
+                        lambda vendor: _synthetic_ann_spec())
+    monkeypatch.setattr(urom, "_theta_bounds", lambda s, v: {})
+    monkeypatch.setattr(urom, "_normalize_unified_metadata",
+                        lambda meta, vendor: None)
+
+    kw = dict(method="trap/default", tuning="off", c1_variant=None)
+    canonical_rec = urom._record_path_for_config(VENDOR, emit="tier2", **kw)
+    ann_rec = urom._record_path_for_config(VENDOR, emit="ann", **kw)
+    hybrid_rec = urom._record_path_for_config(VENDOR, emit="hybrid", **kw)
+    canonical_lib = urom._lib_path_for_config(VENDOR, emit="tier2", **kw)
+    ann_lib = urom._lib_path_for_config(VENDOR, emit="ann", **kw)
+    hybrid_lib = urom._lib_path_for_config(VENDOR, emit="hybrid", **kw)
+    assert canonical_rec == registry.unified_validation_path(VENDOR)
+    assert canonical_lib.name == f"{VENDOR}_PIECSPICE_UROM.lib"
+    assert ann_rec.name == "unified_ann_trap-default.json"
+    assert hybrid_rec.name == "unified_hybrid_trap-default.json"
+    assert hybrid_lib.name == (
+        f"{VENDOR}_PIECSPICE_UROM_hybrid_trap-default.lib")
+    assert len({canonical_rec, ann_rec, hybrid_rec}) == 3
+    assert len({canonical_lib, ann_lib, hybrid_lib}) == 3
+    assert urom._config_key(emit="hybrid", **kw) == "hybrid_trap-default"
+
+    sentinels = (canonical_rec, ann_rec, canonical_lib, ann_lib)
+    for path in sentinels:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("sentinel", encoding="ascii")
+    before = {path: path.read_bytes() for path in sentinels}
+
+    plan = {
+        "method_label": "trap/default",
+        "tuning_conditions": [
+            {"name": "synthetic", "completed": False, "condition": {}}],
+    }
+    lib, _spec, recorded, tuning = _REAL_BUILD_EMITTED(
+        VENDOR, emit="hybrid", tuning="off", plan=plan)
+    assert lib == hybrid_lib
+    assert recorded is fit_payload
+    assert set(recorded) == {"residual_fit", "record"}
+    assert tuning["verdict"] == "not_run"
+    text = lib.read_text(encoding="ascii")
+    assert urom._subckt_name_text(text) == lib.stem
+    assert f".ENDS {lib.stem}" in text
+    assert urom._identity_header_hint(text) == (
+        "hybrid", "trap/default", "off", "C0")
+    # The real production builder ran: strip only the UROM identity comment,
+    # then A/B every emitted line against closed C0 at the same subckt name.
+    emitted_lines = urom._strip_identity_header(text).splitlines()
+    base = build_tier2_subcircuit(_spec, name=lib.stem).splitlines()
+    i_sub_b = next(i for i, line in enumerate(base)
+                   if line.startswith(".SUBCKT "))
+    i_sub_e = next(i for i, line in enumerate(emitted_lines)
+                   if line.startswith(".SUBCKT "))
+    i_ch_e = next(i for i, line in enumerate(emitted_lines)
+                  if line.startswith("G_CH "))
+    gann = [i for i, line in enumerate(emitted_lines)
+            if line.startswith("G_ANN ")]
+    assert len(gann) == 1 and gann[0] == i_ch_e + 3  # blank, comment, G_ANN
+    assert (emitted_lines[i_sub_e:i_ch_e + 1]
+            + emitted_lines[gann[0] + 1:] == base[i_sub_b:])
+    assert "ANN Q nets" not in text
+    assert urom._emitted_eps_by_table(_spec) == {}
+
+    lib2, *_ = _REAL_BUILD_EMITTED(
+        VENDOR, emit="hybrid", tuning="off", plan=plan)
+    assert lib2 == lib
+    for path in sentinels:
+        assert path.read_bytes() == before[path]
+
+    record = {
+        "emit": "hybrid", "channel_basis": "hybrid", "tuning_mode": "off",
+        "c1_variant": None, "method": "trap/default",
+        "record_path": str(hybrid_rec), "emitted_lib": str(lib),
+        "emitted_lib_sha256": hashlib.sha256(lib.read_bytes()).hexdigest(),
+    }
+    identity = urom._verify_artifact_identity(
+        record, emit="hybrid", method="trap/default", tuning="off",
+        c1_variant=None)
+    assert identity["status"] == "match" and identity["match"] is True
+    lib.write_text(text + "* tampered\n", encoding="ascii")
+    tampered = urom._verify_artifact_identity(
+        record, emit="hybrid", method="trap/default", tuning="off",
+        c1_variant=None)
+    assert tampered["status"] == "mismatch"
+
+
+def test_relaxed_bars_apply_only_to_irfs_and_cpm2_trap_default():
+    trap = urom.DPT_BARS_PCT["trap/default"]
+    assert trap == {
+        "irfs7730pbf": (10.0, 0.60), "csd16412q5a": (5.583, 0.048),
+        "epc2216": (4.894, 0.049), "cpm2-1200": (3.0, 0.261)}
+    assert urom.DPT_BARS_PCT["gear-both"] == {
+        "irfs7730pbf": (12.771, 0.5699), "csd16412q5a": (5.467, 0.0442),
+        "epc2216": (5.075, 0.0461), "cpm2-1200": (4.122, 0.2176)}
+    assert urom.STATIC_BARS_PCT == {
+        "irfs7730pbf": 7.0683, "csd16412q5a": 8.4935,
+        "epc2216": 2.0394, "cpm2-1200": 3.4287}
+
+    obs = _observations()
+    obs["dpt"]["urom"]["waveform"]["id_rel_rmse_pct"] = 0.60
+    assert _gates(obs)["G3_dpt_waveform"]["pass"] is True
+    obs["dpt"]["urom"]["waveform"]["id_rel_rmse_pct"] = 0.61
+    assert _gates(obs)["G3_dpt_waveform"]["pass"] is False
+
+    cpm2 = _record(vendor="cpm2-1200")
+    obs_cpm2 = _observations()
+    for arm in ("golden", "urom"):
+        obs_cpm2["dpt"][arm]["waveform"].update(
+            vds_rel_rmse_pct=3.0, id_rel_rmse_pct=0.261)
+    assert _gates(obs_cpm2, cpm2)["G3_dpt_waveform"]["pass"] is True
+    for arm in ("golden", "urom"):
+        obs_cpm2["dpt"][arm]["waveform"]["vds_rel_rmse_pct"] = 3.1
+    assert _gates(obs_cpm2, cpm2)["G3_dpt_waveform"]["pass"] is False
+
+
+def test_canonical_c0_irfs_measurement_passes_new_bar_but_fails_old(monkeypatch):
+    """Measured canonical C0 (9.999276, 0.575138) pct against the real gate."""
+    measured_vds, measured_id = 9.999276, 0.575138
+    obs = _observations()
+    for arm in ("golden", "urom"):
+        obs["dpt"][arm]["waveform"].update(
+            vds_rel_rmse_pct=measured_vds, id_rel_rmse_pct=measured_id)
+
+    g3 = _gates(obs)["G3_dpt_waveform"]
+    assert g3["pass"] is True
+    assert g3["status"] == "measured"
+    assert g3["detail"]["urom"]["bars_vds_id_pct"] == (10.0, 0.60)
+    assert g3["detail"]["urom"]["vds_rel_rmse_pct"] == measured_vds
+    assert g3["detail"]["urom"]["id_rel_rmse_pct"] == measured_id
+
+    monkeypatch.setitem(urom.DPT_BARS_PCT["trap/default"], VENDOR,
+                        (8.529, 0.55))
+    old = _gates(obs)["G3_dpt_waveform"]
+    assert old["pass"] is False
+    assert old["detail"]["urom"]["bars_vds_id_pct"] == (8.529, 0.55)
+
+
+def test_hybrid_timing_bars_come_from_golden_with_explicit_provenance(
+        monkeypatch, tmp_path):
+    golden = {k: 10.0 for k in urom._TIMING_METRICS}
+    tier2 = {k: 20.0 for k in urom._TIMING_METRICS}
+    _write_dpt_metrics(monkeypatch, tmp_path,
+                       {"golden_metrics": golden, "tier2_metrics": tier2})
+    assert urom._timing_bars(VENDOR, emit="hybrid") == golden
+    assert urom._timing_bars(VENDOR, emit="ann") == golden
+    assert urom._timing_bars(VENDOR, emit="tier2") == tier2
+    source = urom._timing_bars_source("hybrid")
+    assert "#golden_metrics" in source
+    assert "phase_vi_research_framework.md section 3.3" in source
+    assert "emit=hybrid" in source
+    assert urom.PROVENANCE["timing_energy_bars"]["hybrid_column"] == (
+        "golden_metrics")
+    source_text = inspect.getsource(urom.run_unified)
+    assert '"timing_bar_column": TIMING_BAR_COLUMN[emit]' in source_text
+    assert '"timing_bar_source": _timing_bars_source(emit)' in source_text
+
+
+def test_cli_explicit_hybrid_basis_is_displayed_and_passed(monkeypatch):
+    calls: list = []
+    record = _cli_record()
+    record["emit"] = "hybrid"
+    record["channel_basis"] = "hybrid"
+
+    def validate(vendor, tier, variant, basis="tier2"):
+        calls.append((vendor, tier, variant, basis))
+        return record
+
+    monkeypatch.setattr(registry, "validate", validate)
+    result = _runner.invoke(
+        app, ["validate", VENDOR, "--tier", "3", "--variant", "urom",
+              "--basis", "hybrid"])
+    assert result.exit_code == 0, result.output
+    assert calls == [(VENDOR, 3, "urom", "hybrid")]
+    assert "basis=hybrid" in _flat(result.output)

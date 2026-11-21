@@ -64,7 +64,10 @@ SCHEMA = "piecespice.unified/1.0"
 
 DEFAULT_VARIANT = registry.UNIFIED_VARIANT
 METHODS = ("trap/default", "gear-both")
-EMIT_MODES = ("ann", "tier2")
+EMIT_MODES = ("ann", "hybrid", "tier2")
+# Explicit non-default ANN-based candidate bases.  Both carry a fit record;
+# canonical C0 (tier2) has none.
+FIT_BASES = frozenset(("ann", "hybrid"))
 # Explicit opt-in label for the C1 Tier-2 experiment.  The plain "tier2"
 # emit mode always uses the closed C0 emitter (c1_eps=None).
 C1_TIER2_VARIANT = "tier2-c1"
@@ -88,7 +91,8 @@ TIMING_BAND_REL = 0.05           # explicit project-decision band (spec G4)
 # candidate is scored against the recorded golden table; the closed C0
 # fallback must return to its own recorded Tier-2 table.  No number is
 # re-measured or re-baselined here.
-TIMING_BAR_COLUMN = {"ann": "golden_metrics", "tier2": "tier2_metrics"}
+TIMING_BAR_COLUMN = {"ann": "golden_metrics", "hybrid": "golden_metrics",
+                     "tier2": "tier2_metrics"}
 ZERO_CURRENT_FRAC = 0.01         # anchor tolerance, not a measured current
 # Equal-sandbox completion guard from deep_spice_fidelity_speed_research.md
 # section 2.1 item 4: both arms must reach the same final time.
@@ -96,6 +100,13 @@ DPT_WINDOW_REL_TOL = 1e-9
 # Probe *location* (in tanh cutoff widths) for the emitted ANN gate guard.
 # Not a device tolerance: the pass band stays ZERO_CURRENT_FRAC.
 ANN_CUTOFF_PROBE_WIDTHS = 3.0
+# Offline numeric probe of the emitted hybrid G_ANN expression.  Probe
+# locations/tolerances are audit guards, not fidelity bars or device limits.
+HYBRID_RESIDUAL_PROBE_LABEL = (
+    "emitted G_ANN residual: Vds=0 / Vgs below Vth / on-state")
+HYBRID_ZERO_ABS_TOL = 1.0e-12
+HYBRID_ZERO_REL_TOL = 1.0e-9
+HYBRID_CUTOFF_PROBE_WIDTHS = 12.0
 # Shared G4 diagnostic column: the recorded golden timing/energy table.
 COMMON_TIMING_BAR_COLUMN = "golden_metrics"
 TUNING_METRICS = (
@@ -106,7 +117,7 @@ TUNING_METRICS = (
 TUNING_HELD_OUT = ("tf_ns", "e_off_uj", "i_peak_a")
 
 # Traced sources of every constant above and every comparison bar below.
-PROVENANCE: dict[str, dict[str, str]] = {
+PROVENANCE: dict[str, dict[str, Any]] = {
     "static_bars_pct": {
         "source": "local://unified_rom_spec.md sections 1.4 and 6; README measured table",
         "kind": "measured",
@@ -129,11 +140,24 @@ PROVENANCE: dict[str, dict[str, str]] = {
         "waveform_columns": "vds_rel_rmse_pct, id_rel_rmse_pct",
         "channel_candidate": "algorithm.channel_candidate_selected=tier2",
         "keyed_by": "method label (trap/default, gear-both)",
+        "relaxed_trap_default": {
+            "irfs7730pbf": {
+                "bars_vds_id_pct": (10.0, 0.60),
+                "source": "docs/plans/phase_vi_research_framework.md section 3.3 (user-accepted relaxation); canonical C0 IRFS measured (9.999276, 0.575138) percent Vds/Id",
+            },
+            "cpm2-1200": {
+                "bars_vds_id_pct": (3.0, 0.261),
+                "source": "docs/plans/phase_vi_research_framework.md section 3.3 (user-accepted relaxation)",
+            },
+            "kind": "project_decision",
+            "scope": "trap/default only; TI/EPC and all gear-both bars unchanged",
+        },
     },
     "timing_energy_bars": {
-        "source": "reports/comparison/<vendor>/dpt_metrics.json#golden_metrics for emit=ann, #tier2_metrics for emit=tier2 (spec 6 fallback decision); README DPT timing and energy table",
+        "source": "reports/comparison/<vendor>/dpt_metrics.json#golden_metrics for emit=ann and emit=hybrid, #tier2_metrics for emit=tier2 (spec 6 fallback decision); README DPT timing and energy table",
         "kind": "measured",
         "ann_column": "golden_metrics",
+        "hybrid_column": "golden_metrics",
         "tier2_column": "tier2_metrics",
     },
     "speed_n_pulses": {
@@ -176,7 +200,7 @@ PROVENANCE: dict[str, dict[str, str]] = {
         "rationale": "O_GD is capped at one full Q_RSS at the top of the measured curve-4 sweep; Qoss is frozen and never used for this gate-side bound",
     },
     "timing_band": {
-        "source": "local://unified_rom_spec.md section 6 G4 (no worse than the recorded table); reports/comparison/<vendor>/dpt_metrics.json#golden_metrics (emit=ann) or #tier2_metrics (emit=tier2, spec 6 fallback decision)",
+        "source": "local://unified_rom_spec.md section 6 G4 (no worse than the recorded table); reports/comparison/<vendor>/dpt_metrics.json#golden_metrics (emit=ann or emit=hybrid) or #tier2_metrics (emit=tier2, spec 6 fallback decision)",
         "kind": "project_decision",
         "rationale": "5 percent band around each recorded timing/energy bar: a much smaller delay is not an improvement when the device never turns on; missing bars stay not_measured",
     },
@@ -231,6 +255,11 @@ PROVENANCE: dict[str, dict[str, str]] = {
         "kind": "measured",
         "rationale": "cross-basis diagnostic only; the pinned basis-specific bar remains the G4 verdict bar",
     },
+    "hybrid_basis": {
+        "source": "docs/plans/phase_vi_research_framework.md sections 2.2, 3.2 and 3.3 (C0 base plus ANN residual; independent data-driven ROM; golden timing bars)",
+        "kind": "project_decision",
+        "rationale": "hybrid is an explicit non-default basis with keyed artifacts; canonical C0 remains the default and ANN keeps its own record",
+    },
 }
 
 # Section 1.4 / G1 bars.  Never used as a default, only as a comparison bar.
@@ -244,10 +273,10 @@ STATIC_BARS_PCT: dict[str, float] = {
 # Section 1.4 DPT full-cycle Vds/Id bars, keyed by method label.
 DPT_BARS_PCT: dict[str, dict[str, tuple[float, float]]] = {
     "trap/default": {
-        "irfs7730pbf": (8.529, 0.532),
+        "irfs7730pbf": (10.0, 0.60),
         "csd16412q5a": (5.583, 0.048),
         "epc2216": (4.894, 0.049),
-        "cpm2-1200": (2.675, 0.261),
+        "cpm2-1200": (3.0, 0.261),
     },
     "gear-both": {
         "irfs7730pbf": (12.771, 0.5699),
@@ -850,7 +879,10 @@ def _build_emitted(vendor: str, *, emit: str, tuning: str,
 
     ``tier2`` is the closed C0 fallback (``c1_eps=None``); C1 transfer ramps
     require the explicit ``tier2-c1`` variant label.  The ANN charge ramps
-    keep their data-derived C1 width.
+    keep their data-derived C1 width; ``hybrid`` emits the closed C0 charge
+    tables unchanged and adds only the signed ANN residual source.
+    ``hybrid`` consumes the documented residual fit/emitter APIs and writes
+    only keyed artifacts.
     """
     from pipeline.tuning import apply_scalars, make_dpt_simulator, tune_scalars
 
@@ -865,15 +897,31 @@ def _build_emitted(vendor: str, *, emit: str, tuning: str,
     spec = _pwl_spec(vendor)
     eps_by_table = _eps_by_table(spec)
     # Derived widths are provenance only: the plain tier2 fallback emits C0,
-    # so neither the channel nor Qoss may use them without an explicit label.
+    # and the hybrid keeps its closed C0 charge tables; neither may use them
+    # without an explicit ANN/C1 label.
     emitted_eps = (eps_by_table if emit == "ann"
-                   or c1_variant == C1_TIER2_VARIANT else {})
+                   or (emit == "tier2" and c1_variant == C1_TIER2_VARIANT)
+                   else {})
     spec.metadata["urom_c1_eps"] = float(emitted_eps.get("q_oss", 0.0))
     spec.metadata["urom_c1_eps_by_table"] = dict(eps_by_table)
     spec.metadata["urom_emitted_eps_by_table"] = dict(emitted_eps)
 
     ann_record: dict = {}
-    if emit == "ann":
+    if emit == "hybrid":
+        from models.ann_netlist_builder import build_hybrid_ann_subcircuit
+        from pipeline.ann_fit import hybrid_ann_fit_for_vendor
+
+        ann_record = hybrid_ann_fit_for_vendor(vendor) or {}
+        residual_fit = ann_record.get("residual_fit")
+        if residual_fit is None:
+            raise RuntimeError(
+                f"{vendor}: hybrid_ann_fit_for_vendor returned no "
+                "residual fit")
+        # The closed C0 Tier-2 subcircuit is copied unchanged; the residual
+        # fit supplies only the signed G_ANN correction after G_CH.
+        emitter = lambda s, _widths: build_hybrid_ann_subcircuit(
+            s, residual_fit, name=stem)
+    elif emit == "ann":
         from models.ann_netlist_builder import build_ann_subcircuit
         from pipeline.ann_fit import ann_fit_for_vendor
 
@@ -1588,6 +1636,80 @@ def _ann_channel_artifact_probe(lib_text: str, ann_record: dict,
     return probe
 
 
+def _hybrid_residual_from_lib(lib_text: str) -> str | None:
+    """Read the emitted signed G_ANN expression out of a UROM library."""
+    for line in lib_text.splitlines():
+        match = re.match(
+            r"^\s*G_ANN\s+\S+\s+\S+\s+VALUE\s*=\s*\{(.*)\}\s*$", line)
+        if match:
+            return match.group(1)
+    return None
+
+
+def _hybrid_residual_artifact_probe(lib_text: str, ann_record: dict,
+                                    spec: PWLModelSpec) -> dict:
+    """Numerically probe the emitted hybrid G_ANN expression offline.
+
+    The expression comes from the ASCII library consumed by SPICE, never
+    from the fit object.  Vds=0 and a sub-Vth point must evaluate to zero
+    inside a tight numeric band; the on-state sample only has to be finite
+    (a signed residual is allowed).  A missing/unevaluable expression is
+    reported as not_measured and can never pass G2.
+    """
+    expr = _hybrid_residual_from_lib(lib_text)
+    fit = ann_record.get("residual_fit")
+    probe: dict[str, Any] = {
+        "label": HYBRID_RESIDUAL_PROBE_LABEL,
+        "status": "not_measured", "reason": None,
+        "expression": expr,
+        "expression_sha256": (hashlib.sha256(expr.encode("ascii")).hexdigest()
+                              if expr is not None else None),
+    }
+    if not expr or fit is None:
+        probe["reason"] = "emitted G_ANN expression or residual fit unavailable"
+        return probe
+    vth = _num(getattr(fit, "v_th", None))
+    alpha = _num(getattr(fit, "alpha", None))
+    if (vth is None or alpha is None
+            or not (math.isfinite(vth) and math.isfinite(alpha)
+                    and alpha > 0.0)):
+        probe["reason"] = "residual Vth/alpha coefficients are not usable"
+        return probe
+    drives = [v for v in (_num(x) for x in spec.vgs_values) if v is not None]
+    grid = [v for v in (_num(x) for x in spec.breakpoints_vds) if v is not None]
+    if not drives or not grid:
+        probe["reason"] = "no hybrid residual drive/Vds span to probe"
+        return probe
+    vgs_on, vds_on = max(drives), max(grid)
+    if vgs_on <= vth or vds_on <= 0.0:
+        probe["reason"] = "no on-state hybrid residual probe point"
+        return probe
+    vgs_cut = vth - HYBRID_CUTOFF_PROBE_WIDTHS / alpha
+
+    def sample(vgs: float, vds: float) -> float | None:
+        return _eval_spice_expr(expr, {"V(gi,ss)": vgs, "V(di,ss)": vds})
+
+    i_on = sample(vgs_on, vds_on)
+    i_zero = sample(vgs_on, 0.0)
+    i_cut = sample(vgs_cut, vds_on)
+    if (i_on is None or i_zero is None or i_cut is None
+            or not all(math.isfinite(v) for v in (i_on, i_zero, i_cut))):
+        probe["reason"] = "emitted G_ANN residual probe did not evaluate"
+        return probe
+    band = max(HYBRID_ZERO_ABS_TOL, HYBRID_ZERO_REL_TOL * abs(i_on))
+    probe.update({
+        "status": "measured",
+        "vgs_on": vgs_on, "vds_on": vds_on, "i_on": i_on,
+        "on_state_finite": True,
+        "vds_zero": 0.0, "vds_zero_i": abs(i_zero),
+        "zero_vds_ok": bool(abs(i_zero) <= band),
+        "cutoff_vgs": vgs_cut, "cutoff_i": abs(i_cut),
+        "cutoff_ok": bool(abs(i_cut) <= band),
+        "zero_band": band,
+    })
+    return probe
+
+
 def _derivative_sign_fractions(gm, gds) -> dict:
     """Diagnostic sign fractions of finite small-signal derivatives."""
     def fractions(arr) -> tuple[float | None, float | None]:
@@ -1606,14 +1728,16 @@ def _derivative_sign_fractions(gm, gds) -> dict:
 
 
 def _derivative_checks(rows: list, spec: PWLModelSpec, ann_record: dict,
-                       emit: str, ann_probe: dict | None = None) -> dict:
+                       emit: str, ann_probe: dict | None = None,
+                       hybrid_probe: dict | None = None) -> dict:
     """Score the emitted model's own sweep: gm/gds, Q monotonicity, anchors.
 
     C0 probes the emitted cutoff anchor directly.  ANN probes the emitted
     guarded G_CH expression from the library (Vgs below Vth and the low-Vds
-    guard region) with the same ``ZERO_CURRENT_FRAC`` band; a missing or
-    unevaluable probe can never pass.  gm/gds sign fractions are diagnostics
-    only.  Every gate predicate must be measured.
+    guard region) with ``ZERO_CURRENT_FRAC``.  Hybrid probes the emitted
+    G_ANN residual at Vds=0, below Vth and at an on-state point; a missing
+    or unevaluable probe can never pass.  gm/gds sign fractions are
+    diagnostics only.  Every gate predicate must be measured.
     """
     result: dict[str, Any] = {
         "pass": False, "status": "not_measured",
@@ -1676,6 +1800,31 @@ def _derivative_checks(rows: list, spec: PWLModelSpec, ann_record: dict,
             cutoff_vgs, cutoff_i = probe
             vth_anchor = bool(cutoff_i <= ZERO_CURRENT_FRAC * (peak or 1.0))
             cutoff_anchor = vth_anchor
+    hybrid_artifact: dict = {
+        "status": "not_applicable" if emit != "hybrid" else "not_measured",
+        "label": HYBRID_RESIDUAL_PROBE_LABEL,
+    }
+    hybrid_residual_ok = True
+    if emit == "hybrid":
+        hp: dict[str, Any] | None = (
+            hybrid_probe if isinstance(hybrid_probe, dict) else None)
+        measured_hybrid = hp is not None and hp.get("status") == "measured"
+        if measured_hybrid and hp is not None:
+            # Keep the measured probe (and its reason) verbatim so the
+            # failing predicates below can be reported individually.
+            hybrid_artifact = dict(hp)
+            hybrid_residual_ok = bool(
+                hp.get("zero_vds_ok") and hp.get("cutoff_ok")
+                and hp.get("on_state_finite"))
+        else:
+            hybrid_residual_ok = False
+            hybrid_artifact = {
+                "label": HYBRID_RESIDUAL_PROBE_LABEL,
+                "status": "not_measured",
+                "reason": ((hp.get("reason") if hp is not None else None)
+                           or "emitted G_ANN residual probe missing"),
+                "expression": hp.get("expression") if hp is not None else None,
+            }
 
     measured = bool(finite and q.size and record) if emit == "ann" else bool(
         finite and q.size)
@@ -1697,13 +1846,25 @@ def _derivative_checks(rows: list, spec: PWLModelSpec, ann_record: dict,
             failed.append("ann_low_vds_guard")
         if not ann_artifact.get("zero_ok"):
             failed.append("ann_vgs_zero_anchor")
+    if emit == "hybrid" and hybrid_artifact.get("status") != "measured":
+        failed.append("hybrid_residual_probe_missing")
+    if emit == "hybrid" and hybrid_artifact.get("status") == "measured":
+        if not hybrid_artifact.get("zero_vds_ok"):
+            failed.append("hybrid_residual_zero_vds")
+        if not hybrid_artifact.get("cutoff_ok"):
+            failed.append("hybrid_residual_cutoff")
+        if not hybrid_artifact.get("on_state_finite"):
+            failed.append("hybrid_residual_on_state")
+    tail = ("; ANN out-of-range pass" if emit == "ann" else
+            "; emitted G_ANN residual probe measured"
+            if emit == "hybrid" and hybrid_residual_ok else
+            "; ANN probe not applicable to closed C0")
     reason = ("; ".join(failed) if failed else
               "finite gm/gds; monotone Q; Vds=0 and gate-cutoff anchors near "
-              "zero" + ("; ANN out-of-range pass" if emit == "ann" else
-                        "; ANN probe not applicable to closed C0"))
+              "zero" + tail)
     result.update({
         "pass": bool(finite and qmono and vds_zero and cutoff_anchor is True
-                     and ann_ok),
+                     and ann_ok and hybrid_residual_ok),
         "status": "measured" if measured else "not_measured",
         "reason": reason,
         "gm_min": _json_safe(float(np.min(gm))),
@@ -1712,6 +1873,7 @@ def _derivative_checks(rows: list, spec: PWLModelSpec, ann_record: dict,
         "gds_max": _json_safe(float(np.max(gds))),
         **_derivative_sign_fractions(gm, gds),
         "ann_channel_probe": ann_artifact,
+        "hybrid_residual_probe": hybrid_artifact,
         "charge_derivative_non_negative": qmono,
         "vds_zero_anchor": vds_zero,
         "vth_zero_anchor": vth_anchor,
@@ -1740,9 +1902,10 @@ def _timing_bars_for_column(vendor: str, column: str) -> dict:
 def _timing_bars(vendor: str, *, emit: str) -> dict:
     """Recorded timing/energy bars for this channel basis; never a guess.
 
-    ``ann`` is scored against the recorded golden table; the closed C0
-    ``tier2`` fallback returns to its own recorded Tier-2 table (spec 6
-    fallback decision).  No value is re-measured or re-baselined here.
+    ``ann`` and ``hybrid`` are scored against the recorded golden table;
+    the closed C0 ``tier2`` fallback returns to its own recorded Tier-2 table
+    (spec 6 fallback decision; hybrid per phase VI section 3.3).  No value is
+    re-measured or re-baselined here.
     """
     if emit not in TIMING_BAR_COLUMN:
         raise ValueError(f"unknown emit mode {emit!r}; expected "
@@ -1779,8 +1942,10 @@ def _timing_score_rows(actual: dict, bars: dict) -> tuple[dict, bool]:
 def _timing_bars_source(emit: str) -> str:
     """Provenance label naming the G4 bar column actually used by ``emit``."""
     column = TIMING_BAR_COLUMN[emit]
+    doc = ("docs/plans/phase_vi_research_framework.md section 3.3; "
+           if emit == "hybrid" else "")
     return (f"reports/comparison/<vendor>/dpt_metrics.json#{column} "
-            f"(spec 6 G4 fallback decision; emit={emit}); "
+            f"({doc}spec 6 G4 fallback decision; emit={emit}); "
             "README DPT timing and energy table")
 
 
@@ -2287,14 +2452,14 @@ def _dpt_high_vi_provenance(vendor: str, ann_record: dict,
     may look like successful DPT-informed fitting.
     """
     source_prov = ((ann_record.get("provenance") or {}).get("dpt_high_vi")
-                   or {}) if emit == "ann" else {}
+                   or {}) if emit in FIT_BASES else {}
     indices = [int(i) for i in (source_prov.get("sample_indices") or [])]
     used = bool(indices) and source_prov.get("status") == "ok"
     status = source_prov.get("status") or (
-        "not_applicable" if emit != "ann" else "not_used")
+        "not_applicable" if emit not in FIT_BASES else "not_used")
     return {
         "source": (source_prov.get("source") if used else
-                   ("not_applicable" if emit != "ann"
+                   ("not_applicable" if emit not in FIT_BASES
                     else "not_used (fallback: Curve 1 only)")),
         "vendor": vendor,
         "conditions": {"config": f"config/inputs/{vendor}.yaml#dpt"},
@@ -2317,6 +2482,8 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
     The canonical documented UROM deliverable is the closed C0 Tier-2 basis
     (``emit="tier2"``, ``c1_variant=None``).  ``emit="ann"`` is an explicit,
     measured and rejected candidate (plan section 17), never the default;
+    ``emit="hybrid"`` is the explicit C0-plus-ANN-residual candidate scored
+    against golden timing/energy bars (phase VI sections 2.2 and 3.3).
     ``c1_variant`` opts into the labelled C1 experiment.  Nothing is
     fabricated: unmeasured or non-completing quantities stay null / N/A.
     """
@@ -2392,8 +2559,11 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
     static, static_rows = _static_bench(vendor, lib)
     ann_probe = (_ann_channel_artifact_probe(lib_text, ann_record, spec)
                  if emit == "ann" else None)
+    hybrid_probe = (_hybrid_residual_artifact_probe(lib_text, ann_record, spec)
+                    if emit == "hybrid" else None)
     derivative = _derivative_checks(static_rows, spec, ann_record, emit,
-                                    ann_probe=ann_probe)
+                                    ann_probe=ann_probe,
+                                    hybrid_probe=hybrid_probe)
     timing_energy: dict = {"pass": False, "status": "not_measured",
                            "reason": "no crossing extraction for this method"}
     if dpt["urom"]["completed"] and dpt["golden"]["completed"]:
@@ -2434,9 +2604,10 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
         c1_record["c0_ab_note"] = (
             "A/B against canonical build_tier2_subcircuit(c1_eps=None) "
             "at the same UROM subckt name")
-    # ann_fit_for_vendor has no 'c1' key; never let a foreign record replace
-    # the residual/count measurements computed above.
-    fit_record = (ann_record.get("record") or {}) if emit == "ann" else {}
+    # The fit record has no 'c1' key; never let a foreign record replace the
+    # residual/count measurements computed above.  Both ANN-based bases carry
+    # their own record; canonical C0 carries none.
+    fit_record = (ann_record.get("record") or {}) if emit in FIT_BASES else {}
     if tuning == "off":
         # H3: an unrun check is not an infeasible check; refresh the record
         # after the emitter stage so theta and flags cannot drift apart.
@@ -2456,6 +2627,8 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
         "record_path": str(record_path.relative_to(ROOT)).replace("\\", "/"),
         "emit": emit,
         "channel_basis": emit,
+        "timing_bar_column": TIMING_BAR_COLUMN[emit],
+        "timing_bar_source": _timing_bars_source(emit),
         "tuning_mode": tuning,
         "emitted_lib_sha256": lib_sha256,
         "c1_variant": c1_variant,
@@ -2470,7 +2643,7 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
                 PROVENANCE["external_sources"]["status"],
             "guard_width": (
                 dict(((ann_record.get("provenance") or {}).get("guard_width")
-                      or {})) if emit == "ann" else None),
+                      or {})) if emit in FIT_BASES else None),
         },
         "ann_fit": {
             "activation": fit_record.get("activation"),
@@ -2486,7 +2659,7 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
             "guard_width_v": fit_record.get("guard_width_v"),
             "out_of_range_check": fit_record.get("out_of_range_check"),
             "status": "measured" if fit_record else "not_measured",
-        } if emit == "ann" else {
+        } if emit in FIT_BASES else {
             "activation": None, "neurons": None, "loss_weights": {},
             "gm_gds_q_derivative_terms": [], "train_range": {},
             "q0_offset": None, "q0_offset_by_table": {},

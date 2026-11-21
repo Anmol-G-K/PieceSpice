@@ -6,6 +6,8 @@
   "record_path": "reports/comparison/epc2216/unified_validation.json",
   "emit": "tier2",
   "channel_basis": "tier2",
+  "timing_bar_column": "tier2_metrics",
+  "timing_bar_source": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics (spec 6 G4 fallback decision; emit=tier2); README DPT timing and energy table",
   "tuning_mode": "off",
   "emitted_lib_sha256": "ac64ddbbd31961448c200bb14a8fa6d674d1ab74815c0fcadc351c7e747c66d5",
   "c1_variant": null,
@@ -30,32 +32,32 @@
     "clock_spread": {
       "median": {
         "solver": {
-          "golden": 0.355,
-          "urom": 0.353
+          "golden": 0.401,
+          "urom": 0.621
         },
         "wall": {
-          "golden": 0.8983127000101376,
-          "urom": 0.8775271000049543
+          "golden": 1.1035224000006565,
+          "urom": 1.2723077999999077
         }
       },
       "min": {
         "solver": {
-          "golden": 0.349,
-          "urom": 0.351
+          "golden": 0.385,
+          "urom": 0.35
         },
         "wall": {
-          "golden": 0.8753903000033461,
-          "urom": 0.8773761000047671
+          "golden": 0.9872830999993312,
+          "urom": 0.961919499999567
         }
       },
       "max": {
         "solver": {
-          "golden": 0.356,
-          "urom": 0.353
+          "golden": 0.422,
+          "urom": 0.847
         },
         "wall": {
-          "golden": 0.9050302000105148,
-          "urom": 0.8868714999989606
+          "golden": 1.1571617999998125,
+          "urom": 1.6171897999993234
         }
       },
       "missing": [],
@@ -312,32 +314,32 @@
         "clock_spread": {
           "median": {
             "solver": {
-              "golden": 0.355,
-              "urom": 0.353
+              "golden": 0.401,
+              "urom": 0.621
             },
             "wall": {
-              "golden": 0.8983127000101376,
-              "urom": 0.8775271000049543
+              "golden": 1.1035224000006565,
+              "urom": 1.2723077999999077
             }
           },
           "min": {
             "solver": {
-              "golden": 0.349,
-              "urom": 0.351
+              "golden": 0.385,
+              "urom": 0.35
             },
             "wall": {
-              "golden": 0.8753903000033461,
-              "urom": 0.8773761000047671
+              "golden": 0.9872830999993312,
+              "urom": 0.961919499999567
             }
           },
           "max": {
             "solver": {
-              "golden": 0.356,
-              "urom": 0.353
+              "golden": 0.422,
+              "urom": 0.847
             },
             "wall": {
-              "golden": 0.9050302000105148,
-              "urom": 0.8868714999989606
+              "golden": 1.1571617999998125,
+              "urom": 1.6171897999993234
             }
           },
           "missing": [],
@@ -377,6 +379,10 @@
         "gds_negative_fraction": 0.0,
         "ann_channel_probe": {
           "status": "not_applicable"
+        },
+        "hybrid_residual_probe": {
+          "status": "not_applicable",
+          "label": "emitted G_ANN residual: Vds=0 / Vgs below Vth / on-state"
         },
         "charge_derivative_non_negative": true,
         "vds_zero_anchor": true,
@@ -607,32 +613,32 @@
         "clock_spread": {
           "median": {
             "solver": {
-              "golden": 0.355,
-              "urom": 0.353
+              "golden": 0.401,
+              "urom": 0.621
             },
             "wall": {
-              "golden": 0.8983127000101376,
-              "urom": 0.8775271000049543
+              "golden": 1.1035224000006565,
+              "urom": 1.2723077999999077
             }
           },
           "min": {
             "solver": {
-              "golden": 0.349,
-              "urom": 0.351
+              "golden": 0.385,
+              "urom": 0.35
             },
             "wall": {
-              "golden": 0.8753903000033461,
-              "urom": 0.8773761000047671
+              "golden": 0.9872830999993312,
+              "urom": 0.961919499999567
             }
           },
           "max": {
             "solver": {
-              "golden": 0.356,
-              "urom": 0.353
+              "golden": 0.422,
+              "urom": 0.847
             },
             "wall": {
-              "golden": 0.9050302000105148,
-              "urom": 0.8868714999989606
+              "golden": 1.1571617999998125,
+              "urom": 1.6171897999993234
             }
           },
           "missing": [],
@@ -724,41 +730,41 @@
     },
     "repeats": 3,
     "solver_time_s": {
-      "golden": 0.355,
-      "urom": 0.353
+      "golden": 0.401,
+      "urom": 0.621
     },
     "wall_time_s": {
-      "golden": 0.8983127000101376,
-      "urom": 0.8775271000049543
+      "golden": 1.1035224000006565,
+      "urom": 1.2723077999999077
     },
     "median": {
       "solver": {
-        "golden": 0.355,
-        "urom": 0.353
+        "golden": 0.401,
+        "urom": 0.621
       },
       "wall": {
-        "golden": 0.8983127000101376,
-        "urom": 0.8775271000049543
+        "golden": 1.1035224000006565,
+        "urom": 1.2723077999999077
       }
     },
     "min": {
       "solver": {
-        "golden": 0.349,
-        "urom": 0.351
+        "golden": 0.385,
+        "urom": 0.35
       },
       "wall": {
-        "golden": 0.8753903000033461,
-        "urom": 0.8773761000047671
+        "golden": 0.9872830999993312,
+        "urom": 0.961919499999567
       }
     },
     "max": {
       "solver": {
-        "golden": 0.356,
-        "urom": 0.353
+        "golden": 0.422,
+        "urom": 0.847
       },
       "wall": {
-        "golden": 0.9050302000105148,
-        "urom": 0.8868714999989606
+        "golden": 1.1571617999998125,
+        "urom": 1.6171897999993234
       }
     },
     "completion": {
@@ -770,8 +776,8 @@
     "n_pulses": 20,
     "max_step": 1e-07,
     "method_label": "trap/default",
-    "solver_speedup": 1.0056657223796035,
-    "wall_speedup": 1.023686561936453,
+    "solver_speedup": 0.6457326892109502,
+    "wall_speedup": 0.8673391768884358,
     "t_last": {
       "golden": 0.000176,
       "urom": 0.000176
@@ -792,7 +798,7 @@
     "waveform_gate_retired": false,
     "energy_only_claim": false
   },
-  "spice_log_tail": "LTspice 26.1.1 for Windows\nCircuit: C:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_i406sclz\\tran.net\nStart Time: Sat Nov 21 01:38:38 2026\nsolver = Normal\nMaximum thread count: 16\ntnom = 27\ntemp = 25\nmethod = modified trap\nAsciiRawFile = true\nCompress1stOrder = true\nCompress2ndOrder = true\nDirect Newton iteration succeeded in finding operating point.\nTotal elapsed time: 0.351 seconds.\nTotal iterations: 12206\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_i406sclz\\tran.net\n\n",
+  "spice_log_tail": "LTspice 26.1.1 for Windows\nCircuit: C:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_7gj477oy\\tran.net\nStart Time: Sat Nov 21 15:30:49 2026\nsolver = Normal\nMaximum thread count: 16\ntnom = 27\ntemp = 25\nmethod = modified trap\nAsciiRawFile = true\nCompress1stOrder = true\nCompress2ndOrder = true\nDirect Newton iteration succeeded in finding operating point.\nTotal elapsed time: 0.350 seconds.\nTotal iterations: 12206\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_7gj477oy\\tran.net\n\n",
   "dpt_run": {
     "completed": true,
     "iterations": 18576,
@@ -818,7 +824,7 @@
       "e_off_uj": 15.413235527544533,
       "e_oss_uj": null,
       "i_peak_a": 13.227612495422363,
-      "wall_clock_s": 1.0269823999988148
+      "wall_clock_s": 1.1925498000000516
     },
     "error": null
   },
@@ -856,7 +862,7 @@
         "e_off_uj": 15.627365907947942,
         "e_oss_uj": null,
         "i_peak_a": 13.239307403564453,
-        "wall_clock_s": 1.0592950000136625
+        "wall_clock_s": 1.132304099999601
       },
       "error": null
     },
@@ -885,7 +891,7 @@
         "e_off_uj": 15.413235527544533,
         "e_oss_uj": null,
         "i_peak_a": 13.227612495422363,
-        "wall_clock_s": 1.0269823999988148
+        "wall_clock_s": 1.1925498000000516
       },
       "error": null
     }
@@ -1000,32 +1006,32 @@
       "clock_spread": {
         "median": {
           "solver": {
-            "golden": 0.355,
-            "urom": 0.353
+            "golden": 0.401,
+            "urom": 0.621
           },
           "wall": {
-            "golden": 0.8983127000101376,
-            "urom": 0.8775271000049543
+            "golden": 1.1035224000006565,
+            "urom": 1.2723077999999077
           }
         },
         "min": {
           "solver": {
-            "golden": 0.349,
-            "urom": 0.351
+            "golden": 0.385,
+            "urom": 0.35
           },
           "wall": {
-            "golden": 0.8753903000033461,
-            "urom": 0.8773761000047671
+            "golden": 0.9872830999993312,
+            "urom": 0.961919499999567
           }
         },
         "max": {
           "solver": {
-            "golden": 0.356,
-            "urom": 0.353
+            "golden": 0.422,
+            "urom": 0.847
           },
           "wall": {
-            "golden": 0.9050302000105148,
-            "urom": 0.8868714999989606
+            "golden": 1.1571617999998125,
+            "urom": 1.6171897999993234
           }
         },
         "missing": [],
@@ -1062,12 +1068,31 @@
       "kind": "measured",
       "waveform_columns": "vds_rel_rmse_pct, id_rel_rmse_pct",
       "channel_candidate": "algorithm.channel_candidate_selected=tier2",
-      "keyed_by": "method label (trap/default, gear-both)"
+      "keyed_by": "method label (trap/default, gear-both)",
+      "relaxed_trap_default": {
+        "irfs7730pbf": {
+          "bars_vds_id_pct": [
+            10.0,
+            0.6
+          ],
+          "source": "docs/plans/phase_vi_research_framework.md section 3.3 (user-accepted relaxation); canonical C0 IRFS measured (9.999276, 0.575138) percent Vds/Id"
+        },
+        "cpm2-1200": {
+          "bars_vds_id_pct": [
+            3.0,
+            0.261
+          ],
+          "source": "docs/plans/phase_vi_research_framework.md section 3.3 (user-accepted relaxation)"
+        },
+        "kind": "project_decision",
+        "scope": "trap/default only; TI/EPC and all gear-both bars unchanged"
+      }
     },
     "timing_energy_bars": {
-      "source": "reports/comparison/<vendor>/dpt_metrics.json#golden_metrics for emit=ann, #tier2_metrics for emit=tier2 (spec 6 fallback decision); README DPT timing and energy table",
+      "source": "reports/comparison/<vendor>/dpt_metrics.json#golden_metrics for emit=ann and emit=hybrid, #tier2_metrics for emit=tier2 (spec 6 fallback decision); README DPT timing and energy table",
       "kind": "measured",
       "ann_column": "golden_metrics",
+      "hybrid_column": "golden_metrics",
       "tier2_column": "tier2_metrics"
     },
     "speed_n_pulses": {
@@ -1110,7 +1135,7 @@
       "rationale": "O_GD is capped at one full Q_RSS at the top of the measured curve-4 sweep; Qoss is frozen and never used for this gate-side bound"
     },
     "timing_band": {
-      "source": "local://unified_rom_spec.md section 6 G4 (no worse than the recorded table); reports/comparison/<vendor>/dpt_metrics.json#golden_metrics (emit=ann) or #tier2_metrics (emit=tier2, spec 6 fallback decision)",
+      "source": "local://unified_rom_spec.md section 6 G4 (no worse than the recorded table); reports/comparison/<vendor>/dpt_metrics.json#golden_metrics (emit=ann or emit=hybrid) or #tier2_metrics (emit=tier2, spec 6 fallback decision)",
       "kind": "project_decision",
       "rationale": "5 percent band around each recorded timing/energy bar: a much smaller delay is not an improvement when the device never turns on; missing bars stay not_measured"
     },
@@ -1164,6 +1189,11 @@
       "source": "reports/comparison/<vendor>/dpt_metrics.json#golden_metrics",
       "kind": "measured",
       "rationale": "cross-basis diagnostic only; the pinned basis-specific bar remains the G4 verdict bar"
+    },
+    "hybrid_basis": {
+      "source": "docs/plans/phase_vi_research_framework.md sections 2.2, 3.2 and 3.3 (C0 base plus ANN residual; independent data-driven ROM; golden timing bars)",
+      "kind": "project_decision",
+      "rationale": "hybrid is an explicit non-default basis with keyed artifacts; canonical C0 remains the default and ANN keeps its own record"
     },
     "gate_charge_tables": {
       "source": "curve4 c_eq_charge*3 / c_eq_energy*0.15 on the curve-4 Vds grid",

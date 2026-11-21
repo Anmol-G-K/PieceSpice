@@ -324,9 +324,16 @@ def test_simplis_emits_rgs_and_truthful_extrapolation_comment():
 
 from pipeline.tier3_simplis import (  # noqa: E402
     _CHANNEL_RULE,
+    _CV_DATA_LIMITATION,
+    _FULL_CV_KEYS,
     _cap_curve_to_vbus,
+    _cv_sweep_from_extracted,
+    _decompose_cv,
     _fidelity_metrics,
     _fit_anchored_charge,
+    _fit_charge_tables,
+    _full_cv_from_curve4,
+    _load_cv_sweep,
     _on_state_breakpoint,
     _select_charge_candidate,
     _table_error,
@@ -436,14 +443,188 @@ def test_simplis_forced_on_state_breakpoint_replaces_lower_points():
     assert np.isclose(grid[-1], 38.0) and curves[0][-1] == 1.0
 
 
+# ---- Full Curve-4 C(V) arrays -> simplis charge tables (offline) -----------
+def _synthetic_full_cv(n: int = 60):
+    """Non-uniform Vds grid with smooth, structured Ciss/Coss/Crss."""
+    v = 0.1 + 24.9 * (np.linspace(0.0, 1.0, n) ** 2.0)
+    crss = 3e-11 * (1.0 + np.exp(-v / 2.0))
+    coss = 6e-10 / np.sqrt(1.0 + v / 3.0) + crss
+    ciss = 9e-10 / np.sqrt(1.0 + v / 10.0) + crss
+    return v, ciss, coss, crss
+
+
+def _full_cv_extracted(v, ciss, coss, crss):
+    return {
+        "curve_vds": np.asarray(v).tolist(),
+        "ciss_curve_f": np.asarray(ciss).tolist(),
+        "coss_curve_f": np.asarray(coss).tolist(),
+        "crss_curve_f": np.asarray(crss).tolist(),
+    }
+
+
+def test_simplis_full_cv_arrays_use_vds_axis_and_meet_charge_budget():
+    v, ciss, coss, crss = _synthetic_full_cv()
+    extracted = _full_cv_extracted(v, ciss, coss, crss)
+    assert set(_FULL_CV_KEYS).issubset(extracted)
+    sweep = _cv_sweep_from_extracted(extracted, "TOY")
+    assert sweep is not None
+    assert np.allclose(sweep.v, v) and np.allclose(sweep.coss, coss)
+    assert (v[1] - v[0]) < 0.1 * (v[-1] - v[-2])  # genuinely non-uniform
+
+    tables = _fit_charge_tables(
+        sweep.v, sweep.ciss, sweep.coss, sweep.crss, vbus=25.0)
+    for name, fit in tables.fits.items():
+        volts = np.array([p[0] for p in fit.pairs])
+        assert volts[0] == 0.0
+        assert np.all(np.isin(volts[1:], fit.v_full))  # voltages, not indices
+        assert np.isclose(volts[-1], v[-1])
+        assert np.all(np.diff(volts) > 0)
+        assert fit.max_abs_error_c <= fit.error_budget_c
+        assert _table_error(fit, fit.pairs) <= fit.error_budget_c
+
+    # Regression operand: the same breakpoints read as indices miss the 0.5%
+    # budget on this non-uniform voltage axis.
+    fit = tables.fits["cds"]
+    volts = np.array([p[0] for p in fit.pairs])
+    idx = np.searchsorted(fit.v_full, volts)
+    index_err = float(np.max(np.abs(
+        fit.q_full - np.interp(fit.v_full, idx, fit.q_full[idx]))))
+    assert index_err > fit.error_budget_c
+
+
+def test_simplis_full_cv_fails_closed_on_bad_axis_or_capacitance():
+    v, ciss, coss, crss = _synthetic_full_cv(20)
+    bad = _full_cv_extracted(v, ciss, coss, crss)
+    bad["curve_vds"] = bad["curve_vds"][::-1]
+    with pytest.raises(ValueError, match="ascending"):
+        _cv_sweep_from_extracted(bad, "TOY")
+
+    bad = _full_cv_extracted(v, ciss, coss, crss)
+    bad["curve_vds"][3] = bad["curve_vds"][2]
+    with pytest.raises(ValueError, match="ascending"):
+        _cv_sweep_from_extracted(bad, "TOY")
+
+    bad = _full_cv_extracted(v, ciss, coss, crss)
+    bad["coss_curve_f"] = (-np.asarray(bad["coss_curve_f"])).tolist()
+    with pytest.raises(ValueError, match="non-negative"):
+        _cv_sweep_from_extracted(bad, "TOY")
+
+    bad = _full_cv_extracted(v, ciss, coss, crss)
+    del bad["crss_curve_f"]
+    assert _cv_sweep_from_extracted(bad, "TOY") is None
+
+
+def _non_charge_lines(text):
+    """Channel/diode/parasitic lines must not move with charge data."""
+    out, inside = [], False
+    for line in text.splitlines():
+        if line.startswith("* --- SIMPLIS Level-2 three-capacitor charge model"):
+            inside = True
+            continue
+        if line.startswith("* --- body diode (Curve 6) ---"):
+            inside = False
+        if not inside:
+            out.append(line)
+    return out
+
+
+def test_simplis_full_cv_tables_zero_anchored_monotone_and_form_unchanged():
+    v, ciss, coss, crss = _synthetic_full_cv()
+    tables = _fit_charge_tables(v, ciss, coss, crss, vbus=25.0)
+    for name, pairs in tables.pairs.items():
+        assert pairs[0] == (0.0, 0.0), name
+        assert np.all(np.diff([p[0] for p in pairs]) > 0), name
+        assert np.all(np.diff([p[1] for p in pairs]) >= 0), name
+        assert list(charge_ramp_terms(pairs)), name
+
+    rich = _simplis_spec()
+    for key, axis_attr, q_attr in (
+        ("cds", "q_oss_vs_v", "q_oss_charge_c"),
+        ("cgs", "q_iss_vs_v", "q_iss_charge_c"),
+        ("cdg", "q_rss_vs_v", "q_rss_charge_c"),
+    ):
+        setattr(rich, axis_attr, [p[0] for p in tables.pairs[key]])
+        setattr(rich, q_attr, [p[1] for p in tables.pairs[key]])
+    base_text = build_simplis_subcircuit(_simplis_spec(), cgs_axis="vgs")
+    rich_text = build_simplis_subcircuit(rich, cgs_axis="vgs")
+    assert rich_text.isascii()
+    assert _non_charge_lines(rich_text) == _non_charge_lines(base_text)
+    for expected in (".SUBCKT TOY_PIECESPICE_T3_simplis d g s",
+                     "RG g gi ", "RD d di ", "RS s ss ",
+                     "G_CH di ss VALUE", "D_BODY ss di ",
+                     "CGS gi ss ", "CDS di ss Q=", "CDG di gi Q=",
+                     "RGS gi ss 1e7"):
+        assert any(line.startswith(expected)
+                   for line in rich_text.splitlines()), expected
+
+
+class _FakeCVPoint:
+    def __init__(self, v, c):
+        self.x_data = v
+        self.y_data = c
+
+
+class _FakeCapBench:
+    def __init__(self, v, curves):
+        self._v, self._curves = v, curves
+
+    def run(self, *args, **kwargs):
+        return tuple(_FakeCVPoint(self._v, c) for c in self._curves)
+
+
+def test_simplis_full_cv_source_prefers_persisted_arrays(monkeypatch):
+    v, ciss, coss, crss = _synthetic_full_cv(12)
+    sweep = _cv_sweep_from_extracted(
+        _full_cv_extracted(v, ciss, coss, crss), "TOY")
+    monkeypatch.setattr(
+        "pipeline.tier3_simplis._full_cv_from_curve4", lambda vendor: sweep)
+    out = _load_cv_sweep("TOY", {}, {})
+    assert out[4] == "curve4_full_arrays" and out[5] is None
+    assert np.allclose(out[0], v) and np.allclose(out[2], coss)
+
+
+def test_simplis_full_cv_fallback_discloses_scalar_only_record(monkeypatch):
+    scalar_only = {"ciss_f": 4e-10, "coss_f": 5e-10,
+                   "crss_f": 3e-11, "cap_ref_vds": 6.0}
+    assert _cv_sweep_from_extracted(scalar_only, "TOY") is None
+
+    v = np.linspace(0.1, 25.0, 6)
+    benches = []
+
+    def _bench_factory(**kw):
+        bench = _FakeCapBench(v, (np.full_like(v, 4e-10),
+                                  np.full_like(v, 5e-10),
+                                  np.full_like(v, 3e-11)))
+        benches.append(bench)
+        return bench
+
+    monkeypatch.setattr(
+        "pipeline.tier3_simplis._full_cv_from_curve4", lambda vendor: None)
+    monkeypatch.setattr(
+        "pipeline.tier3_simplis.CapacitanceTestbench", _bench_factory)
+    cfg = {"library": "unused.lib", "subcircuit": "TOY",
+           "pins": {"pin_order": ["d", "g", "s"]}}
+    cond = {"F_meas": 1e6, "Vds_cap_min": 0.1, "Vds_cap_max": 25.0,
+            "Cap_points": 6}
+    got_v, _, got_coss, _, source, limit = _load_cv_sweep("TOY", cfg, cond)
+    assert source == "live_ac_sweep" and len(benches) == 1
+    assert np.allclose(got_v, v) and np.allclose(got_coss, 5e-10)
+    assert limit == _CV_DATA_LIMITATION
+    assert "not persisted" in limit and "scalar" in limit
+    assert "No full C(V) sweep was synthesized" in limit
+
+
 def _candidate(vds, id_, tr, tf, e_on, e_off) -> dict:
     comparison = {
         key: {"tier3_rel_err_pct": err}
         for key, err in (("tr_ns", tr), ("tf_ns", tf),
                          ("e_on_uj", e_on), ("e_off_uj", e_off))}
+    # The residual gate checks trace_points as a completion guard before it
+    # compares fidelity; give every synthetic candidate a real point count
+    # so a rejection reason names the failing metric, not the guard.
     return {"fidelity": _fidelity_metrics(
         {"vds_rel_rmse_pct": vds, "id_rel_rmse_pct": id_}, comparison),
-        "dpt_run": {"completed": True}}
+        "dpt_run": {"completed": True, "trace_points": 100}}
 
 
 def test_simplis_candidate_selection_requires_strict_all_metric_gain():
@@ -576,6 +757,228 @@ def test_simplis_channel_gate_is_explicitly_fidelity_first():
     assert all("deferred" in row["status"]
                for row in evidence["adaptive"].values())
 
+
+
+# ---- Evidence-gated ANN residual channel on the simplis path (offline) -----
+def _synthetic_residual_fit(activation: str = "isru"):
+    from approximation.ann_residual import AnnResidualFit
+
+    return AnnResidualFit(
+        coefficients={"w1": [[0.2, 0.01]], "b1": [0.0],
+                      "w2": [0.5], "b2": 0.0},
+        v_th=2.0, activation=activation, neurons=1,
+        diagnostics={
+            "train_samples": 12, "curve1_samples": 8, "dpt_samples": 4,
+            "residual_rel_rmse": 0.05, "residual_rms_a": 0.1,
+            "target_rms_a": 2.0, "zero_vds_max_abs_a": 0.0,
+            "cutoff_attenuation": 0.01,
+        },
+        provenance={"target": "synthetic test fit (not measured)"},
+    )
+
+
+def _charge_element_lines(text: str, charge_mode: str):
+    prefixes = (("CGS ", "CDS ", "CDG ", "RGS ") if charge_mode == "tables"
+                else ("C_QOSS ", "C_ISS ", "C_RSS ", "RGS "))
+    return [line for line in text.splitlines()
+            if line.startswith(prefixes)]
+
+
+def _element_nodes(text: str):
+    """Every node used by a circuit element line (no internal nodes added)."""
+    prefixes = ("RG ", "RD ", "RS ", "RGS ", "CGS ", "CDS ", "CDG ",
+                "C_QOSS ", "C_ISS ", "C_RSS ", "G_CH ", "G_ANN ",
+                "D_BODY ")
+    nodes = set()
+    for line in text.splitlines():
+        if line.startswith(prefixes):
+            nodes.update(line.split()[1:3])
+    return nodes
+
+
+def test_simplis_residual_adds_one_gann_after_gch_and_preserves_every_line():
+    fit = _synthetic_residual_fit()
+    for mode in ("tables", "tier2"):
+        base = build_simplis_subcircuit(
+            _simplis_spec(), charge_mode=mode, cgs_axis="vgs")
+        residual = build_simplis_subcircuit(
+            _simplis_spec(), charge_mode=mode, cgs_axis="vgs",
+            residual_fit=fit)
+        assert base.isascii() and residual.isascii()
+        base_lines, res_lines = base.splitlines(), residual.splitlines()
+        gch = [i for i, line in enumerate(base_lines)
+               if line.startswith("G_CH ")]
+        res_gch = [i for i, line in enumerate(res_lines)
+                   if line.startswith("G_CH ")]
+        gann = [i for i, line in enumerate(res_lines)
+                if line.startswith("G_ANN ")]
+        assert len(gch) == 1 and len(res_gch) == 1 and len(gann) == 1
+        assert gann[0] == res_gch[0] + 1
+        assert res_lines[res_gch[0]] == base_lines[gch[0]]
+        assert res_lines[gann[0]].startswith("G_ANN di ss VALUE = {")
+        assert res_lines[gann[0]].count("V(di,ss)") >= 1
+        notes = [line for line in res_lines
+                 if line.startswith("* ANN residual")]
+        assert len(notes) == 2
+        body = [line for line in res_lines
+                if not line.startswith("* ANN residual")
+                and not line.startswith("G_ANN ")]
+        assert body == base_lines
+        assert _charge_element_lines(base, mode) == \
+            _charge_element_lines(residual, mode)
+        assert _element_nodes(base) == _element_nodes(residual)
+
+
+def test_simplis_residual_keeps_name_override_and_rejects_bad_fit():
+    fit = _synthetic_residual_fit()
+    # Toy CGS is nonlinear: declare the Vgs axis so this test exercises the
+    # name override / bad-fit guard, not the unrelated CGS axis-mismatch guard.
+    custom = build_simplis_subcircuit(
+        _simplis_spec(), residual_fit=fit, cgs_axis="vgs",
+        subckt_name="CUSTOM")
+    assert ".SUBCKT CUSTOM d g s" in custom.splitlines()
+    assert ".ENDS CUSTOM" in custom.splitlines()
+    assert "D_BD_CUSTOM" in custom
+    named = build_simplis_subcircuit(
+        _simplis_spec(), residual_fit=fit, cgs_axis="vgs", name="NAMED")
+    assert ".SUBCKT NAMED d g s" in named.splitlines()
+    with pytest.raises(TypeError):
+        build_simplis_subcircuit(
+            _simplis_spec(), residual_fit=object(), cgs_axis="vgs")
+
+
+from pipeline.tier3_simplis import _select_residual_candidate  # noqa: E402
+
+
+def test_simplis_residual_gate_requires_strict_dpt_gain_and_complete_run():
+    base = _candidate(6.0, 0.05, 29.0, 47.0, 51.0, 1.3)
+    worse = _candidate(6.5, 0.06, 30.0, 48.0, 52.0, 1.4)
+    choice, reason, evidence = _select_residual_candidate(
+        {"tables": base, "tier2+ann_residual": worse}, charge_mode="tables")
+    assert choice == "tier2" and "rejected" in reason
+    assert "vds_rmse_pct" in reason and evidence["strict_gain"] is False
+    tied = {**worse, "fidelity": {
+        **worse["fidelity"],
+        "abs_rel_err_pct": {**worse["fidelity"]["abs_rel_err_pct"],
+                            "e_off_uj": 1.3}}}
+    assert _select_residual_candidate(
+        {"tables": base, "tier2+ann_residual": tied},
+        charge_mode="tables")[0] == "tier2"
+    failed = {**worse, "dpt_run": {"completed": False, "trace_points": 0}}
+    assert "incomplete" in _select_residual_candidate(
+        {"tables": base, "tier2+ann_residual": failed},
+        charge_mode="tables")[1]
+    assert _select_residual_candidate(
+        {"tables": base}, charge_mode="tables")[0] == "tier2"
+
+    better = _candidate(3.0, 0.02, 10.0, 20.0, 20.0, 1.0)
+    choice, reason, evidence = _select_residual_candidate(
+        {"tables": base, "tier2+ann_residual": better}, charge_mode="tables")
+    assert choice == "tier2+ann_residual" and "selected" in reason
+    assert evidence["score"]["strict_gain"] is True
+    # Charge selection semantics are untouched by the extra channel candidate.
+    assert _select_charge_candidate({"tables": base, "tier2": better})[0] \
+        == "tier2"
+
+
+@pytest.mark.parametrize("residual_better", [False, True])
+def test_simplis_run_vendor_records_residual_evidence_and_gate(
+        monkeypatch, tmp_path, residual_better):
+    """Offline wiring check: no LTspice, no live gates, synthetic fits only."""
+    import pipeline.tier3_simplis as sm
+
+    fit = _synthetic_residual_fit()
+    golden_metrics = {
+        "td_on_ns": 5.0, "tr_ns": 10.0, "td_off_ns": 8.0, "tf_ns": 30.0,
+        "dv_dt_max_v_per_ns": 2.0, "di_dt_max_a_per_ns": 3.0,
+        "e_on_uj": 2.0, "e_off_uj": 1.0, "i_peak_a": 4.0,
+    }
+
+    def metrics(**changes):
+        return {**golden_metrics, **changes}
+
+    tables = (metrics(tr_ns=20.0, tf_ns=40.0, e_on_uj=5.0, e_off_uj=2.0),
+              {"vds_rel_rmse_pct": 6.0, "id_rel_rmse_pct": 0.05})
+    tier2 = (metrics(tr_ns=15.0, tf_ns=35.0, e_on_uj=4.0, e_off_uj=1.5),
+             {"vds_rel_rmse_pct": 4.5, "id_rel_rmse_pct": 0.04})
+    residual = (
+        metrics(tr_ns=12.0, tf_ns=32.0, e_on_uj=3.0, e_off_uj=1.2),
+        {"vds_rel_rmse_pct": 3.0, "id_rel_rmse_pct": 0.02}) if residual_better \
+        else (
+        metrics(tr_ns=16.0, tf_ns=36.0, e_on_uj=4.2, e_off_uj=1.6),
+        {"vds_rel_rmse_pct": 5.0, "id_rel_rmse_pct": 0.045})
+    time = np.linspace(0.0, 1e-4, 100)
+
+    def fake_dpt(lib_path, vendor):
+        chosen = residual if "ann_residual" in lib_path.name else (
+            tier2 if "tier2_charge" in lib_path.name else tables)
+        run = SimpleNamespace(
+            time=time, wall_clock_s=0.1, metrics=chosen[0],
+            waveform=chosen[1])
+        return run, "Total iterations: 100\n", "tier3"
+
+    monkeypatch.setattr(sm, "ROOT", tmp_path)
+    monkeypatch.setattr(sm, "capture_trajectory", lambda v: SimpleNamespace(
+        time=time, input=(np.ones_like(time), np.linspace(0, 20, 100)),
+        output=(np.ones_like(time),),
+        pin_roles=["drain", "gate", "source"]))
+    monkeypatch.setattr(sm, "load_input", lambda v: {
+        "conditions": {"temperature": 300.0}, "device": "TOY",
+        "library": str(tmp_path / "golden.lib"), "subcircuit": "GOLDEN"})
+    monkeypatch.setattr(sm, "_dpt_conditions", lambda v: {
+        "vgs_on": 10.0, "vbus": 20.0, "i_load_target": 1.0,
+        "l_load": 1e-6, "t1_on": 1e-6, "t2_on": 5e-6,
+        "t1_width": 1e-6, "t2_width": 2e-6, "t_end": 1e-4,
+        "edge_time": 1e-9, "max_step": 2e-9})
+    monkeypatch.setattr(sm, "_build_spec", lambda v, **kw: (
+        _simplis_spec(linear_cgs=True), {"dummy": 1}, None))
+    monkeypatch.setattr(sm, "hybrid_ann_fit_for_vendor", lambda v: {
+        "residual_fit": fit, "charge_fit": object()})  # must stay unconsumed
+    monkeypatch.setattr(
+        sm, "extract_dpt_metrics",
+        lambda run: getattr(run, "metrics", golden_metrics))
+    monkeypatch.setattr(sm, "_run_emitted_dpt", fake_dpt)
+    monkeypatch.setattr(sm, "_waveform_errors", lambda run, traj: run.waveform)
+    monkeypatch.setattr(sm, "_emitted_static_rmse", lambda v, lib: {
+        "mean_rel_rmse_pct": 1.0, "per_curve_rel_rmse_pct": [],
+        "n_points_per_curve": 0})
+    monkeypatch.setattr(sm, "_recorded_tier2_static", lambda v: 1.5)
+    monkeypatch.setattr(sm, "run_inductive_benchmark", lambda *a, **kw: {
+        "wall_clock_s": 0.1, "solver_elapsed_s": 0.05,
+        "iterations": 100, "trace_points": 100})
+    monkeypatch.setattr(sm, "_run_adaptive_benchmark", lambda *a, **kw: {
+        "completed": True})
+
+    record = sm.run_vendor("TOY")
+    prov = record["ann_residual_candidate"]
+    assert prov["status"] == "fitted"
+    assert prov["sample_counts"] == {"train": 12, "curve1": 8, "dpt": 4}
+    assert prov["activation"] == "isru" and prov["neurons"] == 1
+    assert set(prov["dpt_fit"]) == {"tier2", "tier2+ann_residual"}
+    assert set(prov["dpt_held_out"]) == {"tier2", "tier2+ann_residual"}
+    assert record["charge_candidates"]["selection"] == "tier2"
+    expected = "tier2+ann_residual" if residual_better else "tier2"
+    assert prov["selection"] == expected
+    assert record["algorithm"]["residual_channel_candidate_selected"] == \
+        expected
+    assert record["dpt_waveform"] == (
+        residual[1] if residual_better else tier2[1])
+
+    models = tmp_path / "reports" / "models"
+    base_lib = models / "TOY_PIECESPICE_T3_simplis_tier2_charge.lib"
+    residual_lib = models / (
+        "TOY_PIECESPICE_T3_simplis_hybrid_ann_residual_tier2_charge.lib")
+    base_text = base_lib.read_text(encoding="ascii")
+    res_text = residual_lib.read_text(encoding="ascii")
+    assert len([x for x in res_text.splitlines()
+                if x.startswith("G_ANN ")]) == 1
+    assert _charge_element_lines(base_text, "tier2") == \
+        _charge_element_lines(res_text, "tier2")
+    if not residual_better:
+        assert "rejected" in prov["selection_reason"]
+        assert prov["evidence"]["strict_gain"] is False
+    else:
+        assert prov["evidence"]["strict_gain"] is True
 
 # ---- T1: Tier-3 sites call the T0 hyp/sqrt helpers (unified spec 4.1) -----
 

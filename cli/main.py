@@ -105,9 +105,10 @@ class Tier(int, Enum):
 
 
 class Basis(str, Enum):
-    """UROM channel basis accepted by --basis (canonical C0 or ANN candidate)."""
+    """UROM channel basis accepted by --basis (canonical C0 or explicit candidates)."""
     TIER2 = "tier2"
     ANN = "ann"
+    HYBRID = "hybrid"
 
 
 def _num(value, fmt: str = ".4g") -> str:
@@ -265,7 +266,8 @@ def fit(
     basis: Basis = typer.Option(
         Basis.TIER2, "--basis",
         help="UROM channel basis for --variant urom: tier2 (canonical C0, "
-             "default) or ann (measured/rejected candidate)"),
+             "default), ann (measured/rejected candidate) or hybrid "
+             "(C0 + ANN residual candidate)"),
 ) -> None:
     """Fit a Tier-2, Tier-3 or Tier-4 subcircuit for VENDOR."""
     if tier == 2:
@@ -292,7 +294,8 @@ def validate(
     basis: Basis = typer.Option(
         Basis.TIER2, "--basis",
         help="UROM channel basis for --variant urom: tier2 (canonical C0, "
-             "default) or ann (measured/rejected candidate)"),
+             "default), ann (measured/rejected candidate) or hybrid "
+             "(C0 + ANN residual candidate)"),
 ) -> None:
     """Validate VENDOR against the golden model at the selected tier."""
     if tier == 4:

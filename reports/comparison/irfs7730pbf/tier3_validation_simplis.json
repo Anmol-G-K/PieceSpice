@@ -5,7 +5,8 @@
   "methods": [
     "SIMPLIS Level-2 (CGS/CDS/CDG V-Q tables; S-MOS, S-APPB)",
     "Tier-2 CPWL channel + body diode + parasitics (unchanged)",
-    "Gated hybrid hinge_c channel (measured candidates; default off)"
+    "Gated hybrid hinge_c channel (measured candidates; default off)",
+    "Evidence-gated ANN residual current source; C0 charge tables unchanged"
   ],
   "algorithm": {
     "cgs_decision": {
@@ -93,11 +94,16 @@
       "cds": 0
     },
     "cap_ref_vds": 15.075,
-    "curve4_recorded_scalars": {
-      "ciss_f": 1.3544355759244372e-08,
-      "coss_f": 1.4115209490764857e-09,
-      "crss_f": 8.564135068335591e-10,
-      "cap_ref_vds": 15.075
+    "curve4_cv": {
+      "source": "curve4_full_arrays",
+      "full_arrays_present": true,
+      "array_keys": [
+        "curve_vds",
+        "ciss_curve_f",
+        "coss_curve_f",
+        "crss_curve_f"
+      ],
+      "data_limitation": null
     },
     "breakpoint_formula": "greedy pwl_charge_segments farthest-point rule on anchored Q(V); no point cap; CDS/CDG forced DPT on-state breakpoint; no breakpoint above vbus",
     "hybrid_channel": {
@@ -140,7 +146,9 @@
     },
     "channel": "reused models.netlist_builder._channel_expression (hybrid rejected by strict gate)",
     "charge_candidate_selected": "tier2",
-    "channel_candidate_selected": "tier2"
+    "channel_candidate_selected": "tier2",
+    "residual_channel_candidate_selected": "tier2",
+    "residual_channel_charge_mode": "tier2"
   },
   "function_fit": {
     "static_curve_rmse_rel": 7.068260225745648,
@@ -163,7 +171,7 @@
     "golden_trace_points": 7114,
     "iterations": 16834,
     "t_last_s": 1.4e-05,
-    "forced_2ns_wall_s": 1.0287681000045268,
+    "forced_2ns_wall_s": 1.2379668000012316,
     "error": null,
     "waveform": {
       "vds_rel_rmse_pct": 8.704414834676104,
@@ -253,7 +261,8 @@
       "tables",
       "tier2",
       "hybrid_tables",
-      "hybrid_tier2"
+      "hybrid_tier2",
+      "tier2+ann_residual"
     ],
     "tables": {
       "library": "reports\\models\\irfs7730pbf_PIECESPICE_T3_simplis_tables_charge.lib",
@@ -263,7 +272,7 @@
         "golden_trace_points": 7114,
         "iterations": 18255,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.0556182000000263,
+        "forced_2ns_wall_s": 1.2517311999999947,
         "error": null,
         "waveform": {
           "vds_rel_rmse_pct": 9.546261654938407,
@@ -354,7 +363,7 @@
           "e_off_uj": 36.17360974044413
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.453 seconds.\nTotal iterations: 18255\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_5yi8uhen\\tran.net\n"
+      "spice_log_tail": "Total elapsed time: 0.512 seconds.\nTotal iterations: 18255\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_bpfgfcbd\\tran.net\n"
     },
     "tier2": {
       "library": "reports\\models\\irfs7730pbf_PIECESPICE_T3_simplis_tier2_charge.lib",
@@ -364,7 +373,7 @@
         "golden_trace_points": 7114,
         "iterations": 16834,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.0287681000045268,
+        "forced_2ns_wall_s": 1.2379668000012316,
         "error": null,
         "waveform": {
           "vds_rel_rmse_pct": 8.704414834676104,
@@ -455,7 +464,7 @@
           "e_off_uj": 34.94948728347277
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.432 seconds.\nTotal iterations: 16834\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_0bpwzcob\\tran.net\n"
+      "spice_log_tail": "Total elapsed time: 0.469 seconds.\nTotal iterations: 16834\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_2mfi85hl\\tran.net\n"
     },
     "hybrid_tables": {
       "library": "reports\\models\\irfs7730pbf_PIECESPICE_T3_simplis_hybrid_tables_charge.lib",
@@ -465,7 +474,7 @@
         "golden_trace_points": 7114,
         "iterations": 18477,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.0412463000102434,
+        "forced_2ns_wall_s": 1.922845300001427,
         "error": null,
         "waveform": {
           "vds_rel_rmse_pct": 9.544133277302459,
@@ -556,7 +565,7 @@
           "e_off_uj": 55.79375470366297
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.451 seconds.\nTotal iterations: 18477\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_cmbx134m\\tran.net\n"
+      "spice_log_tail": "Total elapsed time: 1.202 seconds.\nTotal iterations: 18477\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_ls3s2eo_\\tran.net\n"
     },
     "hybrid_tier2": {
       "library": "reports\\models\\irfs7730pbf_PIECESPICE_T3_simplis_hybrid_tier2_charge.lib",
@@ -566,7 +575,7 @@
         "golden_trace_points": 7114,
         "iterations": 16883,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.0221681999973953,
+        "forced_2ns_wall_s": 1.3368332000009104,
         "error": null,
         "waveform": {
           "vds_rel_rmse_pct": 8.719142018435816,
@@ -657,7 +666,108 @@
           "e_off_uj": 31.514042509505508
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.435 seconds.\nTotal iterations: 16883\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_ubz9n9t4\\tran.net\n"
+      "spice_log_tail": "Total elapsed time: 0.462 seconds.\nTotal iterations: 16883\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_wd6p73s0\\tran.net\n"
+    },
+    "tier2+ann_residual": {
+      "library": "reports\\models\\irfs7730pbf_PIECESPICE_T3_simplis_hybrid_ann_residual_tier2_charge.lib",
+      "dpt_run": {
+        "completed": true,
+        "trace_points": 7192,
+        "golden_trace_points": 7114,
+        "iterations": 17849,
+        "t_last_s": 1.4e-05,
+        "forced_2ns_wall_s": 1.9414073000007193,
+        "error": null,
+        "waveform": {
+          "vds_rel_rmse_pct": 10.114989854295937,
+          "id_rel_rmse_pct": 27.151597938334067,
+          "compare_points": 7114,
+          "current_definition": "I(Lload)-I(Dclamp)"
+        },
+        "current_definition": "I(Lload)-I(Dclamp)"
+      },
+      "dpt_comparison": {
+        "td_on_ns": {
+          "golden": 32.29627698150211,
+          "tier3": 49.31046327666473,
+          "tier3_rel_err_pct": 52.68157164030887,
+          "tier2": 17.081334133714805,
+          "tier2_rel_err_pct": -47.11051634992404
+        },
+        "tr_ns": {
+          "golden": 25.84350961529235,
+          "tier3": 1.3143929230812597,
+          "tier3_rel_err_pct": -94.9140308624975,
+          "tier2": 2.892552707266252,
+          "tier2_rel_err_pct": -88.80743076182407
+        },
+        "td_off_ns": {
+          "golden": 62.182902750101924,
+          "tier3": 25.434555080422275,
+          "tier3_rel_err_pct": -59.09718917008809,
+          "tier2": 17.134184632214943,
+          "tier2_rel_err_pct": -72.44550531667346
+        },
+        "tf_ns": {
+          "golden": 26.538999478329874,
+          "tier3": 3.4838684877829587,
+          "tier3_rel_err_pct": -86.87264570532255,
+          "tier2": 2.5289703561538817,
+          "tier2_rel_err_pct": -90.47073964405146
+        },
+        "dv_dt_max_v_per_ns": {
+          "golden": 35.93467060024436,
+          "tier3": 1854.8648837120002,
+          "tier3_rel_err_pct": 5061.769546593219,
+          "tier2": 587.4770711811311,
+          "tier2_rel_err_pct": 1534.8475201471201
+        },
+        "di_dt_max_a_per_ns": {
+          "golden": 443.4892816651921,
+          "tier3": 209960.19299242823,
+          "tier3_rel_err_pct": 47242.788579710395,
+          "tier2": 2.497784249508453,
+          "tier2_rel_err_pct": -99.4367881360898
+        },
+        "e_on_uj": {
+          "golden": 45.43247692932454,
+          "tier3": 420.93977560896474,
+          "tier3_rel_err_pct": 826.517337506791,
+          "tier2": 71.09326472844484,
+          "tier2_rel_err_pct": 56.481155185614504
+        },
+        "e_off_uj": {
+          "golden": 77.72046585456407,
+          "tier3": 365.0061667536739,
+          "tier3_rel_err_pct": 369.63970524404573,
+          "tier2": 533.4319489514241,
+          "tier2_rel_err_pct": 586.3468239493303
+        },
+        "i_peak_a": {
+          "golden": 138.53150939941406,
+          "tier3": 975.2071598693728,
+          "tier3_rel_err_pct": 603.9605387231114,
+          "tier2": 136.9910430908203,
+          "tier2_rel_err_pct": -1.1119970577612617
+        }
+      },
+      "waveform": {
+        "vds_rel_rmse_pct": 10.114989854295937,
+        "id_rel_rmse_pct": 27.151597938334067,
+        "compare_points": 7114,
+        "current_definition": "I(Lload)-I(Dclamp)"
+      },
+      "fidelity": {
+        "vds_rmse_pct": 10.114989854295937,
+        "id_rmse_pct": 27.151597938334067,
+        "abs_rel_err_pct": {
+          "tr_ns": 94.9140308624975,
+          "tf_ns": 86.87264570532255,
+          "e_on_uj": 826.517337506791,
+          "e_off_uj": 369.63970524404573
+        }
+      },
+      "spice_log_tail": "Total elapsed time: 1.201 seconds.\nTotal iterations: 17849\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_1ncoavbh\\tran.net\n"
     },
     "selection": "tier2",
     "selection_reason": "tier2 charge strictly improves Vds RMSE, Id RMSE and abs(rel err) of tr/tf/e_on/e_off",
@@ -668,7 +778,8 @@
       "tables",
       "tier2",
       "hybrid_tables",
-      "hybrid_tier2"
+      "hybrid_tier2",
+      "tier2+ann_residual"
     ],
     "tables": {
       "library": "reports\\models\\irfs7730pbf_PIECESPICE_T3_simplis_tables_charge.lib",
@@ -678,7 +789,7 @@
         "golden_trace_points": 7114,
         "iterations": 18255,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.0556182000000263,
+        "forced_2ns_wall_s": 1.2517311999999947,
         "error": null,
         "waveform": {
           "vds_rel_rmse_pct": 9.546261654938407,
@@ -769,7 +880,7 @@
           "e_off_uj": 36.17360974044413
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.453 seconds.\nTotal iterations: 18255\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_5yi8uhen\\tran.net\n"
+      "spice_log_tail": "Total elapsed time: 0.512 seconds.\nTotal iterations: 18255\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_bpfgfcbd\\tran.net\n"
     },
     "tier2": {
       "library": "reports\\models\\irfs7730pbf_PIECESPICE_T3_simplis_tier2_charge.lib",
@@ -779,7 +890,7 @@
         "golden_trace_points": 7114,
         "iterations": 16834,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.0287681000045268,
+        "forced_2ns_wall_s": 1.2379668000012316,
         "error": null,
         "waveform": {
           "vds_rel_rmse_pct": 8.704414834676104,
@@ -870,7 +981,7 @@
           "e_off_uj": 34.94948728347277
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.432 seconds.\nTotal iterations: 16834\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_0bpwzcob\\tran.net\n"
+      "spice_log_tail": "Total elapsed time: 0.469 seconds.\nTotal iterations: 16834\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_2mfi85hl\\tran.net\n"
     },
     "hybrid_tables": {
       "library": "reports\\models\\irfs7730pbf_PIECESPICE_T3_simplis_hybrid_tables_charge.lib",
@@ -880,7 +991,7 @@
         "golden_trace_points": 7114,
         "iterations": 18477,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.0412463000102434,
+        "forced_2ns_wall_s": 1.922845300001427,
         "error": null,
         "waveform": {
           "vds_rel_rmse_pct": 9.544133277302459,
@@ -971,7 +1082,7 @@
           "e_off_uj": 55.79375470366297
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.451 seconds.\nTotal iterations: 18477\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_cmbx134m\\tran.net\n"
+      "spice_log_tail": "Total elapsed time: 1.202 seconds.\nTotal iterations: 18477\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_ls3s2eo_\\tran.net\n"
     },
     "hybrid_tier2": {
       "library": "reports\\models\\irfs7730pbf_PIECESPICE_T3_simplis_hybrid_tier2_charge.lib",
@@ -981,7 +1092,7 @@
         "golden_trace_points": 7114,
         "iterations": 16883,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.0221681999973953,
+        "forced_2ns_wall_s": 1.3368332000009104,
         "error": null,
         "waveform": {
           "vds_rel_rmse_pct": 8.719142018435816,
@@ -1072,7 +1183,108 @@
           "e_off_uj": 31.514042509505508
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.435 seconds.\nTotal iterations: 16883\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_ubz9n9t4\\tran.net\n"
+      "spice_log_tail": "Total elapsed time: 0.462 seconds.\nTotal iterations: 16883\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_wd6p73s0\\tran.net\n"
+    },
+    "tier2+ann_residual": {
+      "library": "reports\\models\\irfs7730pbf_PIECESPICE_T3_simplis_hybrid_ann_residual_tier2_charge.lib",
+      "dpt_run": {
+        "completed": true,
+        "trace_points": 7192,
+        "golden_trace_points": 7114,
+        "iterations": 17849,
+        "t_last_s": 1.4e-05,
+        "forced_2ns_wall_s": 1.9414073000007193,
+        "error": null,
+        "waveform": {
+          "vds_rel_rmse_pct": 10.114989854295937,
+          "id_rel_rmse_pct": 27.151597938334067,
+          "compare_points": 7114,
+          "current_definition": "I(Lload)-I(Dclamp)"
+        },
+        "current_definition": "I(Lload)-I(Dclamp)"
+      },
+      "dpt_comparison": {
+        "td_on_ns": {
+          "golden": 32.29627698150211,
+          "tier3": 49.31046327666473,
+          "tier3_rel_err_pct": 52.68157164030887,
+          "tier2": 17.081334133714805,
+          "tier2_rel_err_pct": -47.11051634992404
+        },
+        "tr_ns": {
+          "golden": 25.84350961529235,
+          "tier3": 1.3143929230812597,
+          "tier3_rel_err_pct": -94.9140308624975,
+          "tier2": 2.892552707266252,
+          "tier2_rel_err_pct": -88.80743076182407
+        },
+        "td_off_ns": {
+          "golden": 62.182902750101924,
+          "tier3": 25.434555080422275,
+          "tier3_rel_err_pct": -59.09718917008809,
+          "tier2": 17.134184632214943,
+          "tier2_rel_err_pct": -72.44550531667346
+        },
+        "tf_ns": {
+          "golden": 26.538999478329874,
+          "tier3": 3.4838684877829587,
+          "tier3_rel_err_pct": -86.87264570532255,
+          "tier2": 2.5289703561538817,
+          "tier2_rel_err_pct": -90.47073964405146
+        },
+        "dv_dt_max_v_per_ns": {
+          "golden": 35.93467060024436,
+          "tier3": 1854.8648837120002,
+          "tier3_rel_err_pct": 5061.769546593219,
+          "tier2": 587.4770711811311,
+          "tier2_rel_err_pct": 1534.8475201471201
+        },
+        "di_dt_max_a_per_ns": {
+          "golden": 443.4892816651921,
+          "tier3": 209960.19299242823,
+          "tier3_rel_err_pct": 47242.788579710395,
+          "tier2": 2.497784249508453,
+          "tier2_rel_err_pct": -99.4367881360898
+        },
+        "e_on_uj": {
+          "golden": 45.43247692932454,
+          "tier3": 420.93977560896474,
+          "tier3_rel_err_pct": 826.517337506791,
+          "tier2": 71.09326472844484,
+          "tier2_rel_err_pct": 56.481155185614504
+        },
+        "e_off_uj": {
+          "golden": 77.72046585456407,
+          "tier3": 365.0061667536739,
+          "tier3_rel_err_pct": 369.63970524404573,
+          "tier2": 533.4319489514241,
+          "tier2_rel_err_pct": 586.3468239493303
+        },
+        "i_peak_a": {
+          "golden": 138.53150939941406,
+          "tier3": 975.2071598693728,
+          "tier3_rel_err_pct": 603.9605387231114,
+          "tier2": 136.9910430908203,
+          "tier2_rel_err_pct": -1.1119970577612617
+        }
+      },
+      "waveform": {
+        "vds_rel_rmse_pct": 10.114989854295937,
+        "id_rel_rmse_pct": 27.151597938334067,
+        "compare_points": 7114,
+        "current_definition": "I(Lload)-I(Dclamp)"
+      },
+      "fidelity": {
+        "vds_rmse_pct": 10.114989854295937,
+        "id_rmse_pct": 27.151597938334067,
+        "abs_rel_err_pct": {
+          "tr_ns": 94.9140308624975,
+          "tf_ns": 86.87264570532255,
+          "e_on_uj": 826.517337506791,
+          "e_off_uj": 369.63970524404573
+        }
+      },
+      "spice_log_tail": "Total elapsed time: 1.201 seconds.\nTotal iterations: 17849\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_1ncoavbh\\tran.net\n"
     },
     "selection": "tier2",
     "selection_reason": "hybrid rejected: strict all-metric DPT fidelity gain not proven (hybrid_tables vs tables: id_rmse_pct,e_off_uj; hybrid_tier2 vs tier2: vds_rmse_pct); Tier-2 channel retained",
@@ -1160,24 +1372,451 @@
   },
   "channel_selection": "tier2",
   "channel_selection_reason": "hybrid rejected: strict all-metric DPT fidelity gain not proven (hybrid_tables vs tables: id_rmse_pct,e_off_uj; hybrid_tier2 vs tier2: vds_rmse_pct); Tier-2 channel retained",
+  "ann_residual_candidate": {
+    "status": "fitted",
+    "source": "pipeline.ann_fit.hybrid_ann_fit_for_vendor: residual_fit only; its ANN charge fit is not used by simplis",
+    "sample_counts": {
+      "train": 559,
+      "curve1": 500,
+      "dpt": 59
+    },
+    "activation": "isru",
+    "neurons": 6,
+    "v_th_v": 4.348318313631395,
+    "alpha": 10.0,
+    "fit_values": {
+      "residual_rel_rmse": 0.8198262851132888,
+      "residual_rms_a": 57.79950705482431,
+      "target_rms_a": 70.50213942193523,
+      "zero_vds_max_abs_a": 0.0,
+      "cutoff_attenuation": 4.53311738211221e-05,
+      "analytic_vs_finite_difference": {
+        "probe_points": 8,
+        "step_vgs_v": 0.001,
+        "step_vds_v": 0.0038882967376708986,
+        "max_abs_diff": {
+          "dg": 0.0002815457762839202,
+          "dd": 6.028888938303112e-06,
+          "dgg": 0.0016231901617373978,
+          "ddd": 1.1156861052796785e-06,
+          "dgd": 6.346946708490897e-05
+        }
+      }
+    },
+    "provenance": {
+      "target": "I_golden - I_C0; C0 = closed Tier-2 G_CH evaluated by models.netlist_builder.evaluate_tier2_channel (eps=0); no simulated currents are fabricated",
+      "c0_spec": "pipeline.fitting.build_pwl_spec(irfs7730pbf)",
+      "data_sources": {
+        "source": "CurveData family + DPT points",
+        "dpt_high_vi": [
+          {
+            "source": "dpt_trajectory",
+            "vendor": "irfs7730pbf",
+            "status": "ok",
+            "sample_indices": [
+              0,
+              29,
+              58,
+              87,
+              116,
+              145,
+              174,
+              203,
+              232,
+              261,
+              290,
+              319,
+              348,
+              377,
+              406,
+              435,
+              464,
+              493,
+              3101,
+              3130,
+              3159,
+              3188,
+              3217,
+              3269,
+              3327,
+              3385,
+              3443,
+              3501,
+              3559,
+              3617,
+              3675,
+              3733,
+              3791,
+              3849,
+              3907,
+              3965,
+              4023,
+              4081,
+              4139,
+              4199,
+              4297,
+              5096,
+              6166,
+              6206,
+              6264,
+              6322,
+              6380,
+              6438,
+              6496,
+              6554,
+              6612,
+              6670,
+              6728,
+              6786,
+              6844,
+              6902,
+              6960,
+              7018,
+              7076
+            ],
+            "n_points": 59,
+            "sample_selection": "Vds > 10 V, stride 29",
+            "reason": null,
+            "external_source_status": "conditional_until_url_and_section_pinned",
+            "pin_roles": [
+              "drain",
+              "gate",
+              "source"
+            ]
+          }
+        ]
+      },
+      "n_samples": 559,
+      "n_curve1_samples": 500,
+      "n_dpt_samples": 59,
+      "activation": "isru",
+      "neurons": 6,
+      "v_th": "curve7_threshold_voltage:vth_v (caller-supplied scalar)",
+      "cutoff_alpha": "10 source-derived initial value (Yang TPEL 2022, CONDITIONAL until URL pinned)",
+      "guard_width": {
+        "value": 0.04999999999999982,
+        "rule": "approximation.smoother.eps_from_grid (median positive spacing, capped at half minimum)",
+        "source": "curve1_output_characteristics:curve_id_vgs_10_v:Vds axis",
+        "family": "curve1_vgs_10",
+        "n_grid_points": 101,
+        "dpt_points_excluded": true
+      },
+      "normalisation": "inputs centred/scaled for the fit, then absorbed into raw Vgs/Vds coefficients for emission",
+      "optimiser": "scipy.optimize.least_squares, bounded, deterministic seeded starts, analytic parameter Jacobian",
+      "optimizer_bounds": {
+        "w1": 10.0,
+        "b1": 10.0,
+        "w2": 2.0,
+        "b2": 40.0
+      },
+      "optimizer_max_nfev": 400,
+      "optimizer_starts_configured": 2,
+      "optimizer_tolerances": {
+        "xtol": 1e-10,
+        "ftol": 1e-10,
+        "gtol": 1e-10
+      },
+      "optimizer_history": [
+        {
+          "start": 0,
+          "cost": 188.45223619829565,
+          "nfev": 400,
+          "njev": 360,
+          "status": 0,
+          "reason": "The maximum number of function evaluations is exceeded."
+        },
+        {
+          "start": 1,
+          "cost": 187.85618100466223,
+          "nfev": 400,
+          "njev": 352,
+          "status": 0,
+          "reason": "The maximum number of function evaluations is exceeded."
+        }
+      ],
+      "analytic_derivatives": "closed forms of phi', phi'' and tanh-cutoff derivatives; central-difference audit in diagnostics.analytic_vs_finite_difference",
+      "limitation": "offline static fit only; no fidelity/speed gate runs in this module",
+      "external_source_status": "conditional_until_url_and_section_pinned"
+    },
+    "charge_mode": "tier2",
+    "modes": [
+      "tier2",
+      "tier2+ann_residual"
+    ],
+    "dpt_fit": {
+      "tier2": {
+        "vds_rmse_pct": 8.704414834676104,
+        "id_rmse_pct": 8.516744426498127,
+        "abs_rel_err_pct": {
+          "tr_ns": 52.849373228602445,
+          "tf_ns": 54.96940946546599,
+          "e_on_uj": 19.332704889089406,
+          "e_off_uj": 34.94948728347277
+        }
+      },
+      "tier2+ann_residual": {
+        "vds_rmse_pct": 10.114989854295937,
+        "id_rmse_pct": 27.151597938334067,
+        "abs_rel_err_pct": {
+          "tr_ns": 94.9140308624975,
+          "tf_ns": 86.87264570532255,
+          "e_on_uj": 826.517337506791,
+          "e_off_uj": 369.63970524404573
+        }
+      }
+    },
+    "dpt_held_out": {
+      "tier2": {
+        "waveform": {
+          "vds_rel_rmse_pct": 8.704414834676104,
+          "id_rel_rmse_pct": 8.516744426498127,
+          "compare_points": 7114,
+          "current_definition": "I(Lload)-I(Dclamp)"
+        },
+        "dpt_comparison": {
+          "td_on_ns": {
+            "golden": 32.29627698150211,
+            "tier3": 26.15094628592317,
+            "tier3_rel_err_pct": -19.027984863700286,
+            "tier2": 17.081334133714805,
+            "tier2_rel_err_pct": -47.11051634992404
+          },
+          "tr_ns": {
+            "golden": 25.84350961529235,
+            "tier3": 12.185376763336736,
+            "tier3_rel_err_pct": -52.849373228602445,
+            "tier2": 2.892552707266252,
+            "tier2_rel_err_pct": -88.80743076182407
+          },
+          "td_off_ns": {
+            "golden": 62.182902750101924,
+            "tier3": 25.492485961595595,
+            "tier3_rel_err_pct": -59.00402709721715,
+            "tier2": 17.134184632214943,
+            "tier2_rel_err_pct": -72.44550531667346
+          },
+          "tf_ns": {
+            "golden": 26.538999478329874,
+            "tier3": 11.950668187048842,
+            "tier3_rel_err_pct": -54.96940946546599,
+            "tier2": 2.5289703561538817,
+            "tier2_rel_err_pct": -90.47073964405146
+          },
+          "dv_dt_max_v_per_ns": {
+            "golden": 35.93467060024436,
+            "tier3": 25.700691968,
+            "tier3_rel_err_pct": -28.479400148375834,
+            "tier2": 587.4770711811311,
+            "tier2_rel_err_pct": 1534.8475201471201
+          },
+          "di_dt_max_a_per_ns": {
+            "golden": 443.4892816651921,
+            "tier3": 306.3484137827204,
+            "tier3_rel_err_pct": -30.923152723678417,
+            "tier2": 2.497784249508453,
+            "tier2_rel_err_pct": -99.4367881360898
+          },
+          "e_on_uj": {
+            "golden": 45.43247692932454,
+            "tier3": 36.649150240774595,
+            "tier3_rel_err_pct": -19.332704889089406,
+            "tier2": 71.09326472844484,
+            "tier2_rel_err_pct": 56.481155185614504
+          },
+          "e_off_uj": {
+            "golden": 77.72046585456407,
+            "tier3": 50.5575615240674,
+            "tier3_rel_err_pct": -34.94948728347277,
+            "tier2": 533.4319489514241,
+            "tier2_rel_err_pct": 586.3468239493303
+          },
+          "i_peak_a": {
+            "golden": 138.53150939941406,
+            "tier3": 137.05203247069602,
+            "tier3_rel_err_pct": -1.0679714204603192,
+            "tier2": 136.9910430908203,
+            "tier2_rel_err_pct": -1.1119970577612617
+          }
+        },
+        "dpt_run": {
+          "completed": true,
+          "trace_points": 7094,
+          "iterations": 16834,
+          "t_last_s": 1.4e-05,
+          "error": null
+        }
+      },
+      "tier2+ann_residual": {
+        "waveform": {
+          "vds_rel_rmse_pct": 10.114989854295937,
+          "id_rel_rmse_pct": 27.151597938334067,
+          "compare_points": 7114,
+          "current_definition": "I(Lload)-I(Dclamp)"
+        },
+        "dpt_comparison": {
+          "td_on_ns": {
+            "golden": 32.29627698150211,
+            "tier3": 49.31046327666473,
+            "tier3_rel_err_pct": 52.68157164030887,
+            "tier2": 17.081334133714805,
+            "tier2_rel_err_pct": -47.11051634992404
+          },
+          "tr_ns": {
+            "golden": 25.84350961529235,
+            "tier3": 1.3143929230812597,
+            "tier3_rel_err_pct": -94.9140308624975,
+            "tier2": 2.892552707266252,
+            "tier2_rel_err_pct": -88.80743076182407
+          },
+          "td_off_ns": {
+            "golden": 62.182902750101924,
+            "tier3": 25.434555080422275,
+            "tier3_rel_err_pct": -59.09718917008809,
+            "tier2": 17.134184632214943,
+            "tier2_rel_err_pct": -72.44550531667346
+          },
+          "tf_ns": {
+            "golden": 26.538999478329874,
+            "tier3": 3.4838684877829587,
+            "tier3_rel_err_pct": -86.87264570532255,
+            "tier2": 2.5289703561538817,
+            "tier2_rel_err_pct": -90.47073964405146
+          },
+          "dv_dt_max_v_per_ns": {
+            "golden": 35.93467060024436,
+            "tier3": 1854.8648837120002,
+            "tier3_rel_err_pct": 5061.769546593219,
+            "tier2": 587.4770711811311,
+            "tier2_rel_err_pct": 1534.8475201471201
+          },
+          "di_dt_max_a_per_ns": {
+            "golden": 443.4892816651921,
+            "tier3": 209960.19299242823,
+            "tier3_rel_err_pct": 47242.788579710395,
+            "tier2": 2.497784249508453,
+            "tier2_rel_err_pct": -99.4367881360898
+          },
+          "e_on_uj": {
+            "golden": 45.43247692932454,
+            "tier3": 420.93977560896474,
+            "tier3_rel_err_pct": 826.517337506791,
+            "tier2": 71.09326472844484,
+            "tier2_rel_err_pct": 56.481155185614504
+          },
+          "e_off_uj": {
+            "golden": 77.72046585456407,
+            "tier3": 365.0061667536739,
+            "tier3_rel_err_pct": 369.63970524404573,
+            "tier2": 533.4319489514241,
+            "tier2_rel_err_pct": 586.3468239493303
+          },
+          "i_peak_a": {
+            "golden": 138.53150939941406,
+            "tier3": 975.2071598693728,
+            "tier3_rel_err_pct": 603.9605387231114,
+            "tier2": 136.9910430908203,
+            "tier2_rel_err_pct": -1.1119970577612617
+          }
+        },
+        "dpt_run": {
+          "completed": true,
+          "trace_points": 7192,
+          "iterations": 17849,
+          "t_last_s": 1.4e-05,
+          "error": null
+        }
+      }
+    },
+    "selection": "tier2",
+    "selection_reason": "ANN residual rejected: no strict DPT fidelity gain (vds_rmse_pct, id_rmse_pct, tr_ns, tf_ns, e_on_uj, e_off_uj, mean_fidelity_score); tier2 channel retained",
+    "selection_rule": "EVIDENCE-GATED ONLY: tier2+ann_residual is selected only when both the tier2 and residual DPT runs are complete and the residual strictly improves Vds RMSE, Id RMSE, abs(rel err) of tr/tf/e_on/e_off and their mean fidelity score on the SAME selected charge-table emission. A missing fit, failed/incomplete DPT, tie or regression keeps the tier2 channel; no adaptive speed is claimed here.",
+    "evidence": {
+      "charge_mode": "tier2",
+      "tier2_candidate": "tier2",
+      "residual_candidate": "tier2+ann_residual",
+      "completion": {
+        "tier2": {
+          "completed": true,
+          "trace_points": 7094,
+          "iterations": 16834,
+          "t_last_s": 1.4e-05,
+          "error": null
+        },
+        "tier2+ann_residual": {
+          "completed": true,
+          "trace_points": 7192,
+          "iterations": 17849,
+          "t_last_s": 1.4e-05,
+          "error": null
+        }
+      },
+      "fidelity": {
+        "vds_rmse_pct": {
+          "tier2": 8.704414834676104,
+          "residual": 10.114989854295937,
+          "strict_gain": false
+        },
+        "id_rmse_pct": {
+          "tier2": 8.516744426498127,
+          "residual": 27.151597938334067,
+          "strict_gain": false
+        },
+        "tr_ns": {
+          "tier2": 52.849373228602445,
+          "residual": 94.9140308624975,
+          "strict_gain": false
+        },
+        "tf_ns": {
+          "tier2": 54.96940946546599,
+          "residual": 86.87264570532255,
+          "strict_gain": false
+        },
+        "e_on_uj": {
+          "tier2": 19.332704889089406,
+          "residual": 826.517337506791,
+          "strict_gain": false
+        },
+        "e_off_uj": {
+          "tier2": 34.94948728347277,
+          "residual": 369.63970524404573,
+          "strict_gain": false
+        }
+      },
+      "score": {
+        "tier2": 29.887022354634137,
+        "residual": 235.8683845185478,
+        "strict_gain": false
+      },
+      "strict_gain": false,
+      "failed_metrics": [
+        "vds_rmse_pct",
+        "id_rmse_pct",
+        "tr_ns",
+        "tf_ns",
+        "e_on_uj",
+        "e_off_uj",
+        "mean_fidelity_score"
+      ]
+    }
+  },
   "runtime": {
     "golden": {
-      "wall_clock_s": 1.023677700010012,
-      "solver_elapsed_s": 0.422,
+      "wall_clock_s": 1.137210499999128,
+      "solver_elapsed_s": 0.439,
       "iterations": 14825.0,
       "trace_points": 7114.0
     },
     "tier3": {
-      "wall_clock_s": 1.0303174000000581,
-      "solver_elapsed_s": 0.432,
+      "wall_clock_s": 1.311146900001404,
+      "solver_elapsed_s": 0.484,
       "iterations": 16834.0,
       "trace_points": 7094.0
     },
     "tier3_bench_completed": true,
-    "solver_speedup": 0.9768518518518519,
+    "solver_speedup": 0.9070247933884298,
     "bench_wall_s": {
-      "golden": 3.0583501999935834,
-      "tier3": 3.0787772000039695
+      "golden": 3.4895851999990555,
+      "tier3": 4.365377199999784
     },
     "bench": "forced 2ns fidelity control; not the speed claim"
   },
@@ -1197,17 +1836,17 @@
       "max_step": null,
       "end_time_s": 0.000176,
       "repeats": 3,
-      "bench_wall_s": 3.42002340000181,
+      "bench_wall_s": 4.081775599999673,
       "guard_run": {
         "t_last_s": 0.000176,
         "iterations": 12718,
         "trace_points": 3432,
-        "solver_elapsed_s": 0.327
+        "solver_elapsed_s": 0.355
       },
       "completed": true,
       "anti_fake_guard": "3/3 repeats must return; median solver/wall/iterations/points > 0; identical-netlist guard run must reach t_last >= 0.999*end_time_s with points >= 0.5*median points; timeouts/exceptions fail the side",
-      "wall_clock_s": 0.8504128000058699,
-      "solver_elapsed_s": 0.32,
+      "wall_clock_s": 0.9896786999997857,
+      "solver_elapsed_s": 0.34,
       "iterations": 12718.0,
       "trace_points": 3432.0,
       "trace_names": 12.0
@@ -1218,36 +1857,37 @@
       "max_step": null,
       "end_time_s": 0.000176,
       "repeats": 3,
-      "bench_wall_s": 3.271859000000404,
+      "bench_wall_s": 3.8086564999994152,
       "guard_run": {
         "t_last_s": 0.000176,
         "iterations": 8440,
         "trace_points": 2483,
-        "solver_elapsed_s": 0.309
+        "solver_elapsed_s": 0.325
       },
       "completed": true,
       "anti_fake_guard": "3/3 repeats must return; median solver/wall/iterations/points > 0; identical-netlist guard run must reach t_last >= 0.999*end_time_s with points >= 0.5*median points; timeouts/exceptions fail the side",
-      "wall_clock_s": 0.8183485000045039,
-      "solver_elapsed_s": 0.303,
+      "wall_clock_s": 0.9806377000004431,
+      "solver_elapsed_s": 0.309,
       "iterations": 8440.0,
       "trace_points": 2483.0,
       "trace_names": 12.0
     },
-    "solver_speedup": 1.0561056105610562,
-    "wall_speedup": 1.0391817178148302,
+    "solver_speedup": 1.1003236245954693,
+    "wall_speedup": 1.0092195109359334,
     "epc_golden_fully_adaptive_attempt": null,
     "notes": [
       "All timing rows are medians of completed runs only; failed repeats or guards carry completed=false and no speedup."
     ],
     "selected_candidate": "tier2",
-    "scope": "final selected candidate only; no adaptive runs for non-selected candidates; channel gate is fidelity-first, adaptive deferred"
+    "scope": "final selected candidate only; no adaptive runs for non-selected candidates; both channel gates are fidelity-first, adaptive deferred"
   },
   "build_seconds": {
-    "capture": 1.2570818000094732,
-    "fit": 27.14900530000159,
-    "static_sweep": 2.932220899994718
+    "capture": 1.4687748000014835,
+    "fit": 0.6086378999989392,
+    "ann_fit": 36.33535469999879,
+    "static_sweep": 3.160427900000286
   },
-  "spice_log_tail": "Total elapsed time: 0.432 seconds.\nTotal iterations: 16834\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_0bpwzcob\\tran.net\n",
+  "spice_log_tail": "Total elapsed time: 0.469 seconds.\nTotal iterations: 16834\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_2mfi85hl\\tran.net\n",
   "emitted_lib": "reports\\models\\irfs7730pbf_PIECESPICE_T3_simplis.lib",
   "speed_adaptive_20_source": {
     "conditions": {
@@ -1265,17 +1905,17 @@
       "max_step": null,
       "end_time_s": 0.000176,
       "repeats": 3,
-      "bench_wall_s": 3.409412599998177,
+      "bench_wall_s": 3.697510599999987,
       "guard_run": {
         "t_last_s": 0.000176,
         "iterations": 12718,
         "trace_points": 3432,
-        "solver_elapsed_s": 0.324
+        "solver_elapsed_s": 0.354
       },
       "completed": true,
       "anti_fake_guard": "3/3 repeats must return; median solver/wall/iterations/points > 0; identical-netlist guard run must reach t_last >= 0.999*end_time_s with points >= 0.5*median points; timeouts/exceptions fail the side",
-      "wall_clock_s": 0.8593590999953449,
-      "solver_elapsed_s": 0.313,
+      "wall_clock_s": 0.9154744000006758,
+      "solver_elapsed_s": 0.368,
       "iterations": 12718.0,
       "trace_points": 3432.0,
       "trace_names": 12.0
@@ -1286,28 +1926,28 @@
       "max_step": null,
       "end_time_s": 0.000176,
       "repeats": 3,
-      "bench_wall_s": 3.3026306000028853,
+      "bench_wall_s": 3.5023960999997144,
       "guard_run": {
         "t_last_s": 0.000176,
         "iterations": 8440,
         "trace_points": 2483,
-        "solver_elapsed_s": 0.295
+        "solver_elapsed_s": 0.313
       },
       "completed": true,
       "anti_fake_guard": "3/3 repeats must return; median solver/wall/iterations/points > 0; identical-netlist guard run must reach t_last >= 0.999*end_time_s with points >= 0.5*median points; timeouts/exceptions fail the side",
-      "wall_clock_s": 0.8206367000020691,
-      "solver_elapsed_s": 0.3,
+      "wall_clock_s": 0.8810645000003205,
+      "solver_elapsed_s": 0.322,
       "iterations": 8440.0,
       "trace_points": 2483.0,
       "trace_names": 12.0
     },
-    "solver_speedup": 1.0433333333333334,
-    "wall_speedup": 1.0471858009679291,
+    "solver_speedup": 1.1428571428571428,
+    "wall_speedup": 1.0390549159571663,
     "epc_golden_fully_adaptive_attempt": null,
     "notes": [
       "All timing rows are medians of completed runs only; failed repeats or guards carry completed=false and no speedup."
     ],
     "selected_candidate": "tier2",
-    "scope": "final selected candidate only; no adaptive runs for non-selected candidates"
+    "scope": "final selected candidate only; no adaptive runs for non-selected candidates; channel gate is fidelity-first, adaptive deferred"
   }
 }

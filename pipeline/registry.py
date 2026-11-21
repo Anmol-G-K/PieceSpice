@@ -26,6 +26,8 @@ from pathlib import Path
 
 DEFAULT_VARIANT = "v1"
 UNIFIED_VARIANT = "urom"
+# Explicit UROM channel bases: canonical C0 first (default), then opt-ins.
+UROM_BASES: tuple[str, ...] = ("tier2", "ann", "hybrid")
 TIERS: tuple[int, ...] = (2, 3, 4)
 VENDORS: tuple[str, ...] = (
     "irfs7730pbf", "csd16412q5a", "epc2216", "cpm2-1200",
@@ -104,8 +106,9 @@ def fit(vendor: str, tier: int = 2,
     registered ``urom`` variant calls ``pipeline.unified_rom.run_unified``.
     Tier-4 calls ``pipeline.tier4.run_vendor`` (ideal switch + loss LUT,
     variant-free; DPT waveform gate retired by design).  ``basis`` selects
-    the UROM channel basis only: ``tier2`` (canonical C0, default) or ``ann``
-    (measured/rejected candidate); it is ignored by every other route.
+    the UROM channel basis only: ``tier2`` (canonical C0, default), ``ann``
+    (measured/rejected candidate) or ``hybrid`` (explicit C0+ANN residual
+    candidate); it is ignored by every other route.
     """
     if tier == 2:
         from pipeline.fitting import fit_pwl_model
@@ -115,6 +118,9 @@ def fit(vendor: str, tier: int = 2,
         return Path(run_vendor(vendor)["emitted_lib"])
     if tier == 3:
         if variant == UNIFIED_VARIANT:
+            if basis not in UROM_BASES:
+                raise ValueError(f"unknown UROM basis {basis!r}; expected "
+                                 f"{UROM_BASES}")
             from pipeline.unified_rom import run_unified
             return Path(run_unified(vendor, variant=variant,
                                     emit=basis)["emitted_lib"])
@@ -138,8 +144,9 @@ def validate(vendor: str, tier: int = 2,
     Tier-4: the ideal-switch/LUT build + DPT-derived energy and inductive-bench
     speed record, with the same anti-fake completion guard; DPT waveform gate
     retired by design and no converter bench built.  ``basis`` selects the
-    UROM channel basis only: ``tier2`` (canonical C0, default) or ``ann``
-    (measured/rejected candidate); it is ignored by every other route.
+    UROM channel basis only: ``tier2`` (canonical C0, default), ``ann``
+    (measured/rejected candidate) or ``hybrid`` (explicit C0+ANN residual
+    candidate); it is ignored by every other route.
     """
     if tier == 4:
         from pipeline.tier4 import run_vendor
@@ -149,6 +156,9 @@ def validate(vendor: str, tier: int = 2,
         return compare_tier2_vs_golden(vendor)
     if tier == 3:
         if variant == UNIFIED_VARIANT:
+            if basis not in UROM_BASES:
+                raise ValueError(f"unknown UROM basis {basis!r}; expected "
+                                 f"{UROM_BASES}")
             from pipeline.unified_rom import run_unified
             return run_unified(vendor, variant=variant, emit=basis)
         if variant == "simplis":

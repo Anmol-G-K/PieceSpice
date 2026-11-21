@@ -9,6 +9,7 @@ Usage:
     outputs = run_all_curves("irfs7730pbf")
 """
 
+import math
 from pathlib import Path
 
 import numpy as np
@@ -35,6 +36,61 @@ def _cap_ref_vds(cond: dict) -> float:
         return float(ref)
     return float(cond["Vds_cap_min"]) + 0.25 * (
         float(cond["Vds_cap_max"]) - float(cond["Vds_cap_min"]))
+
+
+
+def _finite_float_list(values, label: str) -> list:
+    """Copy *values* to plain finite Python floats without changing any value."""
+    try:
+        out = [float(v) for v in values]
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Curve-4 {label}: non-numeric sample") from exc
+    if not all(math.isfinite(v) for v in out):
+        raise ValueError(f"Curve-4 {label}: non-finite sample")
+    return out
+
+
+def _curve4_extracted(ciss, coss, crss, cap_ref: float) -> dict:
+    """Curve-4 extracted dict: legacy scalars plus the full AC sweep arrays.
+
+    Scalar keys are computed exactly as before. The sweep arrays are copied
+    verbatim (same values, same order) from the bench CurveData objects.
+    Missing, ragged, non-finite or unordered sweeps raise ValueError so a
+    partial array is never written.
+    """
+    vds = None
+    caps = []
+    for label, curve in (("Ciss", ciss), ("Coss", coss), ("Crss", crss)):
+        xs = getattr(curve, "x_data", None)
+        ys = getattr(curve, "y_data", None)
+        if xs is None or ys is None:
+            raise ValueError(f"Curve-4 {label}: missing x_data/y_data")
+        x_list = _finite_float_list(xs, f"{label}.x_data")
+        y_list = _finite_float_list(ys, f"{label}.y_data")
+        if len(x_list) != len(y_list):
+            raise ValueError(f"Curve-4 {label}: x/y length mismatch")
+        if vds is None:
+            vds = x_list
+        elif x_list != vds:
+            raise ValueError(f"Curve-4 {label}: Vds axis differs from Ciss")
+        caps.append(y_list)
+
+    if len(vds) < 2:
+        raise ValueError("Curve-4 sweep needs >= 2 points; refusing partial data")
+    if any(b <= a for a, b in zip(vds, vds[1:])):
+        raise ValueError("Curve-4 Vds sweep is not strictly ascending")
+
+    ciss_y, coss_y, crss_y = caps
+    return {
+        "ciss_f": _interp(vds, ciss_y, cap_ref),
+        "coss_f": _interp(vds, coss_y, cap_ref),
+        "crss_f": _interp(vds, crss_y, cap_ref),
+        "cap_ref_vds": cap_ref,
+        "curve_vds": vds,
+        "ciss_curve_f": ciss_y,
+        "coss_curve_f": coss_y,
+        "crss_curve_f": crss_y,
+    }
 
 
 def run_all_curves(vendor: str, keep_notebook: bool = False) -> dict:
@@ -110,10 +166,7 @@ def run_all_curves(vendor: str, keep_notebook: bool = False) -> dict:
         device, "curve4_capacitances", "pass",
         {"Vds_cap_min": cond["Vds_cap_min"], "Vds_cap_max": cond["Vds_cap_max"],
          "Cap_points": cond["Cap_points"], "F_meas": cond["F_meas"]},
-        {"ciss_f": interp(ciss.x_data, ciss.y_data, cap_ref),
-         "coss_f": interp(coss.x_data, coss.y_data, cap_ref),
-         "crss_f": interp(crss.x_data, crss.y_data, cap_ref),
-         "cap_ref_vds": cap_ref},
+        _curve4_extracted(ciss, coss, crss, cap_ref),
         notes=f"Small-signal AC @ {cond['F_meas']:.0e} Hz; "
               f"reported at Vds={cap_ref} V.")
 

@@ -11,6 +11,10 @@ parasitics (RG/RD/RS), the D_BODY model, semantic pin order and the three
 two-terminal charge element placements.  Only the G_CH expression and the
 three Q= expressions change; no fourth node is introduced.  eps defaults to
 0 (legacy C0 chain) and is passed to the shared ``delta_ramp_chain``.
+
+``build_hybrid_ann_subcircuit`` copies the closed Tier-2 C0 subcircuit and
+adds one signed ``G_ANN`` current source after ``G_CH``; charge tables, body
+diode and parasitics remain byte-identical to the closed emitter.
 """
 
 from __future__ import annotations
@@ -20,10 +24,12 @@ from typing import List
 
 from approximation.ann_channel import AnnChannelFit
 from approximation.ann_charge import AnnChargeFit
+from approximation.ann_residual import AnnResidualFit
 from approximation.smoother import delta_ramp_chain
 from models.netlist_builder import build_tier2_subcircuit
 
-__all__ = ["emit_ann_channel", "build_ann_subcircuit"]
+__all__ = ["emit_ann_channel", "build_ann_subcircuit",
+           "emit_ann_residual", "build_hybrid_ann_subcircuit"]
 
 _ACT = ("isru", "tanh", "sigmoid")
 _TERMS = {"oss": "V(di,ss)", "iss": "V(gi,ss)", "rss": "V(gi,di)"}
@@ -117,6 +123,98 @@ def _resolve_eps(c1_eps) -> float:
     return eps
 
 
+def _charge_lines(charge_fit: AnnChargeFit, eps: float,
+                  *, header: str) -> List[str]:
+    """Monotone Q= charge elements (Q(0)=0) from the ANN charge tables."""
+    q_lines: List[str] = [header]
+    for table_name in ("oss", "iss", "rss"):
+        if table_name not in charge_fit.tables:
+            raise ValueError(f"charge_fit is missing the {table_name!r} table")
+        table = charge_fit.tables[table_name]
+        expr = delta_ramp_chain(_TERMS[table_name], table["v"], table["q"],
+                                eps)
+        element, nodes = _ELEMENTS[table_name]
+        q_lines.append(f"{element} {nodes} Q = {{{expr}}}")
+    q_lines.append("")
+    return q_lines
+
+
+def emit_ann_residual(fit: AnnResidualFit, vgs_term: str = "V(gi,ss)",
+                      vds_term: str = "V(di,ss)") -> str:
+    """Return the signed residual source expression (ASCII, no new nodes).
+
+    ``I_res = Vds * (b2 + sum_i w2_i*phi(w1_i0*Vgs + w1_i1*Vds + b1_i))
+    * 0.5*(1 + tanh(alpha*(Vgs - Vth)))``.  The explicit Vds factor pins the
+    zero current at Vds=0, the tanh gate supplies threshold cutoff, and the
+    signed weights allow either correction direction.
+    """
+    if not isinstance(fit, AnnResidualFit):
+        raise TypeError("fit must be an AnnResidualFit")
+    if fit.activation not in _ACT:
+        raise ValueError(f"unsupported activation {fit.activation!r}")
+    for term in (vgs_term, vds_term):
+        if not isinstance(term, str) or not term:
+            raise ValueError("terminal expressions must be non-empty strings")
+        term.encode("ascii")
+    c = fit.coefficients
+    w1 = c["w1"]
+    b1 = c["b1"]
+    w2 = c["w2"]
+    if not (len(w1) == len(b1) == len(w2) == fit.neurons):
+        raise ValueError("residual coefficients do not match neurons")
+    net = _fmt(c["b2"])
+    for i in range(fit.neurons):
+        u = (f"({_fmt(w1[i][0])}*({vgs_term})"
+             f"+{_fmt(w1[i][1])}*({vds_term})+{_fmt(b1[i])})")
+        net += f"+{_fmt(w2[i])}*{_act_expr(u, fit.activation)}"
+    cut = (f"(0.5*(1+tanh({_fmt(fit.alpha)}"
+           f"*(({vgs_term})-({_fmt(fit.v_th)})))))")
+    expr = f"(({vds_term})*({net})*{cut})"
+    expr.encode("ascii")  # ASCII-only emission invariant
+    return expr
+
+
+def build_hybrid_ann_subcircuit(spec, residual_fit: AnnResidualFit, *,
+                                name: str | None = None,
+                                subckt_name: str | None = None) -> str:
+    """Emit ``.SUBCKT <subckt> d g s`` with C0 base + signed ANN residual.
+
+    The closed Tier-2 subcircuit is emitted at the requested name and copied
+    unchanged (C0 channel, C0 charge tables, body diode and parasitics);
+    only ``G_ANN di ss`` is inserted immediately after ``G_CH``.  The
+    residual introduces no fourth internal node.  ``name``/``subckt_name``
+    follow the existing override convention (``subckt_name`` wins).
+    """
+    if not isinstance(residual_fit, AnnResidualFit):
+        raise TypeError("residual_fit must be an AnnResidualFit")
+    new = (subckt_name or name or f"{spec.device_name}_PIECSPICE_HYBRID")
+
+    # Same name as the hybrid emission: every copied line is byte-identical
+    # to the closed C0 builder, including the D_BD model suffix and .ENDS.
+    lines = build_tier2_subcircuit(spec, name=new).splitlines()
+    i_sub = next(i for i, l in enumerate(lines) if l.startswith(".SUBCKT "))
+    i_ch = next(i for i, l in enumerate(lines) if l.startswith("G_CH "))
+    if i_sub >= i_ch:
+        raise RuntimeError("closed Tier-2 builder layout changed; "
+                           "hybrid emitter cannot place its residual safely")
+
+    residual = emit_ann_residual(residual_fit)
+    header = [
+        f"* PieceSpice hybrid C0+ANN ROM for {spec.device_name}",
+        "* Channel: closed Tier-2 G_CH plus signed ANN residual G_ANN",
+        "* Charge Q tables, body diode and parasitics: closed Tier-2 C0",
+        f"* Residual: {residual_fit.neurons} neurons, "
+        f"{residual_fit.activation}, v_th={_fmt(residual_fit.v_th)} V",
+    ]
+    out = (header + lines[:i_ch + 1]
+           + ["", "* --- signed ANN channel residual (learned correction) ---",
+              f"G_ANN di ss VALUE = {{{residual}}}"]
+           + lines[i_ch + 1:])
+    text = "\n".join(out)
+    text.encode("ascii")  # ASCII-only emission invariant
+    return text
+
+
 def build_ann_subcircuit(spec, channel_fit: AnnChannelFit,
                          charge_fit: AnnChargeFit, *, c1_eps=None,
                          name: str | None = None,
@@ -157,15 +255,9 @@ def build_ann_subcircuit(spec, channel_fit: AnnChannelFit,
 
     channel = emit_ann_channel(channel_fit)
     gw = float(channel_fit.coefficients["guard_width"])
-    q_lines: List[str] = ["* --- charge-conserving capacitances (ANN Q nets) ---"]
-    for table_name in ("oss", "iss", "rss"):
-        if table_name not in charge_fit.tables:
-            raise ValueError(f"charge_fit is missing the {table_name!r} table")
-        table = charge_fit.tables[table_name]
-        expr = delta_ramp_chain(_TERMS[table_name], table["v"], table["q"], eps)
-        element, nodes = _ELEMENTS[table_name]
-        q_lines.append(f"{element} {nodes} Q = {{{expr}}}")
-    q_lines.append("")
+    q_lines = _charge_lines(charge_fit, eps,
+                            header="* --- charge-conserving capacitances "
+                                   "(ANN Q nets) ---")
 
     body = [l.replace(old, new) for l in lines[i_bd:]]
     header = [

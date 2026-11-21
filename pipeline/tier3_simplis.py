@@ -1,10 +1,10 @@
 """Tier-3 ``simplis`` variant: SIMPLIS-style Level-2 charge tables.
 
-Assembles the three (V,Q) charge tables from the ONE existing AC sweep
-(Ciss/Coss/Crss vs Vds, re-extracted with the same capacitance bench that
-``pipeline.tier3`` uses), keeps the closed Tier-2 channel/diode/parasitics,
-emits ``<vendor>_PIECESPICE_T3_simplis.lib``, and validates it with the same
-DPT / waveform / speed benches as the v1 Tier-3 record.
+Assembles the three (V,Q) charge tables from ONE full C(V) sweep: the
+persisted Curve-4 arrays when available, otherwise the live AC capacitance
+re-extraction (with an explicit data-limitation disclosure). The closed
+Tier-2 channel/diode/parasitics are untouched, and the same DPT / waveform /
+speed benches validate the emitted ASCII subcircuit.
 
 All reported numbers are measured; incomplete simulations stay incomplete.
 """
@@ -25,11 +25,14 @@ from config.yaml_io import load_input, load_output
 from approximation.charge_model import integrate_charge
 from metrics.static import compute_curve_error
 from models.simplis_netlist_builder import (
+    CGSLinearityDecision,
     RELTOL,
     build_simplis_subcircuit,
     cgs_linearity_decision,
 )
 from models.hybrid_channel import HybridChannelFit, fit_hybrid_channel
+from approximation.ann_residual import AnnResidualFit
+from pipeline.ann_fit import hybrid_ann_fit_for_vendor
 from pipeline import fitting
 from pipeline.curves import _cap_ref_vds
 from pipeline.registry import ROOT
@@ -148,6 +151,147 @@ def _cap_curve_to_vbus(v, curves, vbus: float):
         return v, curves
     grid = np.concatenate([v[v < vbus], [vbus]])
     return grid, tuple(np.interp(grid, v, c) for c in curves)
+
+
+# ---- Full Curve-4 C(V) array ingestion (offline-testable) ----------------
+_FULL_CV_KEYS = ("curve_vds", "ciss_curve_f", "coss_curve_f", "crss_curve_f")
+
+# Disclosed whenever the full arrays are absent. The live AC re-sweep is real
+# measured data, but it is not the persisted Curve-4 sweep; the record must
+# say so instead of implying a richness the extracted file does not carry.
+_CV_DATA_LIMITATION = (
+    "Full Curve-4 C(V) arrays are not persisted for this vendor; charge "
+    "tables use the live AC capacitance re-sweep and the recorded curve4 "
+    "file carries only scalar Ciss/Coss/Crss equivalents. No full C(V) "
+    "sweep was synthesized from scalar equivalents."
+)
+
+
+@dataclass(frozen=True)
+class _CVSweep:
+    """A validated full C(V) sweep: ascending Vds, finite non-negative C."""
+
+    v: np.ndarray
+    ciss: np.ndarray
+    coss: np.ndarray
+    crss: np.ndarray
+
+
+@dataclass(frozen=True)
+class _ChargeTables:
+    """Anchored Q(V) fits plus the (V,Q) pairs actually emitted."""
+
+    fits: dict
+    pairs: dict
+    n_clipped: dict
+    cgs_decision: CGSLinearityDecision
+
+
+def _cv_sweep_from_extracted(extracted: dict, vendor: str) -> _CVSweep | None:
+    """Build a validated C(V) sweep from persisted Curve-4 arrays.
+
+    Returns ``None`` when any of the four arrays is absent, so the caller
+    keeps the existing live-sweep fallback. A partial or malformed persist
+    fails closed: a non-ascending Vds axis, mismatched lengths, or non-finite
+    / negative capacitance raise instead of being silently repaired.
+    """
+    if not isinstance(extracted, dict) or not all(
+            extracted.get(k) is not None for k in _FULL_CV_KEYS):
+        return None
+    v = np.asarray(extracted["curve_vds"], dtype=float).ravel()
+    ciss = np.asarray(extracted["ciss_curve_f"], dtype=float).ravel()
+    coss = np.asarray(extracted["coss_curve_f"], dtype=float).ravel()
+    crss = np.asarray(extracted["crss_curve_f"], dtype=float).ravel()
+    if not (v.size == ciss.size == coss.size == crss.size and v.size >= 2):
+        raise ValueError(
+            f"{vendor}: persisted Curve-4 C(V) arrays need equal lengths "
+            f">= 2 (got {v.size}, {ciss.size}, {coss.size}, {crss.size})")
+    if not np.all(np.diff(v) > 0):
+        raise ValueError(
+            f"{vendor}: persisted Curve-4 curve_vds axis must be strictly "
+            "ascending")
+    for name, arr in (("ciss_curve_f", ciss), ("coss_curve_f", coss),
+                      ("crss_curve_f", crss)):
+        if not np.all(np.isfinite(arr)) or np.any(arr < 0.0):
+            raise ValueError(
+                f"{vendor}: persisted Curve-4 {name} must be finite and "
+                "non-negative")
+    return _CVSweep(v=v, ciss=ciss, coss=coss, crss=crss)
+
+
+def _full_cv_from_curve4(vendor: str) -> _CVSweep | None:
+    """Read the persisted full Curve-4 arrays; ``None`` when not available."""
+    try:
+        extracted = load_output(vendor, "curve4_capacitances")["extracted"]
+    except (FileNotFoundError, KeyError, TypeError):
+        return None
+    return _cv_sweep_from_extracted(extracted, vendor)
+
+
+def _load_cv_sweep(vendor: str, cfg: dict, cond: dict):
+    """Pick the C(V) source and return ``(v, ciss, coss, crss, src, limit)``.
+
+    Persisted full Curve-4 arrays win when present. Otherwise the previously
+    unconditional live AC re-sweep is retained verbatim, with an explicit
+    disclosure; no flat/constant sweep is invented from the scalar fields.
+    """
+    full = _full_cv_from_curve4(vendor)
+    if full is not None:
+        return (full.v, full.ciss, full.coss, full.crss,
+                "curve4_full_arrays", None)
+    ciss_c, coss_c, crss_c = CapacitanceTestbench(
+        f_meas=cond.get("F_meas")).run(
+        Path(cfg["library"]).resolve(), cfg["subcircuit"],
+        vds_min=cond["Vds_cap_min"], vds_max=cond["Vds_cap_max"],
+        points=cond["Cap_points"],
+        pin_roles=cfg.get("pins", {}).get("pin_order"))
+    return (
+        np.asarray(ciss_c.x_data, dtype=float),
+        np.asarray(ciss_c.y_data, dtype=float),
+        np.asarray(coss_c.y_data, dtype=float),
+        np.asarray(crss_c.y_data, dtype=float),
+        "live_ac_sweep", _CV_DATA_LIMITATION,
+    )
+
+
+def _decompose_cv(ciss, coss, crss):
+    """Standard three-cap identity on one Vds grid; clipping is counted."""
+    cgs = np.maximum(ciss - crss, 0.0)
+    cds = np.maximum(coss - crss, 0.0)
+    cdg = np.asarray(crss, dtype=float).copy()
+    return cgs, cds, cdg, {
+        "cgs": int(np.count_nonzero(ciss - crss < 0.0)),
+        "cds": int(np.count_nonzero(coss - crss < 0.0)),
+    }
+
+
+def _fit_charge_tables(v, ciss, coss, crss, *, vbus,
+                       forced_v=None, forbid_below=None) -> _ChargeTables:
+    """Fit zero-anchored, monotone Q(V) tables from a full C(V) sweep.
+
+    Shared by both data sources so the charge contract is identical: no
+    max_points cap, the repo's 0.5% budget, and the DPT on-state breakpoint
+    forced onto CDS/CDG. ``v`` is always a voltage axis, never an index axis.
+    """
+    cgs_c, cds_c, cdg_c, n_clipped = _decompose_cv(ciss, coss, crss)
+    v_fit, curves = _cap_curve_to_vbus(v, (cgs_c, cds_c, cdg_c), vbus)
+    cgs_fit = _fit_anchored_charge(v_fit, curves[0], RELTOL)
+    cds_fit = _fit_anchored_charge(
+        v_fit, curves[1], RELTOL, forced_v=forced_v, forbid_below=forbid_below)
+    cdg_fit = _fit_anchored_charge(
+        v_fit, curves[2], RELTOL, forced_v=forced_v, forbid_below=forbid_below)
+    decision = cgs_linearity_decision(cgs_fit.v_full, cgs_fit.q_full, RELTOL)
+    if decision.is_linear:
+        # CGS_NSEG=1 (linear) [S-MOS]; the emitted C is the endpoint chord.
+        cgs_pairs = [cgs_fit.pairs[0], cgs_fit.pairs[-1]]
+    else:
+        cgs_pairs = cgs_fit.pairs
+    return _ChargeTables(
+        fits={"cgs": cgs_fit, "cds": cds_fit, "cdg": cdg_fit},
+        pairs={"cgs": cgs_pairs, "cds": cds_fit.pairs, "cdg": cdg_fit.pairs},
+        n_clipped=n_clipped,
+        cgs_decision=decision,
+    )
 
 
 def _on_state_breakpoint(vgs, vds, vgs_on: float, vbus: float) -> dict:
@@ -357,6 +501,99 @@ def _select_channel_candidate(
             "hybrid strictly improves every DPT fidelity metric in both "
             "charge modes and its measured adaptive speedup is not worse",
             evidence)
+_RESIDUAL_RULE = (
+    "EVIDENCE-GATED ONLY: tier2+ann_residual is selected only when both the "
+    "tier2 and residual DPT runs are complete and the residual strictly "
+    "improves Vds RMSE, Id RMSE, abs(rel err) of tr/tf/e_on/e_off and their "
+    "mean fidelity score on the SAME selected charge-table emission. A "
+    "missing fit, failed/incomplete DPT, tie or regression keeps the tier2 "
+    "channel; no adaptive speed is claimed here."
+)
+
+_FIDELITY_KEYS = ("vds_rmse_pct", "id_rmse_pct",
+                  "tr_ns", "tf_ns", "e_on_uj", "e_off_uj")
+
+
+def _fidelity_values(fidelity: dict) -> dict:
+    """Flatten one fidelity record into the six measured DPT values."""
+    errors = fidelity["abs_rel_err_pct"]
+    return {key: (fidelity[key] if key in ("vds_rmse_pct", "id_rmse_pct")
+                  else errors[key]) for key in _FIDELITY_KEYS}
+
+
+def _select_residual_candidate(
+    candidates: dict, *, charge_mode: str,
+    residual_mode: str = "tier2+ann_residual"
+) -> tuple[str, str, dict]:
+    """Fidelity-first gate for the optional ANN residual channel source."""
+    base = charge_mode
+    residual = residual_mode
+    evidence: dict = {
+        "charge_mode": charge_mode,
+        "tier2_candidate": base,
+        "residual_candidate": residual,
+    }
+    if base not in candidates or residual not in candidates:
+        evidence["reason"] = ("residual candidate missing (fit failed or "
+                              "DPT not measured)")
+        return ("tier2",
+                "ANN residual rejected: residual candidate missing or "
+                "unmeasured; tier2 channel retained", evidence)
+
+    a, b = candidates[base], candidates[residual]
+    guard = {}
+    for name, candidate in ((base, a), (residual, b)):
+        info = candidate.get("dpt_run", {})
+        guard[name] = {
+            "completed": info.get("completed"),
+            "trace_points": info.get("trace_points"),
+            "iterations": info.get("iterations"),
+            "t_last_s": info.get("t_last_s"),
+            "error": info.get("error"),
+        }
+    evidence["completion"] = guard
+    if not all(guard[name]["completed"] is True
+               and (guard[name]["trace_points"] or 0) > 0
+               for name in (base, residual)):
+        return ("tier2",
+                "ANN residual rejected: at least one DPT run is missing, "
+                "failed or incomplete; tier2 channel retained", evidence)
+
+    try:
+        va = _fidelity_values(a["fidelity"])
+        vb = _fidelity_values(b["fidelity"])
+        if not all(_finite(va[k]) and _finite(vb[k]) for k in _FIDELITY_KEYS):
+            raise ValueError("non-finite fidelity metric")
+    except (KeyError, TypeError, ValueError):
+        evidence["reason"] = "incomplete fidelity metric on at least one candidate"
+        return ("tier2",
+                "ANN residual rejected: incomplete fidelity metrics on a "
+                "completed DPT run; tier2 channel retained", evidence)
+
+    score_a = float(np.mean([va[k] for k in _FIDELITY_KEYS]))
+    score_b = float(np.mean([vb[k] for k in _FIDELITY_KEYS]))
+    rows = {
+        key: {"tier2": va[key], "residual": vb[key],
+              "strict_gain": vb[key] < va[key]}
+        for key in _FIDELITY_KEYS
+    }
+    strict = all(row["strict_gain"] for row in rows.values())
+    strict = strict and score_b < score_a
+    evidence["fidelity"] = rows
+    evidence["score"] = {"tier2": score_a, "residual": score_b,
+                         "strict_gain": score_b < score_a}
+    evidence["strict_gain"] = strict
+    if strict:
+        return (residual,
+                "ANN residual selected: strict all-metric DPT fidelity and "
+                "mean-score gain on the same charge tables", evidence)
+    failed = [key for key, row in rows.items() if not row["strict_gain"]]
+    if not score_b < score_a:
+        failed.append("mean_fidelity_score")
+    evidence["failed_metrics"] = failed
+    return ("tier2",
+            "ANN residual rejected: no strict DPT fidelity gain "
+            f"({', '.join(failed)}); tier2 channel retained", evidence)
 
 
 def _adaptive_guard_run(lib, subckt, pins, kw: dict, end: float,
@@ -491,13 +728,15 @@ def _build_spec(
     vendor: str, *, dpt_vds=None, dpt_vgs=None,
     vgs_on: float | None = None, vbus: float | None = None,
 ) -> tuple[PWLModelSpec, dict, HybridChannelFit | None]:
-    """Build the spec from extracted curves plus one live AC capacitance sweep.
+    """Build the spec from extracted curves plus one full C(V) sweep.
 
     Curve-1/3/6/7 assembly follows ``pipeline.fitting.fit_pwl_model`` exactly;
     the charge side replaces Tier-2's heuristic C_ISS/C_RSS scalars with the
-    documented three-cap decomposition of the same AC sweep. The golden DPT
-    trace (already captured by ``run_vendor``) supplies the data-derived
-    on-state breakpoint and the bus cap; no extra simulation is needed.
+    documented three-cap decomposition of one C(V) sweep. That sweep is the
+    persisted full Curve-4 arrays when present, otherwise the existing live
+    AC re-extraction (disclosed as a data limitation). The golden DPT trace
+    (already captured by ``run_vendor``) supplies the data-derived on-state
+    breakpoint and the bus cap; no extra simulation is needed for the fit.
     """
     cfg = load_input(vendor)
     cond = cfg["conditions"]
@@ -553,29 +792,14 @@ def _build_spec(
     except FileNotFoundError:
         pass
 
-    # ---- ONE AC sweep: Ciss, Coss, Crss on the same Vds grid ---------------
-    ciss_c, coss_c, crss_c = CapacitanceTestbench(
-        f_meas=cond.get("F_meas")).run(
-        Path(cfg["library"]).resolve(), cfg["subcircuit"],
-        vds_min=cond["Vds_cap_min"], vds_max=cond["Vds_cap_max"],
-        points=cond["Cap_points"],
-        pin_roles=cfg.get("pins", {}).get("pin_order"))
-    v = np.asarray(ciss_c.x_data, dtype=float)
-    ciss = np.asarray(ciss_c.y_data, dtype=float)
-    coss = np.asarray(coss_c.y_data, dtype=float)
-    crss = np.asarray(crss_c.y_data, dtype=float)
+    # ---- ONE C(V) sweep: Ciss, Coss, Crss on the same Vds grid -------------
+    # Persisted full Curve-4 arrays win. When absent, retain the previous
+    # live AC re-sweep and disclose the data limitation; never synthesize a
+    # sweep from the scalar-equivalent fields.
+    v, ciss, coss, crss, cv_source, data_limitation = _load_cv_sweep(
+        vendor, cfg, cond)
     if v.size < 2 or not np.all(np.diff(v) > 0):
         raise RuntimeError(f"{vendor}: AC capacitance sweep has no valid grid")
-
-    # Standard three-cap identity; tiny negative deltas are extraction noise,
-    # clipped to zero and counted (never hidden).
-    cgs_c = np.maximum(ciss - crss, 0.0)
-    cds_c = np.maximum(coss - crss, 0.0)
-    cdg_c = crss.copy()
-    n_clipped = {
-        "cgs": int(np.count_nonzero(ciss - crss < 0.0)),
-        "cds": int(np.count_nonzero(coss - crss < 0.0)),
-    }
 
     # ---- Documented SIMPLIS Level-2 charge tables -------------------------
     # Interior breakpoints: OUR greedy farthest-point rule (SIMPLIS does not
@@ -583,25 +807,22 @@ def _build_spec(
     # 0.5% charge budget is actually met and record what was achieved.
     if vbus is None:
         raise ValueError(f"{vendor}: simplis spec build requires DPT Vbus")
-    v_fit, (cgs_fit_c, cds_fit_c, cdg_fit_c) = _cap_curve_to_vbus(
-        v, (cgs_c, cds_c, cdg_c), vbus)
     on_bp = (_on_state_breakpoint(dpt_vgs, dpt_vds, vgs_on, vbus)
              if dpt_vds is not None and dpt_vgs is not None
              and vgs_on is not None and vbus is not None else None)
     forced = on_bp["used_v"] if on_bp else None
     forbid = forced if on_bp and not on_bp["clamped_to_vbus"] else None
-    cgs_fit = _fit_anchored_charge(v_fit, cgs_fit_c, RELTOL)
-    cds_fit = _fit_anchored_charge(
-        v_fit, cds_fit_c, RELTOL, forced_v=forced, forbid_below=forbid)
-    cdg_fit = _fit_anchored_charge(
-        v_fit, cdg_fit_c, RELTOL, forced_v=forced, forbid_below=forbid)
-    decision = cgs_linearity_decision(cgs_fit.v_full, cgs_fit.q_full, RELTOL)
-    if decision.is_linear:
-        # CGS_NSEG=1 (linear) [S-MOS]; the emitted C is the endpoint chord.
-        cgs_pairs = [cgs_fit.pairs[0], cgs_fit.pairs[-1]]
-    else:
-        cgs_pairs = cgs_fit.pairs
-    cds_pairs, cdg_pairs = cds_fit.pairs, cdg_fit.pairs
+    tables = _fit_charge_tables(
+        v, ciss, coss, crss, vbus=vbus,
+        forced_v=forced, forbid_below=forbid)
+    cgs_fit = tables.fits["cgs"]
+    cds_fit = tables.fits["cds"]
+    cdg_fit = tables.fits["cdg"]
+    decision = tables.cgs_decision
+    cgs_pairs = tables.pairs["cgs"]
+    cds_pairs = tables.pairs["cds"]
+    cdg_pairs = tables.pairs["cdg"]
+    n_clipped = tables.n_clipped
 
     cap_ref = _cap_ref_vds(cond)
     c_eq = {
@@ -678,15 +899,6 @@ def _build_spec(
             },
         }
 
-    # Extracted scalar cross-check from the already-recorded curve4 file.
-    try:
-        c4 = load_output(vendor, "curve4_capacitances")["extracted"]
-        curve4_scalars = {k: float(c4[k])
-                          for k in ("ciss_f", "coss_f", "crss_f",
-                                    "cap_ref_vds")}
-    except (FileNotFoundError, KeyError, ValueError):
-        curve4_scalars = {}
-
     fits = {"cgs": cgs_fit, "cds": cds_fit, "cdg": cdg_fit}
     emitted_pairs = {"cgs": cgs_pairs, "cds": cds_pairs, "cdg": cdg_pairs}
     details = {
@@ -714,7 +926,13 @@ def _build_spec(
                      "f_meas_hz": float(cond.get("F_meas", F_MEAS_DEFAULT))},
         "clipped_delta_points": n_clipped,
         "cap_ref_vds": cap_ref,
-        "curve4_recorded_scalars": curve4_scalars,
+        "curve4_cv": {
+            "source": cv_source,
+            "full_arrays_present": cv_source == "curve4_full_arrays",
+            "array_keys": (list(_FULL_CV_KEYS)
+                           if cv_source == "curve4_full_arrays" else []),
+            "data_limitation": data_limitation,
+        },
         "breakpoint_formula": "greedy pwl_charge_segments farthest-point rule "
         "on anchored Q(V); no point cap; CDS/CDG forced DPT on-state "
         "breakpoint; no breakpoint above vbus",
@@ -788,6 +1006,91 @@ def _recorded_tier2_static(vendor: str) -> float | None:
     return float(np.mean([r["rel_rmse_pct"] for r in rows]))
 
 
+def _residual_fit_provenance(fit: AnnResidualFit) -> dict:
+    """Offline fit evidence only; no DPT value is inferred from this fit."""
+    diag = fit.diagnostics
+    return {
+        "status": "fitted",
+        "source": "pipeline.ann_fit.hybrid_ann_fit_for_vendor: residual_fit "
+                  "only; its ANN charge fit is not used by simplis",
+        "sample_counts": {
+            "train": diag.get("train_samples"),
+            "curve1": diag.get("curve1_samples"),
+            "dpt": diag.get("dpt_samples"),
+        },
+        "activation": fit.activation,
+        "neurons": fit.neurons,
+        "v_th_v": fit.v_th,
+        "alpha": fit.alpha,
+        "fit_values": {
+            "residual_rel_rmse": diag.get("residual_rel_rmse"),
+            "residual_rms_a": diag.get("residual_rms_a"),
+            "target_rms_a": diag.get("target_rms_a"),
+            "zero_vds_max_abs_a": diag.get("zero_vds_max_abs_a"),
+            "cutoff_attenuation": diag.get("cutoff_attenuation"),
+            "analytic_vs_finite_difference": diag.get(
+                "analytic_vs_finite_difference"),
+        },
+        "provenance": fit.provenance,
+    }
+
+
+def _measure_candidate(candidate_lib: Path, vendor: str, traj, dpt: dict,
+                       golden: dict, tier2: dict) -> dict:
+    """One forced-2ns DPT with the SAME completion guard for every candidate."""
+    info = {"completed": False, "trace_points": 0,
+            "golden_trace_points": int(len(traj.time)),
+            "iterations": None, "t_last_s": None,
+            "forced_2ns_wall_s": None,
+            "error": None, "waveform": {},
+            "current_definition": None}
+    wave, rom_metrics, log = {}, {}, ""
+    try:
+        run, log, current_def = _run_emitted_dpt(candidate_lib, vendor)
+        info["current_definition"] = current_def
+        info["forced_2ns_wall_s"] = float(run.wall_clock_s)
+        n3 = int(len(run.time))
+        it3 = _log_iterations(log)
+        t_last = float(run.time[-1]) if n3 else 0.0
+        complete = (n3 >= 0.5 * len(traj.time)
+                    and t_last >= 0.999 * dpt["t_end"])
+        info.update(trace_points=n3, iterations=it3, t_last_s=t_last)
+        if complete:
+            info["completed"] = True
+            wave = _waveform_errors(run, traj)
+            info["waveform"] = wave
+            rom_metrics = extract_dpt_metrics(run)
+        else:
+            info["error"] = (
+                f"incomplete: {n3} trace points, t_last={t_last:.3g} s")
+            print(f"[tier3/simplis] {vendor}/{candidate_lib.stem}: DPT "
+                  f"incomplete ({n3} points, t_last={t_last:.3g} s)",
+                  flush=True)
+    except Exception as exc:  # solver failures reported, never fabricated
+        log = f"{type(exc).__name__}: {exc}"
+        info["error"] = log[:200]
+        print(f"[tier3/simplis] {vendor}/{candidate_lib.stem}: DPT failed: "
+              f"{type(exc).__name__}", flush=True)
+
+    comparison = {}
+    for m in METRICS:
+        g, t3 = golden.get(m), rom_metrics.get(m)
+        row = {"golden": g, "tier3": t3,
+               "tier3_rel_err_pct": _rel_err(t3, g)}
+        if m in tier2:
+            row["tier2"] = tier2[m]
+            row["tier2_rel_err_pct"] = _rel_err(tier2[m], g)
+        comparison[m] = row
+    return {
+        "library": str(candidate_lib.relative_to(ROOT)),
+        "dpt_run": info,
+        "dpt_comparison": comparison,
+        "waveform": wave,
+        "fidelity": _fidelity_metrics(wave, comparison),
+        "spice_log_tail": "\n".join(log.splitlines()[-6:]),
+    }
+
+
 def run_vendor(vendor: str) -> dict:
     """Build and measure all channel/charge candidates; persist the winner."""
     t0 = time.perf_counter()
@@ -801,6 +1104,21 @@ def run_vendor(vendor: str) -> dict:
         vendor, dpt_vds=traj.input[1], dpt_vgs=traj.input[0],
         vgs_on=dpt["vgs_on"], vbus=dpt["vbus"])
     fit_wall = time.perf_counter() - t0 - capture_wall
+    # Evidence candidate only: consume the residual fit and nothing else
+    # from the hybrid ANN fit (its ANN charge fit is NEVER used here).
+    t_ann = time.perf_counter()
+    try:
+        residual_fit = hybrid_ann_fit_for_vendor(vendor)["residual_fit"]
+        if not isinstance(residual_fit, AnnResidualFit):
+            raise TypeError("hybrid fit did not return an AnnResidualFit")
+        residual_fit_provenance = _residual_fit_provenance(residual_fit)
+    except Exception as exc:
+        residual_fit = None
+        residual_fit_provenance = {
+            "status": "fit_failed",
+            "reason": f"{type(exc).__name__}: {exc}"[:200],
+        }
+    ann_fit_wall = time.perf_counter() - t_ann
 
     lib = ROOT / "reports" / "models" / \
         f"{vendor}_PIECESPICE_T3_simplis.lib"
@@ -834,62 +1152,15 @@ def run_vendor(vendor: str) -> dict:
     current_defs = {"golden": _DEVICE_CURRENT, "tier3": None}
 
     # Same forced-2ns DPT bench and completion guard for EVERY candidate.
-    candidates = {}
-    for mode, candidate_lib in candidate_libs.items():
-        info = {"completed": False, "trace_points": 0,
-                "golden_trace_points": int(len(traj.time)),
-                "iterations": None, "t_last_s": None,
-                "forced_2ns_wall_s": None,
-                "error": None, "waveform": {},
-                "current_definition": None}
-        wave, rom_metrics, log = {}, {}, ""
-        try:
-            run, log, current_def = _run_emitted_dpt(candidate_lib, vendor)
-            info["current_definition"] = current_def
-            info["forced_2ns_wall_s"] = float(run.wall_clock_s)
-            n3 = int(len(run.time))
-            it3 = _log_iterations(log)
-            t_last = float(run.time[-1]) if n3 else 0.0
-            complete = (n3 >= 0.5 * len(traj.time)
-                        and t_last >= 0.999 * dpt["t_end"])
-            info.update(trace_points=n3, iterations=it3, t_last_s=t_last)
-            if complete:
-                info["completed"] = True
-                wave = _waveform_errors(run, traj)
-                info["waveform"] = wave
-                rom_metrics = extract_dpt_metrics(run)
-            else:
-                info["error"] = (
-                    f"incomplete: {n3} trace points, t_last={t_last:.3g} s")
-                print(f"[tier3/simplis] {vendor}/{mode}: DPT incomplete "
-                      f"({n3} points, t_last={t_last:.3g} s)", flush=True)
-        except Exception as exc:  # solver failures reported, never fabricated
-            log = f"{type(exc).__name__}: {exc}"
-            info["error"] = log[:200]
-            print(f"[tier3/simplis] {vendor}/{mode}: DPT failed: "
-                  f"{type(exc).__name__}", flush=True)
-
-        recorded = ROOT / "reports" / "comparison" / vendor / \
-            "dpt_metrics.json"
-        tier2 = json.loads(recorded.read_text(encoding="utf-8"))[
-            "tier2_metrics"] if recorded.exists() else {}
-        comparison = {}
-        for m in METRICS:
-            g, t3 = golden.get(m), rom_metrics.get(m)
-            row = {"golden": g, "tier3": t3,
-                   "tier3_rel_err_pct": _rel_err(t3, g)}
-            if m in tier2:
-                row["tier2"] = tier2[m]
-                row["tier2_rel_err_pct"] = _rel_err(tier2[m], g)
-            comparison[m] = row
-        candidates[mode] = {
-            "library": str(candidate_lib.relative_to(ROOT)),
-            "dpt_run": info,
-            "dpt_comparison": comparison,
-            "waveform": wave,
-            "fidelity": _fidelity_metrics(wave, comparison),
-            "spice_log_tail": "\n".join(log.splitlines()[-6:]),
-        }
+    recorded = ROOT / "reports" / "comparison" / vendor / \
+        "dpt_metrics.json"
+    tier2_metrics = json.loads(recorded.read_text(encoding="utf-8"))[
+        "tier2_metrics"] if recorded.exists() else {}
+    candidates = {
+        mode: _measure_candidate(
+            candidate_lib, vendor, traj, dpt, golden, tier2_metrics)
+        for mode, candidate_lib in candidate_libs.items()
+    }
 
     selection, reason = _select_charge_candidate(candidates)
     channel_selection, channel_reason, channel_evidence = (
@@ -900,6 +1171,36 @@ def run_vendor(vendor: str) -> dict:
         channel_selection = "tier2"
         channel_reason = "hybrid candidate missing; Tier-2 channel retained"
         final = selection
+
+    # The residual is compared ONLY against the existing tier2 channel on
+    # the charge emission that the unchanged charge gate already selected.
+    residual_mode = "tier2+ann_residual"
+    if residual_fit is None:
+        residual_selection = "tier2"
+        residual_reason = ("ANN residual rejected: "
+                           + residual_fit_provenance["reason"])
+        residual_evidence = residual_fit_provenance
+    elif channel_selection != "tier2":
+        residual_selection = "tier2"
+        residual_reason = ("ANN residual not compared: an accepted hinge_c "
+                           "channel is outside the tier2-only residual gate")
+        residual_evidence = {"status": "not_compared"}
+    else:
+        residual_lib = lib.with_name(
+            f"{lib.stem}_hybrid_ann_residual_{selection}_charge.lib")
+        residual_text = build_simplis_subcircuit(
+            spec, charge_mode=selection, residual_fit=residual_fit)
+        if not residual_text.isascii():
+            raise RuntimeError(f"{vendor}: residual netlist is not ASCII")
+        residual_lib.write_text(residual_text, encoding="ascii")
+        texts[residual_mode] = residual_text
+        candidate_libs[residual_mode] = residual_lib
+        candidates[residual_mode] = _measure_candidate(
+            residual_lib, vendor, traj, dpt, golden, tier2_metrics)
+        residual_selection, residual_reason, residual_evidence = (
+            _select_residual_candidate(candidates, charge_mode=selection))
+    if residual_selection == residual_mode:
+        final = residual_mode
     lib.write_text(texts[final], encoding="ascii")
     current_defs["tier3"] = candidates[final]["dpt_run"].get(
         "current_definition")
@@ -945,8 +1246,23 @@ def run_vendor(vendor: str) -> dict:
     adaptive = _run_adaptive_benchmark(vendor, cfg, dpt, lib, temp)
     adaptive["selected_candidate"] = final
     adaptive["scope"] = ("final selected candidate only; no adaptive runs "
-                         "for non-selected candidates; channel gate is "
-                         "fidelity-first, adaptive deferred")
+                         "for non-selected candidates; both channel gates "
+                         "are fidelity-first, adaptive deferred")
+
+    dpt_fit = {}
+    dpt_held_out = {}
+    for key in (selection, residual_mode):
+        if key not in candidates:
+            continue
+        row = candidates[key]
+        dpt_fit[key] = row["fidelity"]
+        dpt_held_out[key] = {
+            "waveform": row["waveform"],
+            "dpt_comparison": row["dpt_comparison"],
+            "dpt_run": {k: row["dpt_run"].get(k) for k in (
+                "completed", "trace_points", "iterations", "t_last_s",
+                "error")},
+        }
 
     record = {
         "schema": "piecespice.tier3/2.0",
@@ -956,7 +1272,9 @@ def run_vendor(vendor: str) -> dict:
             "SIMPLIS Level-2 (CGS/CDS/CDG V-Q tables; S-MOS, S-APPB)",
             "Tier-2 CPWL channel + body diode + parasitics (unchanged)",
         ] + (["Gated hybrid hinge_c channel (measured candidates; default off)"]
-             if any(m.startswith("hybrid_") for m in candidates) else []),
+             if any(m.startswith("hybrid_") for m in candidates) else [])
+        + (["Evidence-gated ANN residual current source; C0 charge tables "
+            "unchanged"] if residual_mode in candidates else []),
         "algorithm": {
             **details,
             "channel": (
@@ -967,6 +1285,8 @@ def run_vendor(vendor: str) -> dict:
                 "(hybrid rejected by strict gate)"),
             "charge_candidate_selected": selection,
             "channel_candidate_selected": channel_selection,
+            "residual_channel_candidate_selected": residual_selection,
+            "residual_channel_charge_mode": selection,
         },
         "function_fit": {
             "static_curve_rmse_rel": static["mean_rel_rmse_pct"],
@@ -999,6 +1319,17 @@ def run_vendor(vendor: str) -> dict:
         },
         "channel_selection": channel_selection,
         "channel_selection_reason": channel_reason,
+        "ann_residual_candidate": {
+            **residual_fit_provenance,
+            "charge_mode": selection,
+            "modes": [selection, residual_mode],
+            "dpt_fit": dpt_fit,
+            "dpt_held_out": dpt_held_out,
+            "selection": residual_selection,
+            "selection_reason": residual_reason,
+            "selection_rule": _RESIDUAL_RULE,
+            "evidence": residual_evidence,
+        },
         "runtime": {
             "golden": {k: golden_time.get(k) for k in
                        ("wall_clock_s", "solver_elapsed_s", "iterations",
@@ -1017,6 +1348,7 @@ def run_vendor(vendor: str) -> dict:
         },
         "speed_adaptive_20": adaptive,
         "build_seconds": {"capture": capture_wall, "fit": fit_wall,
+                          "ann_fit": ann_fit_wall,
                           "static_sweep": static_wall},
         "spice_log_tail": candidates[final]["spice_log_tail"],
         "emitted_lib": str(lib.relative_to(ROOT)),

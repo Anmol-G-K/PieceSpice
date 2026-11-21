@@ -33,8 +33,10 @@ import numpy as np
 
 from common.types import PWLModelSpec
 from models.netlist_builder import build_tier2_subcircuit, _fmt
+from models.ann_netlist_builder import emit_ann_residual
 
 if TYPE_CHECKING:
+    from approximation.ann_residual import AnnResidualFit
     from models.hybrid_channel import HybridChannelFit
 
 # Documented SIMPLIS Level-2 defaults [S-MOS Capacitor Models; S-APPB Level 2].
@@ -166,7 +168,10 @@ def _pairs(v, q) -> List[Tuple[float, float]]:
 def build_simplis_subcircuit(
     spec: PWLModelSpec, charge_mode: str = "tables", *,
     channel_fit: "HybridChannelFit | None" = None,
+    residual_fit: "AnnResidualFit | None" = None,
     cgs_axis: str = "vds",
+    name: str | None = None,
+    subckt_name: str | None = None,
 ) -> str:
     """Emit the Level-2 charge-table Tier-3 subcircuit (ASCII).
 
@@ -187,6 +192,14 @@ def build_simplis_subcircuit(
     records the fit provenance and its measured DPT limitation (a static fit
     gain does not imply transient fidelity).
 
+    ``residual_fit`` is an optional measured ``AnnResidualFit``. It adds ONE
+    ``G_ANN di ss VALUE = {I_res}`` line immediately after the existing
+    ``G_CH`` line. The C0 channel line, both charge candidates, body diode
+    and parasitics stay byte-identical; no fourth node is introduced and no
+    ANN charge source replaces the C0 charge tables. ``name`` and
+    ``subckt_name`` follow the existing override convention (the latter
+    wins), defaulting to the documented simplis subcircuit name.
+
     Fails loudly on unpopulated charge tables in tables mode: an emitted
     model with fake capacitors would be worse than a failed build
     (anti-fake guard).
@@ -195,6 +208,12 @@ def build_simplis_subcircuit(
         raise ValueError("charge_mode must be 'tables' or 'tier2'")
     if cgs_axis not in ("vds", "vgs"):
         raise ValueError("cgs_axis must be 'vds' or 'vgs'")
+    residual_expression = ""
+    if residual_fit is not None:
+        residual_expression = emit_ann_residual(residual_fit)
+        if not isinstance(residual_expression, str) \
+                or not residual_expression.isascii():
+            raise ValueError("residual expression must be non-empty ASCII")
     if charge_mode == "tables":
         cgs_pairs = _pairs(spec.q_iss_vs_v, spec.q_iss_charge_c)
         cds_pairs = _pairs(spec.q_oss_vs_v, spec.q_oss_charge_c)
@@ -215,10 +234,15 @@ def build_simplis_subcircuit(
             or cds_pairs is None or cdg_pairs is None):
         raise RuntimeError("tables mode requires CGS/CDS/CDG charge tables")
 
-    # Reuse the closed Tier-2 emitter verbatim, then replace only its charge
-    # section. Any structure change there must be reflected by these anchors
-    # (explicit failure, never a silent partial splice).
-    t2 = build_tier2_subcircuit(spec)
+    # Name overrides follow the existing Tier-2 convention: build the source
+    # under the requested name (so the D_BD model suffix tracks it) and map
+    # .SUBCKT/.ENDS to the simplis name. With no override this is byte-for-
+    # byte the original T2 -> T3_simplis splice.
+    override = subckt_name or name
+    t2 = build_tier2_subcircuit(spec, name=override)
+    t2_name = override or f"{spec.device_name}_PIECESPICE_T2"
+    final_name = (subckt_name or name
+                  or f"{spec.device_name}_PIECESPICE_T3_simplis")
     lines = t2.splitlines()
     try:
         i0 = lines.index(_T2_CHARGE_START)
@@ -229,9 +253,6 @@ def build_simplis_subcircuit(
             from exc
     if i1 <= i0:
         raise RuntimeError("Tier-2 charge/diode section anchors out of order")
-
-    t2_name = f"{spec.device_name}_PIECESPICE_T2"
-    name = f"{spec.device_name}_PIECESPICE_T3_simplis"
 
     if charge_mode == "tables":
         assert decision is not None
@@ -304,6 +325,19 @@ def build_simplis_subcircuit(
             raise ValueError("hybrid channel fit meta is not ASCII")
         hybrid_note = note
 
+    # Optional ANN residual. Every pre-existing line is preserved; the one
+    # new source is inserted directly below G_CH and uses only di/ss.
+    residual_note: List[str] = []
+    if residual_fit is not None:
+        residual_note = [
+            "* ANN residual channel: signed zero-anchored correction; "
+            "C0 charge unchanged",
+            f"* ANN residual: {residual_fit.neurons} neurons, "
+            f"{residual_fit.activation}, v_th={_fmt(residual_fit.v_th)} V",
+        ]
+        if not all(line.isascii() for line in residual_note):
+            raise ValueError("ANN residual fit metadata is not ASCII")
+
     gch_seen = 0
     out: List[str] = []
     for line in lines[:i0]:
@@ -311,13 +345,15 @@ def build_simplis_subcircuit(
             out.append(
                 f"* PieceSpice Tier 3 SIMPLIS Level-2 charge-table model "
                 f"for {spec.device_name}")
-            out.extend(hybrid_note)
+            out.extend(hybrid_note + residual_note)
         elif line == f".SUBCKT {t2_name} d g s":
-            out.append(f".SUBCKT {name} d g s")
+            out.append(f".SUBCKT {final_name} d g s")
         elif line.startswith("G_CH "):
             gch_seen += 1
             out.append(f"G_CH di ss VALUE={channel_fit.expression}"
                        if channel_fit is not None else line)
+            if residual_fit is not None:
+                out.append(f"G_ANN di ss VALUE = {{{residual_expression}}}")
         else:
             out.append(line)
     if gch_seen != 1:
@@ -326,7 +362,7 @@ def build_simplis_subcircuit(
     out.extend(charge)
     for line in lines[i1:]:
         if line == f".ENDS {t2_name}":
-            out.append(f".ENDS {name}")
+            out.append(f".ENDS {final_name}")
         else:
             out.append(line)
     return "\n".join(out)
