@@ -54,6 +54,9 @@ conditions:
   Cap_points: 25
   Cap_ref_Vds: 7.5                           # datasheet capacitance quote point
   F_meas: 1.0e+06                             # [Hz]
+  # Bias-aware C-V (opt-in): both negative drives pass the validity guard;
+  # positive gate drives turn this low-threshold GaN channel on and fail it.
+  Cap_bias_Vgs: [-3.5, -2.0, 0.0]
 
   # --- gate charge (quasi-static reconstruction) ---
   Id_load: 25.0                               # datasheet plateau current [A]

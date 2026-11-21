@@ -83,15 +83,18 @@ they carry no final fidelity or speed claim.
 | IRFS7730PBF | 7.0683 % | 8.7044 / 8.5167 % | 1.0705× / 1.0449× | tier2 / tier2 |
 | CSD16412Q5A (TI) | 8.4935 % | 5.1162 / 4.2121 % | 5.1455× / 2.9237× | tier2 / tables |
 | EPC2216 | 2.0394 % | 2.9490 / 1.7637 % | 1.1473× / 1.0686× | tier2 / tables |
-| CPM2-1200 | 3.4287 % | 3.8525 / 4.5581 % | N/A / N/A | tier2 / tables |
+| CPM2-1200 | 3.4287 % | 3.8525 / 4.5581 % | 1.10037× / 1.00592× | tier2 / tables |
 
-TI's 5.1455× is driven by its stiff golden; CPM2's golden adaptive arm aborts
-(`rc=1`), so its ratio is N/A. The selected charge mode is `tier2` only for
+TI's 5.1455× is driven by its stiff golden; the earlier CPM2 N/A was a bench
+pin bug: the 4th `Tj` port was not driven. With header-resolved pins the
+20-pulse golden completes (12,492 iterations, 0.283 s) and `simplis` measures
+1.10037× / 1.00592×. The selected charge mode is `tier2` only for
 IRFS; TI / EPC / CPM2 retain `tables`. The ANN residual candidate is rejected
-4/4. The Cgd axis is `vds_at_vgs0` because only one Vgs=0 sweep exists; a
-bias-aware `Vdg=Vds−Vgs` sweep is preferred when available, and no bias axis
-was synthesized. The C-V diagnostic (10 % budget, separate from the 0.5 %
-charge budget) measures Cdg errors 15.825 / 13.224 / 6.806 / 50.692 % and Cgs
+4/4. The Cgd axis is `vds_at_vgs0` only for IRFS (its vendor gate network
+fails the biased AC validity guard at every nonzero Vgs). TI / EPC / CPM2 use
+a persisted bias-aware `vdg_at_vgs_bias` sweep; the C-V diagnostic (10 %
+budget, separate from the 0.5 % charge budget) measures Cdg errors
+18.615 / 5.541 / 38.023 % for TI / EPC / CPM2 and 15.825 % for IRFS, with Cgs
 ≤1.249 %, so the diagnostic is disclosed rather than hidden. All emitted
 tables use `clamp_charge_above_last=True`: above the last breakpoint Q stays
 constant instead of extrapolating the last slope.
@@ -184,12 +187,15 @@ Tier-2 live match test.
    bench exists.
 5. **Tier-4 waveform fidelity is not claimed.** The gate is retired by design;
    energy rows are source self-consistency, not independent validation.
-6. **CPM2 speed is N/A.** The golden adaptive run aborts under the VM-10
-   contract exclusion; no ratio is derived, including from the legacy
-   completed-golden artifact.
-7. **`simplis` has a legacy Cgd axis and an unmet C-V diagnostic on three
-   vendors.** No bias-aware Cgd sweep exists in the current data; Cdg C-V error
-   exceeds 10 % on IRFS / TI / CPM2 (EPC passes at 6.806 %).
+6. **CPM2 speed requires a driven Tj port.** The earlier `simplis` N/A was a
+   3-pin X-instance bug: with header-resolved `Tj` the 20-pulse golden
+   completes and `simplis` measures 1.10037× / 1.00592×. Tier-4 CPM2 remains
+   contract-excluded pending its own record.
+7. **`simplis` has an unmet C-V diagnostic on three vendors.** TI / EPC /
+   CPM2 now use a persisted bias-aware `vdg_at_vgs_bias` sweep, but Cdg C-V
+   error remains above 10 % on TI (18.615 %) and CPM2 (38.023 %); EPC passes
+   at 5.541 %. IRFS cannot produce a biased sweep because its vendor gate
+   network fails the capacitance-validity guard.
 8. **No global claim.** UROM speed is one declared method on one bench; TI's
    gain is golden-stiffness driven, EPC is slower on solver, and IRFS/CPM2 are
    near unity.

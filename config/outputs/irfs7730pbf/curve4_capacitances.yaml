@@ -6,6 +6,10 @@ conditions_used:
   Vds_cap_max: 60.0
   Cap_points: 25
   F_meas: 1000000.0
+  Cap_bias_Vgs:
+  - -10.0
+  - -5.0
+  - 0.0
 extracted:
   ciss_f: 1.3544355759244372e-08
   coss_f: 1.4115209490764857e-09
@@ -115,4 +119,11 @@ extracted:
   - 5.884234289923638e-10
   - 5.230469295349186e-10
   - 4.6484846358797316e-10
-notes: Small-signal AC @ 1e+06 Hz; reported at Vds=15.075 V.
+notes: 'Small-signal AC @ 1e+06 Hz; reported at Vds=15.075 V. No nonzero Cap_bias_Vgs
+  sweep passed the capacitance validity guard; legacy single Vgs=0 record retained.
+  Omitted invalid bias sweeps: Vgs=-10 V (Ciss biased AC probe at Vds=0.1 V, Vgs_bias=-10
+  V is not capacitive: |Re(V)|/|Im(V)|=0.233 exceeds 0.1. The gate bias likely turned
+  the channel on, so |V|=1/(w*C) is invalid; refusing to return a corrupted C-V sweep.);
+  Vgs=-5 V (Ciss biased AC probe at Vds=0.1 V, Vgs_bias=-5 V is not capacitive: |Re(V)|/|Im(V)|=0.239
+  exceeds 0.1. The gate bias likely turned the channel on, so |V|=1/(w*C) is invalid;
+  refusing to return a corrupted C-V sweep.).'

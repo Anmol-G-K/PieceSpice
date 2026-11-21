@@ -20,6 +20,7 @@ import hashlib
 import json
 import logging
 import math
+import os
 import re
 import tempfile
 import time
@@ -79,8 +80,82 @@ FIT_BASES = frozenset(("ann", "hybrid"))
 # Explicit opt-in label for the C1 Tier-2 experiment.  The plain "tier2"
 # emit mode always uses the closed C0 emitter (c1_eps=None).
 C1_TIER2_VARIANT = "tier2-c1"
+# Measured gate-charge opt-in (Curve 5 Qg + Curve 4 Crss).  The canonical C0
+# UROM path stays byte-identical: only an explicit environment flag switches
+# ``q_iss_*``/``q_rss_*`` to the measured tables and asks the Tier-2 emitter
+# for nonlinear C_ISS/C_RSS Q= elements.  No CLI/registry default changes.
+MEASURED_GATE_CHARGE_ENV = "PIECESPICE_MEASURED_GATE_CHARGE"
+MEASURED_GATE_CHARGE_TRUTHY = frozenset(("1", "true", "yes", "on"))
+# Independent opt-in for Qoss charge-table compaction (P3.1).  Default C0 is
+# untouched; when set, the q_oss table is reduced to measured/source samples
+# within the same 0.5 % charge budget and a 64-point cap, cutting abs()
+# hinges in the emitted chain.  No CLI/registry default changes.
+QOSS_COMPACTION_ENV = "PIECESPICE_COMPACT_QOSS"
 TUNING_MODES = ("on", "off")
 _LOGGER = logging.getLogger(__name__)
+
+
+def _measured_gate_charge_opt_in() -> bool:
+    """True only when the measured-gate-charge environment flag is set.
+
+    Documented invocation::
+
+        PIECESPICE_MEASURED_GATE_CHARGE=1 python -m cli ...
+
+    Unset/empty/any other value keeps the source-derived heuristic tables.
+    """
+    value = os.environ.get(MEASURED_GATE_CHARGE_ENV, "")
+    return value.strip().lower() in MEASURED_GATE_CHARGE_TRUTHY
+
+
+def _spec_measured_gate_charge(spec: PWLModelSpec) -> bool:
+    """True when the spec records that the measured gate-charge path is on.
+
+    The spec metadata is the single source of truth after ``_pwl_spec`` runs,
+    so the emitter and the C0 A/B check agree even if the environment changes
+    later in the process.
+    """
+    row = spec.metadata.get("urom_gate_charge")
+    return isinstance(row, dict) and bool(row.get("enabled"))
+
+
+def _qoss_compaction_opt_in() -> bool:
+    """True only when the Qoss-compaction environment flag is set.
+
+    Documented invocation::
+
+        PIECESPICE_COMPACT_QOSS=1 python -m cli ...
+
+    Unset/empty/any other value keeps the canonical C0 Qoss chain unchanged.
+    """
+    value = os.environ.get(QOSS_COMPACTION_ENV, "")
+    return value.strip().lower() in MEASURED_GATE_CHARGE_TRUTHY
+
+
+def _compact_qoss_table(
+    vendor: str, qoss_v, qoss_q, *, enabled: bool
+) -> tuple[list[float], list[float], dict | None]:
+    """Optionally compact the measured/source Qoss(V) table for emission.
+
+    Disabled (default) returns the input lists untouched and no provenance, so
+    canonical C0 stays byte-identical.  Enabled reuses the measured-Q greedy
+    compaction: endpoints and zero anchor retained, 0.5 % of Q(Vmax) budget,
+    64-point cap, measured/source samples only, and raises if the budget
+    cannot be met within the cap.
+    """
+    if not enabled or len(qoss_v) < 2 or len(qoss_q) < 2:
+        return qoss_v, qoss_q, None
+    from approximation.charge_model import _compact_measured_q
+
+    v, q, stats = _compact_measured_q(f"{vendor}:q_oss", qoss_v, qoss_q)
+    meta = {
+        "enabled": True,
+        "opt_in": QOSS_COMPACTION_ENV,
+        "source": f"{vendor}:curve4 Coss integrated by integrate_charge",
+        **stats,
+    }
+    return v.tolist(), q.tolist(), meta
+
 
 # Equal-sandbox bench decisions (spec sections 1.3, 4.4, 6).
 SPEED_N_PULSES = 20
@@ -659,6 +734,7 @@ def _pwl_spec(vendor: str) -> PWLModelSpec:
 
     qoss_v: list[float] = []
     qoss_q: list[float] = []
+    qoss_compaction_meta: dict | None = None
     cq: float | None = None
     ce: float | None = None
     try:
@@ -675,6 +751,13 @@ def _pwl_spec(vendor: str) -> PWLModelSpec:
         cq, ce = cm.c_eq_charge, cm.c_eq_energy
     except (FileNotFoundError, KeyError):
         pass
+    # P3.1 opt-in: the Qoss chain otherwise carries one abs() hinge per
+    # measured/source sample.  Disabled by default, so canonical C0 bytes are
+    # unchanged; enabled uses the shared 0.5 % / 64-point measured-Q rule.
+    qoss_v_full = list(qoss_v)
+    if qoss_v and qoss_q:
+        qoss_v, qoss_q, qoss_compaction_meta = _compact_qoss_table(
+            vendor, qoss_v, qoss_q, enabled=_qoss_compaction_opt_in())
 
     v_th = 0.0
     try:
@@ -699,15 +782,64 @@ def _pwl_spec(vendor: str) -> PWLModelSpec:
     # tuning layer needs explicit monotone tables.  Both are derived from the
     # same curve-4 gate-cap equivalents on the same voltage grid; Q(0)=0.
     gate_v = sorted({0.0, float(cond["Vds_cap_max"])}
-                    | {float(v) for v in qoss_v if v > 0.0})
+                    | {float(v) for v in qoss_v_full if v > 0.0})
     gate_iss_q = [float(c_iss * v) for v in gate_v]
+    gate_rss_v = gate_v
     gate_rss_q = [float(c_rss * v) for v in gate_v]
+    gate_charge_meta: dict[str, Any] | None = None
+    if _measured_gate_charge_opt_in():
+        # Narrow, explicit opt-in: replace the heuristic gate tables with the
+        # measured Curve-5/Curve-4 split.  Missing/invalid data raises; there
+        # is no silent fallback to the heuristic tables.
+        from approximation.charge_model import load_measured_gate_charge
+
+        measured = load_measured_gate_charge(vendor)
+        gate_v = [float(v) for v in measured.qgs_v]
+        gate_iss_q = [float(q) for q in measured.qgs_c]
+        gate_rss_v = [float(v) for v in measured.qgd_v]
+        gate_rss_q = [float(q) for q in measured.qgd_c]
+        gate_source = measured.provenance["source"]
+        gate_kind = "measured"
+        gate_rationale = (
+            "opt-in measured gate charge: Curve-5 Qg split at the Miller "
+            "plateau and Curve-4 Crss integrated over Vdg=Vds; no fabricated "
+            "samples")
+        gate_charge_meta = {
+            "enabled": True,
+            "opt_in": MEASURED_GATE_CHARGE_ENV,
+            "source": gate_source,
+            "provenance": measured.provenance,
+        }
+    else:
+        gate_source = (
+            "curve4 c_eq_charge*3 / c_eq_energy*0.15 on the curve-4 Vds grid")
+        gate_kind = "source_derived"
+        gate_rationale = (
+            "closed Tier-2 linear gate-side scalar, tabulated so apply_scalars "
+            "can add O_GD*V without a hidden fallback")
     charge_provenance = dict(PROVENANCE)
     charge_provenance["gate_charge_tables"] = {
-        "source": "curve4 c_eq_charge*3 / c_eq_energy*0.15 on the curve-4 Vds grid",
-        "kind": "source_derived",
-        "rationale": "closed Tier-2 linear gate-side scalar, tabulated so apply_scalars can add O_GD*V without a hidden fallback",
+        "source": gate_source,
+        "kind": gate_kind,
+        "rationale": gate_rationale,
     }
+    if gate_charge_meta is not None:
+        charge_provenance["gate_charge_tables"]["provenance"] = (
+            gate_charge_meta["provenance"])
+    if qoss_compaction_meta is not None:
+        charge_provenance["qoss_compaction"] = qoss_compaction_meta
+    metadata: dict[str, Any] = {
+        "r_gate": 1.5,
+        "r_source": 1e-4,
+        "r_drain": 1e-4,
+        "Vds_cap_max": float(cond["Vds_cap_max"]),
+        "c_iss_lin": c_iss,
+        "c_oss_lin": cq if cq is not None else 500e-12,
+        "c_rss_lin": c_rss,
+        "urom_provenance": charge_provenance,
+    }
+    if gate_charge_meta is not None:
+        metadata["urom_gate_charge"] = gate_charge_meta
     return PWLModelSpec(
         device_name=cfg["device"],
         tier=2,
@@ -718,22 +850,13 @@ def _pwl_spec(vendor: str) -> PWLModelSpec:
         q_oss_charge_c=qoss_q,
         q_iss_vs_v=gate_v,
         q_iss_charge_c=gate_iss_q,
-        q_rss_vs_v=gate_v,
+        q_rss_vs_v=gate_rss_v,
         q_rss_charge_c=gate_rss_q,
         rds_on=rds_on,
         v_th=v_th,
         body_diode_vsd=b_vsd,
         body_diode_isd=b_isd,
-        metadata={
-            "r_gate": 1.5,
-            "r_source": 1e-4,
-            "r_drain": 1e-4,
-            "Vds_cap_max": float(cond["Vds_cap_max"]),
-            "c_iss_lin": c_iss,
-            "c_oss_lin": cq if cq is not None else 500e-12,
-            "c_rss_lin": c_rss,
-            "urom_provenance": charge_provenance,
-        },
+        metadata=metadata,
     )
 
 
@@ -772,12 +895,22 @@ def _merge_provenance(producer: dict | None, *,
     return merged
 
 
-def _c0_bit_identity(spec: PWLModelSpec, emitted: str, name: str) -> bool:
-    """A/B the emitted lib against canonical C0 at the same subckt name."""
+def _c0_bit_identity(spec: PWLModelSpec, emitted: str, name: str, *,
+                     measured_gate_charge: bool | None = None) -> bool:
+    """A/B the emitted lib against canonical C0 at the same subckt name.
+
+    ``measured_gate_charge=None`` reads the mode recorded in the spec, so a
+    measured-gate-charge emission is compared with the same measured builder
+    invocation instead of the linear canonical C0 (the default spec mode
+    remains the byte-identical linear A/B).
+    """
     from models.netlist_builder import build_tier2_subcircuit
 
+    measured = (_spec_measured_gate_charge(spec)
+                if measured_gate_charge is None
+                else bool(measured_gate_charge))
     return bool(_strip_identity_header(emitted) == build_tier2_subcircuit(
-        spec, c1_eps=None, name=name))
+        spec, c1_eps=None, name=name, measured_gate_charge=measured))
 
 def _recorded_golden_emp(vendor: str) -> tuple[dict, bool, str]:
     """Cached golden DPT metrics plus their recorded completion evidence.
@@ -891,10 +1024,17 @@ def _emit_tier2_c0(spec: PWLModelSpec, *, name: str) -> str:
 
     The only difference from ``fit_pwl_model`` is the subcircuit name, which
     the compare bench requires to match the UROM library stem.
+
+    When ``_pwl_spec`` recorded the measured-gate-charge opt-in, the same spec
+    carries validated measured q_iss/q_rss tables, so the builder is asked for
+    the nonlinear C_ISS/C_RSS ``Q=`` pair.  Otherwise the call is exactly the
+    canonical C0 emission.
     """
     from models.netlist_builder import build_tier2_subcircuit
 
-    return build_tier2_subcircuit(spec, c1_eps=None, name=name)
+    measured = _spec_measured_gate_charge(spec)
+    return build_tier2_subcircuit(
+        spec, c1_eps=None, name=name, measured_gate_charge=measured)
 
 
 def _emit_tier2_per_table(spec: PWLModelSpec, eps_by_table: dict,
@@ -2952,14 +3092,30 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
         spec, eps_by_table, emitted_eps_by_table=emitted_eps,
         lib_text=lib_text))
     c1_variant = spec.metadata.get("urom_c1_variant")
+    measured_gate_charge = _spec_measured_gate_charge(spec)
     if emit == "tier2" and c1_variant is None:
-        # The fallback must be the closed canonical C0 emitter, modulo the
-        # UROM subckt name.  Measure it instead of claiming it.
-        c1_record["c0_bit_identical_at_eps0"] = _c0_bit_identity(
-            spec, lib.read_text(encoding="ascii"), lib.stem)
-        c1_record["c0_ab_note"] = (
-            "A/B against canonical build_tier2_subcircuit(c1_eps=None) "
-            "at the same UROM subckt name")
+        if measured_gate_charge:
+            # The measured opt-in intentionally replaces the linear C_ISS/
+            # C_RSS pair, so the canonical linear C0 A/B is not applicable.
+            # Still measure that the emitted lib matches the same measured
+            # builder invocation byte-for-byte.
+            c1_record["c0_bit_identical_at_eps0"] = None
+            c1_record["c0_ab_note"] = (
+                "not_applicable: measured gate-charge opt-in is active; the "
+                "emitted C_ISS/C_RSS are nonlinear Q= elements, not the "
+                "canonical linear C0 pair")
+            c1_record["measured_gate_charge_ab_identical"] = (
+                _c0_bit_identity(
+                    spec, lib.read_text(encoding="ascii"), lib.stem,
+                    measured_gate_charge=True))
+        else:
+            # The fallback must be the closed canonical C0 emitter, modulo
+            # the UROM subckt name.  Measure it instead of claiming it.
+            c1_record["c0_bit_identical_at_eps0"] = _c0_bit_identity(
+                spec, lib.read_text(encoding="ascii"), lib.stem)
+            c1_record["c0_ab_note"] = (
+                "A/B against canonical build_tier2_subcircuit(c1_eps=None) "
+                "at the same UROM subckt name")
     # The fit record has no 'c1' key; never let a foreign record replace the
     # residual/count measurements computed above.  Both ANN-based bases carry
     # their own record; canonical C0 carries none.

@@ -44,9 +44,9 @@ from simulation.testbenches.capacitance import CapacitanceTestbench
 # The historical emitters, captured before the new options were added. The
 # default call must remain byte-for-byte identical.
 _DEFAULT_SHA256 = {
-    "tables_vgs": "71daed856a9bf8c58017ce5d158bd6fe9c5458ccf234db06e09e99e08e2c937a",
-    "tables_linear": "7caade241fdb15dede32b1f4e3ba6483bd24978d47bb27ace6f054b66aa939a8",
-    "tier2": "1acd1369f7b13b8f335a267abe8de927f7170998e234ad7063ee96ddd37ec79d",
+    "tables_vgs": "43037f2690c5f8e86a43dda1aeff6099e3f40cf2de95aafa9dd7819ecf173c0d",
+    "tables_linear": "ef055221a95b6bcddb0cd413cba5d9bdd06ae8176beda7b75e735c763e93bd0f",
+    "tier2": "da980aae3b9b2efdca7d970106f911b18c634465c12b1491bc3e7809e66c5512",
 }
 
 

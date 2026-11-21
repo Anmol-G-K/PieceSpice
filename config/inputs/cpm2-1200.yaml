@@ -60,6 +60,8 @@ conditions:
   Cap_points: 25
   Cap_ref_Vds: 7.5
   F_meas: 1.0e+06
+  # Bias-aware C-V (opt-in): these off-state drives pass the validity guard.
+  Cap_bias_Vgs: [-5.0, -3.0, 0.0]
 
   # --- gate charge (quasi-static reconstruction) ---
   # Datasheet: Qgs 46 nC / Qgd 50 nC / Qg 161 nC @ VDS=800 V, ID=50 A.

@@ -43,6 +43,11 @@ conditions:
   Vds_cap_max: 60.0                          # model breakdown is 75 V
   Cap_points: 25
   F_meas: 1.0e+06                            # [Hz]
+  # Bias-aware C-V (opt-in). This model's gate network has |Re|/|Im| ~0.22
+  # at every Vds even at Vgs=0, so no nonzero bias can pass the bench's
+  # 0.1 displacement-dominance guard; the pipeline records each rejection
+  # in curve4 notes and keeps the single Vgs=0 legacy sweep.
+  Cap_bias_Vgs: [-10.0, -5.0, 0.0]           # off-state device-family drives
 
   # --- gate charge (quasi-static reconstruction) ---
   Id_load: 100.0                             # datasheet plateau current [A]

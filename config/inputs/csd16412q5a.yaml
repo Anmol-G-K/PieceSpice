@@ -43,6 +43,8 @@ conditions:
   Vds_cap_max: 25.0                          # body diode BV~27 V avalanches beyond this
   Cap_points: 40
   F_meas: 1.0e+06                            # [Hz]
+  # Bias-aware C-V (opt-in): all three pass the 1 MHz validity guard.
+  Cap_bias_Vgs: [-5.0, 0.0, 1.0]
 
   # --- gate charge (quasi-static reconstruction) ---
   Id_load: 10.0                              # datasheet plateau current [A]

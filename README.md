@@ -72,7 +72,7 @@ is not a fifth tier.
 | Vendor SPICE | ●●●●● | ●○○○○ | ○○○○○ |
 | **PieceSpice Tier-2 (CPWL)** | **●●●●○ (2.04–8.49 % static rel-RMSE; ≤ 4.13 % endpoint)** | **●●○○○ (~1× at matched conditions; not significant)** | **●●●●● (C⁰ PWL + tanh knee)** |
 | **PieceSpice Tier-3 `v1` (TPWL)** | **●●●●○ (emitted static rel-RMSE 0.97–7.22 %; fit 0.61–2.37 %)** | **●●○○○ (forced solver 0.0946–0.5827× at matched conditions; slower than golden)** | **●●●○○ (anchored on captured trajectory)** |
-| **PieceSpice Tier-3 `simplis` (PWL charge)** | **●●●○○ (static 2.0394–8.4935 %; DPT Vds 2.949–8.704 %, Id 1.764–8.517 %)** | **●●○○○ (20-pulse adaptive solver 1.0705–5.1455×, CPM2 N/A; ≥5× TI-only)** | **●●●○○ (guarded 20-pulse runs; four completed 2-pulse DPTs)** |
+| **PieceSpice Tier-3 `simplis` (PWL charge)** | **●●●○○ (static 2.0394–8.4935 %; DPT Vds 2.942–8.704 %, Id 1.764–8.517 %)** | **●●○○○ (20-pulse adaptive solver 1.0705–5.3592×, CPM2 1.1004×; ≥5× TI-only)** | **●●●○○ (guarded 20-pulse runs; four completed 2-pulse DPTs)** |
 | **PieceSpice Tier-3 `urom` (canonical C0)** | **●●●○○ (static 2.0394–8.4935 %; fidelity accept 3/4, IRFS G3 Id 9.0127 %)** | **●●○○○ (solver/wall: IRFS 1.0073/0.9860×, TI 5.3021/3.0086×, EPC 0.9863/1.0169×, CPM2 1.1023/1.0583×; speed accept 2/4)** | **●●○○○ (one declared trap/default method; overall reject 4/4 on G4 timing/energy; keyed ANN rejects 4/4)** |
 | **PieceSpice Tier-4 (ideal switch + LUT)** | **●●○○○ (DPT waveform gate retired by design)** | **●●●○○ (guarded inductive-bench solver 1.2212–6.4730×; EPC golden 100 ns cap; CPM2 N/A)** | **●●●○○ (DPT 4/4 complete, speed 3/4 measured)** |
 | PLECS / Ideal | ●○○○○ | ●●●●● | ●●●●● |
@@ -87,8 +87,8 @@ Tier-3 `v1` 0.0946–0.5827× (IRFS / TI / EPC / CPM2); `v1` is slower on every
 device. The `simplis` variant holds Tier-2 static parity at the quoted
 precision and has mixed waveform fidelity on the same device-current metric;
 its guarded 20-pulse adaptive solver / wall speedups are 1.07054× / 1.04492×,
-5.14545× / 2.92373×, 1.14729× / 1.06856× and N/A / N/A (IRFS / TI / EPC / CPM2;
-CPM2 golden aborts). Only TI exceeds 5×, driven by the golden's stiffness;
+5.14545× / 2.92373×, 1.14729× / 1.06856× and 1.10037× / 1.00592× (IRFS / TI / EPC / CPM2;
+CPM2 Tj port now driven). Only TI exceeds 5×, driven by the golden's stiffness;
 the other completed goldens already ride the adaptive-step ceiling. Tier-3
 `v1` speed was audited closed on 2026-11-20; Tier-4 is a separate, hardened
 fast tier whose inductive-bench speed and honest scope are tabulated below.
@@ -504,7 +504,8 @@ unless both benches complete. *AES-STD100 caveat above applies.*
 Medians of 3 completed runs; 176 µs end time, adaptive step on both sides
 except EPC golden at the documented 100 ns cap, 90 s timeout. Every completed
 row is guarded (`t_last = 1.76e-4 s`, iterations and trace points > 0);
-CPM2's golden arm aborted (no raw output, rc=1), so that row is N/A;
+CPM2's 4th `Tj` port must be driven; with header-resolved pins the golden
+completes and the measured row is 1.10037× / 1.00592×;
 speedup = golden solver (wall) time over `simplis` solver (wall) time, with
 the vendor golden at default settings as the sole reference. No global or
 portable speedup is claimed.
@@ -514,15 +515,15 @@ portable speedup is claimed.
 | IRFS7730PBF | 0.258 (12,718) | 0.241 (8,440) | 1.07054× | 1.04492× | 5× would need solver ≤0.052 s; measured solver floor 0.241 s |
 | CSD16412Q5A (TI) | 1.415 (131,558) | 0.275 (12,228) | **5.14545×** | 2.92373× | only globally stiff golden; 5× budget ≤0.283 s, both arms fully adaptive |
 | EPC2216 (golden 100 ns cap) | 0.296 (16,514) | 0.258 (12,221) | 1.14729× | 1.06856× | fully-adaptive golden timed out out-of-band; capped golden at 100 ns, 5× would need ≤0.059 s; ROM plateau 171.875 ns |
-| CPM2-1200 | N/A (golden aborted, rc=1) | 0.255 (10,621) | N/A | N/A | golden adaptive produced no raw output; guard returns N/A, no 5× budget |
+| CPM2-1200 | 0.283 (12,492) | 0.259 (10,621) | **1.10037×** | 1.00592× | Tj port driven; both arms fully adaptive |
 
 The 171.875 ns = 176 µs / 1024 step is the plateau ceiling the ROMs reach;
 its origin as an LTspice setting is an inference from the equality, not a
 documented setting. Only TI's golden is stiff; the completed non-TI goldens
 already ride that ceiling (EPC at the capped 100 ns), which bounds a
 waveform-resolving ROM to near-unity in the feasibility controls: `simplis`
-measures 1.07054× (IRFS) and 1.14729× (EPC) there; CPM2's golden adaptive run
-aborts, so its ratio is N/A. TI is the sole ≥5× solver result and is
+measures 1.07054× (IRFS) and 1.14729× (EPC) there; CPM2, with its Tj port
+driven, measures 1.10037×. TI is the sole ≥5× solver result and is
 golden-side driven; its wall speedup is 2.92373×. No global speedup is claimed.
 
 **`simplis` charge provenance and candidate selection.** The charge tables are
@@ -859,9 +860,9 @@ live run is the 719-passed baseline. GitHub CI run 44906010257 (commit
       axes) holds Tier-2 static parity. The ANN residual channel candidate
       was rejected on all four vendors, so the final channel selection is
       `tier2` everywhere. The variant reaches 5.14545× solver / 2.92373×
-      wall on TI in the 20-pulse adaptive bench; IRFS (1.07054×) and EPC
-      (1.14729×) sit at the measured golden ceiling, CPM2's golden adaptive
-      run aborts (N/A). Its Id values changed because the old
+      wall on TI in the 20-pulse adaptive bench; IRFS (1.07054×), EPC
+      (1.14729×) and CPM2 (1.10037×, Tj port driven) sit at the measured
+      golden ceiling. Its Id values changed because the old
       inductor-current-only metric hid clamp current — a metric correction,
       not a new model improvement or regression; TI Vds remains higher than
       `v1` on the like-for-like metric.

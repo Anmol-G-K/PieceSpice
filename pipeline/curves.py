@@ -93,6 +93,132 @@ def _curve4_extracted(ciss, coss, crss, cap_ref: float) -> dict:
     }
 
 
+_CV_ROW_KEYS = ("curve_vds", "ciss_curve_f", "coss_curve_f",
+                "crss_curve_f")
+
+
+def _cap_bias_points(cond: dict) -> list:
+    """Gate biases requested for the multi-bias C-V sweep.
+
+    ``conditions.Cap_bias_Vgs`` is opt-in: absent (or empty) keeps the
+    historical single Vgs=0 record. Values are device-family gate drives,
+    not measurements; the bench's capacitance-validity guard decides
+    whether each bias can actually be measured.
+    """
+    raw = cond.get("Cap_bias_Vgs")
+    if raw is None:
+        return []
+    if not isinstance(raw, (list, tuple)):
+        raise ValueError("Cap_bias_Vgs must be a list of gate voltages")
+    out = []
+    for value in raw:
+        try:
+            bias = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Cap_bias_Vgs entry {value!r} is not numeric") from exc
+        if not math.isfinite(bias):
+            raise ValueError(f"Cap_bias_Vgs entry {value!r} is not finite")
+        if bias in out:
+            raise ValueError(f"Cap_bias_Vgs lists Vgs={bias:g} V twice")
+        out.append(bias)
+    return out
+
+
+def _cv_sweep_row(extracted: dict, vgs_bias: float,
+                  temperature: float) -> dict:
+    """One ``cv_sweeps`` row, shaped as tier3_simplis expects."""
+    row = {key: extracted[key] for key in _CV_ROW_KEYS}
+    row["vgs_bias_v"] = float(vgs_bias)
+    row["temperature_c"] = float(temperature)
+    return row
+
+
+def _run_curve4(cfg: dict, roles) -> tuple:
+    """Extract and persist Curve 4; return (path, base Ciss, base Crss).
+
+    The base Vgs=0 sweep always runs and supplies the legacy fields. Each
+    ``Cap_bias_Vgs`` bias beyond 0 V is measured independently; a bias the
+    bench's validity guard rejects is omitted from ``cv_sweeps`` and its
+    failure is disclosed in ``notes`` (never silently dropped). Curve 5
+    reuses the base Ciss/Crss, so they are returned alongside the path.
+    """
+    cond = cfg["conditions"]
+    lib = Path(cfg["library"])
+    subckt = cfg["subcircuit"]
+    device = cfg["device"]
+    temperature = float(cond.get("temperature", 25.0))
+
+    cap_tb = CapacitanceTestbench(f_meas=cond.get("F_meas"))
+    sweep_args = dict(
+        vds_min=cond["Vds_cap_min"], vds_max=cond["Vds_cap_max"],
+        points=cond["Cap_points"], pin_roles=roles)
+    ciss, coss, crss = cap_tb.run(lib, subckt, **sweep_args)
+    cap_ref = _cap_ref_vds(cond)
+    extracted = _curve4_extracted(ciss, coss, crss, cap_ref)
+
+    conditions_used = {
+        "Vds_cap_min": cond["Vds_cap_min"],
+        "Vds_cap_max": cond["Vds_cap_max"],
+        "Cap_points": cond["Cap_points"],
+        "F_meas": cond["F_meas"],
+    }
+    notes = (f"Small-signal AC @ {cond['F_meas']:.0e} Hz; "
+             f"reported at Vds={cap_ref} V.")
+
+    biases = _cap_bias_points(cond)
+    if biases:
+        conditions_used["Cap_bias_Vgs"] = biases
+        sweeps = [_cv_sweep_row(extracted, 0.0, temperature)]
+        failures = []
+        for bias in biases:
+            if bias == 0.0:
+                continue
+            try:
+                b_ciss, b_coss, b_crss = cap_tb.run(
+                    lib, subckt, vgs_bias=bias, **sweep_args)
+                b_extracted = _curve4_extracted(
+                    b_ciss, b_coss, b_crss, cap_ref)
+            except Exception as exc:  # invalid point, solver abort, or
+                # malformed array: omit this bias and disclose why.
+                failures.append(f"Vgs={bias:g} V ({exc})")
+                continue
+            sweeps.append(_cv_sweep_row(b_extracted, bias, temperature))
+
+        if len(sweeps) > 1:
+            extracted["cv_sweeps"] = sorted(
+                sweeps, key=lambda row: row["vgs_bias_v"])
+            notes += (f" Multi-bias C-V at Vgs="
+                      f"{[row['vgs_bias_v'] for row in extracted['cv_sweeps']]}"
+                      f" V; Vgs=0 legacy fields kept.")
+        else:
+            notes += (" No nonzero Cap_bias_Vgs sweep passed the capacitance "
+                      "validity guard; legacy single Vgs=0 record retained.")
+        if failures:
+            notes += " Omitted invalid bias sweeps: " + "; ".join(failures) + "."
+
+    path = save_output(
+        device, "curve4_capacitances", "pass", conditions_used, extracted,
+        notes=notes)
+    return path, ciss, crss
+
+
+def run_curve4(vendor: str) -> Path:
+    """Run only Curve 4 (capacitances) for *vendor* and persist it.
+
+    Used to refresh bias-aware C-V data without re-running the six
+    unrelated curves.
+    """
+    cfg = load_input(vendor)
+    from parser.netlist import resolve_pin_connections
+    roles = resolve_pin_connections(
+        Path(cfg["library"]), cfg["subcircuit"],
+        pin_order_semantic=cfg.get("pins", {}).get("pin_order_semantic"))
+    path, _, _ = _run_curve4(cfg, roles)
+    print(f"[pipeline] {vendor}: Curve 4 extracted -> {path}")
+    return path
+
+
 def run_all_curves(vendor: str, keep_notebook: bool = False) -> dict:
     """Run all seven datasheet curves for *vendor* from its input YAML.
 
@@ -157,18 +283,7 @@ def run_all_curves(vendor: str, keep_notebook: bool = False) -> dict:
         notes="Curve 3: Rds(on) vs Id in ohmic region (Id-x axis by design).")
 
     # ---- Curve 4: Capacitances ------------------------------------------
-    cap_tb = CapacitanceTestbench(f_meas=cond.get("F_meas"))
-    ciss, coss, crss = cap_tb.run(lib, subckt,
-        vds_min=cond["Vds_cap_min"], vds_max=cond["Vds_cap_max"],
-        points=cond["Cap_points"], pin_roles=roles)
-    cap_ref = _cap_ref_vds(cond)
-    outputs["curve4_capacitances"] = save_output(
-        device, "curve4_capacitances", "pass",
-        {"Vds_cap_min": cond["Vds_cap_min"], "Vds_cap_max": cond["Vds_cap_max"],
-         "Cap_points": cond["Cap_points"], "F_meas": cond["F_meas"]},
-        _curve4_extracted(ciss, coss, crss, cap_ref),
-        notes=f"Small-signal AC @ {cond['F_meas']:.0e} Hz; "
-              f"reported at Vds={cap_ref} V.")
+    outputs["curve4_capacitances"], ciss, crss = _run_curve4(cfg, roles)
 
     # ---- Curve 5: Gate charge (quasi-static) -----------------------------
     df_qg, bp = reconstruct_gate_charge(tr, ciss, crss,
