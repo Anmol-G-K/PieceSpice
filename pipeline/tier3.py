@@ -37,7 +37,6 @@ from models.tpwl_netlist_builder import (
     emission_policy,
     emit_subcircuit,
     emitted_static_rmse,
-    gate_ramp_eps,
 )
 from approximation.tpwl_deim import build_model
 from simulation.testbenches.dpt_trajectory import (
@@ -96,18 +95,8 @@ _FLOAT_LITERAL = re.compile(r"[-+]?\d+\.\d+e[-+]\d+")
 
 
 def _emission_settings(vendor: str, model, tier3_cfg: dict):
-    """Resolve the opt-in compact path / C1 gate drive from config.
-
-    Both switches default off and both are read only from
-    ``config['tier3']``; a non-boolean value raises instead of being
-    coerced, so a typo can never silently change the emitted deck.
-    """
+    """Resolve the opt-in compact path from config; never fall back silently."""
     requested = bool(tier3_cfg.get("compact_emission", False))
-    gate_ramp_c1 = tier3_cfg.get("gate_ramp_c1", False)
-    if not isinstance(gate_ramp_c1, bool):
-        raise ValueError(
-            f"{vendor}: tier3.gate_ramp_c1 must be a boolean; "
-            f"got {gate_ramp_c1!r}")
     raw_tol = tier3_cfg.get("compact_rel_tol",
                             EmissionPolicy().compact_rel_tol)
     try:
@@ -120,13 +109,11 @@ def _emission_settings(vendor: str, model, tier3_cfg: dict):
             f"{vendor}: tier3.compact_rel_tol must be finite and > 0; "
             f"got {raw_tol!r}")
     if requested:
-        pol = replace(COMPACT_POLICY(model, rel_tol=rel_tol),
-                      gate_ramp_c1=gate_ramp_c1)
+        pol = COMPACT_POLICY(model, rel_tol=rel_tol)
         source = "config"
     else:
-        pol = replace(emission_policy(model), compact_rel_tol=rel_tol,
-                      gate_ramp_c1=gate_ramp_c1)
-        source = "config" if gate_ramp_c1 else "default"
+        pol = replace(emission_policy(model), compact_rel_tol=rel_tol)
+        source = "default"
     return pol, source
 
 
@@ -135,7 +122,6 @@ def _emission_record(model, policy, text: str, source: str) -> dict:
     metrics = emission_metrics(model, policy)
     channel = next((ln for ln in text.splitlines()
                     if ln.startswith("G_CH ")), text)
-    gate_c1 = bool(policy.gate_ramp_c1)
     return {
         "compact": metrics["compact"],
         "rel_tol": metrics["rel_tol"],
@@ -143,10 +129,6 @@ def _emission_record(model, policy, text: str, source: str) -> dict:
         "vgs_points": metrics["vgs_points"],
         "max_rel_error_pct": metrics["max_rel_error_pct"],
         "estimated_literal_count": len(_FLOAT_LITERAL.findall(channel)),
-        # Emission provenance: the opt-in switch and the data-derived C1
-        # hinge width actually written into the gate factor [V].
-        "gate_ramp_c1": gate_c1,
-        "gate_ramp_eps_v": gate_ramp_eps(model) if gate_c1 else None,
         "source": source,
     }
 
