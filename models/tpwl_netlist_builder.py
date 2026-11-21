@@ -43,8 +43,14 @@ The opt-in ``V2_POLICY`` emission path adds the internal ``gi/di/ss`` nodes
 body diode.  The opt-in compact path (``EmissionPolicy.compact`` /
 ``COMPACT_POLICY``) prunes only the shared Vds axis by measured interpolation
 error; Vgs rows, cell count, clamp/Qoss settings and the ASCII ``table()``
-syntax are kept.  The default call (``policy=None``) keeps the closed v1 text
-byte-for-byte; neither physical elements nor compact emission are inferred.
+syntax are kept.  The opt-in C1 gate path
+(``EmissionPolicy.gate_ramp_c1`` / ``emit_subcircuit(..., gate_ramp_c1=True)``)
+replaces one expression - the Curve-2 gate factor ``table(limit(...), pairs)``
+- with the shared C1 hinge ramp from ``approximation.smoother``; the channel
+table, Qoss fit, Vds grid and clamp are untouched.  The default call
+(``policy=None``, ``gate_ramp_c1=False``) keeps the closed v1 text
+byte-for-byte; neither physical elements, compact emission nor the C1 gate
+ramp are inferred.
 """
 from __future__ import annotations
 
@@ -54,7 +60,13 @@ import numpy as np
 from scipy.optimize import least_squares
 
 from config.yaml_io import load_input, load_output
-from approximation.smoother import hyp_expr, hyp_value
+from approximation.smoother import (
+    emit_transfer_ramp,
+    eps_from_grid,
+    hyp_expr,
+    hyp_value,
+    smooth_relu_product,
+)
 from approximation.static_curves import load_output_family
 from approximation.tpwl_deim import TPWLTerminalModel, paper_weights
 
@@ -85,6 +97,8 @@ class EmissionPolicy:
     # Opt-in Vds-axis compression; defaults keep the closed v1 table.
     compact: bool = False
     compact_rel_tol: float = 0.005
+    # Opt-in C1 Curve-2 gate factor; default keeps the closed 101-tooth table.
+    gate_ramp_c1: bool = False
 
 
 _BASE = EmissionPolicy()
@@ -332,6 +346,29 @@ def transfer_curve(model: TPWLTerminalModel
     return v, np.clip(i / norm, 0.0, 1.0)
 
 
+def gate_ramp_eps(model: TPWLTerminalModel) -> float:
+    """Data-derived C1 hinge width [V] for the Curve-2 gate factor.
+
+    ``eps_from_grid`` applied to the emitted transfer grid (median positive
+    spacing capped at half the minimum spacing).  No vendor-specific width is
+    embedded here; the same number the opt-in emitter puts in the deck is the
+    number recorded as provenance.
+    """
+    tv, _ = transfer_curve(model)
+    if tv.size < 2:
+        raise ValueError(
+            f"{model.vendor}: curve2 transfer characteristic has "
+            f"{tv.size} point(s); need >=2")
+    return eps_from_grid(tv)
+
+
+def _strict_bool(name: str, value: object) -> bool:
+    """Accept only real booleans; no truthiness coercion for opt-ins."""
+    if not isinstance(value, bool):
+        raise ValueError(f"{name} must be a boolean; got {value!r}")
+    return value
+
+
 def emitted_channel(model: TPWLTerminalModel, u: np.ndarray, *,
                     policy: EmissionPolicy | None = None) -> np.ndarray:
     """SPICE-emitted channel current on operating points (2, K) [A].
@@ -339,10 +376,13 @@ def emitted_channel(model: TPWLTerminalModel, u: np.ndarray, *,
     Mirrors the netlist: 2-D table interpolation, Curve-2 gate factor,
     non-negative clamp (soft where measured) and low-Vds saturation.  Used
     for the static metric so the reported number describes what LTspice
-    actually evaluates.
+    actually evaluates.  With ``policy.gate_ramp_c1`` the gate factor is the
+    emitted C1 hinge chain on the same transfer data and data-derived eps
+    instead of ``table()`` interpolation.
     """
     u = np.atleast_2d(u)
     pol = emission_policy(model) if policy is None else policy
+    _strict_bool("EmissionPolicy.gate_ramp_c1", pol.gate_ramp_c1)
     g, d, table, _ = _emission_channel(model, pol)
     row = np.array([
         [np.interp(vds, d, table[k]) for vds in u[1]]
@@ -352,7 +392,12 @@ def emitted_channel(model: TPWLTerminalModel, u: np.ndarray, *,
     out = np.array([
         np.interp(vgs_clamped[j], g, row[:, j]) for j in range(len(u[0]))])
     tv, tf = transfer_curve(model)
-    gate = np.clip(np.interp(u[0], tv, tf), 0.0, 1.0)
+    if pol.gate_ramp_c1:
+        gate = np.asarray(smooth_relu_product(u[0], tv, tf,
+                                              eps_from_grid(tv)),
+                          dtype=float)
+    else:
+        gate = np.clip(np.interp(u[0], tv, tf), 0.0, 1.0)
     x = out * gate * u[1] / (u[1] + saturation_scale(model))
     if pol.soft_clamp:
         return np.asarray(hyp_value(x, pol.soft_eps), dtype=float)
@@ -470,7 +515,8 @@ def _gate_charge_expr(model: TPWLTerminalModel) -> str:
 
 def emit_subcircuit(model: TPWLTerminalModel, *,
                     name: str | None = None,
-                    policy: EmissionPolicy | None = None) -> str:
+                    policy: EmissionPolicy | None = None,
+                    gate_ramp_c1: bool | None = None) -> str:
     """Return a complete ``.subckt`` string for one fitted model.
 
     ``policy=None`` keeps the closed v1 emission (the measured per-vendor
@@ -478,9 +524,22 @@ def emit_subcircuit(model: TPWLTerminalModel, *,
     Tier-2 parasitics, body diode and DPT gate charge; the channel and Qoss
     tables then attach to the internal ``gi/ss/di`` nodes.  A compact policy
     prunes the common Vds axis only; every row uses that same axis.
+
+    ``gate_ramp_c1`` overrides ``policy.gate_ramp_c1`` (``None`` inherits the
+    policy; the default policy is ``False``).  ``False`` keeps the closed
+    Curve-2 ``table()`` gate ladder byte-for-byte.  ``True`` replaces only
+    that factor with the shared anchored C1 hinge ramp
+    (``approximation.smoother.emit_transfer_ramp`` on the ``transfer_curve``
+    data, width ``eps_from_grid(tv)``), exactly as audited.  The 2-D channel,
+    Qoss fit, Vds grid and clamp are unchanged either way.
     """
     _registered_vendor(model)
     pol = emission_policy(model) if policy is None else policy
+    if gate_ramp_c1 is not None:
+        pol = replace(pol, gate_ramp_c1=_strict_bool("gate_ramp_c1",
+                                                     gate_ramp_c1))
+    else:
+        _strict_bool("EmissionPolicy.gate_ramp_c1", pol.gate_ramp_c1)
     if ((pol.include_gate_charge or pol.include_body_diode)
             and not pol.include_parasitics):
         raise ValueError(
@@ -509,8 +568,16 @@ def emit_subcircuit(model: TPWLTerminalModel, *,
 
     channel_table = (f"table(limit({vgs_expr},{_f(g[0])},{_f(g[-1])}),"
                      + rows(table) + ")")
-    gate_table = (f"table(limit({vgs_expr},{_f(tv[0])},{_f(tv[-1])}),"
-                  + ",".join(f"{_f(x)},{_f(y)}" for x, y in zip(tv, tf)) + ")")
+    if pol.gate_ramp_c1:
+        # Audit's low-risk form: only the 101-tooth C0 gate ladder is
+        # replaced, by the shared anchored C1 hinge chain.  The channel
+        # table, Qoss fit, Vds grid and clamp keep their closed text.
+        gate_table = emit_transfer_ramp(tv, tf, eps_from_grid(tv),
+                                        term=vgs_expr)
+    else:
+        gate_table = (
+            f"table(limit({vgs_expr},{_f(tv[0])},{_f(tv[-1])}),"
+            + ",".join(f"{_f(x)},{_f(y)}" for x, y in zip(tv, tf)) + ")")
     vsat = saturation_scale(model)
     x = (f"({gate_table})*({channel_table})"
          f"*{vds_expr}/({vds_expr}+{_f(vsat)})")

@@ -1,6 +1,7 @@
 """Unit tests for the paper-defined parts of the Tier-3 TPWL terminal model."""
 import hashlib
 import re
+from dataclasses import replace
 
 import numpy as np
 import pytest
@@ -18,7 +19,9 @@ from approximation.tpwl_deim import (
     deim_indices,
     paper_weights,
 )
-from approximation.smoother import hyp_expr
+from approximation.smoother import (
+    emit_transfer_ramp, eps_from_grid, hyp_expr, smooth_relu_product,
+)
 from simulation.testbenches.dpt_trajectory import Trajectory
 
 
@@ -390,6 +393,132 @@ def test_tier3_compact_config_is_opt_in_and_recorded(monkeypatch):
     impossible["tier3"] = {"compact_emission": True, "compact_rel_tol": 0.0}
     with pytest.raises(ValueError):
         _emission_settings(model.vendor, model, impossible["tier3"])
+
+
+# ---- C1 Curve-2 gate ramp (opt-in, default off) ---------------------------
+
+def _gate_ladder(model) -> str:
+    """Closed v1 gate factor for one model, rebuilt from the same data."""
+    tv, tf = emitter.transfer_curve(model)
+    span = f"limit(V(g,s),{emitter._f(tv[0])},{emitter._f(tv[-1])})"
+    pairs = ",".join(f"{emitter._f(x)},{emitter._f(y)}"
+                     for x, y in zip(tv, tf))
+    return f"table({span},{pairs})"
+
+
+def test_gate_ramp_c1_default_is_off_and_byte_identical():
+    model = _toy_model()
+    assert emitter.EmissionPolicy().gate_ramp_c1 is False
+    assert emitter.emission_policy(model).gate_ramp_c1 is False
+    default = emitter.emit_subcircuit(model, name="TOY_T3")
+    assert default == emitter.emit_subcircuit(
+        model, name="TOY_T3", gate_ramp_c1=False)
+    # The closed ladder is still the emitted Curve-2 factor.
+    assert _gate_ladder(model) in default
+    assert "table(limit(V(g,s)," in default
+
+
+def test_gate_ramp_c1_replaces_only_the_gate_factor():
+    model = _toy_model()
+    tv, tf = emitter.transfer_curve(model)
+    eps = emitter.gate_ramp_eps(model)
+    ladder = _gate_ladder(model)
+    ramp = emit_transfer_ramp(tv, tf, eps_from_grid(tv), term="V(g,s)")
+
+    default = emitter.emit_subcircuit(model, name="TOY_T3")
+    opt_in = emitter.emit_subcircuit(model, name="TOY_T3",
+                                     gate_ramp_c1=True)
+    # Same switch through the policy path: one option, one emitted deck.
+    pol = replace(emitter.emission_policy(model), gate_ramp_c1=True)
+    assert opt_in == emitter.emit_subcircuit(model, name="TOY_T3",
+                                              policy=pol)
+
+    # The C1 ramp is present and the old ladder is gone (no mixed emission).
+    assert ramp in opt_in
+    assert ladder not in opt_in
+    assert opt_in.isascii()
+    # Exactly one expression changed: replacing the ladder by the ramp in
+    # the closed deck reproduces the opt-in deck byte-for-byte, so the
+    # channel table, Qoss fit, Vds grid, clamp and element lines are all
+    # unchanged.
+    assert opt_in == default.replace(ladder, ramp)
+    assert len(opt_in.splitlines()) == len(default.splitlines())
+    # The nested 2-D channel table and the Qoss element are verbatim.
+    channel = next(ln for ln in default.splitlines()
+                   if ln.startswith("G_CH "))
+    assert default.replace(channel, "") == opt_in.replace(
+        next(ln for ln in opt_in.splitlines() if ln.startswith("G_CH ")),
+        "")
+
+
+def test_gate_ramp_c1_is_value_preserving_and_data_derived():
+    model = _toy_model()
+    tv, tf = emitter.transfer_curve(model)
+    eps = emitter.gate_ramp_eps(model)
+    spacing = np.diff(tv)
+    assert eps == pytest.approx(eps_from_grid(tv))
+    assert eps == pytest.approx(
+        min(float(np.median(spacing)), 0.5 * float(np.min(spacing))))
+    assert eps > 0.0
+    assert eps != emitter.emission_policy(model).soft_eps
+    # Data-derived, not a hard-coded width: the toy transfer grid is
+    # uniform at 0.05 V, so the P7 rule gives half the minimum spacing.
+    assert eps == pytest.approx(0.025)
+
+    # The emitted factor tracks the measured table inside its span (the
+    # hinge chain replaces the C0 teeth): monotone, no overshoot, under 1 %.
+    vgs = np.linspace(0.0, tv[-1], 1301)
+    table = np.clip(np.interp(vgs, tv, tf), 0.0, 1.0)
+    ramp = np.asarray(smooth_relu_product(vgs, tv, tf, eps), dtype=float)
+    assert np.max(np.abs(ramp - table)) < 0.01
+    assert np.all(np.diff(ramp) >= -1e-12)
+    assert np.all(ramp >= 0.0) and np.all(ramp <= float(tf[-1]) + 1e-3)
+    # Emitted text carries that same width (hyp_expr stores eps**2).
+    text = emitter.emit_subcircuit(model, name="TOY_T3", gate_ramp_c1=True)
+    assert f"{eps * eps:.6e}" in text
+
+
+def test_tier3_gate_ramp_config_is_opt_in_and_recorded():
+    model = _toy_model()
+    default_pol, default_source = _emission_settings(model.vendor, model, {})
+    assert default_pol.gate_ramp_c1 is False
+    assert default_source == "default"
+
+    pol, source = _emission_settings(model.vendor, model,
+                                     {"gate_ramp_c1": True})
+    assert pol.gate_ramp_c1 is True and source == "config"
+    assert pol.compact is False
+    text = emitter.emit_subcircuit(model, policy=pol)
+    record = _emission_record(model, pol, text, source)
+    assert record["gate_ramp_c1"] is True
+    assert record["gate_ramp_eps_v"] == pytest.approx(
+        emitter.gate_ramp_eps(model))
+    assert record["gate_ramp_eps_v"] > 0.0
+
+    default_text = emitter.emit_subcircuit(model)
+    default = _emission_record(model, default_pol, default_text,
+                               default_source)
+    assert default["gate_ramp_c1"] is False
+    assert default["gate_ramp_eps_v"] is None
+
+    # Composes with the compact path without touching its measured fields.
+    compact_pol, compact_source = _emission_settings(
+        model.vendor, model,
+        {"compact_emission": True, "compact_rel_tol": 0.002,
+         "gate_ramp_c1": True})
+    assert compact_pol.compact is True and compact_pol.gate_ramp_c1 is True
+    assert compact_source == "config"
+    compact_record = _emission_record(
+        model, compact_pol,
+        emitter.emit_subcircuit(model, policy=compact_pol), compact_source)
+    assert compact_record["gate_ramp_c1"] is True
+    assert compact_record["table_points"] == 28
+
+    for bad in ("true", "false", 1, 0, None, 1.0, []):
+        with pytest.raises(ValueError, match="must be a boolean"):
+            _emission_settings(model.vendor, model, {"gate_ramp_c1": bad})
+    with pytest.raises(ValueError, match="must be a boolean"):
+        emitter.emit_subcircuit(model, gate_ramp_c1="yes")
 
 
 def test_v2_policy_emits_parasitics_diode_and_monotone_gate_charge(monkeypatch):
