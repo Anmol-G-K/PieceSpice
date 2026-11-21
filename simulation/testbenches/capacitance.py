@@ -28,6 +28,17 @@ BIAS_INDUCTOR_H = 1.0   # DC bias feed: ~open at 1 MHz
 GATE_BLEED_OHM = 100e6  # gate DC potential without loading 1 MHz
 
 
+class _BiasMeasurementError(ValueError):
+    """A biased AC point no longer measures a capacitance (channel on)."""
+
+
+# Bias-aware validity: the 1 A AC probe only measures a capacitance when the
+# small-signal current is displacement-dominated. A channel that is driven on
+# loads the gate node resistively and the |V| = 1/(w*C) inversion is no longer
+# valid. 0.1 corresponds to ~5.7 degrees of phase error; declared, not fitted.
+MAX_GATE_CONDUCTANCE_RATIO = 0.1
+
+
 class CapacitanceTestbench:
     """Extracts Ciss, Coss, Crss vs Vds from the vendor subcircuit."""
 
@@ -49,9 +60,14 @@ class CapacitanceTestbench:
     # -- netlist assembly ------------------------------------------------------
 
     def _ac_netlist(self, lib_path, subcircuit_name, pin_roles, vds: float,
-                    variant: str) -> str:
+                    variant: str, vgs_bias: float = 0.0) -> str:
         """variant 'a': gate drive (Ciss). variant 'b': drain drive
-        (Coss + Crss ratio)."""
+        (Coss + Crss ratio).
+
+        ``vgs_bias`` is applied through a 1 H DC feed (DC short, AC open) so
+        the 1 A AC small-signal probe remains the only AC excitation. At the
+        default 0.0 the emitted netlist is byte-for-byte the historical one.
+        """
         roles = [r for r in pin_roles if r.lower() != "tj"]
         # yaml pin_order may omit tj even when the subckt declares it -
         # check the header directly.
@@ -81,9 +97,15 @@ class CapacitanceTestbench:
         if has_tj:
             lines.append(f"Vtj tj_dut 0 {temp:g}")
 
+        biased = bool(vgs_bias)
         if variant == "a":
             # Drain AC-grounded by its ideal DC bias source.
             lines.append(f"Vds {conn['drain']} 0 {vds:g}")
+            if biased:
+                # Gate DC bias through a 1 H feed: DC short, AC open.
+                lines.append(f"Lgbias vgbus {conn['gate']} "
+                             f"{BIAS_INDUCTOR_H:g}")
+                lines.append(f"Vgbias vgbus 0 {float(vgs_bias):g}")
             lines.append(f"Rbleed {conn['gate']} 0 {GATE_BLEED_OHM:g}")
             lines.append(f"Iprobe {conn['gate']} 0 DC 0 AC 1")
         else:
@@ -91,6 +113,10 @@ class CapacitanceTestbench:
             # a direct Vds here would short the AC probe to ground.
             lines.append(f"Lbias vbus {conn['drain']} {BIAS_INDUCTOR_H:g}")
             lines.append(f"Vbus vbus 0 {vds:g}")
+            if biased:
+                lines.append(f"Lgbias vgbus {conn['gate']} "
+                             f"{BIAS_INDUCTOR_H:g}")
+                lines.append(f"Vgbias vgbus 0 {float(vgs_bias):g}")
             lines.append(f"Rbleed {conn['gate']} 0 {GATE_BLEED_OHM:g}")
             lines.append(f"Iprobe {conn['drain']} 0 DC 0 AC 1")
 
@@ -134,12 +160,44 @@ class CapacitanceTestbench:
             f"node voltage trace for {node!r} not found; "
             f"available: {sorted(traces)}")
 
+    @staticmethod
+    def _check_bias_valid(value: complex, vds: float, vgs_bias: float,
+                          label: str) -> None:
+        """Reject a biased AC point whose probe is not displacement-dominated.
+
+        The 1 A probe inversion ``C = 1/(w*|V|)`` assumes a purely capacitive
+        impedance. When a DC gate bias turns the channel on, the small-signal
+        node response acquires a real (conductive) part and that inversion
+        silently produces a wrong capacitance. Fail loudly instead.
+        """
+        real = abs(float(value.real))
+        imag = abs(float(value.imag))
+        mag = float(abs(value))
+        if not np.isfinite(mag) or mag <= 0.0:
+            raise _BiasMeasurementError(
+                f"{label} biased AC probe at Vds={vds:g} V, "
+                f"Vgs_bias={vgs_bias:g} V returned a non-finite/zero node "
+                f"voltage ({value!r}); the C-V inversion is invalid.")
+        ratio = real / imag if imag > 0.0 else float("inf")
+        if not np.isfinite(ratio) or ratio > MAX_GATE_CONDUCTANCE_RATIO:
+            raise _BiasMeasurementError(
+                f"{label} biased AC probe at Vds={vds:g} V, "
+                f"Vgs_bias={vgs_bias:g} V is not capacitive: "
+                f"|Re(V)|/|Im(V)|={ratio:.3g} exceeds "
+                f"{MAX_GATE_CONDUCTANCE_RATIO:g}. The gate bias likely "
+                f"turned the channel on, so |V|=1/(w*C) is invalid; refusing "
+                f"to return a corrupted C-V sweep.")
+
     # -- public sweep ---------------------------------------------------------------
 
     def run(self, lib_path, subcircuit_name: str = "",
             vds_min: float = 0.1, vds_max: float = 60.0,
-            points: int = 25, pin_roles=None):
+            points: int = 25, pin_roles=None, vgs_bias: float = 0.0):
         lib_path = Path(lib_path)
+        vgs_bias = float(vgs_bias)
+        if not np.isfinite(vgs_bias):
+            raise ValueError(f"vgs_bias must be finite, got {vgs_bias!r}")
+        biased = vgs_bias != 0.0
         vds_sweep = np.logspace(np.log10(vds_min), np.log10(vds_max), points)
         ciss = np.full(points, np.nan)
         coss = np.full(points, np.nan)
@@ -149,18 +207,43 @@ class CapacitanceTestbench:
         for i, vds in enumerate(vds_sweep):
             try:
                 text_a = self._ac_netlist(lib_path, subcircuit_name,
-                                          pin_roles, vds, "a")
+                                          pin_roles, vds, "a",
+                                          vgs_bias=vgs_bias)
                 res_a = self._run_ac(text_a)
-                vg = abs(self._complex_voltage(res_a, sub_gate(pin_roles)))
+                vg_c = self._complex_voltage(res_a, sub_gate(pin_roles))
+                if biased:
+                    self._check_bias_valid(vg_c, vds, vgs_bias, "Ciss")
+                vg = abs(vg_c)
                 ciss[i] = 1.0 / (omega * max(vg, 1e-15))
 
                 text_b = self._ac_netlist(lib_path, subcircuit_name,
-                                          pin_roles, vds, "b")
+                                          pin_roles, vds, "b",
+                                          vgs_bias=vgs_bias)
                 res_b = self._run_ac(text_b)
-                vd = abs(self._complex_voltage(res_b, "drain"))
-                vg_b = abs(self._complex_voltage(res_b, sub_gate(pin_roles)))
+                vd_c = self._complex_voltage(res_b, "drain")
+                vg_b_c = self._complex_voltage(res_b, sub_gate(pin_roles))
+                if biased:
+                    self._check_bias_valid(vd_c, vds, vgs_bias, "Coss")
+                    self._check_bias_valid(vg_b_c, vds, vgs_bias, "Crss")
+                vd = abs(vd_c)
+                vg_b = abs(vg_b_c)
                 coss[i] = 1.0 / (omega * max(vd, 1e-15))
                 crss[i] = (vg_b / max(vd, 1e-15)) * ciss[i]
+                if biased:
+                    for name, value in (("Ciss", ciss[i]),
+                                        ("Coss", coss[i]),
+                                        ("Crss", crss[i])):
+                        if not np.isfinite(value) or value <= 0 \
+                                or value > 1e-3:
+                            raise _BiasMeasurementError(
+                                f"{name} at Vds={vds:g} V, "
+                                f"Vgs_bias={vgs_bias:g} V inverted to "
+                                f"{value!r} F (must be 0 < C <= 1 mF); the "
+                                f"biased C-V measurement is invalid.")
+            except _BiasMeasurementError:
+                # A gate bias that turns the channel on invalidates the
+                # small-signal inversion; fail loudly, never mask it.
+                raise
             except Exception as exc:
                 _LOGGER.warning("%s @ Vds=%.2fV probe failed (%s); point "
                                 "masked as NaN.",
@@ -188,6 +271,9 @@ class CapacitanceTestbench:
                          n_valid, points)
 
         note = f"measured @ {self.f_meas:.1e} Hz"
+        meta = {"note": note}
+        if biased:
+            meta["vgs_bias_v"] = vgs_bias
         out = []
         for name, cap in (("Ciss", ciss_t), ("Coss", coss_t),
                           ("Crss", crss_t)):
@@ -196,7 +282,7 @@ class CapacitanceTestbench:
                 x_name="Drain-Source Voltage (Vds)", x_unit="V",
                 y_name="Capacitance", y_unit="F",
                 x_data=x_valid.tolist(), y_data=cap.tolist(),
-                metadata={"note": note}))
+                metadata=dict(meta)))
         return out
 
 

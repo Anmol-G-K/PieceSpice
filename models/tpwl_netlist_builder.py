@@ -37,6 +37,11 @@ LTspice syntax facts verified in this repository: ``**`` for powers (caret
 is XOR), nested ``table()`` lookups evaluate correctly, and ``limit()`` /
 ``max()`` / ``tanh()`` / ``sqrt()`` / ``exp()`` are built in.  Emission stays
 ASCII.
+
+The opt-in ``V2_POLICY`` emission path adds the internal ``gi/di/ss`` nodes
+(``RG``/``RD``/``RS``), the DPT gate-charge table (``C_QG``) and the Tier-2
+body diode.  The default call (``policy=None``) keeps the closed v1 text
+byte-for-byte; the physical elements are never inferred silently.
 """
 from __future__ import annotations
 
@@ -71,6 +76,10 @@ class EmissionPolicy:
     soft_clamp: bool = False
     soft_eps: float = 1e-3
     high_vds_saturation: bool = False
+    # V2 physical elements; all False keeps the closed v1 netlist byte-equal.
+    include_gate_charge: bool = False
+    include_body_diode: bool = False
+    include_parasitics: bool = False
 
 
 _BASE = EmissionPolicy()
@@ -85,6 +94,18 @@ _POLICY_BY_VENDOR = {
     "cpm2-1200": EmissionPolicy(vgs_points=21, vds_points=31,
                                 smooth_qoss=True, soft_clamp=True),
 }
+
+# Opt-in V2 emission path: baseline grid/clamp settings plus the physical
+# elements.  The closed v1 record keeps using its measured vendor policy.
+V2_POLICY = EmissionPolicy(include_gate_charge=True,
+                           include_body_diode=True,
+                           include_parasitics=True)
+
+# Documented Tier-2 emitter scalars (pipeline.fitting.build_pwl_spec
+# metadata: r_gate/r_drain/r_source).  Reused verbatim, not re-measured.
+_R_GATE_OHM = 1.5
+_R_DRAIN_OHM = 1e-4
+_R_SOURCE_OHM = 1e-4
 
 
 def _registered_vendor(model: TPWLTerminalModel) -> None:
@@ -115,8 +136,11 @@ def raw_anchors(model: TPWLTerminalModel) -> np.ndarray:
     return model.v_ref[:, None] + model.anchors.T * model.v_span[:, None]
 
 
-def grid_axes(model: TPWLTerminalModel) -> tuple[np.ndarray, np.ndarray]:
+def grid_axes(model: TPWLTerminalModel, *,
+              policy: EmissionPolicy | None = None
+              ) -> tuple[np.ndarray, np.ndarray]:
     """Deterministic raw-voltage grid covering DPT, static family, anchors."""
+    pol = emission_policy(model) if policy is None else policy
     cfg = load_input(model.vendor)
     dpt = cfg["dpt"]
     levels, vds_grid, _ = load_output_family(model.vendor)
@@ -127,7 +151,6 @@ def grid_axes(model: TPWLTerminalModel) -> tuple[np.ndarray, np.ndarray]:
     vds_lo = min(0.0, float(vds_grid.min()), float(anchors[1].min()))
     vds_hi = max(float(dpt["vbus"]), float(vds_grid.max()),
                  float(anchors[1].max()))
-    pol = emission_policy(model)
     g = np.linspace(vgs_lo, vgs_hi, pol.vgs_points)
     d = np.linspace(vds_lo, vds_hi, pol.vds_points)
     if pol.high_vds_saturation:
@@ -153,13 +176,15 @@ def blended_channel(model: TPWLTerminalModel, u: np.ndarray) -> np.ndarray:
                      + model.channel[:, 2][:, None] * dw[1])
 
 
-def grid_channel(model: TPWLTerminalModel, g: np.ndarray, d: np.ndarray
+def grid_channel(model: TPWLTerminalModel, g: np.ndarray, d: np.ndarray, *,
+                 policy: EmissionPolicy | None = None
                  ) -> np.ndarray:
     """Channel values on the emitted (Vgs, Vds) mesh, shape (len(g), len(d))."""
+    pol = emission_policy(model) if policy is None else policy
     vgs, vds = np.meshgrid(g, d, indexing="ij")
     table = blended_channel(model, np.vstack([vgs.ravel(), vds.ravel()])).reshape(
         vgs.shape)
-    if emission_policy(model).high_vds_saturation:
+    if pol.high_vds_saturation:
         _, static_vds, _ = load_output_family(model.vendor)
         j = int(np.searchsorted(d, float(np.max(static_vds))))
         hold = np.maximum(table[:, j], 0.0)
@@ -220,21 +245,32 @@ def emitted_static_rmse(model: TPWLTerminalModel) -> float:
     return float(np.sqrt(np.mean((pred - ref) ** 2)) / span)
 
 
-def _qoss_expr(model: TPWLTerminalModel) -> str:
-    """Monotone drain charge: smooth two-exponential fit or dense table."""
+def _qoss_expr(model: TPWLTerminalModel, *,
+               policy: EmissionPolicy | None = None,
+               vds_expr: str = "V(d,s)") -> str:
+    """Monotone drain charge: surface/table source, smooth fit or dense PWL."""
     from approximation.charge_model import integrate_charge
-    coss_v, coss_c = model.coss_v, model.coss_c
-    if coss_v is None or coss_c is None:
-        raise ValueError(
-            f"{model.vendor}: Coss charge table is unavailable")
-    charge = integrate_charge(coss_v, coss_c)
-    if charge.v.size < 2 or charge.q.size != charge.v.size:
+    pol = emission_policy(model) if policy is None else policy
+    surface = getattr(model, "qoss_surface", None)
+    if surface is not None:
+        charge_v, charge_q = surface.qoss_table(
+            0.0, temperature=model.temperature_c)
+        charge_v = np.asarray(charge_v, dtype=float)
+        charge_q = np.asarray(charge_q, dtype=float)
+    else:
+        coss_v, coss_c = model.coss_v, model.coss_c
+        if coss_v is None or coss_c is None:
+            raise ValueError(
+                f"{model.vendor}: Coss charge table is unavailable")
+        charge = integrate_charge(coss_v, coss_c)
+        charge_v, charge_q = charge.v, charge.q
+    if charge_v.size < 2 or charge_q.size != charge_v.size:
         raise ValueError(
             f"{model.vendor}: Coss charge table has "
-            f"{charge.v.size} usable point(s); need >=2")
-    if emission_policy(model).smooth_qoss:
-        v = np.linspace(0.0, float(charge.v[-1]), _QOSS_FIT_POINTS)
-        q = np.interp(v, charge.v, charge.q)
+            f"{charge_v.size} usable point(s); need >=2")
+    if pol.smooth_qoss:
+        v = np.linspace(0.0, float(charge_v[-1]), _QOSS_FIT_POINTS)
+        q = np.interp(v, charge_v, charge_q)
         qmax = max(float(np.max(np.abs(q))), 1e-15)
 
         def resid(p: np.ndarray) -> np.ndarray:
@@ -250,51 +286,128 @@ def _qoss_expr(model: TPWLTerminalModel) -> str:
             max_nfev=5000)
         a, b, t1, t2 = (float(r.x[0]), float(r.x[1]),
                         float(np.exp(r.x[2])), float(np.exp(r.x[3])))
-        vs = hyp_expr("V(d,s)", _QOSS_V0_EPS)
+        vs = hyp_expr(vds_expr, _QOSS_V0_EPS)
         return (f"({_f(a)}*(1-exp(-{vs}/{_f(t1)}))"
                 f"+{_f(b)}*(1-exp(-{vs}/{_f(t2)})))")
-    v = np.linspace(0.0, float(charge.v[-1]), _QOSS_FIT_POINTS)
-    q = np.interp(v, charge.v, charge.q)
+    v = np.linspace(0.0, float(charge_v[-1]), _QOSS_FIT_POINTS)
+    q = np.interp(v, charge_v, charge_q)
     pairs = ",".join(f"{_f(x)},{_f(y)}" for x, y in zip(v, q))
-    return (f"table(limit(V(d,s),{_f(v[0])},{_f(v[-1])}),{pairs})")
+    return (f"table(limit({vds_expr},{_f(v[0])},{_f(v[-1])}),{pairs})")
+
+
+def _tier2_body_diode_lines(model: TPWLTerminalModel) -> list[str]:
+    """Reuse the closed Tier-2 body-diode construction verbatim.
+
+    ``pipeline.fitting.build_pwl_spec`` supplies the same Curve-6 samples and
+    Rds(on) scalar the Tier-2 producer uses; the netlist builder then applies
+    its IS/N/RS extraction exactly once.  The returned lines are lifted from
+    that generated subcircuit instead of re-deriving the diode math here.
+    """
+    from models.netlist_builder import build_tier2_subcircuit
+    from pipeline.fitting import build_pwl_spec
+
+    spec = build_pwl_spec(model.vendor)
+    text = build_tier2_subcircuit(
+        spec, subckt_name=f"T3_{model.vendor.upper()}")
+    lines = [ln.strip() for ln in text.splitlines()
+             if ln.startswith(".MODEL D_BD_")
+             or ln.startswith(".MODEL D_IDEAL")
+             or ln.startswith("D_BODY ")]
+    if len(lines) < 2:
+        raise RuntimeError(
+            f"{model.vendor}: Tier-2 body-diode lines unavailable")
+    return lines
+
+
+def _gate_charge_expr(model: TPWLTerminalModel) -> str:
+    """Monotone ``C_QG gi ss Q={table(...)}`` from the DPT charge table."""
+    qv, qq = model.qg_v, model.qg_q
+    if qv is None or qq is None:
+        raise ValueError(
+            f"{model.vendor}: DPT gate-charge table is unavailable; "
+            "refusing to emit C_QG without measured charge")
+    qv = np.asarray(qv, dtype=float)
+    qq = np.asarray(qq, dtype=float)
+    if qv.size < 2 or qq.size != qv.size:
+        raise ValueError(
+            f"{model.vendor}: gate-charge table has {qv.size} voltage "
+            f"point(s) and {qq.size} charge point(s); need >=2 equal")
+    if np.any(np.diff(qv) <= 0.0):
+        raise ValueError(
+            f"{model.vendor}: gate-charge voltage axis is not strictly "
+            "increasing")
+    if np.any(np.diff(qq) < 0.0):
+        raise ValueError(
+            f"{model.vendor}: gate-charge table is non-monotone; refusing "
+            "to emit a negative capacitance")
+    pairs = ",".join(f"{_f(x)},{_f(y)}" for x, y in zip(qv, qq))
+    return (f"table(limit(V(gi,ss),{_f(qv[0])},{_f(qv[-1])}),{pairs})")
 
 
 def emit_subcircuit(model: TPWLTerminalModel, *,
-                    name: str | None = None) -> str:
-    """Return a complete ``.subckt`` string for one fitted model."""
+                    name: str | None = None,
+                    policy: EmissionPolicy | None = None) -> str:
+    """Return a complete ``.subckt`` string for one fitted model.
+
+    ``policy=None`` keeps the closed v1 emission (the measured per-vendor
+    channel/Qoss policy, no internal nodes).  ``policy=V2_POLICY`` adds the
+    Tier-2 parasitics, body diode and DPT gate charge; the channel and Qoss
+    tables then attach to the internal ``gi/ss/di`` nodes.
+    """
     _registered_vendor(model)
+    pol = emission_policy(model) if policy is None else policy
+    if ((pol.include_gate_charge or pol.include_body_diode)
+            and not pol.include_parasitics):
+        raise ValueError(
+            f"{model.vendor}: gate charge / body diode need the internal "
+            "nodes from include_parasitics")
     name = name or f"{model.vendor.upper()}_TPWL_DEIM"
     ports = [_PORT.get(r, r) for r in model.pin_roles]
-    g, d = grid_axes(model)
-    table = grid_channel(model, g, d)
+    g, d = grid_axes(model, policy=pol)
+    table = grid_channel(model, g, d, policy=pol)
     tv, tf = transfer_curve(model)
     if tv.size < 2:
         raise ValueError(
             f"{model.vendor}: curve2 transfer characteristic has "
             f"{tv.size} point(s); need >=2")
 
+    d_node = "di" if pol.include_parasitics else "d"
+    s_node = "ss" if pol.include_parasitics else "s"
+    g_node = "gi" if pol.include_parasitics else "g"
+    vds_expr = f"V({d_node},{s_node})"
+    vgs_expr = f"V({g_node},{s_node})"
+
     def rows(vals: np.ndarray) -> str:
         return ",".join(
-            f"{_f(vgs)},table(V(d,s)," + ",".join(
+            f"{_f(vgs)},table({vds_expr}," + ",".join(
                 f"{_f(x)},{_f(y)}" for x, y in zip(d, row)) + ")"
             for vgs, row in zip(g, vals))
 
-    channel_table = (f"table(limit(V(g,s),{_f(g[0])},{_f(g[-1])}),"
+    channel_table = (f"table(limit({vgs_expr},{_f(g[0])},{_f(g[-1])}),"
                      + rows(table) + ")")
-    gate_table = (f"table(limit(V(g,s),{_f(tv[0])},{_f(tv[-1])}),"
+    gate_table = (f"table(limit({vgs_expr},{_f(tv[0])},{_f(tv[-1])}),"
                   + ",".join(f"{_f(x)},{_f(y)}" for x, y in zip(tv, tf)) + ")")
     vsat = saturation_scale(model)
     x = (f"({gate_table})*({channel_table})"
-         f"*V(d,s)/(V(d,s)+{_f(vsat)})")
-    pol = emission_policy(model)
+         f"*{vds_expr}/({vds_expr}+{_f(vsat)})")
     if pol.soft_clamp:
         channel = hyp_expr(x, pol.soft_eps)
     else:
         channel = f"max(0,{x})"
 
     lines = [f".subckt {name} {' '.join(ports)}"]
-    if model.coss_v is not None and model.coss_c is not None:
-        lines.append(f"C{name}_QOSS d s Q={{{_qoss_expr(model)}}}")
-    lines.append(f"G_CH d s VALUE={{{channel}}}")
+    if pol.include_parasitics:
+        lines.append(f"RG g gi {_f(_R_GATE_OHM)}")
+        lines.append(f"RD d di {_f(_R_DRAIN_OHM)}")
+        lines.append(f"RS s ss {_f(_R_SOURCE_OHM)}")
+    if model.qoss_surface is not None or (
+            model.coss_v is not None and model.coss_c is not None):
+        lines.append(f"C{name}_QOSS {d_node} {s_node} Q={{"
+                     f"{_qoss_expr(model, policy=pol, vds_expr=vds_expr)}}}")
+    lines.append(f"G_CH {d_node} {s_node} VALUE={{{channel}}}")
+    if pol.include_gate_charge:
+        lines.append(f"C{name}_QG gi ss Q={{{_gate_charge_expr(model)}}}")
+    if pol.include_body_diode:
+        lines.extend(_tier2_body_diode_lines(model))
     lines.append(".ends")
     return "\n".join(lines) + "\n"

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 import time
 from pathlib import Path
 
@@ -28,9 +29,14 @@ from simulation.testbenches.speedup_bench import (
     _pulse_train,
     run_inductive_benchmark,
 )
-from models.tpwl_netlist_builder import emit_subcircuit, emitted_static_rmse
+from models.tpwl_netlist_builder import (
+    emission_policy,
+    emit_subcircuit,
+    emitted_static_rmse,
+)
 from approximation.tpwl_deim import build_model
-from simulation.testbenches.dpt_trajectory import capture_trajectory
+from simulation.testbenches.dpt_trajectory import (
+    Trajectory, capture_trajectory)
 from pipeline.registry import DEFAULT_VARIANT
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -42,6 +48,43 @@ METRICS = ("td_on_ns", "tr_ns", "td_off_ns", "tf_ns",
 def _dpt_conditions(vendor: str) -> dict:
     dpt = load_input(vendor)["dpt"]
     return {k: float(v) for k, v in dpt.items()}
+
+
+_CAPTURE_LOCK = threading.Lock()
+
+
+def _capture_training_trajectory(vendor: str,
+                                 overrides: dict) -> Trajectory:
+    """Capture one extra DPT trajectory with explicit per-run DPT overrides.
+
+    ``config['tier3']['training_conditions']`` entries only override DPT
+    bench values (bus, timing, load); the vendor library/device stay the
+    configured golden model.  Each entry is a real capture - no condition is
+    synthesized - and the module-level patch is restored before returning.
+    """
+    from simulation.testbenches import dpt_trajectory as dpt_module
+
+    base_load = dpt_module.load_input
+    merged = dict(overrides)
+
+    def _overridden_load(name: str):
+        cfg = base_load(name)
+        if name != vendor:
+            return cfg
+        return {**cfg, "dpt": {**cfg["dpt"], **merged}}
+
+    with _CAPTURE_LOCK:
+        dpt_module.load_input = _overridden_load
+        try:
+            return dpt_module.capture_trajectory(vendor)
+        finally:
+            dpt_module.load_input = base_load
+
+
+def _emitted_selection_error(model) -> float:
+    """Tier-3 cell-selection key: the emitted channel's static RMSE."""
+    from models.tpwl_netlist_builder import emitted_static_rmse as _esr
+    return _esr(model)
 
 
 def _run_emitted_dpt(model, lib_path: Path, vendor: str):
@@ -210,9 +253,20 @@ def run_vendor(vendor: str, variant: str = DEFAULT_VARIANT) -> dict:
         coss_curve = (np.asarray(coss.x_data), np.asarray(coss.y_data))
     except Exception as exc:  # reported, never fabricated
         print(f"[tier3] {vendor}: Coss base unavailable ({exc})", flush=True)
-    model = build_model(traj, coss_curve=coss_curve,
-                        v_block=v_block, v_width=v_width)
-    fit_wall = time.perf_counter() - t0 - capture_wall
+    tier3_cfg = cfg.get("tier3") or {}
+    training_conditions = list(tier3_cfg.get("training_conditions") or [])
+    t_extra = time.perf_counter()
+    extra_trajectories = [
+        _capture_training_trajectory(vendor, dict(condition))
+        for condition in training_conditions]
+    extra_capture_wall = time.perf_counter() - t_extra
+    holdout_requested = bool(tier3_cfg.get("holdout_trajectory", False))
+    model = build_model(
+        traj, coss_curve=coss_curve, v_block=v_block, v_width=v_width,
+        selection_error_fn=_emitted_selection_error,
+        extra_trajectories=extra_trajectories,
+        holdout_trajectory=holdout_requested)
+    fit_wall = time.perf_counter() - t0 - capture_wall - extra_capture_wall
 
     lib = ROOT / "reports" / "models" / f"{vendor}_PIECESPICE_T3{suffix}.lib"
     lib.parent.mkdir(parents=True, exist_ok=True)
@@ -344,6 +398,41 @@ def run_vendor(vendor: str, variant: str = DEFAULT_VARIANT) -> dict:
                       0.5 * (golden_time["trace_points"] or 0)
                       and t_last_ok and same_end and same_t_last)
 
+    policy = emission_policy(model)
+    holdout_id = model.meta.get("holdout_id_rmse_rel", "not_measured")
+    holdout_qg = model.meta.get("holdout_qg_rmse_rel", "not_measured")
+    holdout_measured = (isinstance(holdout_id, (int, float))
+                        and isinstance(holdout_qg, (int, float))
+                        and np.isfinite(float(holdout_id))
+                        and np.isfinite(float(holdout_qg)))
+    if not training_conditions:
+        gen_reason = ("no config['tier3']['training_conditions']; "
+                      "single configured DPT trajectory only")
+    elif holdout_measured:
+        gen_reason = None
+    elif holdout_requested:
+        gen_reason = ("holdout_trajectory requested but no extra "
+                      "training_conditions trajectory was supplied")
+    else:
+        gen_reason = ("training_conditions supplied but holdout_trajectory "
+                      "is False; no cross-validation split")
+    generalization = {
+        "status": "measured" if holdout_measured else "not_measured",
+        "n_trajectories": model.meta.get("n_trajectories", 1),
+        "trajectory_sources": model.meta.get(
+            "trajectory_sources", [f"{vendor}:primary"]),
+        "cv_status": model.meta.get("cv_status", "not_measured"),
+        "holdout_id_rmse_rel": holdout_id,
+        "holdout_qg_rmse_rel": holdout_qg,
+        "selection_error_source": model.meta.get("selection_error_source"),
+        "reason": gen_reason,
+        "physical_elements": {
+            "include_gate_charge": policy.include_gate_charge,
+            "include_body_diode": policy.include_body_diode,
+            "include_parasitics": policy.include_parasitics,
+        },
+    }
+
     record = {
         "schema": "piecespice.tier3/2.0",
         "vendor": vendor,
@@ -366,7 +455,9 @@ def run_vendor(vendor: str, variant: str = DEFAULT_VARIANT) -> dict:
             "static_samples": model.meta.get("static_samples"),
             "heldout_id_rmse_rel": model.meta["heldout_id_rmse"],
             "heldout_qg_rmse_rel": model.meta["heldout_qg_rmse"],
+            "cell_selection_error_rel": model.meta.get("selection_error_rel"),
         },
+        "generalization": generalization,
         "dpt_run": dpt_info,
         "dpt_comparison": comparison,
         "runtime": {
@@ -392,7 +483,9 @@ def run_vendor(vendor: str, variant: str = DEFAULT_VARIANT) -> dict:
             "scope": "forced 2ns fidelity control; not the adaptive speed claim",
         },
         "current_definitions": current_defs,
-        "build_seconds": {"capture": capture_wall, "fit": fit_wall},
+        "build_seconds": {"capture": capture_wall,
+                          "training_captures": extra_capture_wall,
+                          "fit": fit_wall},
         "spice_log_tail": "\n".join(log.splitlines()[-6:]),
         "emitted_lib": str(lib.relative_to(ROOT)),
     }

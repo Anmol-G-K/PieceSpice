@@ -134,23 +134,37 @@ def charge_ramp_terms(pairs: Sequence[Tuple[float, float]]):
         yield v_prev, delta
 
 
-def _q_expression(pairs: Sequence[Tuple[float, float]], term: str) -> str:
-    """Delta-slope chained soft-abs expression for Q(term)."""
+def _q_expression(pairs: Sequence[Tuple[float, float]], term: str,
+                  clamp_above_last: bool = False) -> str:
+    """Delta-slope chained soft-abs expression for Q(term).
+
+    ``clamp_above_last=True`` appends one final delta slope ``-last_slope``
+    at the last breakpoint, so the emitted Q is constant above the measured
+    range (a physical end segment) instead of extrapolating the last slope.
+    """
     expr = _fmt(pairs[0][1])
+    last_slope = 0.0
     for v_prev, delta in charge_ramp_terms(pairs):
+        last_slope += delta
         if abs(delta) == 0.0:
             continue
         expr += (f" + {delta:.6e}*(({term}-({_fmt(v_prev)}))"
                  f"+abs(({term})-({_fmt(v_prev)})))/2")
+    if clamp_above_last and last_slope != 0.0:
+        v_last = _fmt(pairs[-1][0])
+        expr += (f" + {-last_slope:.6e}*(({term}-({v_last}))"
+                 f"+abs(({term})-({v_last})))/2")
     return expr
 
 
 def _emit_cap(element: str, npos: str, nneg: str, term: str,
-              pairs: Sequence[Tuple[float, float]], note: str) -> List[str]:
+              pairs: Sequence[Tuple[float, float]], note: str,
+              *, clamp_above_last: bool = False) -> List[str]:
     """Emit one charge-conserving capacitor line (plus its comment)."""
     return [
         f"* {element}: {note}; {len(pairs)} (V,Q) points",
-        f"{element} {npos} {nneg} Q={{{_q_expression(pairs, term)}}}",
+        f"{element} {npos} {nneg} Q="
+        f"{{{_q_expression(pairs, term, clamp_above_last)}}}",
     ]
 
 
@@ -165,6 +179,45 @@ def _pairs(v, q) -> List[Tuple[float, float]]:
     return pairs
 
 
+def _charge_meta_lines(meta: dict) -> List[str]:
+    """Header lines for C-V axis / gate-drive / temperature provenance.
+
+    Only emitted when the caller supplies provenance. Missing values are
+    reported as ``not_measured``; no axis or drive value is invented.
+    """
+    if not meta:
+        return []
+
+    def _num(value):
+        if value is None:
+            return "not_measured"
+        return f"{float(value):g}"
+
+    cdg_axis = meta.get("cdg_axis") or "not_measured"
+    if not isinstance(cdg_axis, str) or not cdg_axis.isascii():
+        raise ValueError("charge_meta['cdg_axis'] must be an ASCII string")
+    cap_error = meta.get("max_cap_error_pct")
+    budget = meta.get("cap_error_budget_pct")
+    lines = [
+        f"* C-V provenance: cdg_axis={cdg_axis}",
+        f"* C-V gate drive: vgs_bias_v={_num(meta.get('vgs_bias_v'))} V; "
+        f"temperature_c={_num(meta.get('temperature_c'))} C",
+        "* C-V measured error: max_cap_error_pct="
+        + ("not_measured" if cap_error is None else f"{float(cap_error):.4g}")
+        + "; budget_pct="
+        + ("not_measured" if budget is None else f"{float(budget):g}"),
+    ]
+    limitation = meta.get("data_limitation")
+    if limitation:
+        if not isinstance(limitation, str) or not limitation.isascii():
+            raise ValueError(
+                "charge_meta['data_limitation'] must be an ASCII string")
+        lines.append(f"* C-V data limitation: {limitation}")
+    if not all(line.isascii() for line in lines):
+        raise ValueError("charge metadata header is not ASCII")
+    return lines
+
+
 def build_simplis_subcircuit(
     spec: PWLModelSpec, charge_mode: str = "tables", *,
     channel_fit: "HybridChannelFit | None" = None,
@@ -172,6 +225,10 @@ def build_simplis_subcircuit(
     cgs_axis: str = "vds",
     name: str | None = None,
     subckt_name: str | None = None,
+    clamp_charge_above_last: bool = False,
+    charge_meta: dict | None = None,
+    temperature_c: float | None = None,
+    vgs_bias_v: float | None = None,
 ) -> str:
     """Emit the Level-2 charge-table Tier-3 subcircuit (ASCII).
 
@@ -200,6 +257,17 @@ def build_simplis_subcircuit(
     ``subckt_name`` follow the existing override convention (the latter
     wins), defaulting to the documented simplis subcircuit name.
 
+    ``clamp_charge_above_last`` (default False) appends a physical end
+    segment to every emitted ``Q=`` chain so Q stops increasing above the
+    last measured breakpoint instead of extrapolating the last slope. The
+    default keeps the historical text byte-for-byte.
+
+    ``charge_meta`` (or the explicit ``temperature_c`` / ``vgs_bias_v``)
+    adds truthful C-V provenance header lines: the CDG axis, the measured
+    gate drive/temperature, the measured C-V error and any data limitation.
+    Missing values print ``not_measured``; nothing is invented. With no
+    metadata the emitted header is byte-for-byte the historical one.
+
     Fails loudly on unpopulated charge tables in tables mode: an emitted
     model with fake capacitors would be worse than a failed build
     (anti-fake guard).
@@ -208,6 +276,14 @@ def build_simplis_subcircuit(
         raise ValueError("charge_mode must be 'tables' or 'tier2'")
     if cgs_axis not in ("vds", "vgs"):
         raise ValueError("cgs_axis must be 'vds' or 'vgs'")
+    if charge_meta is not None and not isinstance(charge_meta, dict):
+        raise ValueError("charge_meta must be a dict or None")
+    meta = dict(charge_meta or {})
+    if temperature_c is not None:
+        meta["temperature_c"] = temperature_c
+    if vgs_bias_v is not None:
+        meta["vgs_bias_v"] = vgs_bias_v
+    provenance = _charge_meta_lines(meta)
     residual_expression = ""
     if residual_fit is not None:
         residual_expression = emit_ann_residual(residual_fit)
@@ -271,10 +347,18 @@ def build_simplis_subcircuit(
             "(cgs_axis='vgs')",
             "* CDG X axis is drain-to-gate V(di,gi); with Vgs=0 in the AC sweep "
             "v_DG=v_DS",
-            "* Q= chains: constant (C=0) below the first breakpoint; above the "
-            "last breakpoint they extrapolate linearly with the last segment "
-            "slope (no table() end-clamp)",
         ]
+        if clamp_charge_above_last:
+            charge.append(
+                "* Q= chains: constant (C=0) below the first breakpoint; "
+                "above the last breakpoint a physical end segment clamps the "
+                "slope to zero so Q stays constant (no table() end-clamp)")
+        else:
+            charge.append(
+                "* Q= chains: constant (C=0) below the first breakpoint; above the "
+                "last breakpoint they extrapolate linearly with the last segment "
+                "slope (no table() end-clamp)")
+        charge.extend(provenance)
         if decision.is_linear:
             c_lin = ((cgs_pairs[-1][1] - cgs_pairs[0][1]) /
                      (cgs_pairs[-1][0] - cgs_pairs[0][0]))
@@ -283,13 +367,16 @@ def build_simplis_subcircuit(
         else:
             charge.extend(_emit_cap(
                 "CGS", "gi", "ss", "V(gi,ss)", cgs_pairs,
-                "gate-source charge, greedy rule for interior points"))
+                "gate-source charge, greedy rule for interior points",
+                clamp_above_last=clamp_charge_above_last))
         charge.extend(_emit_cap(
             "CDS", "di", "ss", "V(di,ss)", cds_pairs,
-            "drain-source charge, measured breakpoints"))
+            "drain-source charge, measured breakpoints",
+            clamp_above_last=clamp_charge_above_last))
         charge.extend(_emit_cap(
             "CDG", "di", "gi", "V(di,gi)", cdg_pairs,
-            "drain-gate charge on the Vdg axis, measured breakpoints"))
+            "drain-gate charge on the Vdg axis, measured breakpoints",
+            clamp_above_last=clamp_charge_above_last))
         charge.append("* RGS: documented Level-2 gate-source bleed (10 MOhm)")
         charge.append(RGS_LINE)
         charge.append("")

@@ -1,10 +1,14 @@
 """Unit tests for the paper-defined parts of the Tier-3 TPWL terminal model."""
+import re
+
 import numpy as np
 import pytest
 
 from config.yaml_io import load_input
 from models import tpwl_netlist_builder as emitter
 from pipeline.tier3 import _log_iterations, _waveform_errors
+from approximation import tpwl_deim as tpwl
+from approximation.charge_surface import ChargeSurface
 from approximation.tpwl_deim import (
     WEIGHT_EXPONENT,
     TPWLTerminalModel,
@@ -12,6 +16,7 @@ from approximation.tpwl_deim import (
     paper_weights,
 )
 from approximation.smoother import hyp_expr
+from simulation.testbenches.dpt_trajectory import Trajectory
 
 
 def test_deim_indices_are_distinct_and_interpolatory():
@@ -206,6 +211,287 @@ def test_waveform_errors_uses_common_golden_grid():
                             i_d=np.full_like(tr[tr <= 5.0], 2.0))
     partial = _waveform_errors(short, traj)
     assert partial["compare_points"] == 51
+
+
+# ---- V2 physical elements, emitted selection, multi-trajectory, surface ----
+
+def _v2_model(qg_q=None) -> TPWLTerminalModel:
+    model = _toy_model()
+    model.qg_v = np.array([0.0, 1.0, 2.5, 5.0])
+    model.qg_q = (np.array([0.0, 2e-10, 8e-10, 1.3e-9])
+                  if qg_q is None else np.asarray(qg_q, dtype=float))
+    return model
+
+
+def _qg_pairs(text: str) -> tuple[np.ndarray, np.ndarray]:
+    line = next(ln for ln in text.splitlines()
+                if ln.startswith("CTOY_V2_QG "))
+    nums = [float(x) for x in
+            re.findall(r"[-+]?\d\.\d+e[-+]\d+", line)]
+    return np.asarray(nums[2::2]), np.asarray(nums[3::2])
+
+
+def test_default_v1_emission_is_the_closed_four_line_form():
+    text = emitter.emit_subcircuit(_toy_model(), name="TOY_T3")
+    lines = text.splitlines()
+    assert lines[0] == ".subckt TOY_T3 d g s"
+    assert lines[1].startswith("CTOY_T3_QOSS d s Q={table(limit(V(d,s),")
+    assert lines[2].startswith("G_CH d s VALUE={")
+    assert lines[3] == ".ends"
+    assert len(lines) == 4
+    assert "V(gi" not in text and "V(di" not in text and "V(ss" not in text
+    assert "RG " not in text and "RD " not in text and "RS " not in text
+    assert "D_BODY" not in text and "_QG " not in text
+    assert text.isascii()
+
+
+def test_v2_policy_emits_parasitics_diode_and_monotone_gate_charge(monkeypatch):
+    from models.netlist_builder import build_tier2_subcircuit
+
+    spec = _simplis_spec()
+    monkeypatch.setattr("pipeline.fitting.build_pwl_spec",
+                        lambda vendor: spec)
+    model = _v2_model()
+    text = emitter.emit_subcircuit(model, name="TOY_V2",
+                                   policy=emitter.V2_POLICY)
+    lines = text.splitlines()
+    assert text.isascii()
+    assert lines[0] == ".subckt TOY_V2 d g s"
+    assert lines[-1] == ".ends"
+    assert "RG g gi 1.500000000e+00" in lines
+    assert "RD d di 1.000000000e-04" in lines
+    assert "RS s ss 1.000000000e-04" in lines
+    assert any(ln.startswith("CTOY_V2_QOSS di ss Q={table(limit(V(di,ss),")
+               for ln in lines)
+    assert any(ln.startswith("G_CH di ss VALUE={") for ln in lines)
+    assert any(ln.startswith("CTOY_V2_QG gi ss Q={table(limit(V(gi,ss),")
+               for ln in lines)
+    diode = next(ln for ln in lines if ln.startswith(".MODEL D_BD_"))
+    body = next(ln for ln in lines if ln.startswith("D_BODY "))
+    # The diode comes from the Tier-2 builder, not a second copy of the math.
+    tier2 = build_tier2_subcircuit(
+        spec, subckt_name=f"T3_{model.vendor.upper()}")
+    assert diode in tier2
+    assert body in tier2
+    assert body == f"D_BODY ss di D_BD_T3_{model.vendor.upper()}"
+    # Qg is monotone and anchored at Q(0 V) = 0.
+    qg_v, qg_q = _qg_pairs(text)
+    assert np.all(np.diff(qg_q) >= 0.0)
+    assert np.isclose(qg_q[0], 0.0)
+    assert np.allclose(qg_v, model.qg_v)
+
+
+def test_v2_refuses_non_monotone_or_missing_gate_charge(monkeypatch):
+    monkeypatch.setattr("pipeline.fitting.build_pwl_spec",
+                        lambda vendor: _simplis_spec())
+    bad = _v2_model(qg_q=[0.0, 2e-9, 1e-9, 3e-9])
+    with pytest.raises(ValueError, match="non-monotone"):
+        emitter.emit_subcircuit(bad, name="TOY_V2",
+                                policy=emitter.V2_POLICY)
+    missing = _v2_model()
+    missing.qg_v = missing.qg_q = None
+    with pytest.raises(ValueError, match="gate-charge table is unavailable"):
+        emitter.emit_subcircuit(missing, name="TOY_V2",
+                                policy=emitter.V2_POLICY)
+
+
+def test_v2_requires_parasitic_nodes_for_gate_charge():
+    model = _v2_model()
+    policy = emitter.EmissionPolicy(include_gate_charge=True)
+    with pytest.raises(ValueError, match="include_parasitics"):
+        emitter.emit_subcircuit(model, name="TOY_V2", policy=policy)
+
+
+def test_emitter_uses_charge_surface_when_present():
+    model = _toy_model()
+    vds = np.linspace(0.0, 10.0, 11)
+    vgs = np.array([0.0, 2.0, 4.0])
+    q = (5e-10 * (1.0 - np.exp(-vds / 4.0))[None, :]
+         * (1.0 + 0.2 * vgs)[:, None])
+    model.qoss_surface = ChargeSurface(vds=vds, vgs=vgs, q=q)
+    text = emitter.emit_subcircuit(model, name="TOY_T3")
+    line = next(ln for ln in text.splitlines() if "_QOSS " in ln)
+    nums = [float(x) for x in
+            re.findall(r"[-+]?\d\.\d+e[-+]\d+", line)]
+    table_v, table_q = np.asarray(nums[2::2]), np.asarray(nums[3::2])
+    # Table endpoints are exact surface slices, so compare there (the
+    # interior is a 160-point resampling of the measured surface).
+    assert np.isclose(table_v[-1], 10.0)
+    assert np.isclose(table_q[-1], q[0, -1])
+
+
+def test_tier3_selection_callback_is_the_emitted_static_rmse():
+    from pipeline.tier3 import _emitted_selection_error
+    model = _toy_model()
+    assert _emitted_selection_error(model) == emitter.emitted_static_rmse(model)
+
+
+def _synthetic_static_family(vendor):
+    levels = np.array([0.0, 2.0, 4.0])
+    grid = np.array([0.0, 5.0, 10.0])
+    g, d = np.meshgrid(levels, grid, indexing="ij")
+    u = np.vstack([g.ravel(), d.ravel()])
+    return u, 20.0 * g.ravel() + 5.0 * d.ravel(), np.repeat(levels, grid.size)
+
+
+def _synthetic_trajectory(vds_scale: float = 1.0) -> Trajectory:
+    """Two-pulse DPT-shaped trajectory from an exactly known terminal law."""
+    n = 241
+    t = np.linspace(0.0, 4.0e-6, n)
+    edge = 4.0e-8
+
+    def pulse(t_on: float, width: float) -> np.ndarray:
+        return (np.clip((t - t_on) / edge, 0.0, 1.0)
+                - np.clip((t - (t_on + width)) / edge, 0.0, 1.0))
+
+    vgs = 5.0 * (pulse(0.3e-6, 0.7e-6) + pulse(2.2e-6, 0.6e-6))
+    vds = vds_scale * (12.0 - 4.0 * np.clip((t - 0.3e-6) / 1.2e-6,
+                                            0.0, 1.0))
+    id_ = 20.0 * vgs + 5.0 * vds
+    ig = 1e-9 * np.gradient(vgs, t)
+    return Trajectory(
+        vendor="csd16412q5a", time=t,
+        state=np.zeros((1, n)), state_names=["V(xdut:1)"],
+        input=np.vstack([vgs, vds]), output=np.vstack([id_, ig]),
+        pin_roles=["drain", "gate", "source"], subcircuit="TOY",
+        result=None, edge_time=edge)
+
+
+def test_build_model_uses_emitted_selection_error_when_supplied(monkeypatch):
+    monkeypatch.setattr("approximation.static_curves.static_samples",
+                        _synthetic_static_family)
+    traj = _synthetic_trajectory()
+    base = tpwl.build_model(traj, s_grid=(1, 2))
+    assert base.meta["selection_error_source"] == "static_rmse_rel"
+    assert "emitted_static_rmse_rel" not in base.meta
+
+    calls = []
+
+    def selection(cand):
+        calls.append(cand.meta["cells"])
+        return {1: 9.0, 2: 0.0}[cand.meta["cells"]]
+
+    model = tpwl.build_model(traj, s_grid=(1, 2),
+                             selection_error_fn=selection)
+    assert model.meta["cells"] == 2
+    assert model.meta["selection_error_source"] == "emitted_static_rmse_rel"
+    assert model.meta["emitted_static_rmse_rel"] == 0.0
+    assert model.meta["static_rmse_rel"] is not None
+    assert model.meta["selection_error_rel"] == 0.0
+    assert calls == [1, 2]
+
+
+def test_extra_trajectories_concatenate_dpt_samples_and_share_static_family(
+        monkeypatch):
+    monkeypatch.setattr("approximation.static_curves.static_samples",
+                        _synthetic_static_family)
+    primary = _synthetic_trajectory()
+    extra = _synthetic_trajectory(vds_scale=0.5)
+    split = tpwl._split_index(primary.input[0])
+
+    single = tpwl.build_model(primary, s_grid=(2, 3))
+    assert single.meta["n_trajectories"] == 1
+    assert single.meta["trajectory_sources"] == ["csd16412q5a:primary"]
+    assert single.meta["dpt_samples"] == split
+    assert single.meta["static_samples"] == 9
+
+    both = tpwl.build_model(primary, s_grid=(2, 3),
+                            extra_trajectories=[extra])
+    assert both.meta["n_trajectories"] == 2
+    assert both.meta["trajectory_sources"] == [
+        "csd16412q5a:primary", "csd16412q5a:training:1"]
+    assert both.meta["dpt_samples"] == 2 * split
+    assert both.meta["static_samples"] == 9
+    assert both.meta["holdout_id_rmse_rel"] == "not_measured"
+    assert both.meta["cv_status"] == "not_measured"
+
+
+def test_holdout_trajectory_is_blocked_and_reported(monkeypatch):
+    monkeypatch.setattr("approximation.static_curves.static_samples",
+                        _synthetic_static_family)
+    primary = _synthetic_trajectory()
+    extra = _synthetic_trajectory(vds_scale=0.5)
+    split = tpwl._split_index(primary.input[0])
+
+    model = tpwl.build_model(primary, s_grid=(2, 3),
+                             extra_trajectories=[extra],
+                             holdout_trajectory=True)
+    assert model.meta["cv_status"] == "holdout"
+    assert model.meta["n_trajectories"] == 2
+    assert "holdout" in model.meta["trajectory_sources"][-1]
+    # The held-out capture is not fitted: only the primary DPT samples fit.
+    assert model.meta["dpt_samples"] == split
+    assert isinstance(model.meta["holdout_id_rmse_rel"], float)
+    assert isinstance(model.meta["holdout_qg_rmse_rel"], float)
+    assert model.meta["holdout_id_rmse_rel"] >= 0.0
+    assert model.meta["holdout_qg_rmse_rel"] >= 0.0
+
+    blocked = tpwl.build_model(primary, s_grid=(2, 3),
+                               holdout_trajectory=True)
+    assert blocked.meta["holdout_id_rmse_rel"] == "not_measured"
+    assert blocked.meta["holdout_qg_rmse_rel"] == "not_measured"
+    assert blocked.meta["cv_status"] == "not_measured"
+    assert "no extra_trajectories" in blocked.meta["cv_reason"]
+
+
+def _charge_surface(*, with_temperature: bool = False) -> ChargeSurface:
+    vds = np.array([0.0, 2.0, 4.0, 6.0, 8.0, 10.0])
+    vgs = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+    q = (1e-9 * (1.0 - np.exp(-vds / 3.0))[None, :]
+         * (1.0 + 0.1 * vgs)[:, None])
+    if not with_temperature:
+        return ChargeSurface(vds=vds, vgs=vgs, q=q)
+    return ChargeSurface(vds=vds, vgs=vgs, q=np.stack([q, 1.1 * q]),
+                         temperature_c=np.array([25.0, 125.0]))
+
+
+def test_charge_surface_bilinear_interpolation_and_capacitance():
+    surface = _charge_surface()
+    # Nodes reproduce the table.
+    assert np.isclose(surface.charge(4.0, 2.0), surface.q[2, 2])
+    # Cell centre is the mean of its four corners.
+    expected = np.mean([surface.q[1, 1], surface.q[1, 2],
+                        surface.q[2, 1], surface.q[2, 2]])
+    assert np.isclose(surface.charge(3.0, 1.5), expected)
+    # Monotone charge and positive capacitance over the measured box.
+    vds = np.linspace(0.0, 10.0, 101)
+    q = surface.charge(vds, 2.0)
+    assert np.all(np.diff(q) >= 0.0)
+    c = surface.capacitance(vds[:-1], 2.0)
+    assert np.all(np.asarray(c) > 0.0)
+    v, qv = surface.qoss_table()
+    assert np.array_equal(v, surface.vds)
+    assert np.all(np.diff(qv) >= 0.0)
+
+
+def test_charge_surface_fails_closed_on_bad_axes_and_queries():
+    surface = _charge_surface()
+    with pytest.raises(ValueError, match="outside the measured vds range"):
+        surface.charge(-1.0, 2.0)
+    with pytest.raises(ValueError, match="outside the measured vgs range"):
+        surface.charge(1.0, 6.0)
+    with pytest.raises(ValueError, match="non-monotone in Vds"):
+        ChargeSurface(vds=surface.vds, vgs=surface.vgs,
+                      q=np.array(surface.q, copy=True)
+                      @ np.eye(surface.vds.size)[:, ::-1])
+    with pytest.raises(ValueError, match="strictly increasing"):
+        ChargeSurface(vds=np.array([0.0, 0.0, 1.0]), vgs=surface.vgs,
+                      q=surface.q[:, :3])
+    with pytest.raises(ValueError, match="temperature is required"):
+        _charge_surface(with_temperature=True).charge(1.0, 1.0)
+    with pytest.raises(ValueError, match="temperature range"):
+        _charge_surface(with_temperature=True).charge(1.0, 1.0,
+                                                      temperature=200.0)
+
+
+def test_charge_surface_temperature_slice_is_interpolated():
+    surface = _charge_surface(with_temperature=True)
+    cold = surface.charge(3.0, 1.5, temperature=25.0)
+    hot = surface.charge(3.0, 1.5, temperature=125.0)
+    mid = surface.charge(3.0, 1.5, temperature=75.0)
+    assert np.isclose(mid, 0.5 * (cold + hot))
+    assert np.all(surface.capacitance(np.linspace(0.0, 10.0, 7), 2.0,
+                                      temperature=75.0) > 0.0)
 
 
 # ---- SIMPLIS Level-2 charge-table variant (offline, no LTspice) ------------

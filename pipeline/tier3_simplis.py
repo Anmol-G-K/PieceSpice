@@ -12,11 +12,11 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import json
 import time
 from pathlib import Path
-from typing import Tuple
+from typing import Sequence, Tuple
 
 import numpy as np
 
@@ -64,6 +64,26 @@ _PARASITICS = {"r_gate": 1.5, "r_source": 1e-4, "r_drain": 1e-4}
 # these roles; the golden side keeps traj.pin_roles.
 _EMITTED_PIN_ROLES = ["drain", "gate", "source"]
 
+# Declared project decision: the emitted Q(V) tables must reproduce the
+# measured small-signal capacitance to within 10% on the measured grid. This
+# is a DIAGNOSTIC, not a charge budget: the existing 0.5% charge budget does
+# not bound capacitance error, and the two are reported side by side.
+CAP_ERROR_BUDGET_PCT = 10.0
+
+# CDG provenance: the legacy extraction measures Crss on a Vds sweep at
+# Vgs=0, where v_DG == v_DS. A bias-aware sweep supplies Cgd on a real Vdg
+# axis instead; without it the legacy axis is disclosed, never invented.
+CDG_AXIS_VGS0 = "vds_at_vgs0"
+CDG_AXIS_VDG = "vdg_at_vgs_bias"
+_CDG_VGS0_LIMITATION = (
+    "Only a Vgs=0 C(V) sweep is available, so CDG is emitted on V(di,gi) "
+    "using the identity Vdg=Vds. No bias-aware Cgd table exists and no bias "
+    "axis was synthesized.")
+_CV_SINGLE_BIAS_LIMITATION = (
+    "Only one persisted C(V) sweep at Vgs=0 is available; no multi-bias "
+    "C-V set exists. Charge tables are fitted from that single sweep and no "
+    "bias axis was invented from scalar equivalents.")
+
 
 @dataclass(frozen=True)
 class _ChargeFit:
@@ -74,6 +94,9 @@ class _ChargeFit:
     q_full: np.ndarray
     max_abs_error_c: float
     error_budget_c: float
+    c_full: np.ndarray
+    max_cap_error_pct: float | None = None
+    cap_error_budget_pct: float = CAP_ERROR_BUDGET_PCT
 
 
 def _fit_anchored_charge(
@@ -94,8 +117,14 @@ def _fit_anchored_charge(
                                 np.asarray(c, dtype=float))
     vv, qq = measured.v, measured.q
     s0 = float((qq[1] - qq[0]) / (vv[1] - vv[0]))
-    va = np.concatenate(([0.0], vv))
-    qa = np.concatenate(([0.0], qq + s0 * vv[0]))
+    anchored_at_zero = vv[0] == 0.0
+    if anchored_at_zero:
+        # Already anchored at 0 V: prepending another 0 would duplicate the
+        # axis sample (the identity s0*vv[0] = 0 makes it a no-op).
+        va, qa = vv, qq
+    else:
+        va = np.concatenate(([0.0], vv))
+        qa = np.concatenate(([0.0], qq + s0 * vv[0]))
 
     forced_idx = None
     if forced_v is not None and va[0] < forced_v < va[-1]:
@@ -139,10 +168,49 @@ def _fit_anchored_charge(
     chosen = sorted(idx)
     vb, qb = va[chosen], qa[chosen]
     full_err = float(np.max(np.abs(qa - np.interp(va, vb, qb))))
+    # c_full aligns with (va, qa): the anchor at V=0 uses the first measured
+    # segment slope, exactly the charge the fit stores there.
+    c_measured = np.asarray(measured.c, dtype=float)
+    c_full = (c_measured if anchored_at_zero else
+              np.concatenate(([float(measured.c[0])], c_measured)))
     return _ChargeFit(
         pairs=[(float(x), float(y)) for x, y in zip(vb, qb)],
         v_full=va, q_full=qa,
-        max_abs_error_c=full_err, error_budget_c=budget)
+        max_abs_error_c=full_err, error_budget_c=budget,
+        c_full=c_full)
+
+
+def _cap_error_pct(fit: _ChargeFit,
+                   pairs: Sequence[Tuple[float, float]]) -> float | None:
+    """Measured C-V error of the emitted table, in percent of local C.
+
+    Finite-differences the emitted (piecewise-linear) Q(V) and compares
+    dQ/dV with the measured capacitance on the common measured grid. The
+    relative denominator is clipped at 0.1% of the peak measured C so a
+    near-zero region does not manufacture a divide-by-zero. Returns ``None``
+    when no measured capacitance is available: the diagnostic is measured,
+    never fabricated.
+    """
+    c_meas = np.asarray(fit.c_full, dtype=float) if fit.c_full is not None \
+        else None
+    if c_meas is None or c_meas.size != fit.v_full.size:
+        return None
+    vb = np.asarray([p[0] for p in pairs], dtype=float)
+    qb = np.asarray([p[1] for p in pairs], dtype=float)
+    grid = np.asarray(fit.v_full, dtype=float)
+    inside = (grid >= vb[0]) & (grid <= vb[-1])
+    if np.count_nonzero(inside) < 2:
+        return None
+    x = grid[inside]
+    q_emit = np.interp(x, vb, qb)
+    dq_dv = np.gradient(q_emit, x)
+    c_local = c_meas[inside]
+    peak = float(np.max(np.abs(c_local))) if c_local.size else 0.0
+    if not np.isfinite(peak) or peak <= 0.0:
+        return None
+    denom = np.maximum(np.abs(c_local), 1e-3 * peak)
+    rel = np.abs(dq_dv - c_local) / denom
+    return float(100.0 * np.max(rel))
 
 
 def _cap_curve_to_vbus(v, curves, vbus: float):
@@ -169,12 +237,19 @@ _CV_DATA_LIMITATION = (
 
 @dataclass(frozen=True)
 class _CVSweep:
-    """A validated full C(V) sweep: ascending Vds, finite non-negative C."""
+    """A validated full C(V) sweep: ascending Vds, finite non-negative C.
+
+    ``vgs_bias_v`` / ``temperature_c`` are optional persisted provenance.
+    ``None`` means the record did not carry the value; it is never inferred
+    from another sweep or from a scalar equivalent.
+    """
 
     v: np.ndarray
     ciss: np.ndarray
     coss: np.ndarray
     crss: np.ndarray
+    vgs_bias_v: float | None = None
+    temperature_c: float | None = None
 
 
 @dataclass(frozen=True)
@@ -185,23 +260,35 @@ class _ChargeTables:
     pairs: dict
     n_clipped: dict
     cgs_decision: CGSLinearityDecision
+    cdg_axis: str = CDG_AXIS_VGS0
+    temperature_c: float | None = None
+    vgs_bias_v: float | None = None
+    cap_error_budget_pct: float = CAP_ERROR_BUDGET_PCT
 
 
-def _cv_sweep_from_extracted(extracted: dict, vendor: str) -> _CVSweep | None:
-    """Build a validated C(V) sweep from persisted Curve-4 arrays.
-
-    Returns ``None`` when any of the four arrays is absent, so the caller
-    keeps the existing live-sweep fallback. A partial or malformed persist
-    fails closed: a non-ascending Vds axis, mismatched lengths, or non-finite
-    / negative capacitance raise instead of being silently repaired.
-    """
-    if not isinstance(extracted, dict) or not all(
-            extracted.get(k) is not None for k in _FULL_CV_KEYS):
+def _optional_float(value, label: str, vendor: str) -> float | None:
+    """Parse optional persisted metadata; ``None`` stays ``None``."""
+    if value is None:
         return None
-    v = np.asarray(extracted["curve_vds"], dtype=float).ravel()
-    ciss = np.asarray(extracted["ciss_curve_f"], dtype=float).ravel()
-    coss = np.asarray(extracted["coss_curve_f"], dtype=float).ravel()
-    crss = np.asarray(extracted["crss_curve_f"], dtype=float).ravel()
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"{vendor}: persisted {label}={value!r} is not numeric") from exc
+    if not np.isfinite(parsed):
+        raise ValueError(
+            f"{vendor}: persisted {label}={value!r} must be finite")
+    return parsed
+
+
+def _validate_cv_arrays(vendor: str, v, ciss, coss, crss, *,
+                        vgs_bias_v: float | None = None,
+                        temperature_c: float | None = None) -> _CVSweep:
+    """Validate one persisted C(V) set; fail closed on malformed data."""
+    v = np.asarray(v, dtype=float).ravel()
+    ciss = np.asarray(ciss, dtype=float).ravel()
+    coss = np.asarray(coss, dtype=float).ravel()
+    crss = np.asarray(crss, dtype=float).ravel()
     if not (v.size == ciss.size == coss.size == crss.size and v.size >= 2):
         raise ValueError(
             f"{vendor}: persisted Curve-4 C(V) arrays need equal lengths "
@@ -216,42 +303,267 @@ def _cv_sweep_from_extracted(extracted: dict, vendor: str) -> _CVSweep | None:
             raise ValueError(
                 f"{vendor}: persisted Curve-4 {name} must be finite and "
                 "non-negative")
-    return _CVSweep(v=v, ciss=ciss, coss=coss, crss=crss)
+    return _CVSweep(v=v, ciss=ciss, coss=coss, crss=crss,
+                    vgs_bias_v=vgs_bias_v, temperature_c=temperature_c)
 
 
-def _full_cv_from_curve4(vendor: str) -> _CVSweep | None:
-    """Read the persisted full Curve-4 arrays; ``None`` when not available."""
+def _cv_sweep_from_extracted(extracted: dict, vendor: str) -> _CVSweep | None:
+    """Build a validated C(V) sweep from persisted Curve-4 arrays.
+
+    Returns ``None`` when any of the four arrays is absent, so the caller
+    keeps the existing live-sweep fallback. A partial or malformed persist
+    fails closed: a non-ascending Vds axis, mismatched lengths, or non-finite
+    / negative capacitance raise instead of being silently repaired.
+    """
+    if not isinstance(extracted, dict) or not all(
+            extracted.get(k) is not None for k in _FULL_CV_KEYS):
+        return None
+    return _validate_cv_arrays(
+        vendor,
+        extracted["curve_vds"], extracted["ciss_curve_f"],
+        extracted["coss_curve_f"], extracted["crss_curve_f"],
+        vgs_bias_v=_optional_float(
+            extracted.get("vgs_bias_v"), "vgs_bias_v", vendor),
+        temperature_c=_optional_float(
+            extracted.get("temperature_c"), "temperature_c", vendor))
+
+
+_MULTI_CV_BY_VGS_KEYS = ("ciss_curve_f_by_vgs", "coss_curve_f_by_vgs",
+                         "crss_curve_f_by_vgs")
+
+
+def _bias_label(key, vendor: str, field: str) -> float:
+    """Parse a persisted bias label; unlabeled keys fail closed."""
+    try:
+        value = float(key)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"{vendor}: {field} key {key!r} is not a usable gate-bias label; "
+            "refusing to invent a bias axis") from exc
+    if not np.isfinite(value):
+        raise ValueError(
+            f"{vendor}: {field} key {key!r} is not a finite gate bias")
+    return value
+
+
+def _cv_sweeps_from_extracted(extracted: dict,
+                              vendor: str) -> list[_CVSweep] | None:
+    """Build one validated C(V) sweep per persisted gate bias.
+
+    Supported multi-bias layouts (optional; single-sweep persists keep the
+    historical path):
+
+    * ``cv_sweeps``: a list of per-sweep dicts, each with the four
+      ``_FULL_CV_KEYS`` plus optional ``vgs_bias_v`` / ``temperature_c``.
+    * ``curve_vds`` plus ``ciss_curve_f_by_vgs`` /
+      ``coss_curve_f_by_vgs`` / ``crss_curve_f_by_vgs``: three mappings
+      keyed by gate bias, or three parallel lists with the bias labels in
+      ``vgs_bias_v_by_sweep`` (or ``vgs_bias_v_list``). An unlabeled list
+      fails closed: no bias axis is invented.
+
+    Returns ``None`` when no full arrays are present. A partial multi-bias
+    set fails closed instead of silently dropping to the single sweep.
+    """
+    if not isinstance(extracted, dict):
+        return None
+    if extracted.get("cv_sweeps") is not None:
+        rows = extracted["cv_sweeps"]
+        if not isinstance(rows, (list, tuple)) or not rows:
+            raise ValueError(f"{vendor}: cv_sweeps must be a non-empty list")
+        sweeps = []
+        seen: set[float] = set()
+        for row in rows:
+            if not isinstance(row, dict):
+                raise ValueError(
+                    f"{vendor}: every cv_sweeps entry must be a dict")
+            sweep = _cv_sweep_from_extracted(row, vendor)
+            if sweep is None:
+                raise ValueError(
+                    f"{vendor}: cv_sweeps entry is missing one of "
+                    f"{list(_FULL_CV_KEYS)}")
+            bias = sweep.vgs_bias_v
+            if bias is not None:
+                if bias in seen:
+                    raise ValueError(
+                        f"{vendor}: duplicate cv_sweeps gate bias {bias:g} V")
+                seen.add(bias)
+            sweeps.append(sweep)
+        return sorted(sweeps, key=lambda s: (s.vgs_bias_v is None,
+                                             s.vgs_bias_v or 0.0))
+
+    present = [k for k in _MULTI_CV_BY_VGS_KEYS if extracted.get(k) is not None]
+    if not present:
+        sweep = _cv_sweep_from_extracted(extracted, vendor)
+        return [sweep] if sweep is not None else None
+    if len(present) != len(_MULTI_CV_BY_VGS_KEYS):
+        raise ValueError(
+            f"{vendor}: multi-bias C(V) persist is partial (has "
+            f"{present}); all of {list(_MULTI_CV_BY_VGS_KEYS)} are required")
+    if extracted.get("curve_vds") is None:
+        raise ValueError(
+            f"{vendor}: multi-bias C(V) persist has no shared curve_vds")
+
+    groups = [extracted[k] for k in _MULTI_CV_BY_VGS_KEYS]
+    if all(isinstance(g, dict) for g in groups):
+        key_sets = [set(g) for g in groups]
+        if not (key_sets[0] == key_sets[1] == key_sets[2]):
+            raise ValueError(
+                f"{vendor}: *_by_vgs mappings use different gate-bias keys")
+        labels = sorted(_bias_label(k, vendor, "ciss_curve_f_by_vgs")
+                        for k in key_sets[0])
+        rows = []
+        for label in labels:
+            key = next(k for k in key_sets[0]
+                       if _bias_label(k, vendor, "ciss_curve_f_by_vgs")
+                       == label)
+            rows.append((label, [g[key] for g in groups]))
+    elif all(isinstance(g, (list, tuple)) for g in groups):
+        n = [len(g) for g in groups]
+        if not (n[0] == n[1] == n[2]):
+            raise ValueError(
+                f"{vendor}: *_by_vgs lists have different lengths {n}")
+        raw_labels = extracted.get("vgs_bias_v_by_sweep")
+        if raw_labels is None:
+            raw_labels = extracted.get("vgs_bias_v_list")
+        if raw_labels is None:
+            raise ValueError(
+                f"{vendor}: list-form *_by_vgs has no vgs_bias_v_by_sweep "
+                "labels; refusing to invent a bias axis")
+        if not isinstance(raw_labels, (list, tuple)) \
+                or len(raw_labels) != n[0]:
+            raise ValueError(
+                f"{vendor}: vgs_bias_v_by_sweep must be a list of "
+                f"{n[0]} finite labels")
+        labels = [_bias_label(k, vendor, "vgs_bias_v_by_sweep")
+                  for k in raw_labels]
+        rows = list(zip(labels, zip(*groups)))
+    else:
+        raise ValueError(
+            f"{vendor}: *_by_vgs must be all mappings or all lists")
+
+    if len(set(labels)) != len(labels):
+        raise ValueError(f"{vendor}: duplicate multi-bias gate labels {labels}")
+
+    raw_temp = extracted.get("temperature_c_by_sweep")
+    if isinstance(raw_temp, dict):
+        temps = {_bias_label(k, vendor, "temperature_c_by_sweep"):
+                 _optional_float(v, "temperature_c_by_sweep", vendor)
+                 for k, v in raw_temp.items()}
+
+        def temp_for(_i, bias, _temps=temps):
+            return _temps.get(bias)
+    elif isinstance(raw_temp, (list, tuple)):
+        if len(raw_temp) != len(rows):
+            raise ValueError(
+                f"{vendor}: temperature_c_by_sweep length does not match "
+                "the bias sweeps")
+
+        def temp_for(i, _bias, _raw=raw_temp):
+            return _optional_float(
+                _raw[i], "temperature_c_by_sweep", vendor)
+    else:
+        global_temp = _optional_float(
+            extracted.get("temperature_c"), "temperature_c", vendor)
+
+        def temp_for(_i, _bias, _temp=global_temp):
+            return _temp
+
+    v = extracted["curve_vds"]
+    sweeps = []
+    for i, (bias, (ciss, coss, crss)) in enumerate(rows):
+        sweeps.append(_validate_cv_arrays(
+            vendor, v, ciss, coss, crss,
+            vgs_bias_v=bias, temperature_c=temp_for(i, bias)))
+    return sorted(sweeps, key=lambda s: (s.vgs_bias_v is None,
+                                         s.vgs_bias_v or 0.0))
+
+
+def _full_cv_from_curve4(vendor: str):
+    """Read persisted full Curve-4 arrays.
+
+    Returns one ``_CVSweep`` for a legacy single-sweep persist, a list when
+    a multi-bias set is present, or ``None`` when the arrays are absent.
+    """
     try:
         extracted = load_output(vendor, "curve4_capacitances")["extracted"]
     except (FileNotFoundError, KeyError, TypeError):
         return None
-    return _cv_sweep_from_extracted(extracted, vendor)
+    sweeps = _cv_sweeps_from_extracted(extracted, vendor)
+    if sweeps is None:
+        return None
+    if len(sweeps) == 1:
+        return sweeps[0]
+    return sweeps
 
 
-def _load_cv_sweep(vendor: str, cfg: dict, cond: dict):
-    """Pick the C(V) source and return ``(v, ciss, coss, crss, src, limit)``.
+def _primary_cv_sweep(sweeps: list[_CVSweep]) -> _CVSweep:
+    """Pick the legacy-compatible primary: Vgs=0 first, else closest to 0."""
+    if not sweeps:
+        raise ValueError("no C(V) sweep available")
+    for sweep in sweeps:
+        if sweep.vgs_bias_v is None or sweep.vgs_bias_v == 0.0:
+            return sweep
+    return min(sweeps, key=lambda s: abs(float(s.vgs_bias_v)))
 
-    Persisted full Curve-4 arrays win when present. Otherwise the previously
-    unconditional live AC re-sweep is retained verbatim, with an explicit
-    disclosure; no flat/constant sweep is invented from the scalar fields.
+
+def _load_cv_sweeps(vendor: str, cfg: dict, cond: dict, *,
+                    vgs_bias: float | None = None):
+    """Pick every available C(V) sweep.
+
+    Returns ``(sweeps, source, data_limitation)``. Persisted full arrays win;
+    a single persisted Vgs=0 sweep carries an explicit limitation, a genuine
+    multi-bias set does not. The live AC re-sweep keeps the historical
+    disclosure and is run at ``vgs_bias`` only when the caller supplies it.
     """
     full = _full_cv_from_curve4(vendor)
     if full is not None:
-        return (full.v, full.ciss, full.coss, full.crss,
-                "curve4_full_arrays", None)
+        sweeps = list(full) if isinstance(full, (list, tuple)) else [full]
+        if len(sweeps) > 1:
+            limitation = None
+        elif sweeps[0].vgs_bias_v in (None, 0.0):
+            limitation = _CV_SINGLE_BIAS_LIMITATION
+        else:
+            limitation = (
+                "Only one persisted C(V) sweep at Vgs="
+                f"{float(sweeps[0].vgs_bias_v):g} V is available; no "
+                "multi-bias C-V set exists. No bias axis was invented from "
+                "scalar equivalents.")
+        return sweeps, "curve4_full_arrays", limitation
+    live_bias = 0.0 if vgs_bias is None else float(vgs_bias)
+    if not np.isfinite(live_bias):
+        raise ValueError(f"{vendor}: vgs_bias must be finite")
     ciss_c, coss_c, crss_c = CapacitanceTestbench(
         f_meas=cond.get("F_meas")).run(
         Path(cfg["library"]).resolve(), cfg["subcircuit"],
         vds_min=cond["Vds_cap_min"], vds_max=cond["Vds_cap_max"],
         points=cond["Cap_points"],
-        pin_roles=cfg.get("pins", {}).get("pin_order"))
-    return (
+        pin_roles=cfg.get("pins", {}).get("pin_order"),
+        vgs_bias=live_bias)
+    sweep = _validate_cv_arrays(
+        vendor,
         np.asarray(ciss_c.x_data, dtype=float),
         np.asarray(ciss_c.y_data, dtype=float),
         np.asarray(coss_c.y_data, dtype=float),
         np.asarray(crss_c.y_data, dtype=float),
-        "live_ac_sweep", _CV_DATA_LIMITATION,
-    )
+        vgs_bias_v=live_bias, temperature_c=None)
+    return [sweep], "live_ac_sweep", _CV_DATA_LIMITATION
+
+
+def _load_cv_sweep(vendor: str, cfg: dict, cond: dict):
+    """Pick the C(V) source and return ``(v, ciss, coss, crss, src, limit)``.
+
+    Backward-compatible single-sweep accessor: the primary sweep (Vgs=0 when
+    present) is returned. Persisted full Curve-4 arrays win; otherwise the
+    historical live AC re-sweep is retained verbatim with its disclosure.
+    The full-array tuple limitation stays ``None`` exactly as before; the
+    single-bias disclosure is carried by :func:`_load_cv_sweeps`.
+    """
+    sweeps, source, limitation = _load_cv_sweeps(vendor, cfg, cond)
+    primary = _primary_cv_sweep(sweeps)
+    if source == "curve4_full_arrays":
+        limitation = None
+    return (primary.v, primary.ciss, primary.coss, primary.crss,
+            source, limitation)
 
 
 def _decompose_cv(ciss, coss, crss):
@@ -266,31 +578,62 @@ def _decompose_cv(ciss, coss, crss):
 
 
 def _fit_charge_tables(v, ciss, coss, crss, *, vbus,
-                       forced_v=None, forbid_below=None) -> _ChargeTables:
+                       forced_v=None, forbid_below=None,
+                       cdg_v=None, cdg_c=None,
+                       cdg_axis: str = CDG_AXIS_VGS0,
+                       temperature_c: float | None = None,
+                       vgs_bias_v: float | None = None) -> _ChargeTables:
     """Fit zero-anchored, monotone Q(V) tables from a full C(V) sweep.
 
     Shared by both data sources so the charge contract is identical: no
     max_points cap, the repo's 0.5% budget, and the DPT on-state breakpoint
     forced onto CDS/CDG. ``v`` is always a voltage axis, never an index axis.
+
+    ``cdg_v`` / ``cdg_c`` optionally supply Cgd measured on a real Vdg axis
+    (bias-aware sweep). Without them CDG uses the legacy Vgs=0 identity
+    (Vdg=Vds) and ``cdg_axis`` records that provenance. Each emitted table
+    also gets a measured ``max_cap_error_pct`` diagnostic.
     """
-    cgs_c, cds_c, cdg_c, n_clipped = _decompose_cv(ciss, coss, crss)
-    v_fit, curves = _cap_curve_to_vbus(v, (cgs_c, cds_c, cdg_c), vbus)
+    cgs_c, cds_c, cdg_c_default, n_clipped = _decompose_cv(ciss, coss, crss)
+    v_fit, curves = _cap_curve_to_vbus(v, (cgs_c, cds_c, cdg_c_default), vbus)
     cgs_fit = _fit_anchored_charge(v_fit, curves[0], RELTOL)
     cds_fit = _fit_anchored_charge(
         v_fit, curves[1], RELTOL, forced_v=forced_v, forbid_below=forbid_below)
-    cdg_fit = _fit_anchored_charge(
-        v_fit, curves[2], RELTOL, forced_v=forced_v, forbid_below=forbid_below)
+    if cdg_v is not None and cdg_c is not None:
+        cdg_axis_v = np.asarray(cdg_v, dtype=float).ravel()
+        cdg_curve = np.asarray(cdg_c, dtype=float).ravel()
+        if cdg_axis_v.size != cdg_curve.size or cdg_axis_v.size < 2:
+            raise ValueError(
+                "bias-aware CDG axis/curve need >= 2 matched samples")
+        if not np.all(np.diff(cdg_axis_v) > 0):
+            raise ValueError("bias-aware CDG axis must be strictly ascending")
+        cdg_fit = _fit_anchored_charge(cdg_axis_v, cdg_curve, RELTOL)
+    else:
+        cdg_fit = _fit_anchored_charge(
+            v_fit, curves[2], RELTOL,
+            forced_v=forced_v, forbid_below=forbid_below)
     decision = cgs_linearity_decision(cgs_fit.v_full, cgs_fit.q_full, RELTOL)
     if decision.is_linear:
         # CGS_NSEG=1 (linear) [S-MOS]; the emitted C is the endpoint chord.
         cgs_pairs = [cgs_fit.pairs[0], cgs_fit.pairs[-1]]
     else:
         cgs_pairs = cgs_fit.pairs
+    fits = {"cgs": cgs_fit, "cds": cds_fit, "cdg": cdg_fit}
+    pairs = {"cgs": cgs_pairs, "cds": cds_fit.pairs, "cdg": cdg_fit.pairs}
+    # Measured C-V diagnostic on the (V,Q) pairs actually emitted.
+    for key, fit in fits.items():
+        fits[key] = replace(
+            fit, max_cap_error_pct=_cap_error_pct(fit, pairs[key]),
+            cap_error_budget_pct=CAP_ERROR_BUDGET_PCT)
     return _ChargeTables(
-        fits={"cgs": cgs_fit, "cds": cds_fit, "cdg": cdg_fit},
-        pairs={"cgs": cgs_pairs, "cds": cds_fit.pairs, "cdg": cdg_fit.pairs},
+        fits=fits,
+        pairs=pairs,
         n_clipped=n_clipped,
         cgs_decision=decision,
+        cdg_axis=cdg_axis,
+        temperature_c=temperature_c,
+        vgs_bias_v=vgs_bias_v,
+        cap_error_budget_pct=CAP_ERROR_BUDGET_PCT,
     )
 
 
@@ -323,6 +666,8 @@ def _fit_record(fit: _ChargeFit, pairs) -> dict:
     err = _table_error(fit, pairs)
     budget = fit.error_budget_c
     q_max = float(fit.q_full[-1])
+    cap_pct = fit.max_cap_error_pct
+    cap_budget = fit.cap_error_budget_pct
     return {
         "n_points": len(pairs),
         "n_segments": len(pairs) - 1,
@@ -331,6 +676,10 @@ def _fit_record(fit: _ChargeFit, pairs) -> dict:
         "error_ratio": err / budget if budget > 0 else None,
         "tolerance_met": bool(err <= budget),
         "achieved_rel_tolerance": err / q_max if q_max > 0 else None,
+        "max_cap_error_pct": cap_pct,
+        "cap_error_budget_pct": cap_budget,
+        "cap_error_tolerance_met": (
+            None if cap_pct is None else bool(cap_pct <= cap_budget)),
         "first_breakpoint_v": float(pairs[0][0]),
         "last_breakpoint_v": float(pairs[-1][0]),
     }
@@ -370,9 +719,20 @@ def _select_charge_candidate(candidates: dict) -> tuple[str, str]:
               and all(b["abs_rel_err_pct"][k] < a["abs_rel_err_pct"][k]
                       for k in b["abs_rel_err_pct"]))
     if better:
+        cap_a = candidates["tables"].get("max_cap_error_pct")
+        cap_b = candidates["tier2"].get("max_cap_error_pct")
+        if _finite(cap_a) and _finite(cap_b) and float(cap_b) > float(cap_a):
+            return ("tables",
+                    "tier2 charge improves every fidelity metric but its "
+                    f"measured C-V error ({float(cap_b):.4g} pct) exceeds "
+                    f"tables ({float(cap_a):.4g} pct); C-V gate retains "
+                    "tables")
         return ("tier2",
                 "tier2 charge strictly improves Vds RMSE, Id RMSE and "
-                "abs(rel err) of tr/tf/e_on/e_off")
+                "abs(rel err) of tr/tf/e_on/e_off"
+                + ("; C-V gate satisfied" if _finite(cap_a)
+                   and _finite(cap_b) else "; C-V error not measured, "
+                   "charge-only rule"))
     return ("tables",
             "tier2 charge does not strictly improve every recorded "
             "fidelity metric; tables retained")
@@ -724,9 +1084,77 @@ def _run_adaptive_benchmark(vendor: str, cfg: dict, dpt: dict, lib: Path,
     }
 
 
+def _declared_cv_metadata(cfg: dict) -> tuple[float | None, float | None]:
+    """Read optional ``simplis.temperature_c`` / ``vgs_bias_v`` declarations.
+
+    Absent keys stay ``None``: the pipeline never infers a temperature or a
+    gate-drive value from unrelated conditions.
+    """
+    simplis = cfg.get("simplis") or {}
+    if not isinstance(simplis, dict):
+        raise ValueError("config['simplis'] must be a mapping")
+    return (
+        _optional_float(simplis.get("temperature_c"),
+                        "simplis.temperature_c", "config"),
+        _optional_float(simplis.get("vgs_bias_v"),
+                        "simplis.vgs_bias_v", "config"),
+    )
+
+
+def _select_cdg_data(sweeps, primary):
+    """Pick a measured Cgd table, preferring a genuine bias-aware sweep.
+
+    Returns ``(v, c, axis, source_bias_v, limitation)``. A bias-aware sweep
+    supplies Cgd on the measured Vdg = Vds - Vgs axis (non-negative part
+    only, because the anchored charge integral starts at 0 V). Without one,
+    the legacy Vgs=0 Vds axis is kept and the limitation is returned.
+    """
+    biased = [s for s in sweeps
+              if s.vgs_bias_v is not None and s.vgs_bias_v != 0.0]
+    for sweep in sorted(biased, key=lambda s: -abs(float(s.vgs_bias_v))):
+        bias = float(sweep.vgs_bias_v)
+        axis, idx = np.unique(np.asarray(sweep.v, dtype=float) - bias,
+                              return_index=True)
+        crss = np.asarray(sweep.crss, dtype=float)[idx]
+        keep = axis >= 0.0
+        axis, crss = axis[keep], crss[keep]
+        if axis.size >= 2:
+            return axis, crss, CDG_AXIS_VDG, bias, None
+    return (primary.v, primary.crss, CDG_AXIS_VGS0, None,
+            _CDG_VGS0_LIMITATION)
+
+
+def _charge_meta_from_details(details: dict) -> dict:
+    """Builder-facing C-V provenance assembled from measured details."""
+    cap = details.get("cap_error") or {}
+    cvb = details.get("cv_bias") or {}
+    limitations = [text for text in (details.get("cdg_data_limitation"),
+                                     cvb.get("data_limitation")) if text]
+    return {
+        "cdg_axis": details.get("cdg_axis"),
+        "vgs_bias_v": cvb.get("vgs_bias_v"),
+        "temperature_c": cvb.get("temperature_c"),
+        "max_cap_error_pct": cap.get("max_cap_error_pct_all"),
+        "cap_error_budget_pct": cap.get("budget_pct"),
+        "data_limitation": "; ".join(limitations) or None,
+    }
+
+
+def _charge_cap_error_from_details(details: dict) -> float | None:
+    """Measured C-V error for table emissions; ``None`` when not recorded.
+
+    A missing diagnostic degrades to ``None`` -- never a fabricated 0 -- so
+    the charge gate keeps its strict fidelity-only rule.
+    """
+    cap_meta = details.get("cap_error") or {}
+    return cap_meta.get("max_cap_error_pct_all")
+
+
 def _build_spec(
     vendor: str, *, dpt_vds=None, dpt_vgs=None,
     vgs_on: float | None = None, vbus: float | None = None,
+    temperature_c: float | None = None,
+    vgs_bias_v: float | None = None,
 ) -> tuple[PWLModelSpec, dict, HybridChannelFit | None]:
     """Build the spec from extracted curves plus one full C(V) sweep.
 
@@ -792,14 +1220,23 @@ def _build_spec(
     except FileNotFoundError:
         pass
 
-    # ---- ONE C(V) sweep: Ciss, Coss, Crss on the same Vds grid -------------
+    # ---- C(V) sweeps: persisted multi-bias set, else one Vgs=0 sweep ------
     # Persisted full Curve-4 arrays win. When absent, retain the previous
     # live AC re-sweep and disclose the data limitation; never synthesize a
-    # sweep from the scalar-equivalent fields.
-    v, ciss, coss, crss, cv_source, data_limitation = _load_cv_sweep(
-        vendor, cfg, cond)
+    # sweep from the scalar-equivalent fields. A genuine multi-bias persist
+    # yields one _CVSweep per gate bias; a legacy single Vgs=0 persist keeps
+    # the historical single-sweep path and carries an explicit limitation.
+    sweeps, cv_source, data_limitation = _load_cv_sweeps(
+        vendor, cfg, cond, vgs_bias=vgs_bias_v)
+    primary = _primary_cv_sweep(sweeps)
+    v, ciss, coss, crss = primary.v, primary.ciss, primary.coss, primary.crss
     if v.size < 2 or not np.all(np.diff(v) > 0):
         raise RuntimeError(f"{vendor}: AC capacitance sweep has no valid grid")
+    cdg_v, cdg_c, cdg_axis, cdg_source_bias, cdg_limitation = (
+        _select_cdg_data(sweeps, primary))
+    effective_temp = (temperature_c if temperature_c is not None
+                      else primary.temperature_c)
+    effective_bias = primary.vgs_bias_v
 
     # ---- Documented SIMPLIS Level-2 charge tables -------------------------
     # Interior breakpoints: OUR greedy farthest-point rule (SIMPLIS does not
@@ -814,7 +1251,9 @@ def _build_spec(
     forbid = forced if on_bp and not on_bp["clamped_to_vbus"] else None
     tables = _fit_charge_tables(
         v, ciss, coss, crss, vbus=vbus,
-        forced_v=forced, forbid_below=forbid)
+        forced_v=forced, forbid_below=forbid,
+        cdg_v=cdg_v, cdg_c=cdg_c, cdg_axis=cdg_axis,
+        temperature_c=effective_temp, vgs_bias_v=effective_bias)
     cgs_fit = tables.fits["cgs"]
     cds_fit = tables.fits["cds"]
     cdg_fit = tables.fits["cdg"]
@@ -926,11 +1365,43 @@ def _build_spec(
                      "f_meas_hz": float(cond.get("F_meas", F_MEAS_DEFAULT))},
         "clipped_delta_points": n_clipped,
         "cap_ref_vds": cap_ref,
+        "cap_error": {
+            "method": "finite-difference dQ/dV of the emitted (V,Q) pairs "
+                      "vs measured C(v) on the common measured grid; relative "
+                      "to local C, denominator clipped at 0.1% of peak C",
+            "budget_pct": CAP_ERROR_BUDGET_PCT,
+            "max_cap_error_pct": {
+                k: fits[k].max_cap_error_pct for k in fits},
+            "max_cap_error_pct_all": max(
+                (v for v in (fits[k].max_cap_error_pct for k in fits)
+                 if v is not None), default=None),
+            "tolerance_met": {
+                k: (None if fits[k].max_cap_error_pct is None else
+                    bool(fits[k].max_cap_error_pct
+                         <= fits[k].cap_error_budget_pct))
+                for k in fits},
+        },
+        "cdg_axis": cdg_axis,
+        "cdg_source_bias_v": cdg_source_bias,
+        "cdg_data_limitation": cdg_limitation,
+        "cv_bias": {
+            "source": cv_source,
+            "n_sweeps": len(sweeps),
+            "biases_v": [s.vgs_bias_v for s in sweeps],
+            "vgs_bias_v": effective_bias,
+            "declared_config_vgs_bias_v": vgs_bias_v,
+            "temperature_c": effective_temp,
+            "declared_config_temperature_c": temperature_c,
+            "multi_bias_present": len(sweeps) > 1,
+            "data_limitation": data_limitation,
+        },
         "curve4_cv": {
             "source": cv_source,
             "full_arrays_present": cv_source == "curve4_full_arrays",
             "array_keys": (list(_FULL_CV_KEYS)
                            if cv_source == "curve4_full_arrays" else []),
+            "n_sweeps": len(sweeps),
+            "biases_v": [s.vgs_bias_v for s in sweeps],
             "data_limitation": data_limitation,
         },
         "breakpoint_formula": "greedy pwl_charge_segments farthest-point rule "
@@ -1099,11 +1570,14 @@ def run_vendor(vendor: str) -> dict:
     cfg = load_input(vendor)
     dpt = _dpt_conditions(vendor)
     temp = float(cfg["conditions"]["temperature"])
+    declared_temp, declared_bias = _declared_cv_metadata(cfg)
 
     spec, details, hybrid_fit = _build_spec(
         vendor, dpt_vds=traj.input[1], dpt_vgs=traj.input[0],
-        vgs_on=dpt["vgs_on"], vbus=dpt["vbus"])
+        vgs_on=dpt["vgs_on"], vbus=dpt["vbus"],
+        temperature_c=declared_temp, vgs_bias_v=declared_bias)
     fit_wall = time.perf_counter() - t0 - capture_wall
+    charge_meta = _charge_meta_from_details(details)
     # Evidence candidate only: consume the residual fit and nothing else
     # from the hybrid ANN fit (its ANN charge fit is NEVER used here).
     t_ann = time.perf_counter()
@@ -1129,7 +1603,9 @@ def run_vendor(vendor: str) -> dict:
     texts = {
         mode: build_simplis_subcircuit(
             spec, charge_mode=mode.removeprefix("hybrid_"),
-            channel_fit=hybrid_fit if mode.startswith("hybrid_") else None)
+            channel_fit=hybrid_fit if mode.startswith("hybrid_") else None,
+            clamp_charge_above_last=True,
+            charge_meta=charge_meta)
         for mode in modes}
     for mode, text in texts.items():
         if not text.isascii():
@@ -1161,6 +1637,14 @@ def run_vendor(vendor: str) -> dict:
             candidate_lib, vendor, traj, dpt, golden, tier2_metrics)
         for mode, candidate_lib in candidate_libs.items()
     }
+    # Measured C-V diagnostic for the candidates that emit the fitted Q(V)
+    # tables. The Tier-2 charge block is a different emission and does not
+    # have this diagnostic; it stays None (never fabricated), so the charge
+    # gate falls back to its strict fidelity-only rule.
+    tables_cap_error = _charge_cap_error_from_details(details)
+    for mode, row in candidates.items():
+        row["max_cap_error_pct"] = (
+            tables_cap_error if mode in ("tables", "hybrid_tables") else None)
 
     selection, reason = _select_charge_candidate(candidates)
     channel_selection, channel_reason, channel_evidence = (
@@ -1189,7 +1673,8 @@ def run_vendor(vendor: str) -> dict:
         residual_lib = lib.with_name(
             f"{lib.stem}_hybrid_ann_residual_{selection}_charge.lib")
         residual_text = build_simplis_subcircuit(
-            spec, charge_mode=selection, residual_fit=residual_fit)
+            spec, charge_mode=selection, residual_fit=residual_fit,
+            clamp_charge_above_last=True, charge_meta=charge_meta)
         if not residual_text.isascii():
             raise RuntimeError(f"{vendor}: residual netlist is not ASCII")
         residual_lib.write_text(residual_text, encoding="ascii")

@@ -24,12 +24,14 @@ SPICE solver itself, which needs no fitted ODE at all.
 """
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
 import numpy as np
 from scipy.integrate import cumulative_trapezoid
 from scipy.signal import savgol_filter
 
+from approximation.charge_surface import ChargeSurface
 from simulation.testbenches.dpt_trajectory import Trajectory
 
 # Paper-printed constant (Rewienski & White 2003, section 4.1, step 3)
@@ -96,6 +98,10 @@ class TPWLTerminalModel:
     v_block: float | None = None       # extracted Vth (Curve 7)
     v_width: float | None = None       # transfer-sweep voltage resolution
     meta: dict = field(default_factory=dict)
+    qg_v: np.ndarray | None = None     # DPT gate-charge table (V)
+    qg_q: np.ndarray | None = None     # DPT gate-charge table (C)
+    qoss_surface: ChargeSurface | None = None   # measured 2-D Qoss(Vds, Vgs)
+    temperature_c: float | None = None          # surface slice temperature
 
     def scaled(self, u: np.ndarray) -> np.ndarray:
         return (np.atleast_2d(u) - self.v_ref[:, None]) / \
@@ -221,19 +227,17 @@ def _rmse(pred: np.ndarray, ref: np.ndarray) -> float:
     return float(np.sqrt(np.mean((pred - ref) ** 2)) / span)
 
 
-def build_model(traj: Trajectory, coss_curve=None,
-                v_block: float | None = None,
-                v_width: float | None = None,
-                s_grid: tuple[int, ...] = (8, 16, 24, 32),
-                include_static: bool = True) -> TPWLTerminalModel:
-    """Fit channel on Curve-1 static family + DPT; select s by static error.
+def _trajectory_series(traj: Trajectory, *, v_ref: np.ndarray,
+                       v_span: np.ndarray,
+                       qoss_v: np.ndarray | None,
+                       qoss_q: np.ndarray | None) -> dict:
+    """DPT samples of one trajectory in the shared operating coordinates.
 
-    DPT alone drives only two Vgs levels and gave 65-1e9 % error on the
-    Curve-1 family; the static family is the project's headline metric.
+    Extra training conditions reuse the primary trajectory's reference/span
+    so every cell anchor lives on one operating plane.
     """
     split = _split_index(traj.input[0])
     t, u, y = traj.time, traj.input, traj.output
-    v_ref, v_span = _operating_scaler(u[:, :split])
     ws = (u - v_ref[:, None]) / v_span[:, None]
     wtr = ws[:, :split]
 
@@ -241,23 +245,122 @@ def build_model(traj: Trajectory, coss_curve=None,
     window = max(3, int(2.0 * traj.edge_time / dt) + 1)
     window += (window + 1) % 2
     window = min(window, split - 1 + (split - 1) % 2)
+    if window < 3 or window > split:
+        raise RuntimeError(
+            f"{traj.vendor}: trajectory has {split} pre-split samples; "
+            f"cannot smooth with window {window}")
     wsm = savgol_filter(wtr, window, 2, axis=1)
     dws = np.gradient(wsm, t[:split], axis=1)
     qg = cumulative_trapezoid(y[1, :split], t[:split], initial=0.0)
 
-    qoss_v = qoss_q = None
     id_fit = y[0, :split]
+    if qoss_v is not None and qoss_q is not None:
+        qoss_t = np.interp(u[1, :split], qoss_v, qoss_q)
+        id_fit = y[0, :split] - np.gradient(qoss_t, t[:split])
+    return {"split": split, "t": t, "u": u, "y": y, "wtr": wtr,
+            "dws": dws, "id_fit": id_fit, "qg": qg, "window": window}
+
+
+def _gate_charge_table(t: np.ndarray, vgs: np.ndarray, ig: np.ndarray,
+                       split: int) -> tuple[np.ndarray, np.ndarray]:
+    """Monotone Qg(Vgs) from the DPT gate-current integral, anchored at 0.
+
+    Only the first turn-on segment is used: it is the gate-charge sweep.  At
+    a Miller plateau the gate voltage is flat while charge accumulates, so the
+    maximum accumulated charge at a repeated Vgs is kept (the physical
+    vertical charge step); the result is then projected non-decreasing, which
+    is the conservation property the emitted ``C_QG`` requires.
+    """
+    q = cumulative_trapezoid(np.asarray(ig, dtype=float)[:split],
+                             np.asarray(t, dtype=float)[:split], initial=0.0)
+    v = np.asarray(vgs, dtype=float)[:split]
+    hi = int(np.argmax(v))
+    if hi < 2:
+        raise RuntimeError("gate-charge table needs a turn-on segment")
+    v = v[:hi + 1]
+    q = q[:hi + 1]
+    uniq, inv = np.unique(v, return_inverse=True)
+    qv = np.full(uniq.size, -np.inf)
+    np.maximum.at(qv, inv, q)
+    if not np.all(np.isfinite(qv)):
+        raise RuntimeError("gate-charge table has empty voltage bins")
+    # Anchor Q(0 V) = 0 without inventing a sample: insert the zero bias on
+    # the measured integral when the sweep starts above or below zero.
+    if not np.any(uniq == 0.0):
+        zero_q = float(np.interp(0.0, uniq, qv))
+        pos = int(np.searchsorted(uniq, 0.0))
+        uniq = np.insert(uniq, pos, 0.0)
+        qv = np.insert(qv, pos, zero_q)
+    zero_pos = int(np.flatnonzero(uniq == 0.0)[0])
+    qv = qv - float(qv[zero_pos])
+    qv = np.maximum.accumulate(qv)
+    if uniq.size < 2:
+        raise RuntimeError("gate-charge table needs >=2 voltage levels")
+    return uniq, qv
+
+
+def build_model(traj: Trajectory, coss_curve=None,
+                v_block: float | None = None,
+                v_width: float | None = None,
+                s_grid: tuple[int, ...] = (8, 16, 24, 32),
+                include_static: bool = True,
+                selection_error_fn: Callable[[TPWLTerminalModel], float]
+                | None = None,
+                extra_trajectories: Sequence[Trajectory] = (),
+                holdout_trajectory: bool = False) -> TPWLTerminalModel:
+    """Fit channel on Curve-1 static family + DPT; select s by static error.
+
+    DPT alone drives only two Vgs levels and gave 65-1e9 % error on the
+    Curve-1 family; the static family is the project's headline metric.
+
+    ``selection_error_fn`` replaces the function-fit static RMSE as the cell
+    selection key with a caller-measured error (Tier-3 passes the *emitted*
+    channel's static RMSE).  The record says which source was used.
+
+    ``extra_trajectories`` are real additional DPT captures (e.g. other
+    training conditions); their samples are concatenated with the primary
+    trajectory while the static family stays a single shared data set.
+    ``holdout_trajectory`` reserves the last extra trajectory for a blocked
+    cross-validation diagnostic instead of fitting it.
+    """
+    primary_split = _split_index(traj.input[0])
+    v_ref, v_span = _operating_scaler(traj.input[:, :primary_split])
+
+    qoss_v = qoss_q = None
     if coss_curve is not None:
         from approximation.charge_model import integrate_charge
         cv, cc = np.asarray(coss_curve[0]), np.asarray(coss_curve[1])
         cm = integrate_charge(cv, cc)
         qoss_v, qoss_q = cm.v, cm.q
-        qoss_t = np.interp(u[1, :split], qoss_v, qoss_q)
-        id_fit = y[0, :split] - np.gradient(qoss_t, t[:split])
     coss_v = None if coss_curve is None else np.asarray(coss_curve[0])
     coss_c = None if coss_curve is None else np.asarray(coss_curve[1])
 
-    # combine sources: static family for channel coverage, DPT for charges
+    extras = list(extra_trajectories)
+    series = [_trajectory_series(traj, v_ref=v_ref, v_span=v_span,
+                                 qoss_v=qoss_v, qoss_q=qoss_q)]
+    for extra in extras:
+        series.append(_trajectory_series(
+            extra, v_ref=v_ref, v_span=v_span,
+            qoss_v=qoss_v, qoss_q=qoss_q))
+
+    holdout = None
+    fit_series = series
+    if holdout_trajectory and extras:
+        holdout = series[-1]
+        fit_series = series[:-1]
+
+    sources = [f"{traj.vendor}:primary"]
+    for i, extra in enumerate(extras):
+        role = ("holdout" if holdout is not None and i == len(extras) - 1
+                else "training")
+        sources.append(f"{extra.vendor}:{role}:{i + 1}")
+
+    wtr = np.hstack([s["wtr"] for s in fit_series])
+    dws = np.hstack([s["dws"] for s in fit_series])
+    id_fit = np.hstack([s["id_fit"] for s in fit_series])
+    qg = np.hstack([s["qg"] for s in fit_series])
+
+    # combine sources: static family once (channel coverage) + every DPT
     ws_all, dws_all, id_all, qg_all = wtr, dws, id_fit, qg
     is_static = np.zeros(wtr.shape[1], dtype=bool)
     is_dpt = np.ones(wtr.shape[1], dtype=bool)
@@ -275,10 +378,20 @@ def build_model(traj: Trajectory, coss_curve=None,
             np.ones(ws_static.shape[1], dtype=bool)])
         is_dpt = ~is_static
 
+    try:
+        qg_v, qg_q = _gate_charge_table(
+            series[0]["t"], series[0]["u"][0], series[0]["y"][1],
+            series[0]["split"])
+    except RuntimeError:
+        # Optional for the closed 1-D emitter; a V2 gate-charge emission
+        # fails closed in the emitter when the table is missing.
+        qg_v = qg_q = None
+
     sv = np.linalg.svd(ws_all, compute_uv=False)
     energy = (sv ** 2 / np.sum(sv ** 2)).tolist()
 
     best = None
+    best_key = float("inf")
     for s in s_grid:
         idx = _anchors_for(ws_all, s)
         channel, charge_d, charge_g = _fit_cells(
@@ -287,13 +400,18 @@ def build_model(traj: Trajectory, coss_curve=None,
             vendor=traj.vendor, subcircuit=traj.subcircuit,
             pin_roles=traj.pin_roles, anchors=ws_all[:, idx].T,
             v_ref=v_ref, v_span=v_span, channel=channel,
-            charge_d=charge_d, charge_g=charge_g, edge_window=window,
+            charge_d=charge_d, charge_g=charge_g,
+            edge_window=series[0]["window"],
             qoss_v=qoss_v, qoss_q=qoss_q, coss_v=coss_v, coss_c=coss_c,
-            v_block=v_block, v_width=v_width,
+            v_block=v_block, v_width=v_width, qg_v=qg_v, qg_q=qg_q,
             meta={"pod_energy": energy, "cells": s,
                   "deim_seed_count": min(s, len(energy)),
                   "qoss_base": coss_curve is not None,
-                  "static_samples": int(is_static.sum())})
+                  "static_samples": int(is_static.sum()),
+                  "dpt_samples": int(is_dpt.sum()),
+                  "n_trajectories": len(series),
+                  "trajectory_sources": list(sources),
+                  "qg_table": qg_v is not None})
         if static_u is not None:
             sp = cand.predict(np.linspace(0, 1, static_u.shape[1]),
                               static_u)[0]
@@ -301,13 +419,47 @@ def build_model(traj: Trajectory, coss_curve=None,
             cand.meta["static_rmse_rel"] = st_err
         else:
             st_err = float("inf")
-        id_pred, qg_pred = cand.predict(t[split:], u[:, split:])
-        cand.meta["heldout_id_rmse"] = _rmse(id_pred, y[0, split:])
-        qg_ref = cumulative_trapezoid(y[1, split:], t[split:], initial=0.0)
+        if selection_error_fn is not None:
+            sel_err = float(selection_error_fn(cand))
+            cand.meta["emitted_static_rmse_rel"] = sel_err
+            cand.meta["selection_error_source"] = "emitted_static_rmse_rel"
+        else:
+            sel_err = st_err
+            cand.meta["selection_error_source"] = "static_rmse_rel"
+        cand.meta["selection_error_rel"] = sel_err
+        id_pred, qg_pred = cand.predict(traj.time[primary_split:],
+                                        traj.input[:, primary_split:])
+        cand.meta["heldout_id_rmse"] = _rmse(
+            id_pred, traj.output[0, primary_split:])
+        qg_ref = cumulative_trapezoid(
+            traj.output[1, primary_split:], traj.time[primary_split:],
+            initial=0.0)
         cand.meta["heldout_qg_rmse"] = _rmse(qg_pred, qg_ref)
-        if best is None or st_err < best.meta.get(
-                "static_rmse_rel", float("inf")):
+        key = sel_err if np.isfinite(sel_err) else float("inf")
+        if best is None or key < best_key:
             best = cand
+            best_key = key
     if best is None:
         raise RuntimeError(f"{traj.vendor}: no valid TPWL candidate")
+
+    if holdout is not None:
+        hs = holdout["split"]
+        id_pred, qg_pred = best.predict(holdout["t"][hs:],
+                                        holdout["u"][:, hs:])
+        best.meta["holdout_id_rmse_rel"] = _rmse(
+            id_pred, holdout["y"][0, hs:])
+        qg_ref = cumulative_trapezoid(
+            holdout["y"][1, hs:], holdout["t"][hs:], initial=0.0)
+        best.meta["holdout_qg_rmse_rel"] = _rmse(qg_pred, qg_ref)
+        best.meta["cv_status"] = "holdout"
+    else:
+        best.meta["holdout_id_rmse_rel"] = "not_measured"
+        best.meta["holdout_qg_rmse_rel"] = "not_measured"
+        best.meta["cv_status"] = "not_measured"
+        if holdout_trajectory:
+            best.meta["cv_reason"] = (
+                "holdout_trajectory requested but no extra_trajectories "
+                "supplied; no cross-validation split is possible")
+        else:
+            best.meta["cv_reason"] = "holdout_trajectory not requested"
     return best
