@@ -250,10 +250,18 @@ def fit_pwl_model(
 
 
 def compare_tier2_vs_golden(vendor: str, lib_path: Path | None = None):
-    """Endpoint-current comparison at Vds=10 V per Vgs curve (LTspice)."""
+    """Endpoint-current comparison at the configured ``Vds_sweep_max``.
 
+    The golden Curve-1 row ends at ``conditions.Vds_sweep_max``; evaluating
+    the emitted Tier-2 model at a hard-coded 10 V changes the endpoint
+    definition for CPM2 (20 V sweep) and makes the endpoint JSON disagree
+    with the full-sweep/UROM endpoint metric.  The configured ceiling is the
+    one source of truth.
+    """
+    cfg = load_input(vendor)
+    cond = cfg["conditions"]
+    vds_end = float(cond["Vds_sweep_max"])
     if lib_path is None:
-        cfg = load_input(vendor)
         device = cfg["device"]
         lib_path = Path("reports/models") / f"{device}_PIECESPICE_T2.lib"
     lib_path = Path(lib_path)
@@ -272,7 +280,7 @@ def compare_tier2_vs_golden(vendor: str, lib_path: Path | None = None):
         golden = abs(float(c1[key][-1]))
         nb = NetlistBuilder(f"cmp_{vgs_val}")
         nb.include(lib_path)
-        nb.v_dc("ds", "drain", "0", 10.0)
+        nb.v_dc("ds", "drain", "0", vds_end)
         nb.v_dc("gs", "gate", "0", vgs_val)
         nb.x_instance("m1", name, ["drain", "gate", "0"])
         result = engine.run_op(nb.render())
