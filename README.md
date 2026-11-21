@@ -731,24 +731,24 @@ canonical and keyed paths never clobber each other. A fixed-topology tuning
 API exists, but the final run reports `tuning.verdict="not_run"`
 (`tuning.mode="off"`).
 
-**Test suite (measured; CI line pending orchestrator final sync).** Full live
-suite: **822 passed, 0 skipped, 1 warning** (`uv run pytest`). The live
-engine module alone reports **19 passed**. T6.2a closed the four former
+**Test suite (measured; final CI run ID pending push).** Full live suite:
+**822 passed, 0 skipped, 1 warning** (`uv run pytest`, 388.84 s).
+LTspice-free CI command: **811 passed, 10 skipped, 1 deselected,
+1 warning** (278.96 s); the 10 skips are the `PIECESPICE_LIVE` gate. The
+live engine module alone reports **19 passed**. T6.2a closed the four former
 skips on the LTspice backend — `test_vendor_ti`,
 `test_netlist_builder.py::test_fit_pwl_model_generates_lib`,
 `test_parser.py::test_normalize_forward_referenced_params` and
 `test_parser.py::test_normalize_safe_functions` (29 passed / 0 skipped
 targeted). T6.3 removed `pyspice` from `pyproject.toml` and `uv.lock`
-(16 passed targeted); no PySpice import or dependency remains. Only the
-`PIECESPICE_LIVE` gates for CI remain as skips. The LTspice-free CI count
-and the GitHub CI line are pending the orchestrator's final sync; the
-earlier 713-pass CI result and its run hash are historical (pre-T6.2a) and
-are not current evidence.
+(16 passed targeted); no PySpice import or dependency remains. The earlier
+713-pass CI result and its run hash are historical (pre-T6.2a) and are not
+current evidence.
 
 | Command | Passed | Skipped | Deselected | Warnings |
 |---|---|---|---|---|
-| `uv run pytest` (full live suite) | 822 | 0 | — | 1 |
-| `PIECESPICE_LIVE=0 uv run pytest -q --deselect tests/test_netlist_builder.py::test_tier2_simulates_and_matches` (LTspice-free CI) | pending ORCHESTRATOR final sync | — | — | — |
+| `uv run pytest` (full live suite, 388.84 s) | 822 | 0 | — | 1 |
+| `PIECESPICE_LIVE=0 uv run pytest -q --deselect tests/test_netlist_builder.py::test_tier2_simulates_and_matches` (LTspice-free CI, 278.96 s) | 811 | 10 | 1 | 1 |
 | Live engine module (`tests/test_engine_ltspice.py`) | 19 | — | — | — |
 
 *AES-STD100 caveat above applies to the fidelity figures these tests
@@ -809,10 +809,10 @@ writes fixed `figures/converter/` plots.
 ## 🧪 Testing
 
 ```bash
-uv run pytest                # full live suite: 822 passed, 0 skipped, 1 warning
+uv run pytest                # full live suite: 822 passed, 0 skipped, 1 warning (388.84 s)
 PIECESPICE_LIVE=0 uv run pytest -q \
   --deselect tests/test_netlist_builder.py::test_tier2_simulates_and_matches
-                             # LTspice-free CI: final count pending ORCHESTRATOR sync
+                             # LTspice-free CI: 811 passed, 10 skipped, 1 deselected, 1 warning (278.96 s)
 uv run pytest tests/test_engine_ltspice.py -q   # live engine module: 19 passed
 uv run pytest tests/test_pwlf_fit.py -v    # single module
 ```
@@ -824,9 +824,9 @@ DC sweep, timeout, temperature). The four formerly skipped tests were
 rewritten on the LTspice backend under T6.2a with their PySpice imports
 removed, and T6.3 purged the `pyspice` dependency from `pyproject.toml` and
 `uv.lock`. The LTspice-free CI command deselects the one Tier-2 live match
-test and skips the live class (`PIECESPICE_LIVE=0`); only those gates remain.
-Its count and run hash are pending the orchestrator's final sync. Tier-3 has
-its own test module, `tests/test_tier3.py`.
+test and skips the live class (`PIECESPICE_LIVE=0`); those 10 CI skips are the
+gate, while the full-live run has zero skips. Final CI run ID pending push.
+Tier-3 has its own test module, `tests/test_tier3.py`.
 
 ---
 
