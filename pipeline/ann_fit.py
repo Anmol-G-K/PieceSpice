@@ -23,6 +23,7 @@ from approximation.ann_channel import AnnChannelFit, DptPoints, fit_channel_iv
 from approximation.ann_residual import fit_channel_residual
 from common.types import CurveData, trim_trailing_invalid
 from config.yaml_io import load_input, load_output
+from models.ann_netlist_builder import EXP_CAP
 from approximation.smoother import eps_from_grid
 
 __all__ = ["ann_fit_for_vendor", "hybrid_ann_fit_for_vendor"]
@@ -193,13 +194,18 @@ def _dpt_points(vendor: str, vds_max: float
         return None, prov
 
 
-def ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True
-                       ) -> Dict[str, Any]:
+def ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True,
+                       holdout_fraction: float = 0.0,
+                       holdout_mask: Optional[Any] = None,
+                       temperature_c: Optional[Any] = None) -> Dict[str, Any]:
     """Fit channel + charge ANN candidates for *vendor* (no file writes).
 
     Returns a dict with the two fit objects, a serialisable ``record`` and the
     data provenance.  T4 consumes the fit objects to emit the UROM library and
     copies the record into ``unified_validation.json#ann_fit``.
+    ``holdout_fraction``/``holdout_mask`` and ``temperature_c`` are optional
+    generalisation/temperature controls; absent metrics stay ``not_measured``
+    and an absent temperature stays ``None``.
     """
     cfg = load_input(vendor)
     cond = cfg["conditions"]
@@ -222,20 +228,31 @@ def ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True
         channel_inputs.append(dpt)
     channel_fit: AnnChannelFit = fit_channel_iv(
         channel_inputs, v_th, v_sat,
-        guard_width=guard_width, guard_width_provenance=guard_prov)
+        guard_width=guard_width, guard_width_provenance=guard_prov,
+        holdout_fraction=holdout_fraction, holdout_mask=holdout_mask,
+        temperature_c=temperature_c)
     charge_fit: AnnChargeFit = fit_charge_qv(c4, plateau)
 
-    q0_used = dict(charge_fit.provenance.get("q0_used") or {})
+    ch_diag = getattr(channel_fit, "diagnostics", {}) or {}
+    ch_coef = getattr(channel_fit, "coefficients", {}) or {}
+    ch_prov = getattr(channel_fit, "provenance", {}) or {}
+    charge_prov = getattr(charge_fit, "provenance", {}) or {}
+    q0_used = dict(charge_prov.get("q0_used") or {})
     q0_oss = q0_used.get("oss")
     if q0_oss is None and q0_used:
         q0_oss = float(np.median(list(q0_used.values())))
+    holdout_fields = {
+        key: ch_diag.get(key, "not_measured")
+        for key in ("holdout_id_rms_rel", "holdout_gm_rms_rel",
+                    "holdout_gds_rms_rel", "holdout_n")
+    }
     record: Dict[str, Any] = {
         "activation": channel_fit.activation,
         "neurons": channel_fit.neurons,
         "loss_weights": dict(channel_fit.loss_weights),
         "gm_gds_q_derivative_terms":
             channel_fit.diagnostics["derivative_terms"]
-            + charge_fit.provenance["derivative_terms"],
+            + charge_prov["derivative_terms"],
         "train_range": dict(channel_fit.train_range),
         "q0_offset": (float(q0_oss) if q0_oss is not None else None),
         "q0_offset_by_table": q0_used,
@@ -245,6 +262,14 @@ def ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True
             "q_oss entry; charge_fit.q0 is the caller override (None here)",
         "guard_width_v": float(guard_width),
         "out_of_range_check": channel_fit.out_of_range_check,
+        **holdout_fields,
+        "holdout_selection": ch_diag.get("holdout_selection"),
+        "monotone_penalty": ch_diag.get("monotone_penalty"),
+        "charge_emission": charge_prov.get("emission", "not_measured"),
+        "charge_diagnostics": getattr(charge_fit, "diagnostics", {}) or {},
+        "temperature_center": ch_coef.get("temperature_center"),
+        "temperature_scale": ch_coef.get("temperature_scale"),
+        "exp_cap": float(EXP_CAP),
     }
     provenance: Dict[str, Any] = {
         "guard_width": guard_prov,
@@ -261,8 +286,15 @@ def ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True
         "v_sat_source": "curve1 top-Vgs curve, dI/dVds half-initial rule",
         "v_sat_value": v_sat,
         "cap_equivalents": cap_meta,
-        "channel_fit": channel_fit.provenance,
-        "charge_fit": charge_fit.provenance,
+        "channel_fit": ch_prov,
+        "charge_fit": charge_prov,
+        "holdout": ch_diag.get("holdout_selection"),
+        "holdout_metrics": dict(holdout_fields),
+        "monotone_penalty": ch_diag.get("monotone_penalty"),
+        "charge_emission": charge_prov.get("emission", "not_measured"),
+        "exp_cap": float(EXP_CAP),
+        "temperature_center": ch_coef.get("temperature_center"),
+        "temperature_scale": ch_coef.get("temperature_scale"),
         "external_source_status": "conditional_until_url_and_section_pinned",
     }
     limitations = [
@@ -335,7 +367,11 @@ def _curve4_data_richness(vendor: str) -> Dict[str, Any]:
 def hybrid_ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True,
                               dpt_points: Optional[DptPoints] = None,
                               activation: str = _HYBRID_ACTIVATION,
-                              neurons: int = _HYBRID_NEURONS) -> Dict[str, Any]:
+                              neurons: int = _HYBRID_NEURONS,
+                              holdout_fraction: float = 0.0,
+                              holdout_mask: Optional[Any] = None,
+                              temperature_c: Optional[Any] = None
+                              ) -> Dict[str, Any]:
     """Fit the hybrid C0+signed-residual basis for *vendor* (no file writes).
 
     The closed Tier-2 channel is evaluated by
@@ -377,8 +413,17 @@ def hybrid_ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True,
         channel_inputs, spec, v_th=v_th, activation=activation,
         neurons=neurons, guard_width=guard_width,
         guard_width_provenance=guard_prov,
-        spec_source=f"pipeline.fitting.build_pwl_spec({vendor})")
+        spec_source=f"pipeline.fitting.build_pwl_spec({vendor})",
+        holdout_fraction=holdout_fraction, holdout_mask=holdout_mask,
+        temperature_c=temperature_c)
 
+    r_diag = getattr(residual_fit, "diagnostics", {}) or {}
+    r_coef = getattr(residual_fit, "coefficients", {}) or {}
+    holdout_fields = {
+        key: r_diag.get(key, "not_measured")
+        for key in ("holdout_id_rms_rel", "holdout_gm_rms_rel",
+                    "holdout_gds_rms_rel", "holdout_n")
+    }
     record: Dict[str, Any] = {
         "basis": "hybrid",
         "vendor": vendor,
@@ -399,8 +444,14 @@ def hybrid_ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True,
             residual_fit.diagnostics["cutoff_attenuation"],
         "residual_derivative_diagnostics":
             residual_fit.diagnostics["analytic_vs_finite_difference"],
+        **holdout_fields,
+        "holdout_selection": r_diag.get("holdout_selection"),
+        "temperature_center": r_coef.get("temperature_center"),
+        "temperature_scale": r_coef.get("temperature_scale"),
+        "exp_cap": float(EXP_CAP),
         "charge_basis": "unchanged closed Tier-2 C0 charge tables; "
                         "no ANN charge fit in the hybrid basis",
+        "charge_emission": "closed_tier2_c0_unchanged",
         "curve4_data_richness": curve4_note,
         "optimizer": {
             "residual": {k: residual_fit.diagnostics[k] for k in (
@@ -414,7 +465,13 @@ def hybrid_ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True,
                    "curve7_threshold_voltage.yaml"],
         "curve4_full_sweep": curve4_note,
         "charge_basis": "closed Tier-2 C0 Q tables; no ANN charge fit",
+        "charge_emission": "closed_tier2_c0_unchanged",
         "guard_width": guard_prov,
+        "holdout": r_diag.get("holdout_selection"),
+        "holdout_metrics": dict(holdout_fields),
+        "temperature_center": r_coef.get("temperature_center"),
+        "temperature_scale": r_coef.get("temperature_scale"),
+        "exp_cap": float(EXP_CAP),
         "v_th_source": "curve7_threshold_voltage:vth_v",
         "v_sat_source": "curve1 top-Vgs curve, dI/dVds half-initial rule",
         "v_sat_value": v_sat,

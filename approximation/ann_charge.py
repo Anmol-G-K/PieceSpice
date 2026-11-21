@@ -230,18 +230,88 @@ def _fit_one(x: np.ndarray, q: np.ndarray, q0: float, neurons: int,
     }
 
 
-def _sample_table(x: np.ndarray, q: np.ndarray) -> Dict[str, list]:
-    """Sample a monotone, zero-anchored Q(V) table for the emitter chain."""
+def _net_charge_q(coef: Dict[str, Any], activation: str, q0: float,
+                  v: Any) -> np.ndarray:
+    """Evaluate the fitted log-net ``Q = exp(y) - q0`` on a voltage grid."""
+    v = np.asarray(v, dtype=float)
+    cx = float(coef["x_center"])
+    sx = float(coef["x_scale"])
+    if not np.isfinite(sx) or sx <= 0.0:
+        raise ValueError("charge net voltage scale must be finite and > 0")
+    x = Jet2((v - cx) / sx)
+    y = Jet2(float(coef["b2"]))
+    w1 = np.asarray(coef["w1"], dtype=float)
+    b1 = np.asarray(coef["b1"], dtype=float)
+    w2 = np.asarray(coef["w2"], dtype=float)
+    for i, wi in enumerate(w2):
+        pre = float(w1[i, 0]) * x + float(b1[i])
+        y = y + float(wi) * pre.act(activation)
+    return np.exp(np.asarray(y.v, dtype=float)) - float(q0)
+
+
+def _fitted_table(coef: Dict[str, Any], activation: str, q0: float,
+                  x: np.ndarray, q: np.ndarray) -> tuple:
+    """Sample the fitted net into a monotone, zero-anchored Q(V) table.
+
+    This is the emission path: the table value is ``exp(y(v)) - q0`` minus
+    its own value at v=0, so ``Q(0) = 0`` exactly, then a monotone
+    projection (``np.maximum.accumulate``).  Measured samples are used only
+    for diagnostics, never resampled into the emitted charge element.
+    """
+    x = np.asarray(x, dtype=float)
+    q_meas = np.asarray(q, dtype=float)
     xmax = float(np.max(x))
-    if xmax <= 0.0:
+    if not np.isfinite(xmax) or xmax <= 0.0:
         raise ValueError("charge voltage grid must extend above zero")
     n = int(min(32, max(8, x.size)))
-    xs = np.linspace(0.0, xmax, n)
-    qs = np.interp(xs, np.concatenate(([0.0], x)),
-                   np.concatenate(([0.0], q)))
-    qs = np.maximum.accumulate(np.maximum(qs - qs[0], 0.0))
-    qs[0] = 0.0
-    return {"v": [float(v) for v in xs], "q": [float(v) for v in qs]}
+    v = np.linspace(0.0, xmax, n)
+    q_raw = _net_charge_q(coef, activation, q0, v)
+    if not np.all(np.isfinite(q_raw)):
+        raise RuntimeError("fitted charge net produced non-finite values")
+    q_zero = float(q_raw[0])
+    if not np.isfinite(q_zero):
+        raise RuntimeError("fitted charge net cannot be anchored: Q(0) "
+                           "is not finite")
+    q_shift = q_raw - q_zero
+    raw_monotone = bool(np.all(np.diff(q_shift) >= 0.0))
+    q_table = np.maximum.accumulate(q_shift)
+    q_table[0] = 0.0
+    if not np.all(np.isfinite(q_table)):
+        raise RuntimeError("fitted charge table is not finite")
+    if float(np.max(q_table)) <= 0.0:
+        raise RuntimeError("fitted charge net cannot be anchored above zero")
+
+    q_model_x = _net_charge_q(coef, activation, q0, x)
+    if not np.all(np.isfinite(q_model_x)):
+        raise RuntimeError("fitted charge net is non-finite on measured grid")
+    fit_rmse = float(np.sqrt(np.mean(
+        ((q_model_x - q_model_x[0]) - (q_meas - q_meas[0])) ** 2)))
+
+    max_cap_error: Optional[float] = None
+    if x.size >= 2:
+        c_meas = np.gradient(q_meas, x)
+        c_fit = np.gradient(q_table, v)
+        c_ref = np.interp(v, x, c_meas)
+        good = (np.isfinite(c_fit) & np.isfinite(c_ref)
+                & (np.abs(c_ref) > 0.0))
+        good[0] = False
+        good[-1] = False
+        if np.any(good):
+            max_cap_error = float(np.max(
+                np.abs(c_fit[good] - c_ref[good])
+                / np.abs(c_ref[good])) * 100.0)
+
+    diag = {
+        "fit_vs_measured_rmse": fit_rmse,
+        "max_cap_error_pct": max_cap_error,
+        "q_zero_anchored": bool(float(q_table[0]) == 0.0),
+        "monotone": bool(np.all(np.diff(q_table) >= 0.0)),
+        "raw_monotone": raw_monotone,
+        "emission": "fitted_net_monotone_anchored",
+        "table_points": n,
+    }
+    return {"v": [float(xv) for xv in v],
+            "q": [float(qv) for qv in q_table]}, diag
 
 
 def fit_charge_qv(curve4, plateau, *, q0: Optional[float] = None,
@@ -295,15 +365,15 @@ def fit_charge_qv(curve4, plateau, *, q0: Optional[float] = None,
             raise ValueError(f"{name}: degenerate charge voltage grid")
         final = _fit_one(x, q, q0_i, neurons, activation, w, cx, sx)
         coeffs[name] = final
-        # Re-evaluate the analytic net on the data grid (for diagnostics),
-        # then sample a monotone table for emission.
-        tables[name] = _sample_table(x, q)
+        table, table_diag = _fitted_table(final, activation, q0_i, x, q)
+        tables[name] = table
         eps_by[name] = eps_from_grid(tables[name]["v"])
         q0_used[name] = q0_i
         diag[name] = {"source": sources[name], "q_max_c": float(np.max(q)),
                       "q0_c": q0_i, "eps_v": eps_by[name],
                       "optimizer_cost": final["cost"],
-                      "optimizer_success": final["success"]}
+                      "optimizer_success": final["success"],
+                      **table_diag}
 
     fit = AnnChargeFit(tables, (float(q0) if q0 is not None else None),
                        activation, neurons, dict(w), coeffs, diag, {})
@@ -317,6 +387,20 @@ def fit_charge_qv(curve4, plateau, *, q0: Optional[float] = None,
         "eps_rule": "median_positive_grid_spacing_cap_half_min_segment "
                     "(approximation.smoother.eps_from_grid)",
         "log_transform": "log(Q + q0); Q = exp(y) - q0",
+        "emission": "fitted_net_monotone_anchored",
+        "emission_rule": "emitted tables are exp(y(v))-q0 sampled from the "
+                         "fitted net on a dense grid, shifted so Q(0)=0, "
+                         "then np.maximum.accumulate; measured samples are "
+                         "not resampled into the charge element",
+        "diagnostics": {
+            "fit_vs_measured_rmse": "RMS Q error on the measured grid "
+                                    "(model shape, not a fidelity gate)",
+            "max_cap_error_pct": "max |C_fit - C_measured| / |C_measured| "
+                                 "on the emitted table nodes; None where "
+                                 "the measured derivative is undefined",
+            "raw_monotone": "monotonicity of the fitted Q before the "
+                            "monotone projection",
+        },
         "derivative_terms": [k for k in ("dq", "d2q") if w[k] > 0.0],
         "q0_offset": "Tung SISPAD 2024 Eq.5 charge-shift fix "
                      "(CONDITIONAL until URL pinned)",

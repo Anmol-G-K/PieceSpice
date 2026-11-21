@@ -334,3 +334,73 @@ def test_hybrid_pipeline_record_and_provenance(monkeypatch):
                 if line.startswith(element)] == [
             line for line in base.splitlines() if line.startswith(element)]
 
+
+# ---------------------------------------------------------------------------
+# held-out residual validation and optional temperature input
+# ---------------------------------------------------------------------------
+def test_residual_holdout_absent_reports_not_measured(fitted):
+    _, fit = fitted
+    for key in ("holdout_id_rms_rel", "holdout_gm_rms_rel",
+                "holdout_gds_rms_rel", "holdout_n"):
+        assert fit.diagnostics[key] == "not_measured"
+    assert fit.diagnostics["holdout_selection"] is None
+    assert fit.provenance["holdout"] is None
+    assert fit.diagnostics["temperature_center"] is None
+    assert fit.diagnostics["temperature_scale"] is None
+    assert fit.provenance["temperature"] is None
+
+
+def test_residual_holdout_by_vgs_family_measures_out_of_family_error():
+    spec = _spec()
+    fit = fit_channel_residual(_families(spec), spec, v_th=V_TH,
+                               neurons=3, guard_width=0.05,
+                               holdout_fraction=0.4)
+    sel = fit.diagnostics["holdout_selection"]
+    assert sel["method"] == "vgs_family"
+    assert fit.diagnostics["holdout_n"] == sel["n_holdout"] > 0
+    assert (fit.diagnostics["train_samples"]
+            + fit.diagnostics["holdout_n"] == 5 * 6)
+    for key in ("holdout_id_rms_rel", "holdout_gm_rms_rel",
+                "holdout_gds_rms_rel"):
+        value = fit.diagnostics[key]
+        assert isinstance(value, float) and np.isfinite(value) and value >= 0
+    assert fit.provenance["holdout"]["method"] == "vgs_family"
+
+
+def test_residual_temperature_absent_and_present_forms():
+    spec = _spec()
+    two = fit_channel_residual(_families(spec), spec, v_th=V_TH,
+                               neurons=3, guard_width=0.05)
+    three = fit_channel_residual(_families(spec), spec, v_th=V_TH,
+                                 neurons=3, guard_width=0.05,
+                                 temperature_c=25.0)
+    assert all(len(row) == 2 for row in two.coefficients["w1"])
+    assert "temperature_center" not in two.coefficients
+    assert all(len(row) == 3 for row in three.coefficients["w1"])
+    assert three.coefficients["temperature_center"] == 25.0
+    assert three.coefficients["temperature_scale"] == 1.0
+    assert three.provenance["temperature"]["n_inputs"] == 3
+    assert three.diagnostics["temperature_center"] == 25.0
+    c = three.coefficients
+    from models.ann_netlist_builder import _fmt
+    nt = (f"((({_fmt(c['temperature_value'])})-"
+          f"({_fmt(c['temperature_center'])}))"
+          f"/{_fmt(c['temperature_scale'])})")
+    assert nt in emit_ann_residual(three)
+    assert nt not in emit_ann_residual(two)
+    assert emit_ann_residual(three).isascii()
+
+
+def test_residual_holdout_keeps_hybrid_c0_charge_lines():
+    spec = _spec()
+    fit = fit_channel_residual(_families(spec), spec, v_th=V_TH,
+                               neurons=3, guard_width=0.05,
+                               holdout_fraction=0.4)
+    base = build_tier2_subcircuit(spec)
+    net = build_hybrid_ann_subcircuit(spec, fit)
+    assert net.isascii() and "G_ANN di ss" in net
+    for element in ("C_QOSS ", "C_ISS ", "C_RSS "):
+        assert [line for line in net.splitlines()
+                if line.startswith(element)] == [
+            line for line in base.splitlines() if line.startswith(element)]
+

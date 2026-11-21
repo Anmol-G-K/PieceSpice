@@ -29,9 +29,12 @@ from approximation.smoother import delta_ramp_chain
 from models.netlist_builder import build_tier2_subcircuit
 
 __all__ = ["emit_ann_channel", "build_ann_subcircuit",
-           "emit_ann_residual", "build_hybrid_ann_subcircuit"]
+           "emit_ann_residual", "build_hybrid_ann_subcircuit", "EXP_CAP"]
 
 _ACT = ("isru", "tanh", "sigmoid")
+# LTspice-compatible bound on every emitted exponential.  The fitted nets are
+# narrow, but an off-grid evaluation must not overflow the simulator's exp().
+EXP_CAP = 50.0
 _TERMS = {"oss": "V(di,ss)", "iss": "V(gi,ss)", "rss": "V(gi,di)"}
 _ELEMENTS = {
     "oss": ("C_QOSS", "di ss"),
@@ -56,15 +59,25 @@ def _act_expr(u: str, activation: str) -> str:
                      f"expected one of {_ACT}")
 
 
-def _net_expr(coef: dict, activation: str, ng: str, nd: str) -> str:
-    """Unroll one hidden layer: scalar multiplications, no loops/arrays."""
+def _net_expr(coef: dict, activation: str, ng: str, nd: str,
+              nt: str | None = None) -> str:
+    """Unroll one hidden layer: scalar multiplications, no loops/arrays.
+
+    ``nt`` is the optional third normalised temperature term; it is added
+    only when the fit carries a three-column ``w1``.
+    """
     w1 = coef["w1"]
     b1 = coef["b1"]
     w2 = coef["w2"]
     out = _fmt(coef["b2"])
     for i, wi in enumerate(w2):
-        pre = (f"({_fmt(w1[i][0])}*{ng}+{_fmt(w1[i][1])}*{nd}"
-               f"+{_fmt(b1[i])})")
+        pre = (f"({_fmt(w1[i][0])}*{ng}+{_fmt(w1[i][1])}*{nd}")
+        if nt is not None:
+            if len(w1[i]) != 3:
+                raise ValueError("three-input temperature term requires "
+                                 "three w1 coefficients per neuron")
+            pre += f"+{_fmt(w1[i][2])}*{nt}"
+        pre += f"+{_fmt(b1[i])})"
         out += f"+{_fmt(wi)}*{_act_expr(pre, activation)}"
     return f"({out})"
 
@@ -94,6 +107,24 @@ def emit_ann_channel(fit: AnnChannelFit, vgs_term: str = "V(gi,ss)",
     gw = float(c["guard_width"])
     if not math.isfinite(gw) or gw <= 0.0:
         raise ValueError("guard_width must be finite and > 0")
+    if not math.isfinite(EXP_CAP) or EXP_CAP <= 0.0:
+        raise ValueError("EXP_CAP must be finite and > 0")
+
+    w1 = c["w1"]
+    widths = {len(row) for row in w1}
+    if len(widths) != 1 or not widths.issubset({2, 3}):
+        raise ValueError("w1 must have 2 or 3 coefficients per neuron")
+    nt = None
+    if widths == {3}:
+        for key in ("temperature_center", "temperature_scale"):
+            if key not in c:
+                raise ValueError(f"temperature fit is missing {key}")
+        tc = float(c["temperature_center"])
+        ts = float(c["temperature_scale"])
+        if not math.isfinite(ts) or ts <= 0.0:
+            raise ValueError("temperature_scale must be finite and > 0")
+        temp = float(c.get("temperature_value", tc))
+        nt = f"((({_fmt(temp)})-({_fmt(tc)}))/{_fmt(ts)})"
 
     ng = (f"(({vgs_term})-({_fmt(c['vgs_center'])}))"
           f"/({_fmt(c['vgs_scale'])})")
@@ -101,16 +132,22 @@ def emit_ann_channel(fit: AnnChannelFit, vgs_term: str = "V(gi,ss)",
           f"/({_fmt(c['vds_scale'])})")
     nd_sat = _fmt((fit.v_sat - float(c["vds_center"]))
                   / float(c["vds_scale"]))
-    y_hi = _net_expr(c, activation, ng, nd)
-    y_sat = _net_expr(c, activation, ng, nd_sat)
+    y_hi = _net_expr(c, activation, ng, nd, nt)
+    y_sat = _net_expr(c, activation, ng, nd_sat, nt)
     cut = (f"(0.5*(1+tanh({_fmt(c['alpha'])}"
            f"*(({vgs_term})-({_fmt(fit.v_th)})))))")
-    hi = f"(({vds_term})*exp({y_hi})*{cut})"
-    lo = f"(({vds_term})*exp({y_sat})*{cut})"
+    cap = _fmt(EXP_CAP)
+    hi = f"(({vds_term})*min(exp({y_hi}),{cap})*{cut})"
+    lo = f"(({vds_term})*min(exp({y_sat}),{cap})*{cut})"
     blend = (f"(0.5*(1+tanh((({vds_term})-({_fmt(fit.v_sat)}))"
              f"/({_fmt(gw)}))))")
     expr = f"({lo})+({blend})*(({hi})-({lo}))"
     expr.encode("ascii")
+    if isinstance(fit.provenance, dict):
+        fit.provenance["exp_cap"] = float(EXP_CAP)
+        fit.provenance["exp_cap_rule"] = (
+            "min(exp(y), EXP_CAP) in both guarded channel branches; "
+            "LTspice-compatible min()")
     return expr
 
 
@@ -162,10 +199,27 @@ def emit_ann_residual(fit: AnnResidualFit, vgs_term: str = "V(gi,ss)",
     w2 = c["w2"]
     if not (len(w1) == len(b1) == len(w2) == fit.neurons):
         raise ValueError("residual coefficients do not match neurons")
+    widths = {len(row) for row in w1}
+    if len(widths) != 1 or not widths.issubset({2, 3}):
+        raise ValueError("residual w1 must have 2 or 3 coefficients")
+    nt = None
+    if widths == {3}:
+        for key in ("temperature_center", "temperature_scale"):
+            if key not in c:
+                raise ValueError(f"temperature residual is missing {key}")
+        tc = float(c["temperature_center"])
+        ts = float(c["temperature_scale"])
+        if not math.isfinite(ts) or ts <= 0.0:
+            raise ValueError("temperature_scale must be finite and > 0")
+        temp = float(c.get("temperature_value", tc))
+        nt = f"((({_fmt(temp)})-({_fmt(tc)}))/{_fmt(ts)})"
     net = _fmt(c["b2"])
     for i in range(fit.neurons):
         u = (f"({_fmt(w1[i][0])}*({vgs_term})"
-             f"+{_fmt(w1[i][1])}*({vds_term})+{_fmt(b1[i])})")
+             f"+{_fmt(w1[i][1])}*({vds_term})")
+        if nt is not None:
+            u += f"+{_fmt(w1[i][2])}*{nt}"
+        u += f"+{_fmt(b1[i])})"
         net += f"+{_fmt(w2[i])}*{_act_expr(u, fit.activation)}"
     cut = (f"(0.5*(1+tanh({_fmt(fit.alpha)}"
            f"*(({vgs_term})-({_fmt(fit.v_th)})))))")
