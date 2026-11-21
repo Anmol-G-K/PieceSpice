@@ -48,6 +48,17 @@ _META_DEFAULTS = {
     "r_drain": 1e-4,
 }
 
+# Documented unified-ROM metadata that the Tier-2 emitter deliberately does
+# not consume.  It is accepted silently (never merged into the emitter's
+# parasitic/cap scalars) so a UROM C0 build does not emit false "unknown
+# metadata" warnings for keys that the unified layer owns.
+_UNIFIED_ONLY_METADATA = frozenset({
+    "Vds_cap_max", "theta", "theta_bounds",
+    "urom_provenance", "urom_c1_eps", "urom_c1_eps_by_table",
+    "urom_emitted_eps_by_table", "urom_channel_basis",
+    "urom_c1_variant", "urom_tuning_theta", "urom_method_label",
+})
+
 # Fixed, vendor-independent fitting rule (validated by the four-device sweep
 # in reports/guarded_blend_sweep.json). A plateau outside this ratio band is
 # unreliable (e.g. a near-zero curve) and the forced endpoint is retained.
@@ -64,7 +75,7 @@ def _resolve_metadata(spec: PWLModelSpec) -> dict:
     for k, v in spec.metadata.items():
         if k in _META_DEFAULTS or k in PWL_META_KEYS:
             meta[k] = v
-        else:
+        elif k not in _UNIFIED_ONLY_METADATA:
             _logger.warning(
                 "unknown metadata key %r for %s; ignored.", k,
                 spec.device_name)

@@ -2,6 +2,15 @@
   "schema": "piecespice.tier3/2.0",
   "vendor": "cpm2-1200",
   "variant": "v1",
+  "emission": {
+    "compact": false,
+    "rel_tol": 0.005,
+    "table_points": 31,
+    "vgs_points": 26,
+    "max_rel_error_pct": 0.0,
+    "estimated_literal_count": 5536,
+    "source": "default"
+  },
   "methods": [
     "TPWL (Rewienski & White 2003)",
     "POD-DEIM anchors (Chaturantabut & Sorensen 2010)"
@@ -121,7 +130,25 @@
     "emitted_static_curve_rmse_rel": 0.009749351034205083,
     "static_samples": 606,
     "heldout_id_rmse_rel": 0.29557970128190425,
-    "heldout_qg_rmse_rel": 0.31788472015824637
+    "heldout_qg_rmse_rel": 0.31788472015824637,
+    "cell_selection_error_rel": 0.009749351034205083
+  },
+  "generalization": {
+    "status": "not_measured",
+    "n_trajectories": 1,
+    "trajectory_sources": [
+      "cpm2-1200:primary"
+    ],
+    "cv_status": "not_measured",
+    "holdout_id_rmse_rel": "not_measured",
+    "holdout_qg_rmse_rel": "not_measured",
+    "selection_error_source": "emitted_static_rmse_rel",
+    "reason": "no config['tier3']['training_conditions']; single configured DPT trajectory only",
+    "physical_elements": {
+      "include_gate_charge": false,
+      "include_body_diode": false,
+      "include_parasitics": false
+    }
   },
   "dpt_run": {
     "completed": true,
@@ -181,22 +208,22 @@
       "golden": 986.2625878706833,
       "tier3": 2810.4327359121344,
       "tier3_rel_err_pct": 184.95785711387364,
-      "tier2": 0.3811123163714551,
-      "tier2_rel_err_pct": -99.96135792627051
+      "tier2": 726.5448769511014,
+      "tier2_rel_err_pct": -26.33352558574751
     },
     "e_on_uj": {
       "golden": 2.7909554948540354,
       "tier3": 1.8114412020839261,
       "tier3_rel_err_pct": -35.09601978878338,
-      "tier2": 6.109476707046132,
-      "tier2_rel_err_pct": 118.902691867025
+      "tier2": 3.2394497672543987,
+      "tier2_rel_err_pct": 16.06956016415515
     },
     "e_off_uj": {
       "golden": 1.6520839383633132,
       "tier3": 0.8710846949608457,
       "tier3_rel_err_pct": -47.27358127918052,
-      "tier2": 57.041822545858814,
-      "tier2_rel_err_pct": 3352.7193940502207
+      "tier2": 3.45889177896711,
+      "tier2_rel_err_pct": 109.36537779029348
     },
     "i_peak_a": {
       "golden": 26.82243537902832,
@@ -225,24 +252,24 @@
       }
     },
     "golden": {
-      "wall_clock_s": 1.0737406999978703,
-      "solver_elapsed_s": 0.495,
+      "wall_clock_s": 0.9306317000009585,
+      "solver_elapsed_s": 0.421,
       "iterations": 21310.0,
       "trace_points": 7154.0,
       "t_last_s": 1.4e-05
     },
     "tier3": {
-      "wall_clock_s": 3.826645200009807,
-      "solver_elapsed_s": 2.984,
+      "wall_clock_s": 3.0315372000004572,
+      "solver_elapsed_s": 2.354,
       "iterations": 205154.0,
       "trace_points": 32250.0,
       "t_last_s": 1.4e-05
     },
     "tier3_bench_completed": true,
-    "solver_speedup": 0.16588471849865952,
+    "solver_speedup": 0.17884451996601528,
     "bench_wall_s": {
-      "golden": 3.22100330000103,
-      "tier3": 11.377447799997753
+      "golden": 2.7703715000025113,
+      "tier3": 9.108679699998902
     },
     "scope": "forced 2ns fidelity control; not the adaptive speed claim"
   },
@@ -251,9 +278,10 @@
     "tier3": "I(Lload)-I(Dclamp)"
   },
   "build_seconds": {
-    "capture": 1.067831499996828,
-    "fit": 31.4197528000077
+    "capture": 0.8788304000008793,
+    "training_captures": 2.999986463692039e-07,
+    "fit": 27.774377300000197
   },
-  "spice_log_tail": "Total elapsed time: 2.982 seconds.\nTotal iterations: 205154\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_d9rgja1i\\tran.net\n",
+  "spice_log_tail": "Total elapsed time: 2.333 seconds.\nTotal iterations: 205154\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_v4k49ane\\tran.net\n",
   "emitted_lib": "reports\\models\\cpm2-1200_PIECESPICE_T3.lib"
 }

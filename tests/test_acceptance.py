@@ -59,7 +59,7 @@ def test_policy_record_carries_path_schema_sources_and_sha256():
     assert record["sources"]["speed.min_solver_speedup"] == (
         "project_decision")
     assert record["values"]["dpt_bars_pct"]["trap/default"]["irfs7730pbf"] == (
-        10.0, 0.60)
+        10.0, 5.0)
     assert "application requirement" in record["override_semantics"]
     json.dumps(record, allow_nan=False)
 

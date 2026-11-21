@@ -2,13 +2,22 @@
   "schema": "piecespice.tier3/2.0",
   "vendor": "irfs7730pbf",
   "variant": "v1",
+  "emission": {
+    "compact": false,
+    "rel_tol": 0.005,
+    "table_points": 29,
+    "vgs_points": 22,
+    "max_rel_error_pct": 0.0,
+    "estimated_literal_count": 1395,
+    "source": "default"
+  },
   "methods": [
     "TPWL (Rewienski & White 2003)",
     "POD-DEIM anchors (Chaturantabut & Sorensen 2010)"
   ],
   "algorithm": {
     "weight_exponent": 25.0,
-    "cells": 16,
+    "cells": 32,
     "pod_energy": [
       0.977344389766151,
       0.022655610233848912
@@ -79,28 +88,110 @@
       [
         0.2315190427589478,
         0.497397976575125
+      ],
+      [
+        -0.2489799387168823,
+        -0.4891454376705778
+      ],
+      [
+        -0.4989799387168823,
+        -0.29549905849310215
+      ],
+      [
+        0.10102006128311772,
+        -0.4108227958100968
+      ],
+      [
+        -0.04897993871688229,
+        -0.32348645990286323
+      ],
+      [
+        -0.4989799387168823,
+        0.04413714287216745
+      ],
+      [
+        0.5010200612831177,
+        0.2878384948287915
+      ],
+      [
+        0.5010200612831177,
+        0.0026585134911761713
+      ],
+      [
+        -0.1989799387168823,
+        -0.36972334361845743
+      ],
+      [
+        -0.4989799387168823,
+        0.3590764974681475
+      ],
+      [
+        -0.385130871028894,
+        0.4810280773411089
+      ],
+      [
+        0.5010200612831177,
+        -0.32091774414088575
+      ],
+      [
+        0.3010200612831177,
+        -0.3928417854762546
+      ],
+      [
+        -0.06848095724105221,
+        0.48809208488203887
+      ],
+      [
+        0.1315190427589478,
+        0.4959539166620901
+      ],
+      [
+        -0.34897993871688227,
+        -0.4890993454561982
+      ],
+      [
+        -0.14897993871688228,
+        -0.4891795607147033
       ]
     ],
     "v_block_vth": 4.348318313631395,
     "v_width_v": 0.09933774834437085
   },
   "function_fit": {
-    "static_curve_rmse_rel": 0.04239996164674703,
-    "emitted_static_curve_rmse_rel": 0.04154260572611815,
+    "static_curve_rmse_rel": 2.1623174799637424,
+    "emitted_static_curve_rmse_rel": 0.016986504438304583,
     "static_samples": 505,
-    "heldout_id_rmse_rel": 33.271642256615266,
-    "heldout_qg_rmse_rel": 0.08465983087232477
+    "heldout_id_rmse_rel": 51016665.49446456,
+    "heldout_qg_rmse_rel": 0.11254048018930404,
+    "cell_selection_error_rel": 0.016986504438304583
+  },
+  "generalization": {
+    "status": "not_measured",
+    "n_trajectories": 1,
+    "trajectory_sources": [
+      "irfs7730pbf:primary"
+    ],
+    "cv_status": "not_measured",
+    "holdout_id_rmse_rel": "not_measured",
+    "holdout_qg_rmse_rel": "not_measured",
+    "selection_error_source": "emitted_static_rmse_rel",
+    "reason": "no config['tier3']['training_conditions']; single configured DPT trajectory only",
+    "physical_elements": {
+      "include_gate_charge": false,
+      "include_body_diode": false,
+      "include_parasitics": false
+    }
   },
   "dpt_run": {
     "completed": true,
-    "trace_points": 7376,
+    "trace_points": 7453,
     "golden_trace_points": 7114,
-    "iterations": 20004,
+    "iterations": 20840,
     "t_last_s": 1.4e-05,
     "error": null,
     "waveform": {
-      "vds_rel_rmse_pct": 12.693442846743118,
-      "id_rel_rmse_pct": 11.002675951623283,
+      "vds_rel_rmse_pct": 12.69782728030255,
+      "id_rel_rmse_pct": 10.958241287070104,
       "compare_points": 7114,
       "current_definition": "I(Lload)-I(Dclamp)"
     },
@@ -112,66 +203,66 @@
   "dpt_comparison": {
     "td_on_ns": {
       "golden": 32.29627698150211,
-      "tier3": 6.988158189815557,
-      "tier3_rel_err_pct": -78.3623412883842,
+      "tier3": 7.28013718858105,
+      "tier3_rel_err_pct": -77.45827733410017,
       "tier2": 17.081334133714805,
       "tier2_rel_err_pct": -47.11051634992404
     },
     "tr_ns": {
       "golden": 25.84350961529235,
-      "tier3": 0.835879395085263,
-      "tier3_rel_err_pct": -96.76561191754448,
+      "tier3": 1.1840159391480125,
+      "tier3_rel_err_pct": -95.41851723402384,
       "tier2": 2.892552707266252,
       "tier2_rel_err_pct": -88.80743076182407
     },
     "td_off_ns": {
       "golden": 62.182902750101924,
-      "tier3": 7.97851726349042,
-      "tier3_rel_err_pct": -87.16927497650897,
+      "tier3": 7.7454353194928975,
+      "tier3_rel_err_pct": -87.54410782233835,
       "tier2": 17.134184632214943,
       "tier2_rel_err_pct": -72.44550531667346
     },
     "tf_ns": {
       "golden": 26.538999478329874,
-      "tier3": 1.409867947372475,
-      "tier3_rel_err_pct": -94.68756179552402,
+      "tier3": 1.4734093641872195,
+      "tier3_rel_err_pct": -94.4481352230693,
       "tier2": 2.5289703561538817,
       "tier2_rel_err_pct": -90.47073964405146
     },
     "dv_dt_max_v_per_ns": {
       "golden": 35.93467060024436,
-      "tier3": 7076.495491072001,
-      "tier3_rel_err_pct": 19592.668314104092,
+      "tier3": 2952.53049344,
+      "tier3_rel_err_pct": 8116.383910361828,
       "tier2": 587.4770711811311,
       "tier2_rel_err_pct": 1534.8475201471201
     },
     "di_dt_max_a_per_ns": {
       "golden": 443.4892816651921,
-      "tier3": 80486.72843280456,
-      "tier3_rel_err_pct": 18048.517170605992,
-      "tier2": 2.497784249508453,
-      "tier2_rel_err_pct": -99.4367881360898
+      "tier3": 14250.666296363337,
+      "tier3_rel_err_pct": 3113.3056841544453,
+      "tier2": 3047.309280530866,
+      "tier2_rel_err_pct": 587.121291655342
     },
     "e_on_uj": {
       "golden": 45.43247692932454,
-      "tier3": 3.15362293354054,
-      "tier3_rel_err_pct": -93.05865947294407,
-      "tier2": 71.09326472844484,
-      "tier2_rel_err_pct": 56.481155185614504
+      "tier3": 7.937976086543432,
+      "tier3_rel_err_pct": -82.52796980694698,
+      "tier2": 12.933808961476982,
+      "tier2_rel_err_pct": -71.53179875797436
     },
     "e_off_uj": {
       "golden": 77.72046585456407,
-      "tier3": 2.4135523323293007,
-      "tier3_rel_err_pct": -96.89457299851276,
-      "tier2": 533.4319489514241,
-      "tier2_rel_err_pct": 586.3468239493303
+      "tier3": 6.921506554442554,
+      "tier3_rel_err_pct": -91.09435786528279,
+      "tier2": 14.207201141174895,
+      "tier2_rel_err_pct": -81.72012868816253
     },
     "i_peak_a": {
       "golden": 138.53150939941406,
-      "tier3": 137.31979370117188,
-      "tier3_rel_err_pct": -0.8746859855172505,
-      "tier2": 136.9910430908203,
-      "tier2_rel_err_pct": -1.1119970577612617
+      "tier3": 137.2167358398615,
+      "tier3_rel_err_pct": -0.9490790689082826,
+      "tier2": 136.99034118652344,
+      "tier2_rel_err_pct": -1.1125037325964078
     }
   },
   "runtime": {
@@ -187,30 +278,30 @@
       },
       "tier3": {
         "t_last_s": 1.4e-05,
-        "iterations": 20004,
-        "trace_points": 7376,
+        "iterations": 20840,
+        "trace_points": 7453,
         "end_time_s": 1.4e-05
       }
     },
     "golden": {
-      "wall_clock_s": 0.9808429999975488,
-      "solver_elapsed_s": 0.428,
+      "wall_clock_s": 0.8094151000004786,
+      "solver_elapsed_s": 0.331,
       "iterations": 14825.0,
       "trace_points": 7114.0,
       "t_last_s": 1.4e-05
     },
     "tier3": {
-      "wall_clock_s": 1.3301371999987168,
-      "solver_elapsed_s": 0.756,
-      "iterations": 20004.0,
-      "trace_points": 7376.0,
+      "wall_clock_s": 1.0559186999998929,
+      "solver_elapsed_s": 0.568,
+      "iterations": 20840.0,
+      "trace_points": 7453.0,
       "t_last_s": 1.4e-05
     },
     "tier3_bench_completed": true,
-    "solver_speedup": 0.5661375661375662,
+    "solver_speedup": 0.5827464788732395,
     "bench_wall_s": {
-      "golden": 2.9821140999993077,
-      "tier3": 4.00195010000607
+      "golden": 2.434755900001619,
+      "tier3": 3.1653955999972823
     },
     "scope": "forced 2ns fidelity control; not the adaptive speed claim"
   },
@@ -219,9 +310,10 @@
     "tier3": "I(Lload)-I(Dclamp)"
   },
   "build_seconds": {
-    "capture": 1.139876799992635,
-    "fit": 27.099286700002267
+    "capture": 1.042720499997813,
+    "training_captures": 2.999986463692039e-07,
+    "fit": 23.65242550000403
   },
-  "spice_log_tail": "Total elapsed time: 0.759 seconds.\nTotal iterations: 20004\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_k3fvqqv5\\tran.net\n",
+  "spice_log_tail": "Total elapsed time: 0.695 seconds.\nTotal iterations: 20840\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_09gfgllm\\tran.net\n",
   "emitted_lib": "reports\\models\\irfs7730pbf_PIECESPICE_T3.lib"
 }

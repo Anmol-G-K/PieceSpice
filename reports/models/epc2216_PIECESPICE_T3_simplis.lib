@@ -17,13 +17,17 @@ G_CH di ss VALUE = {((0.000000e+00 + 0.000000e+00*((V(gi,ss)-0.000000e+00)+abs((
 * CGS X axis is Vgs; the LINEAR chord from the Vds AC sweep is axis-independent
 * PWL CGS emitted only with a declared Vgs-axis table (cgs_axis='vgs')
 * CDG X axis is drain-to-gate V(di,gi); with Vgs=0 in the AC sweep v_DG=v_DS
-* Q= chains: constant (C=0) below the first breakpoint; above the last breakpoint they extrapolate linearly with the last segment slope (no table() end-clamp)
+* Q= chains: constant (C=0) below the first breakpoint; above the last breakpoint a physical end segment clamps the slope to zero so Q stays constant (no table() end-clamp)
+* C-V provenance: cdg_axis=vds_at_vgs0
+* C-V gate drive: vgs_bias_v=not_measured V; temperature_c=not_measured C
+* C-V measured error: max_cap_error_pct=6.806; budget_pct=10
+* C-V data limitation: Only a Vgs=0 C(V) sweep is available, so CDG is emitted on V(di,gi) using the identity Vdg=Vds. No bias-aware Cgd table exists and no bias axis was synthesized.; Only one persisted C(V) sweep at Vgs=0 is available; no multi-bias C-V set exists. Charge tables are fitted from that single sweep and no bias axis was invented from scalar equivalents.
 * CGS is nearly linear: C=7.511310e-11 F
 CGS gi ss 7.511310e-11
 * CDS: drain-source charge, measured breakpoints; 3 (V,Q) points
-CDS di ss Q={0.000000e+00 + 4.143861e-11*((V(di,ss)-(0.000000e+00))+abs((V(di,ss))-(0.000000e+00)))/2 + 8.873142e-13*((V(di,ss)-(2.774481e-01))+abs((V(di,ss))-(2.774481e-01)))/2}
+CDS di ss Q={0.000000e+00 + 4.143861e-11*((V(di,ss)-(0.000000e+00))+abs((V(di,ss))-(0.000000e+00)))/2 + 8.873142e-13*((V(di,ss)-(2.774481e-01))+abs((V(di,ss))-(2.774481e-01)))/2 + -4.232593e-11*((V(di,ss)-(1.100000e+01))+abs((V(di,ss))-(1.100000e+01)))/2}
 * CDG: drain-gate charge on the Vdg axis, measured breakpoints; 6 (V,Q) points
-CDG di gi Q={0.000000e+00 + 2.823649e-11*((V(di,gi)-(0.000000e+00))+abs((V(di,gi))-(0.000000e+00)))/2 + -2.039626e-12*((V(di,gi)-(2.774481e-01))+abs((V(di,gi))-(2.774481e-01)))/2 + -2.973748e-12*((V(di,gi)-(2.823108e+00))+abs((V(di,gi))-(2.823108e+00)))/2 + -2.142907e-12*((V(di,gi)-(5.281277e+00))+abs((V(di,gi))-(5.281277e+00)))/2 + -1.961229e-12*((V(di,gi)-(8.018255e+00))+abs((V(di,gi))-(8.018255e+00)))/2}
+CDG di gi Q={0.000000e+00 + 2.639731e-11*((V(di,gi)-(0.000000e+00))+abs((V(di,gi))-(0.000000e+00)))/2 + -3.702682e-12*((V(di,gi)-(2.823108e+00))+abs((V(di,gi))-(2.823108e+00)))/2 + -2.698968e-12*((V(di,gi)-(6.507428e+00))+abs((V(di,gi))-(6.507428e+00)))/2 + -1.843282e-12*((V(di,gi)-(9.879849e+00))+abs((V(di,gi))-(9.879849e+00)))/2 + -1.533462e-12*((V(di,gi)-(1.217365e+01))+abs((V(di,gi))-(1.217365e+01)))/2 + -1.661892e-11*((V(di,gi)-(1.500000e+01))+abs((V(di,gi))-(1.500000e+01)))/2}
 * RGS: documented Level-2 gate-source bleed (10 MOhm)
 RGS gi ss 1e7
 

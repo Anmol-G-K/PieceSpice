@@ -15,7 +15,8 @@
     "status": "emitted",
     "reason": null,
     "finite_device_values": true,
-    "ascii": true
+    "ascii": true,
+    "emitted_lib_sha256": "a2497c185199a0862449caf3be07767805f3e148bc70f4cd77f71f4914a80e2d"
   },
   "emitted_lib": "reports\\models\\epc2216_PIECESPICE_T4.lib",
   "subcircuit": "epc2216_PIECESPICE_T4",
@@ -30,12 +31,12 @@
     "vgs_on_v": 5.0,
     "temperature_c": 25.0,
     "t_end_s": 1.4e-05,
-    "golden_i_peak_a": 13.239307403564453
+    "golden_i_peak_a": 13.239258766176981
   },
   "energy_comparison": {
     "e_on_uj": {
-      "golden": 1.0914983705530676,
-      "tier4": 1.0914983705530676,
+      "golden": 0.39793457485284,
+      "tier4": 0.39793457485284,
       "abs_error": 0.0,
       "rel_error_pct": 0.0,
       "status": "measured",
@@ -49,12 +50,14 @@
           "vbus_v": 11.0,
           "current_a": 10.0,
           "l_load_h": 5.5e-06,
+          "temperature_c": 25.0,
           "vbus_rule": "dpt.vbus",
           "current_rule": "dpt.i_load_target",
-          "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+          "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)",
+          "temperature_rule": "conditions.temperature"
         },
-        "e_on_uj": 1.0914983705530676,
-        "e_off_uj": 15.627365907947942,
+        "e_on_uj": 0.39793457485284,
+        "e_off_uj": 0.2379373544426174,
         "status": "measured",
         "reason": "recorded vendor golden DPT metrics at identical config conditions",
         "source": "reports/comparison/epc2216/dpt_metrics.json#golden_metrics",
@@ -74,12 +77,14 @@
           "vbus_v": 11.0,
           "current_a": 10.0,
           "l_load_h": 5.5e-06,
+          "temperature_c": 25.0,
           "vbus_rule": "dpt.vbus",
           "current_rule": "dpt.i_load_target",
-          "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+          "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)",
+          "temperature_rule": "conditions.temperature"
         },
         "guard": {
-          "repeats": 3,
+          "repeats": 1,
           "iterations": null,
           "trace_points": null,
           "t_last_s": null,
@@ -154,12 +159,12 @@
             "match": true
           }
         },
-        "wall_clock_s": 1.1044578999990335
+        "wall_clock_s": 0.8562901000004786
       }
     },
     "e_off_uj": {
-      "golden": 15.627365907947942,
-      "tier4": 15.627365907947942,
+      "golden": 0.2379373544426174,
+      "tier4": 0.2379373544426174,
       "abs_error": 0.0,
       "rel_error_pct": 0.0,
       "status": "measured",
@@ -173,12 +178,14 @@
           "vbus_v": 11.0,
           "current_a": 10.0,
           "l_load_h": 5.5e-06,
+          "temperature_c": 25.0,
           "vbus_rule": "dpt.vbus",
           "current_rule": "dpt.i_load_target",
-          "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+          "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)",
+          "temperature_rule": "conditions.temperature"
         },
-        "e_on_uj": 1.0914983705530676,
-        "e_off_uj": 15.627365907947942,
+        "e_on_uj": 0.39793457485284,
+        "e_off_uj": 0.2379373544426174,
         "status": "measured",
         "reason": "recorded vendor golden DPT metrics at identical config conditions",
         "source": "reports/comparison/epc2216/dpt_metrics.json#golden_metrics",
@@ -198,12 +205,14 @@
           "vbus_v": 11.0,
           "current_a": 10.0,
           "l_load_h": 5.5e-06,
+          "temperature_c": 25.0,
           "vbus_rule": "dpt.vbus",
           "current_rule": "dpt.i_load_target",
-          "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+          "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)",
+          "temperature_rule": "conditions.temperature"
         },
         "guard": {
-          "repeats": 3,
+          "repeats": 1,
           "iterations": null,
           "trace_points": null,
           "t_last_s": null,
@@ -278,22 +287,22 @@
             "match": true
           }
         },
-        "wall_clock_s": 1.1044578999990335
+        "wall_clock_s": 0.8562901000004786
       }
     }
   },
   "energy_gate_disclosure": "LUT reproduces its own golden DPT crossing; not an independent converter validation (no converter bench was built).",
   "efficiency": {
     "p_cond_w": 2.054725066461962,
-    "p_switch_w": 1.8576515865001122,
-    "p_total_w": 3.9123766529620743,
+    "p_switch_w": 0.07065243658838416,
+    "p_total_w": 2.125377503050346,
     "f_sw_hz": 111111.11111111111,
     "status": "output_power_required",
     "energy": {
       "vbus_v": 11.0,
       "current_a": 10.0,
-      "e_on_uj": 1.0914983705530676,
-      "e_off_uj": 15.627365907947942,
+      "e_on_uj": 0.39793457485284,
+      "e_off_uj": 0.2379373544426174,
       "status": "measured",
       "method": "exact_grid_node",
       "indices": {
@@ -311,12 +320,14 @@
           "vbus_v": 11.0,
           "current_a": 10.0,
           "l_load_h": 5.5e-06,
+          "temperature_c": 25.0,
           "vbus_rule": "dpt.vbus",
           "current_rule": "dpt.i_load_target",
-          "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+          "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)",
+          "temperature_rule": "conditions.temperature"
         },
-        "e_on_uj": 1.0914983705530676,
-        "e_off_uj": 15.627365907947942,
+        "e_on_uj": 0.39793457485284,
+        "e_off_uj": 0.2379373544426174,
         "status": "measured",
         "reason": "recorded vendor golden DPT metrics at identical config conditions",
         "source": "reports/comparison/epc2216/dpt_metrics.json#golden_metrics",
@@ -336,12 +347,14 @@
           "vbus_v": 11.0,
           "current_a": 10.0,
           "l_load_h": 5.5e-06,
+          "temperature_c": 25.0,
           "vbus_rule": "dpt.vbus",
           "current_rule": "dpt.i_load_target",
-          "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+          "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)",
+          "temperature_rule": "conditions.temperature"
         },
         "guard": {
-          "repeats": 3,
+          "repeats": 1,
           "iterations": null,
           "trace_points": null,
           "t_last_s": null,
@@ -416,27 +429,62 @@
             "match": true
           }
         },
-        "wall_clock_s": 1.1044578999990335
-      }
+        "wall_clock_s": 0.8562901000004786
+      },
+      "temperature_c": 25.0,
+      "temperature_method": "exact_reference"
     },
-    "note": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output).",
+    "note": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element: E_on/E_off/r_on are evaluated offline and an optional caller-configured thermal network may consume that loss estimate, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output).",
     "efficiency": null,
     "p_out_w": null,
-    "reason": "No explicit converter useful output power was supplied; Vbus*Iload is bus input power, not output. Efficiency is N/A. PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output)."
+    "reason": "No explicit converter useful output power was supplied; Vbus*Iload is bus input power, not output. Efficiency is N/A. PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element: E_on/E_off/r_on are evaluated offline and an optional caller-configured thermal network may consume that loss estimate, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output).",
+    "converter": {
+      "status": "not_provided",
+      "completed": null,
+      "pout_w": null,
+      "pin_w": null,
+      "efficiency": null,
+      "reason": "no explicit converter result was supplied"
+    }
   },
   "efficiency_gate": {
     "status": "output_power_required",
     "efficiency": null,
-    "reason": "No explicit converter useful output power was supplied; Vbus*Iload is bus input power, not output. Efficiency is N/A. PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output).",
+    "efficiency_source": "output_power_required",
+    "lut_estimate": null,
+    "reason": "No explicit converter useful output power was supplied; Vbus*Iload is bus input power, not output. Efficiency is N/A. PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element: E_on/E_off/r_on are evaluated offline and an optional caller-configured thermal network may consume that loss estimate, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output).",
+    "p_out_w": null,
     "p_bus_in_w": 110.0,
     "p_bus_in_role": "config-derived DC bus input power; never used as p_out or as converter output",
     "p_cond_w": 2.054725066461962,
-    "p_switch_w": 1.8576515865001122,
+    "p_switch_w": 0.07065243658838416,
+    "p_total_w": 2.125377503050346,
     "f_sw_hz": 111111.11111111111,
+    "f_sw_source": "DPT pulse repetition interval (offline diagnostic)",
     "f_sw_basis": "f_sw = 1 / (dpt.t2_on - dpt.t1_on) is an illustrative offline frequency from the DPT pulse repetition interval (a bench schedule choice), NOT a measured converter switching frequency; p_switch scales linearly with it and remains a diagnostic only.",
+    "temperature_c": 25.0,
     "thermal_note": "PLECS P-TC: the dissipated thermal power does not correspond to the electrical power consumed by the device; thermal losses are injected into a thermal network and need an explicit output-power definition for efficiency. The emitted ideal switch has no loss element, so every efficiency figure here is an offline estimate, not simulated electrical power.",
+    "converter": {
+      "status": "not_provided",
+      "completed": null,
+      "pout_w": null,
+      "pin_w": null,
+      "efficiency": null,
+      "reason": "no explicit converter result was supplied"
+    },
     "source": "https://docs.plexim.com/plecs/5.0/thermal-modeling/thermal-concepts"
   },
+  "thermal": {
+    "status": "not_configured",
+    "tj_steady_c": null,
+    "thermal_network": null,
+    "source": null,
+    "reason": "no config.thermal block; junction temperature is N/A rather than a fabricated ambient",
+    "rule": "thermal injection requires explicit r_th_k_per_w, tau_s and ambient_c from config; none are defaulted"
+  },
+  "thermal_network": null,
+  "tj_steady_c": null,
+  "converter": null,
   "dpt_run": {
     "executed": true,
     "completed": true,
@@ -445,13 +493,13 @@
     "iterations": 14358,
     "t_last_s": 1.4e-05,
     "t_end_s": 1.4e-05,
-    "wall_clock_s": 0.9877986999927089,
+    "wall_clock_s": 0.8339281000007759,
     "error": null,
-    "spice_log_tail": "Total elapsed time: 0.401 seconds.\nTotal iterations: 14358\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_ghyxtj9k\\tran.net\n"
+    "spice_log_tail": "Total elapsed time: 0.333 seconds.\nTotal iterations: 14358\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_shl6l5j7\\tran.net\n"
   },
   "speedup": {
-    "solver_speedup": 1.2473867595818815,
-    "wall_speedup": 1.0608197120630636,
+    "solver_speedup": 1.244,
+    "wall_speedup": 1.10193848978912,
     "golden_iterations": 16514.0,
     "tier4_iterations": 6296.0,
     "golden_points": 4047.0,
@@ -503,8 +551,8 @@
         "max_step": 1e-07,
         "end_time_s": 0.000176,
         "repeats": 3,
-        "wall_clock_s": 0.8915672000002814,
-        "solver_elapsed_s": 0.358,
+        "wall_clock_s": 0.7801037999997789,
+        "solver_elapsed_s": 0.311,
         "iterations": 16514.0,
         "trace_points": 4047.0,
         "trace_names": 12.0
@@ -516,8 +564,8 @@
         "max_step": 1e-07,
         "end_time_s": 0.000176,
         "repeats": 3,
-        "wall_clock_s": 0.8404512000124669,
-        "solver_elapsed_s": 0.287,
+        "wall_clock_s": 0.7079376999972737,
+        "solver_elapsed_s": 0.25,
         "iterations": 6296.0,
         "trace_points": 2597.0,
         "trace_names": 11.0
@@ -538,22 +586,22 @@
     ],
     "e_on_uj": [
       [
-        1.0914983705530676,
-        4.191986084371385
+        0.39793457485284,
+        2.1023041849805075
       ],
       [
         null,
-        4.609493094210358
+        2.234020964734673
       ]
     ],
     "e_off_uj": [
       [
-        15.627365907947942,
-        37.97516358148749
+        0.2379373544426174,
+        1.464651593959492
       ],
       [
         null,
-        41.499510211350035
+        1.608301246024258
       ]
     ],
     "r_on_ohms": [
@@ -565,6 +613,13 @@
     "vgs_on_v": 5.0,
     "coss_f": 6.312804283666123e-11,
     "r_off_ohms": 215195414.93400708,
+    "temperature_points": [
+      25.0
+    ],
+    "e_on_uj_by_temperature": null,
+    "e_off_uj_by_temperature": null,
+    "vt_switch_v": null,
+    "r_on_by_vgs": null,
     "source": {
       "schema": "piecespice.loss_lut/1.0",
       "method": "clamped-inductive golden DPT E_on/E_off at config-derived (Vbus, load) nodes; Curve-3 r_on, Curve-7 Vth, Curve-4 Coss and Vgs=0 DC-sweep Roff",
@@ -610,12 +665,18 @@
           10.0,
           25.0
         ],
+        "temperature_points": [
+          25.0
+        ],
+        "reference_temperature_c": 25.0,
+        "source": "config_derived_default",
         "rules": {
           "vbus": "exact config values dpt.vbus and conditions.Vbus, sorted unique",
           "current": "exact config values dpt.i_load_target and conditions.Id_load, sorted unique",
           "l_load": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)",
           "temperature": "conditions.temperature",
           "vgs_on": "dpt.vgs_on (DPT gate drive)",
+          "source": "config_derived_default",
           "kind": "project_decision",
           "rationale": "no new numeric grid value is introduced; unmeasured crossings stay NaN instead of being interpolated into a measurement"
         },
@@ -640,6 +701,12 @@
         "reference_rds_on_at_Id_load_ohms": 0.02244101910022746,
         "reference_condition_a": 25.0
       },
+      "r_on_by_vgs": {
+        "kind": "absent",
+        "source": "config/inputs/epc2216.yaml#r_on_by_vgs",
+        "unit": "Ohm",
+        "rule": "no measured Rds(on)-vs-Vgs family in config; the emitter keeps the median/current-point Curve-3 selection"
+      },
       "vth": {
         "source_file": {
           "file": "config/outputs/epc2216/curve7_threshold_voltage.yaml",
@@ -647,6 +714,12 @@
         },
         "measured_key": "extracted.vth_v",
         "kind": "measured"
+      },
+      "vt_switch": {
+        "kind": "curve7_jedec_vth",
+        "value_v": 1.3038702077826494,
+        "source": "config/outputs/curve7_threshold_voltage#extracted.vth_v",
+        "rule": "no config switching threshold; the emitter uses the Curve-7 JEDEC Vth and labels source=curve7_jedec_vth"
       },
       "coss_f": {
         "kind": "measured",
@@ -693,12 +766,14 @@
             "vbus_v": 11.0,
             "current_a": 10.0,
             "l_load_h": 5.5e-06,
+            "temperature_c": 25.0,
             "vbus_rule": "dpt.vbus",
             "current_rule": "dpt.i_load_target",
-            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)",
+            "temperature_rule": "conditions.temperature"
           },
-          "e_on_uj": 1.0914983705530676,
-          "e_off_uj": 15.627365907947942,
+          "e_on_uj": 0.39793457485284,
+          "e_off_uj": 0.2379373544426174,
           "status": "measured",
           "reason": "recorded vendor golden DPT metrics at identical config conditions",
           "source": "reports/comparison/epc2216/dpt_metrics.json#golden_metrics",
@@ -718,12 +793,14 @@
             "vbus_v": 11.0,
             "current_a": 10.0,
             "l_load_h": 5.5e-06,
+            "temperature_c": 25.0,
             "vbus_rule": "dpt.vbus",
             "current_rule": "dpt.i_load_target",
-            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)",
+            "temperature_rule": "conditions.temperature"
           },
           "guard": {
-            "repeats": 3,
+            "repeats": 1,
             "iterations": null,
             "trace_points": null,
             "t_last_s": null,
@@ -798,19 +875,21 @@
               "match": true
             }
           },
-          "wall_clock_s": 1.1044578999990335
+          "wall_clock_s": 0.8562901000004786
         },
         "11.0|25.0": {
           "point": {
             "vbus_v": 11.0,
             "current_a": 25.0,
             "l_load_h": 2.2e-06,
+            "temperature_c": 25.0,
             "vbus_rule": "run.v_bus",
             "current_rule": "run.i_load",
-            "l_load_rule": "run.l_load"
+            "l_load_rule": "run.l_load",
+            "temperature_rule": "run temperature (passed from dpt_kwargs)"
           },
-          "e_on_uj": 4.191986084371385,
-          "e_off_uj": 37.97516358148749,
+          "e_on_uj": 2.1023041849805075,
+          "e_off_uj": 1.464651593959492,
           "status": "measured",
           "reason": "golden DPT switching energy from metrics.loss.compute_switching_energy",
           "source": "simulation/testbenches/double_pulse.run_double_pulse",
@@ -819,7 +898,8 @@
             "current_a": 25.0,
             "vgs_on_v": 5.0,
             "l_load_h": 2.2e-06,
-            "t2_on_s": 1e-05
+            "t2_on_s": 1e-05,
+            "temperature_c": 25.0
           },
           "guard": {
             "trace_points": 7596,
@@ -830,20 +910,22 @@
             "iterations_note": "DoublePulseRun does not expose the solver log; iterations N/A",
             "rule": "t_last >= 0.999*t_end and trace_points >= 0.5*reference_points",
             "golden_metrics": {
-              "e_on_uj": 4.191986084371385,
-              "e_off_uj": 37.97516358148749
+              "e_on_uj": 2.1023041849805075,
+              "e_off_uj": 1.464651593959492
             }
           },
-          "wall_clock_s": 1.008156299998518
+          "wall_clock_s": 0.8601681000000099
         },
         "12.0|10.0": {
           "point": {
             "vbus_v": 12.0,
             "current_a": 10.0,
             "l_load_h": 6.000000000000001e-06,
+            "temperature_c": 25.0,
             "vbus_rule": "conditions.Vbus",
             "current_rule": "dpt.i_load_target",
-            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)",
+            "temperature_rule": "conditions.temperature"
           },
           "e_on_uj": null,
           "e_off_uj": null,
@@ -866,9 +948,11 @@
             "vbus_v": 12.0,
             "current_a": 10.0,
             "l_load_h": 6.000000000000001e-06,
+            "temperature_c": 25.0,
             "vbus_rule": "conditions.Vbus",
             "current_rule": "dpt.i_load_target",
-            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)",
+            "temperature_rule": "conditions.temperature"
           },
           "guard": {},
           "wall_clock_s": null
@@ -878,12 +962,14 @@
             "vbus_v": 12.0,
             "current_a": 25.0,
             "l_load_h": 2.4000000000000003e-06,
+            "temperature_c": 25.0,
             "vbus_rule": "run.v_bus",
             "current_rule": "run.i_load",
-            "l_load_rule": "run.l_load"
+            "l_load_rule": "run.l_load",
+            "temperature_rule": "run temperature (passed from dpt_kwargs)"
           },
-          "e_on_uj": 4.609493094210358,
-          "e_off_uj": 41.499510211350035,
+          "e_on_uj": 2.234020964734673,
+          "e_off_uj": 1.608301246024258,
           "status": "measured",
           "reason": "golden DPT switching energy from metrics.loss.compute_switching_energy",
           "source": "simulation/testbenches/double_pulse.run_double_pulse",
@@ -892,7 +978,8 @@
             "current_a": 25.0,
             "vgs_on_v": 5.0,
             "l_load_h": 2.4000000000000003e-06,
-            "t2_on_s": 1e-05
+            "t2_on_s": 1e-05,
+            "temperature_c": 25.0
           },
           "guard": {
             "trace_points": 7250,
@@ -903,11 +990,11 @@
             "iterations_note": "DoublePulseRun does not expose the solver log; iterations N/A",
             "rule": "t_last >= 0.999*t_end and trace_points >= 0.5*reference_points",
             "golden_metrics": {
-              "e_on_uj": 4.609493094210358,
-              "e_off_uj": 41.499510211350035
+              "e_on_uj": 2.234020964734673,
+              "e_off_uj": 1.608301246024258
             }
           },
-          "wall_clock_s": 1.005017899995437
+          "wall_clock_s": 0.8960669000007329
         }
       },
       "gaps": [
@@ -916,9 +1003,11 @@
             "vbus_v": 12.0,
             "current_a": 10.0,
             "l_load_h": 6.000000000000001e-06,
+            "temperature_c": 25.0,
             "vbus_rule": "conditions.Vbus",
             "current_rule": "dpt.i_load_target",
-            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)",
+            "temperature_rule": "conditions.temperature"
           },
           "metric": "e_on_uj,e_off_uj",
           "status": "not_evaluable",
@@ -938,6 +1027,14 @@
         "current_points": 2,
         "rule": "Bilinear interpolation only where all four corners are finite; no extrapolation; otherwise NaN."
       },
+      "temperature": {
+        "points": [
+          25.0
+        ],
+        "reference_temperature_c": 25.0,
+        "has_3d_tables": false,
+        "rule": "single reference temperature; no temperature axis"
+      },
       "data_limitations": [
         {
           "kind": "data_limitation",
@@ -946,14 +1043,15 @@
           "finite_nodes": 3,
           "interpolation_status": "grid_interpolation",
           "rule": "E_on/E_off and r_on are measured only at conditions.temperature = 25 C; the LUT has no temperature axis and is valid only at that condition. It is a measured data slice, not a physical guarantee at other junction temperatures. The measured grid has 3 finite node(s) (capability 'grid_interpolation'); off-node queries are NaN. Losses are evaluated offline and injected thermally, not electrical power consumed by the emitted switch (PLECS P-TC).",
-          "basis": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output)."
+          "basis": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element: E_on/E_off/r_on are evaluated offline and an optional caller-configured thermal network may consume that loss estimate, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output)."
         }
       ],
-      "thermal_loss_note": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output).",
+      "thermal_loss_note": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element: E_on/E_off/r_on are evaluated offline and an optional caller-configured thermal network may consume that loss estimate, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output).",
       "device_value_guard": {
         "vth_finite": true,
+        "vt_switch_finite": false,
         "r_on_all_finite": true,
-        "rule": "emitter must refuse to emit .MODEL when vth or the selected r_on is NaN; never write NaN into SPICE",
+        "rule": "emitter must refuse to emit .MODEL when vth or the selected r_on is NaN; never write NaN into SPICE. A missing vt_switch_v falls back to Curve-7 Vth.",
         "coss_f_finite": true,
         "r_off_measured": true,
         "r_off_note": "r_off_ohms NaN is allowed: emitter falls back to a project-decision Roff with loud comment+JSON disclosure; never write NaN into SPICE"
@@ -991,7 +1089,7 @@
         {
           "name": "thermal_loss_accounting",
           "kind": "project_decision",
-          "rule": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output).",
+          "rule": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element: E_on/E_off/r_on are evaluated offline and an optional caller-configured thermal network may consume that loss estimate, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output).",
           "basis": "PLECS P-TC notes under Conduction/Switching Losses"
         },
         {
@@ -999,6 +1097,31 @@
           "kind": "measured_with_fallback",
           "rule": "emitted Tier-4 switch uses the measured Curve-4 Coss as one active linear C_QOSS and the measured Vgs=0 Roff; C_QOSS only slows drain dV/dt to avoid singular/no-cap steps and adds L-C overshoot, so the DPT waveform gate stays retired. Voltage-dependent capacitors and the body diode remain retired. A NaN Roff falls back to a project-decision emitter value with loud comment+JSON disclosure; no fallback number is invented here.",
           "basis": "local://tier4_stabilization_contract.md"
+        },
+        {
+          "name": "temperature_axis",
+          "kind": "project_decision",
+          "rule": "conditions.temperature",
+          "temperature_points": [
+            25.0
+          ],
+          "reference_temperature_c": 25.0,
+          "interpolation": "single measured temperature slice"
+        },
+        {
+          "name": "r_on_selection",
+          "kind": "measured",
+          "rule": "no measured Rds(on)-vs-Vgs family in config; the emitter keeps the median/current-point Curve-3 selection",
+          "table_available": false,
+          "vgs_points": null,
+          "source": "config/inputs/epc2216.yaml#r_on_by_vgs"
+        },
+        {
+          "name": "vt_switch_selection",
+          "kind": "curve7_jedec_vth",
+          "rule": "no config switching threshold; the emitter uses the Curve-7 JEDEC Vth and labels source=curve7_jedec_vth",
+          "value_v": 1.3038702077826494,
+          "source": "config/outputs/curve7_threshold_voltage#extracted.vth_v"
         }
       ]
     },
@@ -1010,6 +1133,15 @@
       "current_points": 2,
       "rule": "Bilinear interpolation only where all four corners are finite; no extrapolation; otherwise NaN."
     },
+    "temperature_capability": {
+      "status": "single_temperature",
+      "temperature_points": [
+        25.0
+      ],
+      "reference_temperature_c": 25.0,
+      "has_3d_tables": false,
+      "rule": "Only the reference 2-D E_on/E_off table exists; a query at any other temperature is NaN, never extrapolated."
+    },
     "data_limitations": [
       {
         "kind": "data_limitation",
@@ -1018,7 +1150,7 @@
         "finite_nodes": 3,
         "interpolation_status": "grid_interpolation",
         "rule": "E_on/E_off and r_on are measured only at conditions.temperature = 25 C; the LUT has no temperature axis and is valid only at that condition. It is a measured data slice, not a physical guarantee at other junction temperatures. The measured grid has 3 finite node(s) (capability 'grid_interpolation'); off-node queries are NaN. Losses are evaluated offline and injected thermally, not electrical power consumed by the emitted switch (PLECS P-TC).",
-        "basis": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output)."
+        "basis": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element: E_on/E_off/r_on are evaluated offline and an optional caller-configured thermal network may consume that loss estimate, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output)."
       }
     ],
     "device_values_finite": {
@@ -1031,7 +1163,7 @@
       "r_off_note": "r_off_ohms NaN is allowed: emitter falls back to a project-decision Roff with loud comment+JSON disclosure; never write NaN into a SPICE netlist",
       "rule": "emitter must refuse to emit .MODEL SW(Ron=..., Vt=...) when any selected device value is non-finite; never write NaN into a SPICE netlist"
     },
-    "thermal_loss_note": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output)."
+    "thermal_loss_note": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element: E_on/E_off/r_on are evaluated offline and an optional caller-configured thermal network may consume that loss estimate, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output)."
   },
   "solver_stabilization": {
     "status": "applied",
@@ -1141,12 +1273,18 @@
           10.0,
           25.0
         ],
+        "temperature_points": [
+          25.0
+        ],
+        "reference_temperature_c": 25.0,
+        "source": "config_derived_default",
         "rules": {
           "vbus": "exact config values dpt.vbus and conditions.Vbus, sorted unique",
           "current": "exact config values dpt.i_load_target and conditions.Id_load, sorted unique",
           "l_load": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)",
           "temperature": "conditions.temperature",
           "vgs_on": "dpt.vgs_on (DPT gate drive)",
+          "source": "config_derived_default",
           "kind": "project_decision",
           "rationale": "no new numeric grid value is introduced; unmeasured crossings stay NaN instead of being interpolated into a measurement"
         },
@@ -1171,6 +1309,12 @@
         "reference_rds_on_at_Id_load_ohms": 0.02244101910022746,
         "reference_condition_a": 25.0
       },
+      "r_on_by_vgs": {
+        "kind": "absent",
+        "source": "config/inputs/epc2216.yaml#r_on_by_vgs",
+        "unit": "Ohm",
+        "rule": "no measured Rds(on)-vs-Vgs family in config; the emitter keeps the median/current-point Curve-3 selection"
+      },
       "vth": {
         "source_file": {
           "file": "config/outputs/epc2216/curve7_threshold_voltage.yaml",
@@ -1178,6 +1322,12 @@
         },
         "measured_key": "extracted.vth_v",
         "kind": "measured"
+      },
+      "vt_switch": {
+        "kind": "curve7_jedec_vth",
+        "value_v": 1.3038702077826494,
+        "source": "config/outputs/curve7_threshold_voltage#extracted.vth_v",
+        "rule": "no config switching threshold; the emitter uses the Curve-7 JEDEC Vth and labels source=curve7_jedec_vth"
       },
       "coss_f": {
         "kind": "measured",
@@ -1224,12 +1374,14 @@
             "vbus_v": 11.0,
             "current_a": 10.0,
             "l_load_h": 5.5e-06,
+            "temperature_c": 25.0,
             "vbus_rule": "dpt.vbus",
             "current_rule": "dpt.i_load_target",
-            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)",
+            "temperature_rule": "conditions.temperature"
           },
-          "e_on_uj": 1.0914983705530676,
-          "e_off_uj": 15.627365907947942,
+          "e_on_uj": 0.39793457485284,
+          "e_off_uj": 0.2379373544426174,
           "status": "measured",
           "reason": "recorded vendor golden DPT metrics at identical config conditions",
           "source": "reports/comparison/epc2216/dpt_metrics.json#golden_metrics",
@@ -1249,12 +1401,14 @@
             "vbus_v": 11.0,
             "current_a": 10.0,
             "l_load_h": 5.5e-06,
+            "temperature_c": 25.0,
             "vbus_rule": "dpt.vbus",
             "current_rule": "dpt.i_load_target",
-            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)",
+            "temperature_rule": "conditions.temperature"
           },
           "guard": {
-            "repeats": 3,
+            "repeats": 1,
             "iterations": null,
             "trace_points": null,
             "t_last_s": null,
@@ -1329,19 +1483,21 @@
               "match": true
             }
           },
-          "wall_clock_s": 1.1044578999990335
+          "wall_clock_s": 0.8562901000004786
         },
         "11.0|25.0": {
           "point": {
             "vbus_v": 11.0,
             "current_a": 25.0,
             "l_load_h": 2.2e-06,
+            "temperature_c": 25.0,
             "vbus_rule": "run.v_bus",
             "current_rule": "run.i_load",
-            "l_load_rule": "run.l_load"
+            "l_load_rule": "run.l_load",
+            "temperature_rule": "run temperature (passed from dpt_kwargs)"
           },
-          "e_on_uj": 4.191986084371385,
-          "e_off_uj": 37.97516358148749,
+          "e_on_uj": 2.1023041849805075,
+          "e_off_uj": 1.464651593959492,
           "status": "measured",
           "reason": "golden DPT switching energy from metrics.loss.compute_switching_energy",
           "source": "simulation/testbenches/double_pulse.run_double_pulse",
@@ -1350,7 +1506,8 @@
             "current_a": 25.0,
             "vgs_on_v": 5.0,
             "l_load_h": 2.2e-06,
-            "t2_on_s": 1e-05
+            "t2_on_s": 1e-05,
+            "temperature_c": 25.0
           },
           "guard": {
             "trace_points": 7596,
@@ -1361,20 +1518,22 @@
             "iterations_note": "DoublePulseRun does not expose the solver log; iterations N/A",
             "rule": "t_last >= 0.999*t_end and trace_points >= 0.5*reference_points",
             "golden_metrics": {
-              "e_on_uj": 4.191986084371385,
-              "e_off_uj": 37.97516358148749
+              "e_on_uj": 2.1023041849805075,
+              "e_off_uj": 1.464651593959492
             }
           },
-          "wall_clock_s": 1.008156299998518
+          "wall_clock_s": 0.8601681000000099
         },
         "12.0|10.0": {
           "point": {
             "vbus_v": 12.0,
             "current_a": 10.0,
             "l_load_h": 6.000000000000001e-06,
+            "temperature_c": 25.0,
             "vbus_rule": "conditions.Vbus",
             "current_rule": "dpt.i_load_target",
-            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)",
+            "temperature_rule": "conditions.temperature"
           },
           "e_on_uj": null,
           "e_off_uj": null,
@@ -1397,9 +1556,11 @@
             "vbus_v": 12.0,
             "current_a": 10.0,
             "l_load_h": 6.000000000000001e-06,
+            "temperature_c": 25.0,
             "vbus_rule": "conditions.Vbus",
             "current_rule": "dpt.i_load_target",
-            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)",
+            "temperature_rule": "conditions.temperature"
           },
           "guard": {},
           "wall_clock_s": null
@@ -1409,12 +1570,14 @@
             "vbus_v": 12.0,
             "current_a": 25.0,
             "l_load_h": 2.4000000000000003e-06,
+            "temperature_c": 25.0,
             "vbus_rule": "run.v_bus",
             "current_rule": "run.i_load",
-            "l_load_rule": "run.l_load"
+            "l_load_rule": "run.l_load",
+            "temperature_rule": "run temperature (passed from dpt_kwargs)"
           },
-          "e_on_uj": 4.609493094210358,
-          "e_off_uj": 41.499510211350035,
+          "e_on_uj": 2.234020964734673,
+          "e_off_uj": 1.608301246024258,
           "status": "measured",
           "reason": "golden DPT switching energy from metrics.loss.compute_switching_energy",
           "source": "simulation/testbenches/double_pulse.run_double_pulse",
@@ -1423,7 +1586,8 @@
             "current_a": 25.0,
             "vgs_on_v": 5.0,
             "l_load_h": 2.4000000000000003e-06,
-            "t2_on_s": 1e-05
+            "t2_on_s": 1e-05,
+            "temperature_c": 25.0
           },
           "guard": {
             "trace_points": 7250,
@@ -1434,11 +1598,11 @@
             "iterations_note": "DoublePulseRun does not expose the solver log; iterations N/A",
             "rule": "t_last >= 0.999*t_end and trace_points >= 0.5*reference_points",
             "golden_metrics": {
-              "e_on_uj": 4.609493094210358,
-              "e_off_uj": 41.499510211350035
+              "e_on_uj": 2.234020964734673,
+              "e_off_uj": 1.608301246024258
             }
           },
-          "wall_clock_s": 1.005017899995437
+          "wall_clock_s": 0.8960669000007329
         }
       },
       "gaps": [
@@ -1447,9 +1611,11 @@
             "vbus_v": 12.0,
             "current_a": 10.0,
             "l_load_h": 6.000000000000001e-06,
+            "temperature_c": 25.0,
             "vbus_rule": "conditions.Vbus",
             "current_rule": "dpt.i_load_target",
-            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)"
+            "l_load_rule": "L = Vbus * dpt.t1_width / Id (identical to the recorded dpt.l_load for the configured DPT crossing)",
+            "temperature_rule": "conditions.temperature"
           },
           "metric": "e_on_uj,e_off_uj",
           "status": "not_evaluable",
@@ -1469,6 +1635,14 @@
         "current_points": 2,
         "rule": "Bilinear interpolation only where all four corners are finite; no extrapolation; otherwise NaN."
       },
+      "temperature": {
+        "points": [
+          25.0
+        ],
+        "reference_temperature_c": 25.0,
+        "has_3d_tables": false,
+        "rule": "single reference temperature; no temperature axis"
+      },
       "data_limitations": [
         {
           "kind": "data_limitation",
@@ -1477,14 +1651,15 @@
           "finite_nodes": 3,
           "interpolation_status": "grid_interpolation",
           "rule": "E_on/E_off and r_on are measured only at conditions.temperature = 25 C; the LUT has no temperature axis and is valid only at that condition. It is a measured data slice, not a physical guarantee at other junction temperatures. The measured grid has 3 finite node(s) (capability 'grid_interpolation'); off-node queries are NaN. Losses are evaluated offline and injected thermally, not electrical power consumed by the emitted switch (PLECS P-TC).",
-          "basis": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output)."
+          "basis": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element: E_on/E_off/r_on are evaluated offline and an optional caller-configured thermal network may consume that loss estimate, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output)."
         }
       ],
-      "thermal_loss_note": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output).",
+      "thermal_loss_note": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element: E_on/E_off/r_on are evaluated offline and an optional caller-configured thermal network may consume that loss estimate, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output).",
       "device_value_guard": {
         "vth_finite": true,
+        "vt_switch_finite": false,
         "r_on_all_finite": true,
-        "rule": "emitter must refuse to emit .MODEL when vth or the selected r_on is NaN; never write NaN into SPICE",
+        "rule": "emitter must refuse to emit .MODEL when vth or the selected r_on is NaN; never write NaN into SPICE. A missing vt_switch_v falls back to Curve-7 Vth.",
         "coss_f_finite": true,
         "r_off_measured": true,
         "r_off_note": "r_off_ohms NaN is allowed: emitter falls back to a project-decision Roff with loud comment+JSON disclosure; never write NaN into SPICE"
@@ -1522,7 +1697,7 @@
         {
           "name": "thermal_loss_accounting",
           "kind": "project_decision",
-          "rule": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output).",
+          "rule": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element: E_on/E_off/r_on are evaluated offline and an optional caller-configured thermal network may consume that loss estimate, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output).",
           "basis": "PLECS P-TC notes under Conduction/Switching Losses"
         },
         {
@@ -1530,6 +1705,31 @@
           "kind": "measured_with_fallback",
           "rule": "emitted Tier-4 switch uses the measured Curve-4 Coss as one active linear C_QOSS and the measured Vgs=0 Roff; C_QOSS only slows drain dV/dt to avoid singular/no-cap steps and adds L-C overshoot, so the DPT waveform gate stays retired. Voltage-dependent capacitors and the body diode remain retired. A NaN Roff falls back to a project-decision emitter value with loud comment+JSON disclosure; no fallback number is invented here.",
           "basis": "local://tier4_stabilization_contract.md"
+        },
+        {
+          "name": "temperature_axis",
+          "kind": "project_decision",
+          "rule": "conditions.temperature",
+          "temperature_points": [
+            25.0
+          ],
+          "reference_temperature_c": 25.0,
+          "interpolation": "single measured temperature slice"
+        },
+        {
+          "name": "r_on_selection",
+          "kind": "measured",
+          "rule": "no measured Rds(on)-vs-Vgs family in config; the emitter keeps the median/current-point Curve-3 selection",
+          "table_available": false,
+          "vgs_points": null,
+          "source": "config/inputs/epc2216.yaml#r_on_by_vgs"
+        },
+        {
+          "name": "vt_switch_selection",
+          "kind": "curve7_jedec_vth",
+          "rule": "no config switching threshold; the emitter uses the Curve-7 JEDEC Vth and labels source=curve7_jedec_vth",
+          "value_v": 1.3038702077826494,
+          "source": "config/outputs/curve7_threshold_voltage#extracted.vth_v"
         }
       ]
     },
@@ -1544,9 +1744,12 @@
       "shared_source_note": "The LUT golden crossing and the golden DPT energy column share the same measured DPT; agreement at that point is by construction, not an independent converter-bench validation (M5 unbuilt).",
       "efficiency_inputs": {
         "p_out_w": null,
+        "p_out_source": null,
+        "p_conv_in_w": null,
         "p_bus_in_w": 110.0,
         "f_sw_hz": 111111.11111111111,
-        "rule": "Vbus*Iload is DC bus input power, not output power; no config field supplies converter output power, so efficiency is N/A. f_sw = 1 / (dpt.t2_on - dpt.t1_on) is an illustrative offline frequency from the DPT pulse repetition interval (a bench schedule choice), NOT a measured converter switching frequency; p_switch scales linearly with it and remains a diagnostic only.",
+        "f_sw_source": "DPT pulse repetition interval (offline diagnostic)",
+        "rule": "Vbus*Iload is DC bus input power, not output power. Only a completed measured converter run supplies p_out; otherwise efficiency is N/A. f_sw = 1 / (dpt.t2_on - dpt.t1_on) is an illustrative offline frequency from the DPT pulse repetition interval (a bench schedule choice), NOT a measured converter switching frequency; p_switch scales linearly with it and remains a diagnostic only.",
         "kind": "config_derived_input_power_only",
         "thermal_note": "PLECS P-TC: the dissipated thermal power does not correspond to the electrical power consumed by the device; thermal losses are injected into a thermal network and need an explicit output-power definition for efficiency. The emitted ideal switch has no loss element, so every efficiency figure here is an offline estimate, not simulated electrical power."
       },
@@ -1584,8 +1787,38 @@
         },
         "measured_key": "extracted.curve_id / extracted.curve_rds_mohm",
         "method": "linear interpolation of measured curve; no extrapolation",
-        "rule": "one Curve-3 rds_on value is selected from the measured current grid (nearest point to i_load_a; runtime selection); the choice never invents a resistance",
-        "note": "Duplicates the r_on_ohms selection label already emitted in the lib comment; value and guard unchanged."
+        "selected_ohms": 0.02054725066461962,
+        "selection_source": "r_on_ohms",
+        "vgs_on_v": 5.0,
+        "vgs_selected_v": null,
+        "vgs_match": null,
+        "vgs_points": [],
+        "table_available": false,
+        "table_source": "config/inputs/epc2216.yaml#r_on_by_vgs",
+        "rule": "nearest measured current point to i_load_a=10 A (runtime selection)",
+        "note": "Measured Rds(on) family from config.r_on_by_vgs is selected at dpt.vgs_on when present (exact measured gate drive preferred, nearest measured otherwise); without it the representative measured current point is used. No resistance is invented."
+      },
+      "vt_selection": {
+        "kind": "curve7_jedec_vth",
+        "value_v": 1.3038702077826494,
+        "source": "curve7_jedec_vth",
+        "curve7_vth_v": 1.3038702077826494,
+        "config_vt_switch_v": null,
+        "source_meta": {
+          "kind": "curve7_jedec_vth",
+          "value_v": 1.3038702077826494,
+          "source": "config/outputs/curve7_threshold_voltage#extracted.vth_v",
+          "rule": "no config switching threshold; the emitter uses the Curve-7 JEDEC Vth and labels source=curve7_jedec_vth"
+        },
+        "rule": "no finite config/LUT switching threshold; the emitted switch uses the measured Curve-7 JEDEC threshold (source=curve7_jedec_vth)",
+        "note": "A finite config/LUT switching threshold wins; otherwise the measured Curve-7 JEDEC Vth is used and labelled source=curve7_jedec_vth. NaN is never emitted into the .MODEL."
+      },
+      "thermal": {
+        "status": "not_configured",
+        "tj_steady_c": null,
+        "thermal_network": null,
+        "source": null,
+        "rule": "thermal injection requires explicit r_th_k_per_w, tau_s and ambient_c from config; none are defaulted"
       },
       "v_hysteresis": {
         "kind": "project_decision",
@@ -1601,7 +1834,7 @@
           "finite_nodes": 3,
           "interpolation_status": "grid_interpolation",
           "rule": "E_on/E_off and r_on are measured only at conditions.temperature = 25 C; the LUT has no temperature axis and is valid only at that condition. It is a measured data slice, not a physical guarantee at other junction temperatures. The measured grid has 3 finite node(s) (capability 'grid_interpolation'); off-node queries are NaN. Losses are evaluated offline and injected thermally, not electrical power consumed by the emitted switch (PLECS P-TC).",
-          "basis": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element and no thermal RC network: E_on/E_off/r_on are evaluated offline, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output)."
+          "basis": "PLECS P-TC: dissipated thermal power is not the electrical power consumed by the device; take this into account when estimating efficiency. The emitted Tier-4 switch has no loss element: E_on/E_off/r_on are evaluated offline and an optional caller-configured thermal network may consume that loss estimate, so efficiency needs an explicit useful output-power definition (Vbus*Iload is input power, not output)."
         }
       ],
       "retired_observables": {

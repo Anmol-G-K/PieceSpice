@@ -27,7 +27,7 @@
     "max_abs_charge_error_c": {
       "cgs": 9.658874809640718e-13,
       "cds": 1.0417127534895116e-10,
-      "cdg": 4.7506082361672495e-11
+      "cdg": 6.738937705807119e-11
     },
     "charge_fit": {
       "cgs": {
@@ -38,6 +38,9 @@
         "error_ratio": 0.003419622284343866,
         "tolerance_met": true,
         "achieved_rel_tolerance": 1.709811142171933e-05,
+        "max_cap_error_pct": 0.01990121180074105,
+        "cap_error_budget_pct": 10.0,
+        "cap_error_tolerance_met": true,
         "first_breakpoint_v": 0.0,
         "last_breakpoint_v": 20.0
       },
@@ -49,19 +52,25 @@
         "error_ratio": 0.8097945658440343,
         "tolerance_met": true,
         "achieved_rel_tolerance": 0.004048972829220172,
+        "max_cap_error_pct": null,
+        "cap_error_budget_pct": 10.0,
+        "cap_error_tolerance_met": null,
         "first_breakpoint_v": 0.0,
         "last_breakpoint_v": 20.0
       },
       "cdg": {
         "n_points": 11,
         "n_segments": 10,
-        "max_abs_error_c": 4.7506082361672495e-11,
-        "error_budget_c": 5.5784896771414806e-11,
-        "error_ratio": 0.8515939817247359,
+        "max_abs_error_c": 6.738937705807119e-11,
+        "error_budget_c": 6.899040201069352e-11,
+        "error_ratio": 0.976793511764518,
         "tolerance_met": true,
-        "achieved_rel_tolerance": 0.004257969908623679,
+        "achieved_rel_tolerance": 0.00488396755882259,
+        "max_cap_error_pct": 50.69246200008099,
+        "cap_error_budget_pct": 10.0,
+        "cap_error_tolerance_met": false,
         "first_breakpoint_v": 0.0,
-        "last_breakpoint_v": 20.0
+        "last_breakpoint_v": 49.99999999999999
       }
     },
     "anchor": {
@@ -94,6 +103,37 @@
       "cds": 0
     },
     "cap_ref_vds": 7.5,
+    "cap_error": {
+      "method": "finite-difference dQ/dV of the emitted (V,Q) pairs vs measured C(v) on the common measured grid; relative to local C, denominator clipped at 0.1% of peak C",
+      "budget_pct": 10.0,
+      "max_cap_error_pct": {
+        "cgs": 0.01990121180074105,
+        "cds": null,
+        "cdg": 50.69246200008099
+      },
+      "max_cap_error_pct_all": 50.69246200008099,
+      "tolerance_met": {
+        "cgs": true,
+        "cds": null,
+        "cdg": false
+      }
+    },
+    "cdg_axis": "vds_at_vgs0",
+    "cdg_source_bias_v": null,
+    "cdg_data_limitation": "Only a Vgs=0 C(V) sweep is available, so CDG is emitted on V(di,gi) using the identity Vdg=Vds. No bias-aware Cgd table exists and no bias axis was synthesized.",
+    "cv_bias": {
+      "source": "curve4_full_arrays",
+      "n_sweeps": 1,
+      "biases_v": [
+        null
+      ],
+      "vgs_bias_v": null,
+      "declared_config_vgs_bias_v": null,
+      "temperature_c": null,
+      "declared_config_temperature_c": null,
+      "multi_bias_present": false,
+      "data_limitation": "Only one persisted C(V) sweep at Vgs=0 is available; no multi-bias C-V set exists. Charge tables are fitted from that single sweep and no bias axis was invented from scalar equivalents."
+    },
     "curve4_cv": {
       "source": "curve4_full_arrays",
       "full_arrays_present": true,
@@ -103,7 +143,11 @@
         "coss_curve_f",
         "crss_curve_f"
       ],
-      "data_limitation": null
+      "n_sweeps": 1,
+      "biases_v": [
+        null
+      ],
+      "data_limitation": "Only one persisted C(V) sweep at Vgs=0 is available; no multi-bias C-V set exists. Charge tables are fitted from that single sweep and no bias axis was invented from scalar equivalents."
     },
     "breakpoint_formula": "greedy pwl_charge_segments farthest-point rule on anchored Q(V); no point cap; CDS/CDG forced DPT on-state breakpoint; no breakpoint above vbus",
     "hybrid_channel": {
@@ -163,21 +207,21 @@
       4.375466820909335
     ],
     "emitted_static_samples": 41,
-    "tier2_recorded_mean_rel_rmse_pct": 3.4284999999999997,
-    "static_delta_pp_vs_tier2": 0.00019224767524939068,
+    "tier2_recorded_mean_rel_rmse_pct": 3.4570757569613506,
+    "static_delta_pp_vs_tier2": -0.02838350928610156,
     "static_rmse_scope": "channel_only_dc_capacitors_are_open"
   },
   "dpt_run": {
     "completed": true,
-    "trace_points": 7151,
+    "trace_points": 7133,
     "golden_trace_points": 7154,
-    "iterations": 18308,
+    "iterations": 18129,
     "t_last_s": 1.4e-05,
-    "forced_2ns_wall_s": 1.264272100001108,
+    "forced_2ns_wall_s": 1.0235410999994201,
     "error": null,
     "waveform": {
-      "vds_rel_rmse_pct": 3.8506233832683914,
-      "id_rel_rmse_pct": 4.615008983268007,
+      "vds_rel_rmse_pct": 3.852517683189086,
+      "id_rel_rmse_pct": 4.558133810846575,
       "compare_points": 7154,
       "current_definition": "I(Lload)-I(Dclamp)"
     },
@@ -188,72 +232,72 @@
     "tier3": "I(Lload)-I(Dclamp)"
   },
   "dpt_waveform": {
-    "vds_rel_rmse_pct": 3.8506233832683914,
-    "id_rel_rmse_pct": 4.615008983268007,
+    "vds_rel_rmse_pct": 3.852517683189086,
+    "id_rel_rmse_pct": 4.558133810846575,
     "compare_points": 7154,
     "current_definition": "I(Lload)-I(Dclamp)"
   },
   "dpt_comparison": {
     "td_on_ns": {
       "golden": 10.252879764066485,
-      "tier3": 8.20306071596801,
-      "tier3_rel_err_pct": -19.99261763785162,
+      "tier3": 8.060776414775084,
+      "tier3_rel_err_pct": -21.38036726982909,
       "tier2": 11.780657210018502,
       "tier2_rel_err_pct": 14.900959351015269
     },
     "tr_ns": {
       "golden": 4.703011959080317,
-      "tier3": 4.190119238254428,
-      "tier3_rel_err_pct": -10.905622296699127,
+      "tier3": 4.339655682381247,
+      "tier3_rel_err_pct": -7.726033441133867,
       "tier2": 4.123180135595054,
       "tier2_rel_err_pct": -12.328946397122296
     },
     "td_off_ns": {
       "golden": 14.034458010213152,
-      "tier3": 12.731652927397679,
-      "tier3_rel_err_pct": -9.282902708942489,
+      "tier3": 12.731565546989255,
+      "tier3_rel_err_pct": -9.28352532228716,
       "tier2": 18.242309580736105,
       "tier2_rel_err_pct": 29.982287648449386
     },
     "tf_ns": {
       "golden": 4.139181554911007,
-      "tier3": 7.3058251608263305,
-      "tier3_rel_err_pct": 76.50410024073967,
+      "tier3": 7.308768092001709,
+      "tier3_rel_err_pct": 76.57519959060721,
       "tier2": 8.788832112198792,
       "tier2_rel_err_pct": 112.33260719794045
     },
     "dv_dt_max_v_per_ns": {
       "golden": 373.7322739993671,
-      "tier3": 918.041133056,
-      "tier3_rel_err_pct": 145.64138473562883,
+      "tier3": 364.355813376,
+      "tier3_rel_err_pct": -2.508870995546664,
       "tier2": 374.9478906231432,
       "tier2_rel_err_pct": 0.3252640214257114
     },
     "di_dt_max_a_per_ns": {
       "golden": 986.2625878706833,
-      "tier3": 1152.3034800329094,
-      "tier3_rel_err_pct": 16.835363543567468,
-      "tier2": 0.3811123163714551,
-      "tier2_rel_err_pct": -99.96135792627051
+      "tier3": 715.2006206015969,
+      "tier3_rel_err_pct": -27.483752359937174,
+      "tier2": 726.5448769511014,
+      "tier2_rel_err_pct": -26.33352558574751
     },
     "e_on_uj": {
       "golden": 2.7909554948540354,
-      "tier3": 3.1458985987739423,
-      "tier3_rel_err_pct": 12.71761963149721,
-      "tier2": 6.109476707046132,
-      "tier2_rel_err_pct": 118.902691867025
+      "tier3": 3.114778170800805,
+      "tier3_rel_err_pct": 11.60257397668411,
+      "tier2": 3.2394497672543987,
+      "tier2_rel_err_pct": 16.06956016415515
     },
     "e_off_uj": {
       "golden": 1.6520839383633132,
-      "tier3": 3.2171369505679555,
-      "tier3_rel_err_pct": 94.73205179605519,
-      "tier2": 57.041822545858814,
-      "tier2_rel_err_pct": 3352.7193940502207
+      "tier3": 2.469366437187373,
+      "tier3_rel_err_pct": 49.46979265676569,
+      "tier2": 3.45889177896711,
+      "tier2_rel_err_pct": 109.36537779029348
     },
     "i_peak_a": {
       "golden": 26.82243537902832,
-      "tier3": 26.70025634766158,
-      "tier3_rel_err_pct": -0.4555105814972695,
+      "tier3": 26.7009334564209,
+      "tier3_rel_err_pct": -0.45298616956467974,
       "tier2": 26.73192024230957,
       "tier2_rel_err_pct": -0.3374605453967135
     }
@@ -270,15 +314,15 @@
       "library": "reports\\models\\cpm2-1200_PIECESPICE_T3_simplis_tables_charge.lib",
       "dpt_run": {
         "completed": true,
-        "trace_points": 7151,
+        "trace_points": 7133,
         "golden_trace_points": 7154,
-        "iterations": 18308,
+        "iterations": 18129,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.264272100001108,
+        "forced_2ns_wall_s": 1.0235410999994201,
         "error": null,
         "waveform": {
-          "vds_rel_rmse_pct": 3.8506233832683914,
-          "id_rel_rmse_pct": 4.615008983268007,
+          "vds_rel_rmse_pct": 3.852517683189086,
+          "id_rel_rmse_pct": 4.558133810846575,
           "compare_points": 7154,
           "current_definition": "I(Lload)-I(Dclamp)"
         },
@@ -287,85 +331,86 @@
       "dpt_comparison": {
         "td_on_ns": {
           "golden": 10.252879764066485,
-          "tier3": 8.20306071596801,
-          "tier3_rel_err_pct": -19.99261763785162,
+          "tier3": 8.060776414775084,
+          "tier3_rel_err_pct": -21.38036726982909,
           "tier2": 11.780657210018502,
           "tier2_rel_err_pct": 14.900959351015269
         },
         "tr_ns": {
           "golden": 4.703011959080317,
-          "tier3": 4.190119238254428,
-          "tier3_rel_err_pct": -10.905622296699127,
+          "tier3": 4.339655682381247,
+          "tier3_rel_err_pct": -7.726033441133867,
           "tier2": 4.123180135595054,
           "tier2_rel_err_pct": -12.328946397122296
         },
         "td_off_ns": {
           "golden": 14.034458010213152,
-          "tier3": 12.731652927397679,
-          "tier3_rel_err_pct": -9.282902708942489,
+          "tier3": 12.731565546989255,
+          "tier3_rel_err_pct": -9.28352532228716,
           "tier2": 18.242309580736105,
           "tier2_rel_err_pct": 29.982287648449386
         },
         "tf_ns": {
           "golden": 4.139181554911007,
-          "tier3": 7.3058251608263305,
-          "tier3_rel_err_pct": 76.50410024073967,
+          "tier3": 7.308768092001709,
+          "tier3_rel_err_pct": 76.57519959060721,
           "tier2": 8.788832112198792,
           "tier2_rel_err_pct": 112.33260719794045
         },
         "dv_dt_max_v_per_ns": {
           "golden": 373.7322739993671,
-          "tier3": 918.041133056,
-          "tier3_rel_err_pct": 145.64138473562883,
+          "tier3": 364.355813376,
+          "tier3_rel_err_pct": -2.508870995546664,
           "tier2": 374.9478906231432,
           "tier2_rel_err_pct": 0.3252640214257114
         },
         "di_dt_max_a_per_ns": {
           "golden": 986.2625878706833,
-          "tier3": 1152.3034800329094,
-          "tier3_rel_err_pct": 16.835363543567468,
-          "tier2": 0.3811123163714551,
-          "tier2_rel_err_pct": -99.96135792627051
+          "tier3": 715.2006206015969,
+          "tier3_rel_err_pct": -27.483752359937174,
+          "tier2": 726.5448769511014,
+          "tier2_rel_err_pct": -26.33352558574751
         },
         "e_on_uj": {
           "golden": 2.7909554948540354,
-          "tier3": 3.1458985987739423,
-          "tier3_rel_err_pct": 12.71761963149721,
-          "tier2": 6.109476707046132,
-          "tier2_rel_err_pct": 118.902691867025
+          "tier3": 3.114778170800805,
+          "tier3_rel_err_pct": 11.60257397668411,
+          "tier2": 3.2394497672543987,
+          "tier2_rel_err_pct": 16.06956016415515
         },
         "e_off_uj": {
           "golden": 1.6520839383633132,
-          "tier3": 3.2171369505679555,
-          "tier3_rel_err_pct": 94.73205179605519,
-          "tier2": 57.041822545858814,
-          "tier2_rel_err_pct": 3352.7193940502207
+          "tier3": 2.469366437187373,
+          "tier3_rel_err_pct": 49.46979265676569,
+          "tier2": 3.45889177896711,
+          "tier2_rel_err_pct": 109.36537779029348
         },
         "i_peak_a": {
           "golden": 26.82243537902832,
-          "tier3": 26.70025634766158,
-          "tier3_rel_err_pct": -0.4555105814972695,
+          "tier3": 26.7009334564209,
+          "tier3_rel_err_pct": -0.45298616956467974,
           "tier2": 26.73192024230957,
           "tier2_rel_err_pct": -0.3374605453967135
         }
       },
       "waveform": {
-        "vds_rel_rmse_pct": 3.8506233832683914,
-        "id_rel_rmse_pct": 4.615008983268007,
+        "vds_rel_rmse_pct": 3.852517683189086,
+        "id_rel_rmse_pct": 4.558133810846575,
         "compare_points": 7154,
         "current_definition": "I(Lload)-I(Dclamp)"
       },
       "fidelity": {
-        "vds_rmse_pct": 3.8506233832683914,
-        "id_rmse_pct": 4.615008983268007,
+        "vds_rmse_pct": 3.852517683189086,
+        "id_rmse_pct": 4.558133810846575,
         "abs_rel_err_pct": {
-          "tr_ns": 10.905622296699127,
-          "tf_ns": 76.50410024073967,
-          "e_on_uj": 12.71761963149721,
-          "e_off_uj": 94.73205179605519
+          "tr_ns": 7.726033441133867,
+          "tf_ns": 76.57519959060721,
+          "e_on_uj": 11.60257397668411,
+          "e_off_uj": 49.46979265676569
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.531 seconds.\nTotal iterations: 18308\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_znag_8yj\\tran.net\n"
+      "spice_log_tail": "Total elapsed time: 0.396 seconds.\nTotal iterations: 18129\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_i8dn7ezd\\tran.net\n",
+      "max_cap_error_pct": 50.69246200008099
     },
     "tier2": {
       "library": "reports\\models\\cpm2-1200_PIECESPICE_T3_simplis_tier2_charge.lib",
@@ -375,7 +420,7 @@
         "golden_trace_points": 7154,
         "iterations": 21570,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.167789500001163,
+        "forced_2ns_wall_s": 2.0204956000015954,
         "error": null,
         "waveform": {
           "vds_rel_rmse_pct": 5.867268019824376,
@@ -425,22 +470,22 @@
           "golden": 986.2625878706833,
           "tier3": 155.1994188148236,
           "tier3_rel_err_pct": -84.26388461617556,
-          "tier2": 0.3811123163714551,
-          "tier2_rel_err_pct": -99.96135792627051
+          "tier2": 726.5448769511014,
+          "tier2_rel_err_pct": -26.33352558574751
         },
         "e_on_uj": {
           "golden": 2.7909554948540354,
           "tier3": 3.3350692121419807,
           "tier3_rel_err_pct": 19.495607088367493,
-          "tier2": 6.109476707046132,
-          "tier2_rel_err_pct": 118.902691867025
+          "tier2": 3.2394497672543987,
+          "tier2_rel_err_pct": 16.06956016415515
         },
         "e_off_uj": {
           "golden": 1.6520839383633132,
           "tier3": 12.603682398181224,
           "tier3_rel_err_pct": 662.896007007213,
-          "tier2": 57.041822545858814,
-          "tier2_rel_err_pct": 3352.7193940502207
+          "tier2": 3.45889177896711,
+          "tier2_rel_err_pct": 109.36537779029348
         },
         "i_peak_a": {
           "golden": 26.82243537902832,
@@ -466,21 +511,22 @@
           "e_off_uj": 662.896007007213
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.504 seconds.\nTotal iterations: 21570\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_j6guz5xy\\tran.net\n"
+      "spice_log_tail": "Total elapsed time: 1.291 seconds.\nTotal iterations: 21570\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_6cv4xso2\\tran.net\n",
+      "max_cap_error_pct": null
     },
     "hybrid_tables": {
       "library": "reports\\models\\cpm2-1200_PIECESPICE_T3_simplis_hybrid_tables_charge.lib",
       "dpt_run": {
         "completed": true,
-        "trace_points": 7109,
+        "trace_points": 7112,
         "golden_trace_points": 7154,
-        "iterations": 18136,
+        "iterations": 18175,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.834498000000167,
+        "forced_2ns_wall_s": 1.0159329999987676,
         "error": null,
         "waveform": {
-          "vds_rel_rmse_pct": 10.98079468169398,
-          "id_rel_rmse_pct": 244.35126777339354,
+          "vds_rel_rmse_pct": 11.914159533137177,
+          "id_rel_rmse_pct": 244.6658093335178,
           "compare_points": 7154,
           "current_definition": "I(Lload)-I(Dclamp)"
         },
@@ -489,8 +535,8 @@
       "dpt_comparison": {
         "td_on_ns": {
           "golden": 10.252879764066485,
-          "tier3": 15.257296033741323,
-          "tier3_rel_err_pct": 48.80986010597663,
+          "tier3": 15.231063599213979,
+          "tier3_rel_err_pct": 48.5540057983968,
           "tier2": 11.780657210018502,
           "tier2_rel_err_pct": 14.900959351015269
         },
@@ -517,57 +563,58 @@
         },
         "dv_dt_max_v_per_ns": {
           "golden": 373.7322739993671,
-          "tier3": 68.448169984,
-          "tier3_rel_err_pct": -81.68523974354007,
+          "tier3": 206.933000192,
+          "tier3_rel_err_pct": -44.630684961301895,
           "tier2": 374.9478906231432,
           "tier2_rel_err_pct": 0.3252640214257114
         },
         "di_dt_max_a_per_ns": {
           "golden": 986.2625878706833,
-          "tier3": 179.8493344196865,
-          "tier3_rel_err_pct": -81.76455878672465,
-          "tier2": 0.3811123163714551,
-          "tier2_rel_err_pct": -99.96135792627051
+          "tier3": 389.4159272670804,
+          "tier3_rel_err_pct": -60.51599928292729,
+          "tier2": 726.5448769511014,
+          "tier2_rel_err_pct": -26.33352558574751
         },
         "e_on_uj": {
           "golden": 2.7909554948540354,
           "tier3": NaN,
           "tier3_rel_err_pct": NaN,
-          "tier2": 6.109476707046132,
-          "tier2_rel_err_pct": 118.902691867025
+          "tier2": 3.2394497672543987,
+          "tier2_rel_err_pct": 16.06956016415515
         },
         "e_off_uj": {
           "golden": 1.6520839383633132,
-          "tier3": 143.2466605541342,
-          "tier3_rel_err_pct": 8570.66480266407,
-          "tier2": 57.041822545858814,
-          "tier2_rel_err_pct": 3352.7193940502207
+          "tier3": 143.1723238112297,
+          "tier3_rel_err_pct": 8566.165228448845,
+          "tier2": 3.45889177896711,
+          "tier2_rel_err_pct": 109.36537779029348
         },
         "i_peak_a": {
           "golden": 26.82243537902832,
-          "tier3": 90.01466369629262,
-          "tier3_rel_err_pct": 235.59467074594,
+          "tier3": 90.1769409179723,
+          "tier3_rel_err_pct": 236.19967629217973,
           "tier2": 26.73192024230957,
           "tier2_rel_err_pct": -0.3374605453967135
         }
       },
       "waveform": {
-        "vds_rel_rmse_pct": 10.98079468169398,
-        "id_rel_rmse_pct": 244.35126777339354,
+        "vds_rel_rmse_pct": 11.914159533137177,
+        "id_rel_rmse_pct": 244.6658093335178,
         "compare_points": 7154,
         "current_definition": "I(Lload)-I(Dclamp)"
       },
       "fidelity": {
-        "vds_rmse_pct": 10.98079468169398,
-        "id_rmse_pct": 244.35126777339354,
+        "vds_rmse_pct": 11.914159533137177,
+        "id_rmse_pct": 244.6658093335178,
         "abs_rel_err_pct": {
           "tr_ns": null,
           "tf_ns": null,
           "e_on_uj": null,
-          "e_off_uj": 8570.66480266407
+          "e_off_uj": 8566.165228448845
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.963 seconds.\nTotal iterations: 18136\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_a9kgdbrv\\tran.net\n"
+      "spice_log_tail": "Total elapsed time: 0.402 seconds.\nTotal iterations: 18175\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_yxfwri7_\\tran.net\n",
+      "max_cap_error_pct": 50.69246200008099
     },
     "hybrid_tier2": {
       "library": "reports\\models\\cpm2-1200_PIECESPICE_T3_simplis_hybrid_tier2_charge.lib",
@@ -577,7 +624,7 @@
         "golden_trace_points": 7154,
         "iterations": 19117,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.2571790999991208,
+        "forced_2ns_wall_s": 1.0164876000017102,
         "error": null,
         "waveform": {
           "vds_rel_rmse_pct": 12.1478459163476,
@@ -627,22 +674,22 @@
           "golden": 986.2625878706833,
           "tier3": 233.04045209952397,
           "tier3_rel_err_pct": -76.37135840236498,
-          "tier2": 0.3811123163714551,
-          "tier2_rel_err_pct": -99.96135792627051
+          "tier2": 726.5448769511014,
+          "tier2_rel_err_pct": -26.33352558574751
         },
         "e_on_uj": {
           "golden": 2.7909554948540354,
           "tier3": NaN,
           "tier3_rel_err_pct": NaN,
-          "tier2": 6.109476707046132,
-          "tier2_rel_err_pct": 118.902691867025
+          "tier2": 3.2394497672543987,
+          "tier2_rel_err_pct": 16.06956016415515
         },
         "e_off_uj": {
           "golden": 1.6520839383633132,
           "tier3": 143.34012760556652,
           "tier3_rel_err_pct": 8576.322327034468,
-          "tier2": 57.041822545858814,
-          "tier2_rel_err_pct": 3352.7193940502207
+          "tier2": 3.45889177896711,
+          "tier2_rel_err_pct": 109.36537779029348
         },
         "i_peak_a": {
           "golden": 26.82243537902832,
@@ -668,21 +715,22 @@
           "e_off_uj": 8576.322327034468
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.546 seconds.\nTotal iterations: 19117\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_zr35k52k\\tran.net\n"
+      "spice_log_tail": "Total elapsed time: 0.386 seconds.\nTotal iterations: 19117\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_lqlo7n6e\\tran.net\n",
+      "max_cap_error_pct": null
     },
     "tier2+ann_residual": {
       "library": "reports\\models\\cpm2-1200_PIECESPICE_T3_simplis_hybrid_ann_residual_tables_charge.lib",
       "dpt_run": {
         "completed": true,
-        "trace_points": 7115,
+        "trace_points": 7123,
         "golden_trace_points": 7154,
-        "iterations": 18052,
+        "iterations": 18065,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.2634343999998237,
+        "forced_2ns_wall_s": 0.9770680000001448,
         "error": null,
         "waveform": {
-          "vds_rel_rmse_pct": 4.643971261645848,
-          "id_rel_rmse_pct": 4.932387953261772,
+          "vds_rel_rmse_pct": 4.661441592673329,
+          "id_rel_rmse_pct": 4.867726323011194,
           "compare_points": 7154,
           "current_definition": "I(Lload)-I(Dclamp)"
         },
@@ -691,85 +739,85 @@
       "dpt_comparison": {
         "td_on_ns": {
           "golden": 10.252879764066485,
-          "tier3": 7.539114128949479,
-          "tier3_rel_err_pct": -26.468325949047074,
+          "tier3": 6.822558597970922,
+          "tier3_rel_err_pct": -33.457148089436224,
           "tier2": 11.780657210018502,
           "tier2_rel_err_pct": 14.900959351015269
         },
         "tr_ns": {
           "golden": 4.703011959080317,
-          "tier3": 4.306895224530041,
-          "tier3_rel_err_pct": -8.422618058316358,
+          "tier3": 4.934314649018148,
+          "tier3_rel_err_pct": 4.9181820490854635,
           "tier2": 4.123180135595054,
           "tier2_rel_err_pct": -12.328946397122296
         },
         "td_off_ns": {
           "golden": 14.034458010213152,
-          "tier3": 13.767451615407092,
-          "tier3_rel_err_pct": -1.902505922293218,
+          "tier3": 13.767297530986358,
+          "tier3_rel_err_pct": -1.903603823050209,
           "tier2": 18.242309580736105,
           "tier2_rel_err_pct": 29.982287648449386
         },
         "tf_ns": {
           "golden": 4.139181554911007,
-          "tier3": 7.213682850275375,
-          "tier3_rel_err_pct": 74.2780004833702,
+          "tier3": 7.233650476868959,
+          "tier3_rel_err_pct": 74.76040567214221,
           "tier2": 8.788832112198792,
           "tier2_rel_err_pct": 112.33260719794045
         },
         "dv_dt_max_v_per_ns": {
           "golden": 373.7322739993671,
-          "tier3": 290.2081536,
-          "tier3_rel_err_pct": -22.348650681291858,
+          "tier3": 226.29824921600002,
+          "tier3_rel_err_pct": -39.44910168063697,
           "tier2": 374.9478906231432,
           "tier2_rel_err_pct": 0.3252640214257114
         },
         "di_dt_max_a_per_ns": {
           "golden": 986.2625878706833,
-          "tier3": 640.5003099074986,
-          "tier3_rel_err_pct": -35.05783167844549,
-          "tier2": 0.3811123163714551,
-          "tier2_rel_err_pct": -99.96135792627051
+          "tier3": 267.1070556743367,
+          "tier3_rel_err_pct": -72.91724749987584,
+          "tier2": 726.5448769511014,
+          "tier2_rel_err_pct": -26.33352558574751
         },
         "e_on_uj": {
           "golden": 2.7909554948540354,
-          "tier3": 3.0530591000204343,
-          "tier3_rel_err_pct": 9.391178241633222,
-          "tier2": 6.109476707046132,
-          "tier2_rel_err_pct": 118.902691867025
+          "tier3": 2.7877899883757076,
+          "tier3_rel_err_pct": -0.11342017040989613,
+          "tier2": 3.2394497672543987,
+          "tier2_rel_err_pct": 16.06956016415515
         },
         "e_off_uj": {
           "golden": 1.6520839383633132,
-          "tier3": 2.697681860727213,
-          "tier3_rel_err_pct": 63.28963668757368,
-          "tier2": 57.041822545858814,
-          "tier2_rel_err_pct": 3352.7193940502207
+          "tier3": 3.0713703998989237,
+          "tier3_rel_err_pct": 85.90885902211902,
+          "tier2": 3.45889177896711,
+          "tier2_rel_err_pct": 109.36537779029348
         },
         "i_peak_a": {
           "golden": 26.82243537902832,
-          "tier3": 26.79037857055664,
-          "tier3_rel_err_pct": -0.11951490615480789,
+          "tier3": 26.79035949707564,
+          "tier3_rel_err_pct": -0.11958601633078382,
           "tier2": 26.73192024230957,
           "tier2_rel_err_pct": -0.3374605453967135
         }
       },
       "waveform": {
-        "vds_rel_rmse_pct": 4.643971261645848,
-        "id_rel_rmse_pct": 4.932387953261772,
+        "vds_rel_rmse_pct": 4.661441592673329,
+        "id_rel_rmse_pct": 4.867726323011194,
         "compare_points": 7154,
         "current_definition": "I(Lload)-I(Dclamp)"
       },
       "fidelity": {
-        "vds_rmse_pct": 4.643971261645848,
-        "id_rmse_pct": 4.932387953261772,
+        "vds_rmse_pct": 4.661441592673329,
+        "id_rmse_pct": 4.867726323011194,
         "abs_rel_err_pct": {
-          "tr_ns": 8.422618058316358,
-          "tf_ns": 74.2780004833702,
-          "e_on_uj": 9.391178241633222,
-          "e_off_uj": 63.28963668757368
+          "tr_ns": 4.9181820490854635,
+          "tf_ns": 74.76040567214221,
+          "e_on_uj": 0.11342017040989613,
+          "e_off_uj": 85.90885902211902
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.487 seconds.\nTotal iterations: 18052\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_j6lej5mg\\tran.net\n"
+      "spice_log_tail": "Total elapsed time: 0.413 seconds.\nTotal iterations: 18065\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_u6sc9w6s\\tran.net\n"
     },
     "selection": "tables",
     "selection_reason": "tier2 charge does not strictly improve every recorded fidelity metric; tables retained",
@@ -787,15 +835,15 @@
       "library": "reports\\models\\cpm2-1200_PIECESPICE_T3_simplis_tables_charge.lib",
       "dpt_run": {
         "completed": true,
-        "trace_points": 7151,
+        "trace_points": 7133,
         "golden_trace_points": 7154,
-        "iterations": 18308,
+        "iterations": 18129,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.264272100001108,
+        "forced_2ns_wall_s": 1.0235410999994201,
         "error": null,
         "waveform": {
-          "vds_rel_rmse_pct": 3.8506233832683914,
-          "id_rel_rmse_pct": 4.615008983268007,
+          "vds_rel_rmse_pct": 3.852517683189086,
+          "id_rel_rmse_pct": 4.558133810846575,
           "compare_points": 7154,
           "current_definition": "I(Lload)-I(Dclamp)"
         },
@@ -804,85 +852,86 @@
       "dpt_comparison": {
         "td_on_ns": {
           "golden": 10.252879764066485,
-          "tier3": 8.20306071596801,
-          "tier3_rel_err_pct": -19.99261763785162,
+          "tier3": 8.060776414775084,
+          "tier3_rel_err_pct": -21.38036726982909,
           "tier2": 11.780657210018502,
           "tier2_rel_err_pct": 14.900959351015269
         },
         "tr_ns": {
           "golden": 4.703011959080317,
-          "tier3": 4.190119238254428,
-          "tier3_rel_err_pct": -10.905622296699127,
+          "tier3": 4.339655682381247,
+          "tier3_rel_err_pct": -7.726033441133867,
           "tier2": 4.123180135595054,
           "tier2_rel_err_pct": -12.328946397122296
         },
         "td_off_ns": {
           "golden": 14.034458010213152,
-          "tier3": 12.731652927397679,
-          "tier3_rel_err_pct": -9.282902708942489,
+          "tier3": 12.731565546989255,
+          "tier3_rel_err_pct": -9.28352532228716,
           "tier2": 18.242309580736105,
           "tier2_rel_err_pct": 29.982287648449386
         },
         "tf_ns": {
           "golden": 4.139181554911007,
-          "tier3": 7.3058251608263305,
-          "tier3_rel_err_pct": 76.50410024073967,
+          "tier3": 7.308768092001709,
+          "tier3_rel_err_pct": 76.57519959060721,
           "tier2": 8.788832112198792,
           "tier2_rel_err_pct": 112.33260719794045
         },
         "dv_dt_max_v_per_ns": {
           "golden": 373.7322739993671,
-          "tier3": 918.041133056,
-          "tier3_rel_err_pct": 145.64138473562883,
+          "tier3": 364.355813376,
+          "tier3_rel_err_pct": -2.508870995546664,
           "tier2": 374.9478906231432,
           "tier2_rel_err_pct": 0.3252640214257114
         },
         "di_dt_max_a_per_ns": {
           "golden": 986.2625878706833,
-          "tier3": 1152.3034800329094,
-          "tier3_rel_err_pct": 16.835363543567468,
-          "tier2": 0.3811123163714551,
-          "tier2_rel_err_pct": -99.96135792627051
+          "tier3": 715.2006206015969,
+          "tier3_rel_err_pct": -27.483752359937174,
+          "tier2": 726.5448769511014,
+          "tier2_rel_err_pct": -26.33352558574751
         },
         "e_on_uj": {
           "golden": 2.7909554948540354,
-          "tier3": 3.1458985987739423,
-          "tier3_rel_err_pct": 12.71761963149721,
-          "tier2": 6.109476707046132,
-          "tier2_rel_err_pct": 118.902691867025
+          "tier3": 3.114778170800805,
+          "tier3_rel_err_pct": 11.60257397668411,
+          "tier2": 3.2394497672543987,
+          "tier2_rel_err_pct": 16.06956016415515
         },
         "e_off_uj": {
           "golden": 1.6520839383633132,
-          "tier3": 3.2171369505679555,
-          "tier3_rel_err_pct": 94.73205179605519,
-          "tier2": 57.041822545858814,
-          "tier2_rel_err_pct": 3352.7193940502207
+          "tier3": 2.469366437187373,
+          "tier3_rel_err_pct": 49.46979265676569,
+          "tier2": 3.45889177896711,
+          "tier2_rel_err_pct": 109.36537779029348
         },
         "i_peak_a": {
           "golden": 26.82243537902832,
-          "tier3": 26.70025634766158,
-          "tier3_rel_err_pct": -0.4555105814972695,
+          "tier3": 26.7009334564209,
+          "tier3_rel_err_pct": -0.45298616956467974,
           "tier2": 26.73192024230957,
           "tier2_rel_err_pct": -0.3374605453967135
         }
       },
       "waveform": {
-        "vds_rel_rmse_pct": 3.8506233832683914,
-        "id_rel_rmse_pct": 4.615008983268007,
+        "vds_rel_rmse_pct": 3.852517683189086,
+        "id_rel_rmse_pct": 4.558133810846575,
         "compare_points": 7154,
         "current_definition": "I(Lload)-I(Dclamp)"
       },
       "fidelity": {
-        "vds_rmse_pct": 3.8506233832683914,
-        "id_rmse_pct": 4.615008983268007,
+        "vds_rmse_pct": 3.852517683189086,
+        "id_rmse_pct": 4.558133810846575,
         "abs_rel_err_pct": {
-          "tr_ns": 10.905622296699127,
-          "tf_ns": 76.50410024073967,
-          "e_on_uj": 12.71761963149721,
-          "e_off_uj": 94.73205179605519
+          "tr_ns": 7.726033441133867,
+          "tf_ns": 76.57519959060721,
+          "e_on_uj": 11.60257397668411,
+          "e_off_uj": 49.46979265676569
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.531 seconds.\nTotal iterations: 18308\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_znag_8yj\\tran.net\n"
+      "spice_log_tail": "Total elapsed time: 0.396 seconds.\nTotal iterations: 18129\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_i8dn7ezd\\tran.net\n",
+      "max_cap_error_pct": 50.69246200008099
     },
     "tier2": {
       "library": "reports\\models\\cpm2-1200_PIECESPICE_T3_simplis_tier2_charge.lib",
@@ -892,7 +941,7 @@
         "golden_trace_points": 7154,
         "iterations": 21570,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.167789500001163,
+        "forced_2ns_wall_s": 2.0204956000015954,
         "error": null,
         "waveform": {
           "vds_rel_rmse_pct": 5.867268019824376,
@@ -942,22 +991,22 @@
           "golden": 986.2625878706833,
           "tier3": 155.1994188148236,
           "tier3_rel_err_pct": -84.26388461617556,
-          "tier2": 0.3811123163714551,
-          "tier2_rel_err_pct": -99.96135792627051
+          "tier2": 726.5448769511014,
+          "tier2_rel_err_pct": -26.33352558574751
         },
         "e_on_uj": {
           "golden": 2.7909554948540354,
           "tier3": 3.3350692121419807,
           "tier3_rel_err_pct": 19.495607088367493,
-          "tier2": 6.109476707046132,
-          "tier2_rel_err_pct": 118.902691867025
+          "tier2": 3.2394497672543987,
+          "tier2_rel_err_pct": 16.06956016415515
         },
         "e_off_uj": {
           "golden": 1.6520839383633132,
           "tier3": 12.603682398181224,
           "tier3_rel_err_pct": 662.896007007213,
-          "tier2": 57.041822545858814,
-          "tier2_rel_err_pct": 3352.7193940502207
+          "tier2": 3.45889177896711,
+          "tier2_rel_err_pct": 109.36537779029348
         },
         "i_peak_a": {
           "golden": 26.82243537902832,
@@ -983,21 +1032,22 @@
           "e_off_uj": 662.896007007213
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.504 seconds.\nTotal iterations: 21570\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_j6guz5xy\\tran.net\n"
+      "spice_log_tail": "Total elapsed time: 1.291 seconds.\nTotal iterations: 21570\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_6cv4xso2\\tran.net\n",
+      "max_cap_error_pct": null
     },
     "hybrid_tables": {
       "library": "reports\\models\\cpm2-1200_PIECESPICE_T3_simplis_hybrid_tables_charge.lib",
       "dpt_run": {
         "completed": true,
-        "trace_points": 7109,
+        "trace_points": 7112,
         "golden_trace_points": 7154,
-        "iterations": 18136,
+        "iterations": 18175,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.834498000000167,
+        "forced_2ns_wall_s": 1.0159329999987676,
         "error": null,
         "waveform": {
-          "vds_rel_rmse_pct": 10.98079468169398,
-          "id_rel_rmse_pct": 244.35126777339354,
+          "vds_rel_rmse_pct": 11.914159533137177,
+          "id_rel_rmse_pct": 244.6658093335178,
           "compare_points": 7154,
           "current_definition": "I(Lload)-I(Dclamp)"
         },
@@ -1006,8 +1056,8 @@
       "dpt_comparison": {
         "td_on_ns": {
           "golden": 10.252879764066485,
-          "tier3": 15.257296033741323,
-          "tier3_rel_err_pct": 48.80986010597663,
+          "tier3": 15.231063599213979,
+          "tier3_rel_err_pct": 48.5540057983968,
           "tier2": 11.780657210018502,
           "tier2_rel_err_pct": 14.900959351015269
         },
@@ -1034,57 +1084,58 @@
         },
         "dv_dt_max_v_per_ns": {
           "golden": 373.7322739993671,
-          "tier3": 68.448169984,
-          "tier3_rel_err_pct": -81.68523974354007,
+          "tier3": 206.933000192,
+          "tier3_rel_err_pct": -44.630684961301895,
           "tier2": 374.9478906231432,
           "tier2_rel_err_pct": 0.3252640214257114
         },
         "di_dt_max_a_per_ns": {
           "golden": 986.2625878706833,
-          "tier3": 179.8493344196865,
-          "tier3_rel_err_pct": -81.76455878672465,
-          "tier2": 0.3811123163714551,
-          "tier2_rel_err_pct": -99.96135792627051
+          "tier3": 389.4159272670804,
+          "tier3_rel_err_pct": -60.51599928292729,
+          "tier2": 726.5448769511014,
+          "tier2_rel_err_pct": -26.33352558574751
         },
         "e_on_uj": {
           "golden": 2.7909554948540354,
           "tier3": NaN,
           "tier3_rel_err_pct": NaN,
-          "tier2": 6.109476707046132,
-          "tier2_rel_err_pct": 118.902691867025
+          "tier2": 3.2394497672543987,
+          "tier2_rel_err_pct": 16.06956016415515
         },
         "e_off_uj": {
           "golden": 1.6520839383633132,
-          "tier3": 143.2466605541342,
-          "tier3_rel_err_pct": 8570.66480266407,
-          "tier2": 57.041822545858814,
-          "tier2_rel_err_pct": 3352.7193940502207
+          "tier3": 143.1723238112297,
+          "tier3_rel_err_pct": 8566.165228448845,
+          "tier2": 3.45889177896711,
+          "tier2_rel_err_pct": 109.36537779029348
         },
         "i_peak_a": {
           "golden": 26.82243537902832,
-          "tier3": 90.01466369629262,
-          "tier3_rel_err_pct": 235.59467074594,
+          "tier3": 90.1769409179723,
+          "tier3_rel_err_pct": 236.19967629217973,
           "tier2": 26.73192024230957,
           "tier2_rel_err_pct": -0.3374605453967135
         }
       },
       "waveform": {
-        "vds_rel_rmse_pct": 10.98079468169398,
-        "id_rel_rmse_pct": 244.35126777339354,
+        "vds_rel_rmse_pct": 11.914159533137177,
+        "id_rel_rmse_pct": 244.6658093335178,
         "compare_points": 7154,
         "current_definition": "I(Lload)-I(Dclamp)"
       },
       "fidelity": {
-        "vds_rmse_pct": 10.98079468169398,
-        "id_rmse_pct": 244.35126777339354,
+        "vds_rmse_pct": 11.914159533137177,
+        "id_rmse_pct": 244.6658093335178,
         "abs_rel_err_pct": {
           "tr_ns": null,
           "tf_ns": null,
           "e_on_uj": null,
-          "e_off_uj": 8570.66480266407
+          "e_off_uj": 8566.165228448845
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.963 seconds.\nTotal iterations: 18136\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_a9kgdbrv\\tran.net\n"
+      "spice_log_tail": "Total elapsed time: 0.402 seconds.\nTotal iterations: 18175\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_yxfwri7_\\tran.net\n",
+      "max_cap_error_pct": 50.69246200008099
     },
     "hybrid_tier2": {
       "library": "reports\\models\\cpm2-1200_PIECESPICE_T3_simplis_hybrid_tier2_charge.lib",
@@ -1094,7 +1145,7 @@
         "golden_trace_points": 7154,
         "iterations": 19117,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.2571790999991208,
+        "forced_2ns_wall_s": 1.0164876000017102,
         "error": null,
         "waveform": {
           "vds_rel_rmse_pct": 12.1478459163476,
@@ -1144,22 +1195,22 @@
           "golden": 986.2625878706833,
           "tier3": 233.04045209952397,
           "tier3_rel_err_pct": -76.37135840236498,
-          "tier2": 0.3811123163714551,
-          "tier2_rel_err_pct": -99.96135792627051
+          "tier2": 726.5448769511014,
+          "tier2_rel_err_pct": -26.33352558574751
         },
         "e_on_uj": {
           "golden": 2.7909554948540354,
           "tier3": NaN,
           "tier3_rel_err_pct": NaN,
-          "tier2": 6.109476707046132,
-          "tier2_rel_err_pct": 118.902691867025
+          "tier2": 3.2394497672543987,
+          "tier2_rel_err_pct": 16.06956016415515
         },
         "e_off_uj": {
           "golden": 1.6520839383633132,
           "tier3": 143.34012760556652,
           "tier3_rel_err_pct": 8576.322327034468,
-          "tier2": 57.041822545858814,
-          "tier2_rel_err_pct": 3352.7193940502207
+          "tier2": 3.45889177896711,
+          "tier2_rel_err_pct": 109.36537779029348
         },
         "i_peak_a": {
           "golden": 26.82243537902832,
@@ -1185,21 +1236,22 @@
           "e_off_uj": 8576.322327034468
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.546 seconds.\nTotal iterations: 19117\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_zr35k52k\\tran.net\n"
+      "spice_log_tail": "Total elapsed time: 0.386 seconds.\nTotal iterations: 19117\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_lqlo7n6e\\tran.net\n",
+      "max_cap_error_pct": null
     },
     "tier2+ann_residual": {
       "library": "reports\\models\\cpm2-1200_PIECESPICE_T3_simplis_hybrid_ann_residual_tables_charge.lib",
       "dpt_run": {
         "completed": true,
-        "trace_points": 7115,
+        "trace_points": 7123,
         "golden_trace_points": 7154,
-        "iterations": 18052,
+        "iterations": 18065,
         "t_last_s": 1.4e-05,
-        "forced_2ns_wall_s": 1.2634343999998237,
+        "forced_2ns_wall_s": 0.9770680000001448,
         "error": null,
         "waveform": {
-          "vds_rel_rmse_pct": 4.643971261645848,
-          "id_rel_rmse_pct": 4.932387953261772,
+          "vds_rel_rmse_pct": 4.661441592673329,
+          "id_rel_rmse_pct": 4.867726323011194,
           "compare_points": 7154,
           "current_definition": "I(Lload)-I(Dclamp)"
         },
@@ -1208,85 +1260,85 @@
       "dpt_comparison": {
         "td_on_ns": {
           "golden": 10.252879764066485,
-          "tier3": 7.539114128949479,
-          "tier3_rel_err_pct": -26.468325949047074,
+          "tier3": 6.822558597970922,
+          "tier3_rel_err_pct": -33.457148089436224,
           "tier2": 11.780657210018502,
           "tier2_rel_err_pct": 14.900959351015269
         },
         "tr_ns": {
           "golden": 4.703011959080317,
-          "tier3": 4.306895224530041,
-          "tier3_rel_err_pct": -8.422618058316358,
+          "tier3": 4.934314649018148,
+          "tier3_rel_err_pct": 4.9181820490854635,
           "tier2": 4.123180135595054,
           "tier2_rel_err_pct": -12.328946397122296
         },
         "td_off_ns": {
           "golden": 14.034458010213152,
-          "tier3": 13.767451615407092,
-          "tier3_rel_err_pct": -1.902505922293218,
+          "tier3": 13.767297530986358,
+          "tier3_rel_err_pct": -1.903603823050209,
           "tier2": 18.242309580736105,
           "tier2_rel_err_pct": 29.982287648449386
         },
         "tf_ns": {
           "golden": 4.139181554911007,
-          "tier3": 7.213682850275375,
-          "tier3_rel_err_pct": 74.2780004833702,
+          "tier3": 7.233650476868959,
+          "tier3_rel_err_pct": 74.76040567214221,
           "tier2": 8.788832112198792,
           "tier2_rel_err_pct": 112.33260719794045
         },
         "dv_dt_max_v_per_ns": {
           "golden": 373.7322739993671,
-          "tier3": 290.2081536,
-          "tier3_rel_err_pct": -22.348650681291858,
+          "tier3": 226.29824921600002,
+          "tier3_rel_err_pct": -39.44910168063697,
           "tier2": 374.9478906231432,
           "tier2_rel_err_pct": 0.3252640214257114
         },
         "di_dt_max_a_per_ns": {
           "golden": 986.2625878706833,
-          "tier3": 640.5003099074986,
-          "tier3_rel_err_pct": -35.05783167844549,
-          "tier2": 0.3811123163714551,
-          "tier2_rel_err_pct": -99.96135792627051
+          "tier3": 267.1070556743367,
+          "tier3_rel_err_pct": -72.91724749987584,
+          "tier2": 726.5448769511014,
+          "tier2_rel_err_pct": -26.33352558574751
         },
         "e_on_uj": {
           "golden": 2.7909554948540354,
-          "tier3": 3.0530591000204343,
-          "tier3_rel_err_pct": 9.391178241633222,
-          "tier2": 6.109476707046132,
-          "tier2_rel_err_pct": 118.902691867025
+          "tier3": 2.7877899883757076,
+          "tier3_rel_err_pct": -0.11342017040989613,
+          "tier2": 3.2394497672543987,
+          "tier2_rel_err_pct": 16.06956016415515
         },
         "e_off_uj": {
           "golden": 1.6520839383633132,
-          "tier3": 2.697681860727213,
-          "tier3_rel_err_pct": 63.28963668757368,
-          "tier2": 57.041822545858814,
-          "tier2_rel_err_pct": 3352.7193940502207
+          "tier3": 3.0713703998989237,
+          "tier3_rel_err_pct": 85.90885902211902,
+          "tier2": 3.45889177896711,
+          "tier2_rel_err_pct": 109.36537779029348
         },
         "i_peak_a": {
           "golden": 26.82243537902832,
-          "tier3": 26.79037857055664,
-          "tier3_rel_err_pct": -0.11951490615480789,
+          "tier3": 26.79035949707564,
+          "tier3_rel_err_pct": -0.11958601633078382,
           "tier2": 26.73192024230957,
           "tier2_rel_err_pct": -0.3374605453967135
         }
       },
       "waveform": {
-        "vds_rel_rmse_pct": 4.643971261645848,
-        "id_rel_rmse_pct": 4.932387953261772,
+        "vds_rel_rmse_pct": 4.661441592673329,
+        "id_rel_rmse_pct": 4.867726323011194,
         "compare_points": 7154,
         "current_definition": "I(Lload)-I(Dclamp)"
       },
       "fidelity": {
-        "vds_rmse_pct": 4.643971261645848,
-        "id_rmse_pct": 4.932387953261772,
+        "vds_rmse_pct": 4.661441592673329,
+        "id_rmse_pct": 4.867726323011194,
         "abs_rel_err_pct": {
-          "tr_ns": 8.422618058316358,
-          "tf_ns": 74.2780004833702,
-          "e_on_uj": 9.391178241633222,
-          "e_off_uj": 63.28963668757368
+          "tr_ns": 4.9181820490854635,
+          "tf_ns": 74.76040567214221,
+          "e_on_uj": 0.11342017040989613,
+          "e_off_uj": 85.90885902211902
         }
       },
-      "spice_log_tail": "Total elapsed time: 0.487 seconds.\nTotal iterations: 18052\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_j6lej5mg\\tran.net\n"
+      "spice_log_tail": "Total elapsed time: 0.413 seconds.\nTotal iterations: 18065\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_u6sc9w6s\\tran.net\n"
     },
     "selection": "tier2",
     "selection_reason": "hybrid rejected: strict all-metric DPT fidelity gain not proven (hybrid_tables: incomplete DPT guard on at least one candidate; hybrid_tier2: incomplete DPT guard on at least one candidate); Tier-2 channel retained",
@@ -1476,6 +1528,9 @@
           "reason": "The maximum number of function evaluations is exceeded."
         }
       ],
+      "holdout": null,
+      "holdout_rule": "whole CurveData Vgs families reserved; fit on the remaining samples; no hold-out => not_measured",
+      "temperature": null,
       "analytic_derivatives": "closed forms of phi', phi'' and tanh-cutoff derivatives; central-difference audit in diagnostics.analytic_vs_finite_difference",
       "limitation": "offline static fit only; no fidelity/speed gate runs in this module",
       "external_source_status": "conditional_until_url_and_section_pinned"
@@ -1487,190 +1542,190 @@
     ],
     "dpt_fit": {
       "tables": {
-        "vds_rmse_pct": 3.8506233832683914,
-        "id_rmse_pct": 4.615008983268007,
+        "vds_rmse_pct": 3.852517683189086,
+        "id_rmse_pct": 4.558133810846575,
         "abs_rel_err_pct": {
-          "tr_ns": 10.905622296699127,
-          "tf_ns": 76.50410024073967,
-          "e_on_uj": 12.71761963149721,
-          "e_off_uj": 94.73205179605519
+          "tr_ns": 7.726033441133867,
+          "tf_ns": 76.57519959060721,
+          "e_on_uj": 11.60257397668411,
+          "e_off_uj": 49.46979265676569
         }
       },
       "tier2+ann_residual": {
-        "vds_rmse_pct": 4.643971261645848,
-        "id_rmse_pct": 4.932387953261772,
+        "vds_rmse_pct": 4.661441592673329,
+        "id_rmse_pct": 4.867726323011194,
         "abs_rel_err_pct": {
-          "tr_ns": 8.422618058316358,
-          "tf_ns": 74.2780004833702,
-          "e_on_uj": 9.391178241633222,
-          "e_off_uj": 63.28963668757368
+          "tr_ns": 4.9181820490854635,
+          "tf_ns": 74.76040567214221,
+          "e_on_uj": 0.11342017040989613,
+          "e_off_uj": 85.90885902211902
         }
       }
     },
     "dpt_held_out": {
       "tables": {
         "waveform": {
-          "vds_rel_rmse_pct": 3.8506233832683914,
-          "id_rel_rmse_pct": 4.615008983268007,
+          "vds_rel_rmse_pct": 3.852517683189086,
+          "id_rel_rmse_pct": 4.558133810846575,
           "compare_points": 7154,
           "current_definition": "I(Lload)-I(Dclamp)"
         },
         "dpt_comparison": {
           "td_on_ns": {
             "golden": 10.252879764066485,
-            "tier3": 8.20306071596801,
-            "tier3_rel_err_pct": -19.99261763785162,
+            "tier3": 8.060776414775084,
+            "tier3_rel_err_pct": -21.38036726982909,
             "tier2": 11.780657210018502,
             "tier2_rel_err_pct": 14.900959351015269
           },
           "tr_ns": {
             "golden": 4.703011959080317,
-            "tier3": 4.190119238254428,
-            "tier3_rel_err_pct": -10.905622296699127,
+            "tier3": 4.339655682381247,
+            "tier3_rel_err_pct": -7.726033441133867,
             "tier2": 4.123180135595054,
             "tier2_rel_err_pct": -12.328946397122296
           },
           "td_off_ns": {
             "golden": 14.034458010213152,
-            "tier3": 12.731652927397679,
-            "tier3_rel_err_pct": -9.282902708942489,
+            "tier3": 12.731565546989255,
+            "tier3_rel_err_pct": -9.28352532228716,
             "tier2": 18.242309580736105,
             "tier2_rel_err_pct": 29.982287648449386
           },
           "tf_ns": {
             "golden": 4.139181554911007,
-            "tier3": 7.3058251608263305,
-            "tier3_rel_err_pct": 76.50410024073967,
+            "tier3": 7.308768092001709,
+            "tier3_rel_err_pct": 76.57519959060721,
             "tier2": 8.788832112198792,
             "tier2_rel_err_pct": 112.33260719794045
           },
           "dv_dt_max_v_per_ns": {
             "golden": 373.7322739993671,
-            "tier3": 918.041133056,
-            "tier3_rel_err_pct": 145.64138473562883,
+            "tier3": 364.355813376,
+            "tier3_rel_err_pct": -2.508870995546664,
             "tier2": 374.9478906231432,
             "tier2_rel_err_pct": 0.3252640214257114
           },
           "di_dt_max_a_per_ns": {
             "golden": 986.2625878706833,
-            "tier3": 1152.3034800329094,
-            "tier3_rel_err_pct": 16.835363543567468,
-            "tier2": 0.3811123163714551,
-            "tier2_rel_err_pct": -99.96135792627051
+            "tier3": 715.2006206015969,
+            "tier3_rel_err_pct": -27.483752359937174,
+            "tier2": 726.5448769511014,
+            "tier2_rel_err_pct": -26.33352558574751
           },
           "e_on_uj": {
             "golden": 2.7909554948540354,
-            "tier3": 3.1458985987739423,
-            "tier3_rel_err_pct": 12.71761963149721,
-            "tier2": 6.109476707046132,
-            "tier2_rel_err_pct": 118.902691867025
+            "tier3": 3.114778170800805,
+            "tier3_rel_err_pct": 11.60257397668411,
+            "tier2": 3.2394497672543987,
+            "tier2_rel_err_pct": 16.06956016415515
           },
           "e_off_uj": {
             "golden": 1.6520839383633132,
-            "tier3": 3.2171369505679555,
-            "tier3_rel_err_pct": 94.73205179605519,
-            "tier2": 57.041822545858814,
-            "tier2_rel_err_pct": 3352.7193940502207
+            "tier3": 2.469366437187373,
+            "tier3_rel_err_pct": 49.46979265676569,
+            "tier2": 3.45889177896711,
+            "tier2_rel_err_pct": 109.36537779029348
           },
           "i_peak_a": {
             "golden": 26.82243537902832,
-            "tier3": 26.70025634766158,
-            "tier3_rel_err_pct": -0.4555105814972695,
+            "tier3": 26.7009334564209,
+            "tier3_rel_err_pct": -0.45298616956467974,
             "tier2": 26.73192024230957,
             "tier2_rel_err_pct": -0.3374605453967135
           }
         },
         "dpt_run": {
           "completed": true,
-          "trace_points": 7151,
-          "iterations": 18308,
+          "trace_points": 7133,
+          "iterations": 18129,
           "t_last_s": 1.4e-05,
           "error": null
         }
       },
       "tier2+ann_residual": {
         "waveform": {
-          "vds_rel_rmse_pct": 4.643971261645848,
-          "id_rel_rmse_pct": 4.932387953261772,
+          "vds_rel_rmse_pct": 4.661441592673329,
+          "id_rel_rmse_pct": 4.867726323011194,
           "compare_points": 7154,
           "current_definition": "I(Lload)-I(Dclamp)"
         },
         "dpt_comparison": {
           "td_on_ns": {
             "golden": 10.252879764066485,
-            "tier3": 7.539114128949479,
-            "tier3_rel_err_pct": -26.468325949047074,
+            "tier3": 6.822558597970922,
+            "tier3_rel_err_pct": -33.457148089436224,
             "tier2": 11.780657210018502,
             "tier2_rel_err_pct": 14.900959351015269
           },
           "tr_ns": {
             "golden": 4.703011959080317,
-            "tier3": 4.306895224530041,
-            "tier3_rel_err_pct": -8.422618058316358,
+            "tier3": 4.934314649018148,
+            "tier3_rel_err_pct": 4.9181820490854635,
             "tier2": 4.123180135595054,
             "tier2_rel_err_pct": -12.328946397122296
           },
           "td_off_ns": {
             "golden": 14.034458010213152,
-            "tier3": 13.767451615407092,
-            "tier3_rel_err_pct": -1.902505922293218,
+            "tier3": 13.767297530986358,
+            "tier3_rel_err_pct": -1.903603823050209,
             "tier2": 18.242309580736105,
             "tier2_rel_err_pct": 29.982287648449386
           },
           "tf_ns": {
             "golden": 4.139181554911007,
-            "tier3": 7.213682850275375,
-            "tier3_rel_err_pct": 74.2780004833702,
+            "tier3": 7.233650476868959,
+            "tier3_rel_err_pct": 74.76040567214221,
             "tier2": 8.788832112198792,
             "tier2_rel_err_pct": 112.33260719794045
           },
           "dv_dt_max_v_per_ns": {
             "golden": 373.7322739993671,
-            "tier3": 290.2081536,
-            "tier3_rel_err_pct": -22.348650681291858,
+            "tier3": 226.29824921600002,
+            "tier3_rel_err_pct": -39.44910168063697,
             "tier2": 374.9478906231432,
             "tier2_rel_err_pct": 0.3252640214257114
           },
           "di_dt_max_a_per_ns": {
             "golden": 986.2625878706833,
-            "tier3": 640.5003099074986,
-            "tier3_rel_err_pct": -35.05783167844549,
-            "tier2": 0.3811123163714551,
-            "tier2_rel_err_pct": -99.96135792627051
+            "tier3": 267.1070556743367,
+            "tier3_rel_err_pct": -72.91724749987584,
+            "tier2": 726.5448769511014,
+            "tier2_rel_err_pct": -26.33352558574751
           },
           "e_on_uj": {
             "golden": 2.7909554948540354,
-            "tier3": 3.0530591000204343,
-            "tier3_rel_err_pct": 9.391178241633222,
-            "tier2": 6.109476707046132,
-            "tier2_rel_err_pct": 118.902691867025
+            "tier3": 2.7877899883757076,
+            "tier3_rel_err_pct": -0.11342017040989613,
+            "tier2": 3.2394497672543987,
+            "tier2_rel_err_pct": 16.06956016415515
           },
           "e_off_uj": {
             "golden": 1.6520839383633132,
-            "tier3": 2.697681860727213,
-            "tier3_rel_err_pct": 63.28963668757368,
-            "tier2": 57.041822545858814,
-            "tier2_rel_err_pct": 3352.7193940502207
+            "tier3": 3.0713703998989237,
+            "tier3_rel_err_pct": 85.90885902211902,
+            "tier2": 3.45889177896711,
+            "tier2_rel_err_pct": 109.36537779029348
           },
           "i_peak_a": {
             "golden": 26.82243537902832,
-            "tier3": 26.79037857055664,
-            "tier3_rel_err_pct": -0.11951490615480789,
+            "tier3": 26.79035949707564,
+            "tier3_rel_err_pct": -0.11958601633078382,
             "tier2": 26.73192024230957,
             "tier2_rel_err_pct": -0.3374605453967135
           }
         },
         "dpt_run": {
           "completed": true,
-          "trace_points": 7115,
-          "iterations": 18052,
+          "trace_points": 7123,
+          "iterations": 18065,
           "t_last_s": 1.4e-05,
           "error": null
         }
       }
     },
     "selection": "tier2",
-    "selection_reason": "ANN residual rejected: no strict DPT fidelity gain (vds_rmse_pct, id_rmse_pct); tier2 channel retained",
+    "selection_reason": "ANN residual rejected: no strict DPT fidelity gain (vds_rmse_pct, id_rmse_pct, e_off_uj, mean_fidelity_score); tier2 channel retained",
     "selection_rule": "EVIDENCE-GATED ONLY: tier2+ann_residual is selected only when both the tier2 and residual DPT runs are complete and the residual strictly improves Vds RMSE, Id RMSE, abs(rel err) of tr/tf/e_on/e_off and their mean fidelity score on the SAME selected charge-table emission. A missing fit, failed/incomplete DPT, tie or regression keeps the tier2 channel; no adaptive speed is claimed here.",
     "evidence": {
       "charge_mode": "tables",
@@ -1679,85 +1734,152 @@
       "completion": {
         "tables": {
           "completed": true,
-          "trace_points": 7151,
-          "iterations": 18308,
+          "trace_points": 7133,
+          "iterations": 18129,
           "t_last_s": 1.4e-05,
           "error": null
         },
         "tier2+ann_residual": {
           "completed": true,
-          "trace_points": 7115,
-          "iterations": 18052,
+          "trace_points": 7123,
+          "iterations": 18065,
           "t_last_s": 1.4e-05,
           "error": null
         }
       },
       "fidelity": {
         "vds_rmse_pct": {
-          "tier2": 3.8506233832683914,
-          "residual": 4.643971261645848,
+          "tier2": 3.852517683189086,
+          "residual": 4.661441592673329,
           "strict_gain": false
         },
         "id_rmse_pct": {
-          "tier2": 4.615008983268007,
-          "residual": 4.932387953261772,
+          "tier2": 4.558133810846575,
+          "residual": 4.867726323011194,
           "strict_gain": false
         },
         "tr_ns": {
-          "tier2": 10.905622296699127,
-          "residual": 8.422618058316358,
+          "tier2": 7.726033441133867,
+          "residual": 4.9181820490854635,
           "strict_gain": true
         },
         "tf_ns": {
-          "tier2": 76.50410024073967,
-          "residual": 74.2780004833702,
+          "tier2": 76.57519959060721,
+          "residual": 74.76040567214221,
           "strict_gain": true
         },
         "e_on_uj": {
-          "tier2": 12.71761963149721,
-          "residual": 9.391178241633222,
+          "tier2": 11.60257397668411,
+          "residual": 0.11342017040989613,
           "strict_gain": true
         },
         "e_off_uj": {
-          "tier2": 94.73205179605519,
-          "residual": 63.28963668757368,
-          "strict_gain": true
+          "tier2": 49.46979265676569,
+          "residual": 85.90885902211902,
+          "strict_gain": false
         }
       },
       "score": {
-        "tier2": 33.887504388587935,
-        "residual": 27.49296544763352,
-        "strict_gain": true
+        "tier2": 25.630708526537756,
+        "residual": 29.20500580490685,
+        "strict_gain": false
       },
       "strict_gain": false,
       "failed_metrics": [
         "vds_rmse_pct",
-        "id_rmse_pct"
+        "id_rmse_pct",
+        "e_off_uj",
+        "mean_fidelity_score"
       ]
     }
   },
   "runtime": {
     "golden": {
-      "wall_clock_s": 1.3118928000003507,
-      "solver_elapsed_s": 0.53,
+      "wall_clock_s": 0.9215951000005589,
+      "solver_elapsed_s": 0.411,
       "iterations": 21310.0,
       "trace_points": 7154.0
     },
     "tier3": {
-      "wall_clock_s": 1.1848979999995208,
-      "solver_elapsed_s": 0.513,
-      "iterations": 18308.0,
-      "trace_points": 7151.0
+      "wall_clock_s": 0.8678729999992356,
+      "solver_elapsed_s": 0.385,
+      "iterations": 18129.0,
+      "trace_points": 7133.0
     },
     "tier3_bench_completed": true,
-    "solver_speedup": 1.0331384015594542,
+    "solver_speedup": 1.0675324675324676,
     "bench_wall_s": {
-      "golden": 4.411334999998871,
-      "tier3": 3.794038800000635
+      "golden": 2.7688826999983576,
+      "tier3": 2.6321753000011086
     },
     "bench": "forced 2ns fidelity control; not the speed claim"
   },
   "speed_adaptive_20": {
+    "conditions": {
+      "n_pulses": 20,
+      "max_step_golden_s": null,
+      "max_step_simplis_s": null,
+      "end_time_s": 0.000176,
+      "repeats": 3,
+      "timeout_s": 90.0,
+      "topology": "clamped-inductive DPT, per-vendor config YAML"
+    },
+    "golden": {
+      "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\SpiceModels\\CPM2-1200-0025B-Bare-Die.lib",
+      "subcircuit": "CPM2-1200-0025B",
+      "max_step": null,
+      "end_time_s": 0.000176,
+      "repeats": 3,
+      "bench_wall_s": 0.419578700002603,
+      "guard_run": {},
+      "completed": false,
+      "anti_fake_guard": "3/3 repeats must return; median solver/wall/iterations/points > 0; identical-netlist guard run must reach t_last >= 0.999*end_time_s with points >= 0.5*median points; timeouts/exceptions fail the side",
+      "wall_clock_s": null,
+      "solver_elapsed_s": null,
+      "iterations": null,
+      "trace_points": null,
+      "trace_names": null,
+      "error": "LTSpiceError: LTspice produced no raw output for 'tran' (rc=1). Solver likely failed."
+    },
+    "tier3_simplis": {
+      "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\cpm2-1200_PIECESPICE_T3_simplis.lib",
+      "subcircuit": "cpm2-1200_PIECESPICE_T3_simplis",
+      "max_step": null,
+      "end_time_s": 0.000176,
+      "repeats": 3,
+      "bench_wall_s": 2.8726310999991256,
+      "guard_run": {
+        "t_last_s": 0.000176,
+        "iterations": 10621,
+        "trace_points": 2577,
+        "solver_elapsed_s": 0.259
+      },
+      "completed": true,
+      "anti_fake_guard": "3/3 repeats must return; median solver/wall/iterations/points > 0; identical-netlist guard run must reach t_last >= 0.999*end_time_s with points >= 0.5*median points; timeouts/exceptions fail the side",
+      "wall_clock_s": 0.7072711000000709,
+      "solver_elapsed_s": 0.255,
+      "iterations": 10621.0,
+      "trace_points": 2577.0,
+      "trace_names": 12.0
+    },
+    "solver_speedup": null,
+    "wall_speedup": null,
+    "epc_golden_fully_adaptive_attempt": null,
+    "notes": [
+      "All timing rows are medians of completed runs only; failed repeats or guards carry completed=false and no speedup."
+    ],
+    "selected_candidate": "tables",
+    "scope": "final selected candidate only; no adaptive runs for non-selected candidates; both channel gates are fidelity-first, adaptive deferred"
+  },
+  "build_seconds": {
+    "capture": 0.9122285000012198,
+    "fit": 0.16086319999885745,
+    "ann_fit": 30.461845800000447,
+    "static_sweep": 3.1789903999997478
+  },
+  "spice_log_tail": "Total elapsed time: 0.396 seconds.\nTotal iterations: 18129\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_i8dn7ezd\\tran.net\n",
+  "emitted_lib": "reports\\models\\cpm2-1200_PIECESPICE_T3_simplis.lib",
+  "speed_adaptive_20_source": {
     "conditions": {
       "n_pulses": 20,
       "max_step_golden_s": null,
@@ -1813,70 +1935,5 @@
     ],
     "selected_candidate": "tables",
     "scope": "final selected candidate only; no adaptive runs for non-selected candidates; both channel gates are fidelity-first, adaptive deferred"
-  },
-  "build_seconds": {
-    "capture": 1.6784109000000171,
-    "fit": 0.3868770000008226,
-    "ann_fit": 43.50446120000015,
-    "static_sweep": 4.116373500000918
-  },
-  "spice_log_tail": "Total elapsed time: 0.531 seconds.\nTotal iterations: 18308\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_znag_8yj\\tran.net\n",
-  "emitted_lib": "reports\\models\\cpm2-1200_PIECESPICE_T3_simplis.lib",
-  "speed_adaptive_20_source": {
-    "conditions": {
-      "n_pulses": 20,
-      "max_step_golden_s": null,
-      "max_step_simplis_s": null,
-      "end_time_s": 0.000176,
-      "repeats": 3,
-      "timeout_s": 90.0,
-      "topology": "clamped-inductive DPT, per-vendor config YAML"
-    },
-    "golden": {
-      "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\SpiceModels\\CPM2-1200-0025B-Bare-Die.lib",
-      "subcircuit": "CPM2-1200-0025B",
-      "max_step": null,
-      "end_time_s": 0.000176,
-      "repeats": 3,
-      "bench_wall_s": 0.5900003000006109,
-      "guard_run": {},
-      "completed": false,
-      "anti_fake_guard": "3/3 repeats must return; median solver/wall/iterations/points > 0; identical-netlist guard run must reach t_last >= 0.999*end_time_s with points >= 0.5*median points; timeouts/exceptions fail the side",
-      "wall_clock_s": null,
-      "solver_elapsed_s": null,
-      "iterations": null,
-      "trace_points": null,
-      "trace_names": null,
-      "error": "LTSpiceError: LTspice produced no raw output for 'tran' (rc=1). Solver likely failed."
-    },
-    "tier3_simplis": {
-      "library": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\cpm2-1200_PIECESPICE_T3_simplis.lib",
-      "subcircuit": "cpm2-1200_PIECESPICE_T3_simplis",
-      "max_step": null,
-      "end_time_s": 0.000176,
-      "repeats": 3,
-      "bench_wall_s": 3.690082899999652,
-      "guard_run": {
-        "t_last_s": 0.000176,
-        "iterations": 10592,
-        "trace_points": 2586,
-        "solver_elapsed_s": 0.314
-      },
-      "completed": true,
-      "anti_fake_guard": "3/3 repeats must return; median solver/wall/iterations/points > 0; identical-netlist guard run must reach t_last >= 0.999*end_time_s with points >= 0.5*median points; timeouts/exceptions fail the side",
-      "wall_clock_s": 0.9518397000001642,
-      "solver_elapsed_s": 0.321,
-      "iterations": 10592.0,
-      "trace_points": 2586.0,
-      "trace_names": 12.0
-    },
-    "solver_speedup": null,
-    "wall_speedup": null,
-    "epc_golden_fully_adaptive_attempt": null,
-    "notes": [
-      "All timing rows are medians of completed runs only; failed repeats or guards carry completed=false and no speedup."
-    ],
-    "selected_candidate": "tables",
-    "scope": "final selected candidate only; no adaptive runs for non-selected candidates; channel gate is fidelity-first, adaptive deferred"
   }
 }

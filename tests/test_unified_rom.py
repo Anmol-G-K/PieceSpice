@@ -2749,29 +2749,30 @@ def test_hybrid_keyed_emission_never_clobbers_canonical_or_ann(
     assert tampered["status"] == "mismatch"
 
 
-def test_relaxed_bars_apply_only_to_irfs_and_cpm2_trap_default():
+def test_dpt_bars_are_device_current_requirements():
     trap = urom.DPT_BARS_PCT["trap/default"]
+    assert trap == dict(urom.ACCEPTANCE_POLICY.dpt_bars_pct["trap/default"])
     assert trap == {
-        "irfs7730pbf": (10.0, 0.60), "csd16412q5a": (5.583, 0.048),
-        "epc2216": (4.894, 0.049), "cpm2-1200": (3.0, 0.261)}
+        "irfs7730pbf": (10.0, 5.0), "csd16412q5a": (5.583, 5.0),
+        "epc2216": (4.894, 5.0), "cpm2-1200": (3.0, 5.0)}
     assert urom.DPT_BARS_PCT["gear-both"] == {
-        "irfs7730pbf": (12.771, 0.5699), "csd16412q5a": (5.467, 0.0442),
-        "epc2216": (5.075, 0.0461), "cpm2-1200": (4.122, 0.2176)}
+        "irfs7730pbf": (12.771, 5.0), "csd16412q5a": (5.467, 5.0),
+        "epc2216": (5.075, 5.0), "cpm2-1200": (4.122, 5.0)}
     assert urom.STATIC_BARS_PCT == {
         "irfs7730pbf": 7.0683, "csd16412q5a": 8.4935,
         "epc2216": 2.0394, "cpm2-1200": 3.4287}
 
     obs = _observations()
-    obs["dpt"]["urom"]["waveform"]["id_rel_rmse_pct"] = 0.60
+    obs["dpt"]["urom"]["waveform"]["id_rel_rmse_pct"] = 5.0
     assert _gates(obs)["G3_dpt_waveform"]["pass"] is True
-    obs["dpt"]["urom"]["waveform"]["id_rel_rmse_pct"] = 0.61
+    obs["dpt"]["urom"]["waveform"]["id_rel_rmse_pct"] = 5.1
     assert _gates(obs)["G3_dpt_waveform"]["pass"] is False
 
     cpm2 = _record(vendor="cpm2-1200")
     obs_cpm2 = _observations()
     for arm in ("golden", "urom"):
         obs_cpm2["dpt"][arm]["waveform"].update(
-            vds_rel_rmse_pct=3.0, id_rel_rmse_pct=0.261)
+            vds_rel_rmse_pct=3.0, id_rel_rmse_pct=5.0)
     assert _gates(obs_cpm2, cpm2)["G3_dpt_waveform"]["pass"] is True
     for arm in ("golden", "urom"):
         obs_cpm2["dpt"][arm]["waveform"]["vds_rel_rmse_pct"] = 3.1
@@ -2789,7 +2790,7 @@ def test_canonical_c0_irfs_measurement_passes_new_bar_but_fails_old(monkeypatch)
     g3 = _gates(obs)["G3_dpt_waveform"]
     assert g3["pass"] is True
     assert g3["status"] == "measured"
-    assert g3["detail"]["urom"]["bars_vds_id_pct"] == (10.0, 0.60)
+    assert g3["detail"]["urom"]["bars_vds_id_pct"] == (10.0, 5.0)
     assert g3["detail"]["urom"]["vds_rel_rmse_pct"] == measured_vds
     assert g3["detail"]["urom"]["id_rel_rmse_pct"] == measured_id
 

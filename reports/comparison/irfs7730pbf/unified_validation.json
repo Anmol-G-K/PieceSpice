@@ -6,10 +6,198 @@
   "record_path": "reports/comparison/irfs7730pbf/unified_validation.json",
   "emit": "tier2",
   "channel_basis": "tier2",
-  "timing_bar_column": "tier2_metrics",
-  "timing_bar_source": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics (spec 6 G4 fallback decision; emit=tier2); README DPT timing and energy table",
+  "timing_bar_column": "dpt_comparison.<metric>.golden",
+  "timing_bar_source": "reports/comparison/<vendor>/tier3_validation.json#dpt_comparison.<metric>.golden (device-current golden DPT; independent of dpt_metrics.json#tier2_metrics)",
+  "timing_regression_source": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics (diagnostic only; never scored in G4_timing_energy or in the verdict)",
   "tuning_mode": "off",
   "emitted_lib_sha256": "a8986bf3470c773e5bac674689a6b5f5cb3b5be6b51902ae27b98a0ac8c7a3a2",
+  "environment": {
+    "python_version": "3.13.0",
+    "python_implementation": "CPython",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "system": "Windows",
+    "machine": "AMD64",
+    "processor": "Intel64 Family 6 Model 154 Stepping 3, GenuineIntel",
+    "cpu_count": 16,
+    "ltspice_exe": null,
+    "ltspice_version": null
+  },
+  "input_hashes": {
+    "config/inputs/irfs7730pbf.yaml": "1974dccc0c613f7d61997e4f56cb5b11529b096a0905e797c2501cf70894e898",
+    "vendor_library:irfs7730pbf.spi": "4d83ae8f941e8fdc0721e063a66088a7eb473cfd7844dbfc0bec4ca35225afcf",
+    "emitted_lib": "a8986bf3470c773e5bac674689a6b5f5cb3b5be6b51902ae27b98a0ac8c7a3a2",
+    "config/outputs/irfs7730pbf/curve1_output_characteristics.yaml": "f02da2080529d4008b14f1a818aa40c0911b548d935221b43b5916da9415bb5c",
+    "config/outputs/irfs7730pbf/curve2_transfer_characteristic.yaml": "00f5c663b92fdce6a5c42b7ba966eb626cc576307f06cf332568ce5492e74e61",
+    "config/outputs/irfs7730pbf/curve3_rds_on.yaml": "f386fed16ca4ca69fa0aaf7d9ed42e8ab3072dc4cb90abc6addb74b745946bba",
+    "config/outputs/irfs7730pbf/curve4_capacitances.yaml": "adf17982ca451ccd6032f8e3a17769c10c8097db7c1d2a9de0081b42387a4a4d",
+    "config/outputs/irfs7730pbf/curve5_gate_charge.yaml": "032d9772942194a731172194024809569a0a8266cf3bba00d2375e787c6ace90",
+    "config/outputs/irfs7730pbf/curve6_body_diode.yaml": "0701ee52fbc44e73af66ecc099079a9d9dfb10f7f9c8bc4330ef50fe6240feeb",
+    "config/outputs/irfs7730pbf/curve7_threshold_voltage.yaml": "7064a2d829955d09ad6a37a3bb50a92ccab4a27725a3d92e8131f5b68afbaa60"
+  },
+  "record_inputs": [
+    "config/inputs/irfs7730pbf.yaml",
+    "vendor_library:irfs7730pbf.spi",
+    "emitted_lib",
+    "config/outputs/irfs7730pbf/curve1_output_characteristics.yaml",
+    "config/outputs/irfs7730pbf/curve2_transfer_characteristic.yaml",
+    "config/outputs/irfs7730pbf/curve3_rds_on.yaml",
+    "config/outputs/irfs7730pbf/curve4_capacitances.yaml",
+    "config/outputs/irfs7730pbf/curve5_gate_charge.yaml",
+    "config/outputs/irfs7730pbf/curve6_body_diode.yaml",
+    "config/outputs/irfs7730pbf/curve7_threshold_voltage.yaml"
+  ],
+  "acceptance_policy": {
+    "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\acceptance.yaml",
+    "schema": "piecespice.acceptance/1.0",
+    "sha256": "3c34aaac3afb4093527f4c2d56f9fe5a50e12bd66ff705c246ecde5780757089",
+    "sources": {
+      "static.mean_peak_rel_rmse_pct_max.irfs7730pbf": "recorded_baseline",
+      "static.mean_peak_rel_rmse_pct_max.csd16412q5a": "recorded_baseline",
+      "static.mean_peak_rel_rmse_pct_max.epc2216": "recorded_baseline",
+      "static.mean_peak_rel_rmse_pct_max.cpm2-1200": "recorded_baseline",
+      "static.worst_endpoint_pct": "recorded_baseline",
+      "static.g1_band_pp": "project_decision",
+      "dpt.trap/default.irfs7730pbf": "project_decision",
+      "dpt.trap/default.csd16412q5a": "project_decision",
+      "dpt.trap/default.epc2216": "project_decision",
+      "dpt.trap/default.cpm2-1200": "project_decision",
+      "dpt.gear-both.irfs7730pbf": "project_decision",
+      "dpt.gear-both.csd16412q5a": "project_decision",
+      "dpt.gear-both.epc2216": "project_decision",
+      "dpt.gear-both.cpm2-1200": "project_decision",
+      "timing.band_rel": "project_decision",
+      "timing.band_abs": "project_decision",
+      "charge.budget_pct": "recorded_baseline",
+      "speed.min_solver_speedup": "project_decision",
+      "speed.confidence": "project_decision",
+      "speed.n_resamples": "project_decision"
+    },
+    "override_semantics": "Every value in this file may be replaced with an application requirement by editing this file only; no code change is needed.  Values labelled recorded_baseline are the currently measured bars, values labelled project_decision are engineering thresholds.  The schema and all required keys must stay present and valid: a malformed file fails closed instead of silently reverting to the built-in fallback, which is used only when the file is absent.",
+    "values": {
+      "static_bars_pct": {
+        "irfs7730pbf": 7.0683,
+        "csd16412q5a": 8.4935,
+        "epc2216": 2.0394,
+        "cpm2-1200": 3.4287
+      },
+      "worst_endpoint_pct": 4.13,
+      "g1_band_pp": 0.05,
+      "dpt_bars_pct": {
+        "trap/default": {
+          "irfs7730pbf": [
+            10.0,
+            5.0
+          ],
+          "csd16412q5a": [
+            5.583,
+            5.0
+          ],
+          "epc2216": [
+            4.894,
+            5.0
+          ],
+          "cpm2-1200": [
+            3.0,
+            5.0
+          ]
+        },
+        "gear-both": {
+          "irfs7730pbf": [
+            12.771,
+            5.0
+          ],
+          "csd16412q5a": [
+            5.467,
+            5.0
+          ],
+          "epc2216": [
+            5.075,
+            5.0
+          ],
+          "cpm2-1200": [
+            4.122,
+            5.0
+          ]
+        }
+      },
+      "timing_band_rel": 0.05,
+      "timing_band_abs": 1e-12,
+      "charge_budget_pct": 0.5,
+      "speed_min_solver_speedup": 1.05,
+      "speed_confidence": 0.95,
+      "speed_n_resamples": 2000
+    }
+  },
+  "artifact_manifest": {
+    "schema": "piecespice.artifact_manifest/1.0",
+    "lib": {
+      "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\irfs7730pbf_PIECSPICE_UROM.lib",
+      "sha256": "a8986bf3470c773e5bac674689a6b5f5cb3b5be6b51902ae27b98a0ac8c7a3a2",
+      "bytes": 3444
+    },
+    "inputs": {
+      "config/inputs/irfs7730pbf.yaml": {
+        "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\inputs\\irfs7730pbf.yaml",
+        "sha256": "1974dccc0c613f7d61997e4f56cb5b11529b096a0905e797c2501cf70894e898",
+        "bytes": 2661
+      },
+      "vendor_library:irfs7730pbf.spi": {
+        "path": "SpiceModels\\irfs7730pbf.spi",
+        "sha256": "4d83ae8f941e8fdc0721e063a66088a7eb473cfd7844dbfc0bec4ca35225afcf",
+        "bytes": 1951
+      },
+      "emitted_lib": {
+        "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\irfs7730pbf_PIECSPICE_UROM.lib",
+        "sha256": "a8986bf3470c773e5bac674689a6b5f5cb3b5be6b51902ae27b98a0ac8c7a3a2",
+        "bytes": 3444
+      },
+      "config/outputs/irfs7730pbf/curve1_output_characteristics.yaml": {
+        "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\irfs7730pbf\\curve1_output_characteristics.yaml",
+        "sha256": "f02da2080529d4008b14f1a818aa40c0911b548d935221b43b5916da9415bb5c",
+        "bytes": 12396
+      },
+      "config/outputs/irfs7730pbf/curve2_transfer_characteristic.yaml": {
+        "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\irfs7730pbf\\curve2_transfer_characteristic.yaml",
+        "sha256": "00f5c663b92fdce6a5c42b7ba966eb626cc576307f06cf332568ce5492e74e61",
+        "bytes": 5658
+      },
+      "config/outputs/irfs7730pbf/curve3_rds_on.yaml": {
+        "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\irfs7730pbf\\curve3_rds_on.yaml",
+        "sha256": "f386fed16ca4ca69fa0aaf7d9ed42e8ab3072dc4cb90abc6addb74b745946bba",
+        "bytes": 2597
+      },
+      "config/outputs/irfs7730pbf/curve4_capacitances.yaml": {
+        "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\irfs7730pbf\\curve4_capacitances.yaml",
+        "sha256": "adf17982ca451ccd6032f8e3a17769c10c8097db7c1d2a9de0081b42387a4a4d",
+        "bytes": 3050
+      },
+      "config/outputs/irfs7730pbf/curve5_gate_charge.yaml": {
+        "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\irfs7730pbf\\curve5_gate_charge.yaml",
+        "sha256": "032d9772942194a731172194024809569a0a8266cf3bba00d2375e787c6ace90",
+        "bytes": 28308
+      },
+      "config/outputs/irfs7730pbf/curve6_body_diode.yaml": {
+        "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\irfs7730pbf\\curve6_body_diode.yaml",
+        "sha256": "0701ee52fbc44e73af66ecc099079a9d9dfb10f7f9c8bc4330ef50fe6240feeb",
+        "bytes": 2112
+      },
+      "config/outputs/irfs7730pbf/curve7_threshold_voltage.yaml": {
+        "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\irfs7730pbf\\curve7_threshold_voltage.yaml",
+        "sha256": "7064a2d829955d09ad6a37a3bb50a92ccab4a27725a3d92e8131f5b68afbaa60",
+        "bytes": 112251
+      }
+    },
+    "extra": null
+  },
+  "artifact_manifest_verified": {
+    "ok": true,
+    "mismatches": []
+  },
+  "current_definition": "abs(I(Lload) - I(Dclamp))",
+  "current_definition_by_arm": {
+    "golden": "abs(I(Lload) - I(Dclamp))",
+    "urom": "abs(I(Lload) - I(Dclamp))"
+  },
   "c1_variant": null,
   "method": "trap/default",
   "equal_sandbox": {
@@ -32,32 +220,32 @@
     "clock_spread": {
       "median": {
         "solver": {
-          "golden": 0.338,
-          "urom": 0.32
+          "golden": 0.275,
+          "urom": 0.273
         },
         "wall": {
-          "golden": 0.9076953000003414,
-          "urom": 0.8824635000000853
+          "golden": 0.7381760999996914,
+          "urom": 0.7486580000004324
         }
       },
       "min": {
         "solver": {
-          "golden": 0.33,
-          "urom": 0.313
+          "golden": 0.268,
+          "urom": 0.27
         },
         "wall": {
-          "golden": 0.9018780999995215,
-          "urom": 0.8736913000011555
+          "golden": 0.7207570999999007,
+          "urom": 0.7321575000023586
         }
       },
       "max": {
         "solver": {
-          "golden": 0.351,
-          "urom": 0.326
+          "golden": 0.289,
+          "urom": 0.279
         },
         "wall": {
-          "golden": 0.9585402000011527,
-          "urom": 0.906828700000915
+          "golden": 0.7467663999996148,
+          "urom": 0.7564381999982288
         }
       },
       "missing": [],
@@ -107,6 +295,24 @@
   "c1": {
     "status": "measured",
     "monotone_q": true,
+    "monotone_q_by_table": {
+      "q_oss": true,
+      "q_iss": true,
+      "q_rss": true
+    },
+    "all_charge_monotone": true,
+    "q_zero_anchored_by_table": {
+      "q_oss": true,
+      "q_iss": true,
+      "q_rss": true
+    },
+    "all_charge_zero_anchored": true,
+    "applicable_tables": [
+      "q_iss",
+      "q_oss",
+      "q_rss"
+    ],
+    "not_applicable_tables": [],
     "q_zero": 0.0,
     "q_zero_anchored": true,
     "charge_fit_error_pct": 6.802204273634339e-14,
@@ -172,28 +378,37 @@
     "per_table": {
       "q_oss": {
         "status": "measured",
+        "applicable": true,
         "charge_fit_error_pct": 6.802204273634339e-14,
         "breakpoint_crossings": 1,
         "eps": 0.0,
         "q_max": 7.782706468929487e-08,
+        "monotone_q": true,
+        "q_zero_anchored": true,
         "q_zero_residual_c": 0.0,
         "q_vmax_residual_c": -5.293955920339377e-23
       },
       "q_iss": {
         "status": "measured",
+        "applicable": true,
         "charge_fit_error_pct": 2.5605999573157012e-14,
         "breakpoint_crossings": 17,
         "eps": 0.0,
         "q_max": 4.1349340065513994e-07,
+        "monotone_q": true,
+        "q_zero_anchored": true,
         "q_zero_residual_c": 0.0,
         "q_vmax_residual_c": -5.293955920339377e-23
       },
       "q_rss": {
         "status": "measured",
+        "applicable": true,
         "charge_fit_error_pct": 2.019357975262226e-14,
         "breakpoint_crossings": 21,
         "eps": 0.0,
         "q_max": 1.638502182745708e-08,
+        "monotone_q": true,
+        "q_zero_anchored": true,
         "q_zero_residual_c": 0.0,
         "q_vmax_residual_c": -3.308722450212111e-24
       },
@@ -243,10 +458,9 @@
           "td_on_ns": 32.29627698150211,
           "tr_ns": 25.84350961529235,
           "td_off_ns": 62.182902750101924,
-          "e_on_uj": 157.43281606412236,
-          "e_oss_uj": 1.7143809984137939,
+          "e_on_uj": 45.43247692932454,
           "dv_dt_max_v_per_ns": 35.93467060024436,
-          "di_dt_max_a_per_ns": 0.2268693130194744
+          "di_dt_max_a_per_ns": 443.4892816651921
         },
         "held_out": false,
         "completed": true,
@@ -264,8 +478,8 @@
         "name": "recorded_golden_heldout",
         "emp": {
           "tf_ns": 26.538999478329874,
-          "e_off_uj": 596.9637000429396,
-          "i_peak_a": 138.5330810546875
+          "e_off_uj": 77.72046585456407,
+          "i_peak_a": 138.53150939941406
         },
         "held_out": true,
         "completed": true,
@@ -314,32 +528,32 @@
         "clock_spread": {
           "median": {
             "solver": {
-              "golden": 0.338,
-              "urom": 0.32
+              "golden": 0.275,
+              "urom": 0.273
             },
             "wall": {
-              "golden": 0.9076953000003414,
-              "urom": 0.8824635000000853
+              "golden": 0.7381760999996914,
+              "urom": 0.7486580000004324
             }
           },
           "min": {
             "solver": {
-              "golden": 0.33,
-              "urom": 0.313
+              "golden": 0.268,
+              "urom": 0.27
             },
             "wall": {
-              "golden": 0.9018780999995215,
-              "urom": 0.8736913000011555
+              "golden": 0.7207570999999007,
+              "urom": 0.7321575000023586
             }
           },
           "max": {
             "solver": {
-              "golden": 0.351,
-              "urom": 0.326
+              "golden": 0.289,
+              "urom": 0.279
             },
             "wall": {
-              "golden": 0.9585402000011527,
-              "urom": 0.906828700000915
+              "golden": 0.7467663999996148,
+              "urom": 0.7564381999982288
             }
           },
           "missing": [],
@@ -377,6 +591,13 @@
         "gm_negative_fraction": 0.0,
         "gds_nonnegative_fraction": 1.0,
         "gds_negative_fraction": 0.0,
+        "derivative_sign_gate": {
+          "max_negative_fraction": 0.01,
+          "gm_negative_fraction": 0.0,
+          "gds_negative_fraction": 0.0,
+          "status": "measured",
+          "pass": true
+        },
         "ann_channel_probe": {
           "status": "not_applicable"
         },
@@ -394,7 +615,7 @@
       }
     },
     "G3_dpt_waveform": {
-      "pass": true,
+      "pass": false,
       "status": "measured",
       "detail": {
         "golden": {
@@ -404,7 +625,7 @@
           "id_rel_rmse_pct": 0.0,
           "bars_vds_id_pct": [
             10.0,
-            0.6
+            5.0
           ],
           "compare_points": 7000,
           "compare_grid_step_s": 2.0002857551078724e-09,
@@ -412,12 +633,12 @@
         },
         "urom": {
           "status": "measured",
-          "pass": true,
+          "pass": false,
           "vds_rel_rmse_pct": 9.999276388995076,
-          "id_rel_rmse_pct": 0.5751382146858169,
+          "id_rel_rmse_pct": 9.012718077175046,
           "bars_vds_id_pct": [
             10.0,
-            0.6
+            5.0
           ],
           "compare_points": 7000,
           "compare_grid_step_s": 2.0002857551078724e-09,
@@ -461,10 +682,154 @@
       }
     },
     "G4_timing_energy": {
+      "pass": false,
+      "status": "measured",
+      "detail": {
+        "pass": false,
+        "status": "measured",
+        "rows": {
+          "td_on_ns": {
+            "status": "measured",
+            "value": 17.08133396498076,
+            "bar": 32.29627698150211,
+            "band": [
+              30.681463132427005,
+              33.911090830577216
+            ],
+            "pass": false
+          },
+          "tr_ns": {
+            "status": "measured",
+            "value": 2.8925528649295766,
+            "bar": 25.84350961529235,
+            "band": [
+              24.551334134527735,
+              27.135685096056967
+            ],
+            "pass": false
+          },
+          "td_off_ns": {
+            "status": "measured",
+            "value": 17.134184626898964,
+            "bar": 62.182902750101924,
+            "band": [
+              59.07375761259683,
+              65.29204788760703
+            ],
+            "pass": false
+          },
+          "tf_ns": {
+            "status": "measured",
+            "value": 2.528970444546852,
+            "bar": 26.538999478329874,
+            "band": [
+              25.21204950441338,
+              27.86594945224637
+            ],
+            "pass": false
+          },
+          "e_on_uj": {
+            "status": "measured",
+            "value": 12.933808961476982,
+            "bar": 45.43247692932454,
+            "band": [
+              43.16085308285831,
+              47.704100775790764
+            ],
+            "pass": false
+          },
+          "e_off_uj": {
+            "status": "measured",
+            "value": 14.207201141174895,
+            "bar": 77.72046585456407,
+            "band": [
+              73.83444256183587,
+              81.60648914729227
+            ],
+            "pass": false
+          }
+        },
+        "bar_source": "reports/comparison/<vendor>/tier3_validation.json#dpt_comparison.<metric>.golden",
+        "band_rel": 0.05,
+        "band_abs": 1e-12,
+        "tier2_regression": {
+          "label": "Tier-2 self-comparison (diagnostic only; never scored)",
+          "bar_source": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics",
+          "status": "measured",
+          "rows": {
+            "td_on_ns": {
+              "status": "measured",
+              "value": 17.08133396498076,
+              "bar": 17.081334133714805,
+              "band": [
+                16.227267427029066,
+                17.935400840400543
+              ],
+              "pass": true
+            },
+            "tr_ns": {
+              "status": "measured",
+              "value": 2.8925528649295766,
+              "bar": 2.892552707266252,
+              "band": [
+                2.7479250719029396,
+                3.0371803426295645
+              ],
+              "pass": true
+            },
+            "td_off_ns": {
+              "status": "measured",
+              "value": 17.134184626898964,
+              "bar": 17.134184632214943,
+              "band": [
+                16.277475400604196,
+                17.99089386382569
+              ],
+              "pass": true
+            },
+            "tf_ns": {
+              "status": "measured",
+              "value": 2.528970444546852,
+              "bar": 2.5289703561538817,
+              "band": [
+                2.4025218383461877,
+                2.6554188739615756
+              ],
+              "pass": true
+            },
+            "e_on_uj": {
+              "status": "measured",
+              "value": 12.933808961476982,
+              "bar": 12.933808961476982,
+              "band": [
+                12.287118513403133,
+                13.580499409550832
+              ],
+              "pass": true
+            },
+            "e_off_uj": {
+              "status": "measured",
+              "value": 14.207201141174895,
+              "bar": 14.207201141174895,
+              "band": [
+                13.49684108411615,
+                14.91756119823364
+              ],
+              "pass": true
+            }
+          },
+          "all_within_band": true,
+          "used_for_verdict": false,
+          "diagnostic_only": true
+        }
+      }
+    },
+    "G4_tier2_regression": {
       "pass": true,
       "status": "measured",
       "detail": {
-        "pass": true,
+        "label": "Tier-2 self-comparison (diagnostic only; never scored)",
+        "bar_source": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics",
         "status": "measured",
         "rows": {
           "td_on_ns": {
@@ -509,101 +874,36 @@
           },
           "e_on_uj": {
             "status": "measured",
-            "value": 71.09326472844484,
-            "bar": 71.09326472844484,
+            "value": 12.933808961476982,
+            "bar": 12.933808961476982,
             "band": [
-              67.5386014920226,
-              74.64792796486708
+              12.287118513403133,
+              13.580499409550832
             ],
             "pass": true
           },
           "e_off_uj": {
             "status": "measured",
-            "value": 533.4319489514241,
-            "bar": 533.4319489514241,
+            "value": 14.207201141174895,
+            "bar": 14.207201141174895,
             "band": [
-              506.7603515038529,
-              560.1035463989954
+              13.49684108411615,
+              14.91756119823364
             ],
             "pass": true
           }
         },
-        "bar_column": "tier2_metrics",
-        "band_source": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics (spec 6 G4 fallback decision; emit=tier2); README DPT timing and energy table",
-        "band_rel": 0.05,
-        "cross_basis_diagnostic": {
-          "label": "common golden timing/energy table (cross-basis diagnostic; never scored)",
-          "bar_column": "golden_metrics",
-          "primary_bar_column": "tier2_metrics",
-          "rows": {
-            "td_on_ns": {
-              "status": "measured",
-              "value": 17.08133396498076,
-              "bar": 32.29627698150211,
-              "band": [
-                30.681463132427005,
-                33.911090830577216
-              ],
-              "pass": false
-            },
-            "tr_ns": {
-              "status": "measured",
-              "value": 2.8925528649295766,
-              "bar": 25.84350961529235,
-              "band": [
-                24.551334134527735,
-                27.135685096056967
-              ],
-              "pass": false
-            },
-            "td_off_ns": {
-              "status": "measured",
-              "value": 17.134184626898964,
-              "bar": 62.182902750101924,
-              "band": [
-                59.07375761259683,
-                65.29204788760703
-              ],
-              "pass": false
-            },
-            "tf_ns": {
-              "status": "measured",
-              "value": 2.528970444546852,
-              "bar": 26.538999478329874,
-              "band": [
-                25.21204950441338,
-                27.86594945224637
-              ],
-              "pass": false
-            },
-            "e_on_uj": {
-              "status": "measured",
-              "value": 71.09326472844484,
-              "bar": 157.43281606412236,
-              "band": [
-                149.56117526091626,
-                165.30445686732847
-              ],
-              "pass": false
-            },
-            "e_off_uj": {
-              "status": "measured",
-              "value": 533.4319489514241,
-              "bar": 596.9637000429396,
-              "band": [
-                567.1155150407926,
-                626.8118850450867
-              ],
-              "pass": false
-            }
-          },
-          "all_within_band": false,
-          "used_for_verdict": false
-        }
-      }
+        "all_within_band": true,
+        "used_for_verdict": false,
+        "diagnostic_only": true,
+        "scored": false,
+        "note": "Tier-2 self-comparison diagnostic; never part of G4_timing_energy, timing_all_pass or any verdict"
+      },
+      "diagnostic_only": true,
+      "scored": false
     },
     "G5_speed": {
-      "pass": true,
+      "pass": false,
       "status": "measured",
       "detail": {
         "scoped_row_valid": true,
@@ -613,32 +913,32 @@
         "clock_spread": {
           "median": {
             "solver": {
-              "golden": 0.338,
-              "urom": 0.32
+              "golden": 0.275,
+              "urom": 0.273
             },
             "wall": {
-              "golden": 0.9076953000003414,
-              "urom": 0.8824635000000853
+              "golden": 0.7381760999996914,
+              "urom": 0.7486580000004324
             }
           },
           "min": {
             "solver": {
-              "golden": 0.33,
-              "urom": 0.313
+              "golden": 0.268,
+              "urom": 0.27
             },
             "wall": {
-              "golden": 0.9018780999995215,
-              "urom": 0.8736913000011555
+              "golden": 0.7207570999999007,
+              "urom": 0.7321575000023586
             }
           },
           "max": {
             "solver": {
-              "golden": 0.351,
-              "urom": 0.326
+              "golden": 0.289,
+              "urom": 0.279
             },
             "wall": {
-              "golden": 0.9585402000011527,
-              "urom": 0.906828700000915
+              "golden": 0.7467663999996148,
+              "urom": 0.7564381999982288
             }
           },
           "missing": [],
@@ -649,6 +949,36 @@
           "golden": true,
           "urom": true
         },
+        "solver_speedup": 1.0073260073260073,
+        "wall_speedup": 0.9859990810213276,
+        "solver_speedup_ci95": {
+          "point": 1.0185185185185186,
+          "low": 0.9605734767025089,
+          "high": 1.0586080586080584,
+          "n": 3,
+          "confidence": 0.95,
+          "n_resamples": 2000
+        },
+        "wall_speedup_ci95": {
+          "point": 0.9974733456387076,
+          "low": 0.9528301188406249,
+          "high": 1.0082203624183503,
+          "n": 3,
+          "confidence": 0.95,
+          "n_resamples": 2000
+        },
+        "recorded_solver_speedup": 1.0073260073260073,
+        "recorded_solver_speedup_ci95": {
+          "point": 1.0185185185185186,
+          "low": 0.9605734767025089,
+          "high": 1.0586080586080584,
+          "n": 3,
+          "confidence": 0.95,
+          "n_resamples": 2000
+        },
+        "effect_min": 1.05,
+        "solver_effect_ok": false,
+        "solver_ci_low_above_one": false,
         "global_claim": false,
         "min_default_gear": null
       }
@@ -658,7 +988,25 @@
       "status": "measured",
       "detail": {
         "monotone_q": true,
+        "monotone_q_by_table": {
+          "q_oss": true,
+          "q_iss": true,
+          "q_rss": true
+        },
+        "all_charge_monotone": true,
+        "applicable_tables": [
+          "q_iss",
+          "q_oss",
+          "q_rss"
+        ],
+        "not_applicable_tables": [],
         "q_zero_anchored": true,
+        "q_zero_anchored_by_table": {
+          "q_oss": true,
+          "q_iss": true,
+          "q_rss": true
+        },
+        "all_charge_zero_anchored": true,
         "charge_fit_error_pct": 6.802204273634339e-14,
         "budget_pct": 0.5,
         "breakpoint_crossings": {
@@ -713,7 +1061,10 @@
         }
       }
     },
-    "all_pass": true
+    "fidelity_all_pass": false,
+    "timing_all_pass": false,
+    "speed_all_pass": false,
+    "all_pass": false
   },
   "runtime": {
     "iterations": {
@@ -730,41 +1081,41 @@
     },
     "repeats": 3,
     "solver_time_s": {
-      "golden": 0.338,
-      "urom": 0.32
+      "golden": 0.275,
+      "urom": 0.273
     },
     "wall_time_s": {
-      "golden": 0.9076953000003414,
-      "urom": 0.8824635000000853
+      "golden": 0.7381760999996914,
+      "urom": 0.7486580000004324
     },
     "median": {
       "solver": {
-        "golden": 0.338,
-        "urom": 0.32
+        "golden": 0.275,
+        "urom": 0.273
       },
       "wall": {
-        "golden": 0.9076953000003414,
-        "urom": 0.8824635000000853
+        "golden": 0.7381760999996914,
+        "urom": 0.7486580000004324
       }
     },
     "min": {
       "solver": {
-        "golden": 0.33,
-        "urom": 0.313
+        "golden": 0.268,
+        "urom": 0.27
       },
       "wall": {
-        "golden": 0.9018780999995215,
-        "urom": 0.8736913000011555
+        "golden": 0.7207570999999007,
+        "urom": 0.7321575000023586
       }
     },
     "max": {
       "solver": {
-        "golden": 0.351,
-        "urom": 0.326
+        "golden": 0.289,
+        "urom": 0.279
       },
       "wall": {
-        "golden": 0.9585402000011527,
-        "urom": 0.906828700000915
+        "golden": 0.7467663999996148,
+        "urom": 0.7564381999982288
       }
     },
     "completion": {
@@ -776,8 +1127,25 @@
     "n_pulses": 20,
     "max_step": null,
     "method_label": "trap/default",
-    "solver_speedup": 1.0562500000000001,
-    "wall_speedup": 1.0285924573653795,
+    "solver_speedup": 1.0073260073260073,
+    "wall_speedup": 0.9859990810213276,
+    "solver_speedup_ci95": {
+      "point": 1.0185185185185186,
+      "low": 0.9605734767025089,
+      "high": 1.0586080586080584,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "wall_speedup_ci95": {
+      "point": 0.9974733456387076,
+      "low": 0.9528301188406249,
+      "high": 1.0082203624183503,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "effect_min_solver_speedup": 1.05,
     "t_last": {
       "golden": 0.000176,
       "urom": 0.000176
@@ -798,7 +1166,7 @@
     "waveform_gate_retired": false,
     "energy_only_claim": false
   },
-  "spice_log_tail": "LTspice 26.1.1 for Windows\nCircuit: C:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_h1rrssfa\\tran.net\nStart Time: Sat Nov 21 15:24:41 2026\nsolver = Normal\nMaximum thread count: 16\ntnom = 27\ntemp = 25\nmethod = modified trap\nAsciiRawFile = true\nCompress1stOrder = true\nCompress2ndOrder = true\nDirect Newton iteration succeeded in finding operating point.\nTotal elapsed time: 0.313 seconds.\nTotal iterations: 9274\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_h1rrssfa\\tran.net\n\n",
+  "spice_log_tail": "LTspice 26.1.1 for Windows\nCircuit: C:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_8uvwep9v\\tran.net\nStart Time: Sat Nov 21 18:17:59 2026\nsolver = Normal\nMaximum thread count: 16\ntnom = 27\ntemp = 25\nmethod = modified trap\nAsciiRawFile = true\nCompress1stOrder = true\nCompress2ndOrder = true\nDirect Newton iteration succeeded in finding operating point.\nTotal elapsed time: 0.270 seconds.\nTotal iterations: 9274\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_8uvwep9v\\tran.net\n\n",
   "dpt_run": {
     "completed": true,
     "iterations": 20386,
@@ -807,9 +1175,10 @@
     "t_last": 1.4e-05,
     "waveform": {
       "vds_rel_rmse_pct": 9.999276388995076,
-      "id_rel_rmse_pct": 0.5751382146858169,
+      "id_rel_rmse_pct": 9.012718077175046,
       "compare_points": 7000,
       "compare_grid_step_s": 2.0002857551078724e-09,
+      "current_definition": "abs(I(Lload) - I(Dclamp))",
       "status": "measured",
       "role": "fidelity measurement"
     },
@@ -819,20 +1188,22 @@
       "td_off_ns": 17.134184626898964,
       "tf_ns": 2.528970444546852,
       "dv_dt_max_v_per_ns": 587.47715584,
-      "di_dt_max_a_per_ns": 2.497784249508453,
-      "e_on_uj": 71.09326472844484,
-      "e_off_uj": 533.4319489514241,
+      "di_dt_max_a_per_ns": 3047.309280530866,
+      "e_on_uj": 12.933808961476982,
+      "e_off_uj": 14.207201141174895,
       "e_oss_uj": null,
-      "i_peak_a": 136.9910430908203,
-      "wall_clock_s": 1.1910903000007238
+      "i_peak_a": 136.99034118652344,
+      "wall_clock_s": 0.8795117000008759
     },
+    "current_definition": "abs(I(Lload) - I(Dclamp))",
     "error": null
   },
   "dpt_waveform": {
     "vds_rel_rmse_pct": 9.999276388995076,
-    "id_rel_rmse_pct": 0.5751382146858169,
+    "id_rel_rmse_pct": 9.012718077175046,
     "compare_points": 7000,
     "compare_grid_step_s": 2.0002857551078724e-09,
+    "current_definition": "abs(I(Lload) - I(Dclamp))",
     "status": "measured",
     "role": "fidelity measurement"
   },
@@ -848,6 +1219,7 @@
         "id_rel_rmse_pct": 0.0,
         "compare_points": 7000,
         "compare_grid_step_s": 2.0002857551078724e-09,
+        "current_definition": "abs(I(Lload) - I(Dclamp))",
         "status": "measured",
         "role": "control: golden self-comparison, not a fidelity measure"
       },
@@ -857,13 +1229,14 @@
         "td_off_ns": 62.182902703355865,
         "tf_ns": 26.538999840368696,
         "dv_dt_max_v_per_ns": 35.934670848,
-        "di_dt_max_a_per_ns": 0.2268693130194744,
-        "e_on_uj": 157.43281606412236,
-        "e_off_uj": 596.9637000429396,
+        "di_dt_max_a_per_ns": 443.4892816651921,
+        "e_on_uj": 45.43247692932454,
+        "e_off_uj": 77.72046585456407,
         "e_oss_uj": null,
-        "i_peak_a": 138.5330810546875,
-        "wall_clock_s": 1.1100562999999966
+        "i_peak_a": 138.53150939941406,
+        "wall_clock_s": 0.8288738999981433
       },
+      "current_definition": "abs(I(Lload) - I(Dclamp))",
       "error": null
     },
     "urom": {
@@ -874,9 +1247,10 @@
       "t_last": 1.4e-05,
       "waveform": {
         "vds_rel_rmse_pct": 9.999276388995076,
-        "id_rel_rmse_pct": 0.5751382146858169,
+        "id_rel_rmse_pct": 9.012718077175046,
         "compare_points": 7000,
         "compare_grid_step_s": 2.0002857551078724e-09,
+        "current_definition": "abs(I(Lload) - I(Dclamp))",
         "status": "measured",
         "role": "fidelity measurement"
       },
@@ -886,13 +1260,14 @@
         "td_off_ns": 17.134184626898964,
         "tf_ns": 2.528970444546852,
         "dv_dt_max_v_per_ns": 587.47715584,
-        "di_dt_max_a_per_ns": 2.497784249508453,
-        "e_on_uj": 71.09326472844484,
-        "e_off_uj": 533.4319489514241,
+        "di_dt_max_a_per_ns": 3047.309280530866,
+        "e_on_uj": 12.933808961476982,
+        "e_off_uj": 14.207201141174895,
         "e_oss_uj": null,
-        "i_peak_a": 136.9910430908203,
-        "wall_clock_s": 1.1910903000007238
+        "i_peak_a": 136.99034118652344,
+        "wall_clock_s": 0.8795117000008759
       },
+      "current_definition": "abs(I(Lload) - I(Dclamp))",
       "error": null
     }
   },
@@ -937,19 +1312,28 @@
         "id_rel_rmse_pct": 0.0,
         "compare_points": 7000,
         "compare_grid_step_s": 2.0002857551078724e-09,
+        "current_definition": "abs(I(Lload) - I(Dclamp))",
         "status": "measured",
         "role": "control: golden self-comparison, not a fidelity measure"
       },
       "urom": {
         "vds_rel_rmse_pct": 9.999276388995076,
-        "id_rel_rmse_pct": 0.5751382146858169,
+        "id_rel_rmse_pct": 9.012718077175046,
         "compare_points": 7000,
         "compare_grid_step_s": 2.0002857551078724e-09,
+        "current_definition": "abs(I(Lload) - I(Dclamp))",
         "status": "measured",
         "role": "fidelity measurement"
       }
     },
-    "guard_ok": true
+    "guard_ok": true,
+    "current_definition": "abs(I(Lload) - I(Dclamp))",
+    "reference_current_definition": "abs(I(Lload) - I(Dclamp))",
+    "current_definition_by_arm": {
+      "golden": "abs(I(Lload) - I(Dclamp))",
+      "urom": "abs(I(Lload) - I(Dclamp))"
+    },
+    "current_identity_match": true
   },
   "static": {
     "full_sweep_rel_rmse_pct": 7.06825630663931,
@@ -1004,32 +1388,32 @@
       "clock_spread": {
         "median": {
           "solver": {
-            "golden": 0.338,
-            "urom": 0.32
+            "golden": 0.275,
+            "urom": 0.273
           },
           "wall": {
-            "golden": 0.9076953000003414,
-            "urom": 0.8824635000000853
+            "golden": 0.7381760999996914,
+            "urom": 0.7486580000004324
           }
         },
         "min": {
           "solver": {
-            "golden": 0.33,
-            "urom": 0.313
+            "golden": 0.268,
+            "urom": 0.27
           },
           "wall": {
-            "golden": 0.9018780999995215,
-            "urom": 0.8736913000011555
+            "golden": 0.7207570999999007,
+            "urom": 0.7321575000023586
           }
         },
         "max": {
           "solver": {
-            "golden": 0.351,
-            "urom": 0.326
+            "golden": 0.289,
+            "urom": 0.279
           },
           "wall": {
-            "golden": 0.9585402000011527,
-            "urom": 0.906828700000915
+            "golden": 0.7467663999996148,
+            "urom": 0.7564381999982288
           }
         },
         "missing": [],
@@ -1049,7 +1433,8 @@
       "temperature_both_arms": 25.0,
       "expected_temperature": 25.0
     },
-    "timing_energy_bars_source": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics (spec 6 G4 fallback decision; emit=tier2); README DPT timing and energy table"
+    "timing_energy_bars_source": "reports/comparison/<vendor>/tier3_validation.json#dpt_comparison.<metric>.golden (device-current golden DPT; independent of dpt_metrics.json#tier2_metrics)",
+    "timing_regression_source": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics (diagnostic only; never scored in G4_timing_energy or in the verdict)"
   },
   "urom_provenance": {
     "static_bars_pct": {
@@ -1087,11 +1472,11 @@
       }
     },
     "timing_energy_bars": {
-      "source": "reports/comparison/<vendor>/dpt_metrics.json#golden_metrics for emit=ann and emit=hybrid, #tier2_metrics for emit=tier2 (spec 6 fallback decision); README DPT timing and energy table",
+      "source": "reports/comparison/<vendor>/tier3_validation.json#dpt_comparison.<metric>.golden (device-current golden DPT); independent of this pipeline's own recorded Tier-2 table",
       "kind": "measured",
-      "ann_column": "golden_metrics",
-      "hybrid_column": "golden_metrics",
-      "tier2_column": "tier2_metrics"
+      "golden_column": "dpt_comparison.<metric>.golden",
+      "tier2_regression": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics",
+      "tier2_regression_role": "diagnostic only: reported as G4_tier2_regression and never scored in G4_timing_energy or in the verdict"
     },
     "speed_n_pulses": {
       "source": "local://unified_rom_spec.md section 4.6 (speed_adaptive_20)",
@@ -1133,9 +1518,9 @@
       "rationale": "O_GD is capped at one full Q_RSS at the top of the measured curve-4 sweep; Qoss is frozen and never used for this gate-side bound"
     },
     "timing_band": {
-      "source": "local://unified_rom_spec.md section 6 G4 (no worse than the recorded table); reports/comparison/<vendor>/dpt_metrics.json#golden_metrics (emit=ann or emit=hybrid) or #tier2_metrics (emit=tier2, spec 6 fallback decision)",
+      "source": "local://unified_rom_spec.md section 6 G4 (no worse than the recorded golden DPT); reports/comparison/<vendor>/tier3_validation.json#dpt_comparison.<metric>.golden; absolute floor TIMING_BAND_ABS",
       "kind": "project_decision",
-      "rationale": "5 percent band around each recorded timing/energy bar: a much smaller delay is not an improvement when the device never turns on; missing bars stay not_measured"
+      "rationale": "band = max(5 percent of |bar|, 1e-12) around each independent golden timing/energy bar: a much smaller delay is not an improvement when the device never turns on; a near-zero bar is not auto-passed; missing bars stay not_measured"
     },
     "zero_current_anchor": {
       "source": "local://unified_rom_spec.md section 2.3 (VDS=0 and Vth cutoff guards); models/netlist_builder.py:_channel_expression",
@@ -1183,10 +1568,40 @@
       "kind": "source_derived",
       "rationale": "the probe evaluates the emitted G_CH expression; 3 cutoff widths only chooses where to sample, the 1 percent band is unchanged"
     },
-    "common_g4_column": {
-      "source": "reports/comparison/<vendor>/dpt_metrics.json#golden_metrics",
+    "tier2_regression_gate": {
+      "source": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics",
       "kind": "measured",
-      "rationale": "cross-basis diagnostic only; the pinned basis-specific bar remains the G4 verdict bar"
+      "rationale": "self-consistency diagnostic only: it says whether the emitted model still matches this pipeline's own recorded Tier-2 row; it is never scored in G4_timing_energy or in any verdict"
+    },
+    "speed_effect_min": {
+      "source": "local://unified_rom_spec.md section 1.3 / 4.4 (equal-sandbox speed claim); project decision: a real speed effect needs a 1.05 solver ratio",
+      "kind": "project_decision",
+      "rationale": "a point ratio above 1.0 without a paired confidence interval is not evidence of a speed improvement; G5 also requires the 95 percent paired-bootstrap CI low above 1.0"
+    },
+    "speed_speedup_ci": {
+      "source": "common/provenance.py:bootstrap_ci (deterministic percentile bootstrap); SPEED_REPEATS interleaved paired repeats",
+      "kind": "project_decision",
+      "rationale": "the paired per-repeat solver and wall ratios are resampled 2000 times with seed 0; fewer than two finite samples collapse to the point estimate and a missing repeat list returns None"
+    },
+    "derivative_sign_gate": {
+      "source": "local://unified_rom_spec.md section 6 G2 (gm/gds physics gate); DERIVATIVE_NEGATIVE_FRACTION_MAX",
+      "kind": "project_decision",
+      "rationale": "at most 1 percent of finite small-signal derivative samples may be negative; the measured gm/gds minima and sign fractions stay as diagnostics and a missing fraction fails closed"
+    },
+    "charge_monotonicity": {
+      "source": "local://unified_rom_spec.md sections 1.4 and 6 G6 (charge tables and the 0.5 percent budget)",
+      "kind": "measured",
+      "rationale": "every emitted charge table (q_oss, q_iss, q_rss) must be non-decreasing and zero-anchored where applicable; an empty source table is not_applicable, never a pass"
+    },
+    "record_inputs": {
+      "source": "config/inputs/<vendor>.yaml, the vendor library, config/outputs/<vendor>/curve*.yaml, and the emitted lib",
+      "kind": "source_derived",
+      "rationale": "common/provenance.py:file_hashes hashes the exact inputs used for this record; artifact_manifest re-hashes and verifies the same lib and inputs; a missing file stays null and fails verification"
+    },
+    "acceptance_policy": {
+      "source": "config/acceptance.yaml (schema piecespice.acceptance/1.0); common/acceptance.py:load_acceptance",
+      "kind": "source_derived",
+      "rationale": "all scored bars come from the validated policy; the file path, schema, source labels and SHA-256 are copied into the record; a malformed file fails closed, an absent file uses the documented legacy-constant fallback"
     },
     "hybrid_basis": {
       "source": "docs/plans/phase_vi_research_framework.md sections 2.2, 3.2 and 3.3 (C0 base plus ANN residual; independent data-driven ROM; golden timing bars)",
@@ -1199,5 +1614,9 @@
       "rationale": "closed Tier-2 linear gate-side scalar, tabulated so apply_scalars can add O_GD*V without a hidden fallback"
     }
   },
-  "verdict": "accept"
+  "verdict": "reject",
+  "fidelity_verdict": "reject",
+  "timing_verdict": "reject",
+  "speed_verdict": "reject",
+  "overall_verdict": "reject"
 }

@@ -2,6 +2,15 @@
   "schema": "piecespice.tier3/2.0",
   "vendor": "csd16412q5a",
   "variant": "v1",
+  "emission": {
+    "compact": false,
+    "rel_tol": 0.005,
+    "table_points": 41,
+    "vgs_points": 30,
+    "max_rel_error_pct": 0.0,
+    "estimated_literal_count": 8032,
+    "source": "default"
+  },
   "methods": [
     "TPWL (Rewienski & White 2003)",
     "POD-DEIM anchors (Chaturantabut & Sorensen 2010)"
@@ -153,7 +162,25 @@
     "emitted_static_curve_rmse_rel": 0.021530790760273463,
     "static_samples": 505,
     "heldout_id_rmse_rel": 0.44604670412876857,
-    "heldout_qg_rmse_rel": 0.25869441318274866
+    "heldout_qg_rmse_rel": 0.25869441318274866,
+    "cell_selection_error_rel": 0.021530790760273463
+  },
+  "generalization": {
+    "status": "not_measured",
+    "n_trajectories": 1,
+    "trajectory_sources": [
+      "csd16412q5a:primary"
+    ],
+    "cv_status": "not_measured",
+    "holdout_id_rmse_rel": "not_measured",
+    "holdout_qg_rmse_rel": "not_measured",
+    "selection_error_source": "emitted_static_rmse_rel",
+    "reason": "no config['tier3']['training_conditions']; single configured DPT trajectory only",
+    "physical_elements": {
+      "include_gate_charge": false,
+      "include_body_diode": false,
+      "include_parasitics": false
+    }
   },
   "dpt_run": {
     "completed": true,
@@ -213,29 +240,29 @@
       "golden": 277.8112856371706,
       "tier3": 2782.5668947891245,
       "tier3_rel_err_pct": 901.6032604317,
-      "tier2": 0.10114323265643511,
-      "tier2_rel_err_pct": -99.96359282797872
+      "tier2": 267.31460529548053,
+      "tier2_rel_err_pct": -3.7783491471973676
     },
     "e_on_uj": {
       "golden": 0.37956058084198213,
       "tier3": 0.3357012013974892,
       "tier3_rel_err_pct": -11.555304122256143,
-      "tier2": 0.753136436322644,
-      "tier2_rel_err_pct": 98.42324897173351
+      "tier2": 0.26661377339795833,
+      "tier2_rel_err_pct": -29.757254347507068
     },
     "e_off_uj": {
       "golden": 0.9534493410718745,
       "tier3": 0.15114172103739726,
       "tier3_rel_err_pct": -84.14790230307541,
-      "tier2": 17.732076246198947,
-      "tier2_rel_err_pct": 1759.7816876420957
+      "tier2": 0.2304911390776104,
+      "tier2_rel_err_pct": -75.82554949185966
     },
     "i_peak_a": {
       "golden": 13.432002067564142,
       "tier3": 13.348011016850144,
       "tier3_rel_err_pct": -0.6253055225238597,
-      "tier2": 13.444268226623535,
-      "tier2_rel_err_pct": 0.09132040776716453
+      "tier2": 13.444267272949219,
+      "tier2_rel_err_pct": 0.09131330775101199
     }
   },
   "runtime": {
@@ -257,24 +284,24 @@
       }
     },
     "golden": {
-      "wall_clock_s": 1.1272865000064485,
-      "solver_elapsed_s": 0.539,
+      "wall_clock_s": 0.9487788000005821,
+      "solver_elapsed_s": 0.452,
       "iterations": 24435.0,
       "trace_points": 10189.0,
       "t_last_s": 1.4e-05
     },
     "tier3": {
-      "wall_clock_s": 6.817796400006046,
-      "solver_elapsed_s": 5.653,
+      "wall_clock_s": 5.747765099997196,
+      "solver_elapsed_s": 4.776,
       "iterations": 380226.0,
       "trace_points": 64665.0,
       "t_last_s": 1.4e-05
     },
     "tier3_bench_completed": true,
-    "solver_speedup": 0.09534760304263225,
+    "solver_speedup": 0.09463986599664992,
     "bench_wall_s": {
-      "golden": 3.419969900001888,
-      "tier3": 20.744596999997157
+      "golden": 2.8452361000017845,
+      "tier3": 16.966824800001632
     },
     "scope": "forced 2ns fidelity control; not the adaptive speed claim"
   },
@@ -283,9 +310,10 @@
     "tier3": "I(Lload)-I(Dclamp)"
   },
   "build_seconds": {
-    "capture": 1.3281589999969583,
-    "fit": 43.18681040000229
+    "capture": 1.1110162000004493,
+    "training_captures": 3.9999940781854093e-07,
+    "fit": 38.06527999999889
   },
-  "spice_log_tail": "Total elapsed time: 5.742 seconds.\nTotal iterations: 380226\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_mq7pn9tn\\tran.net\n",
+  "spice_log_tail": "Total elapsed time: 4.394 seconds.\nTotal iterations: 380226\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_j9jowpv1\\tran.net\n",
   "emitted_lib": "reports\\models\\csd16412q5a_PIECESPICE_T3.lib"
 }
