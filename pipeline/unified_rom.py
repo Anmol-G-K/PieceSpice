@@ -1981,9 +1981,11 @@ def _derivative_checks(rows: list, spec: PWLModelSpec, ann_record: dict,
     if sign_gate["status"] != "measured":
         failed.append("derivative_sign_fractions_not_measured")
     elif not sign_gate["pass"]:
-        if gm_negative > DERIVATIVE_NEGATIVE_FRACTION_MAX:
+        if gm_negative is not None and gm_negative > (
+                DERIVATIVE_NEGATIVE_FRACTION_MAX):
             failed.append("gm_negative_fraction")
-        if gds_negative > DERIVATIVE_NEGATIVE_FRACTION_MAX:
+        if gds_negative is not None and gds_negative > (
+                DERIVATIVE_NEGATIVE_FRACTION_MAX):
             failed.append("gds_negative_fraction")
     if cutoff_anchor is not True:
         failed.append("gate_cutoff_anchor")
