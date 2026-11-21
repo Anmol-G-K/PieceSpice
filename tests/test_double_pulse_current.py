@@ -150,6 +150,9 @@ def test_urom_arm_passes_the_signed_trace_and_keeps_abs_for_waveforms(
         lambda *a, **k: {"result": raw, "iterations": 7, "points": 3,
                          "t_last": 10.0e-6, "wall_time_s": 0.25,
                          "log_tail": ""})
+    # `_run_dpt_arm` constructs SpiceEngine before the patched transient;
+    # on CI there is no LTspice, so the constructor must not resolve an exe.
+    monkeypatch.setattr(urom, "SpiceEngine", lambda *a, **k: object())
     captured = {}
 
     def fake_extract(run):
