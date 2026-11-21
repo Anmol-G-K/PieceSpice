@@ -377,8 +377,8 @@ def emitted_channel(model: TPWLTerminalModel, u: np.ndarray, *,
     non-negative clamp (soft where measured) and low-Vds saturation.  Used
     for the static metric so the reported number describes what LTspice
     actually evaluates.  With ``policy.gate_ramp_c1`` the gate factor is the
-    emitted C1 hinge chain on the same transfer data and data-derived eps,
-    bounded to ``[0, tf[-1]]`` exactly like the emitted ``limit()``.
+    emitted C1 hinge chain on the same transfer data and data-derived eps
+    instead of ``table()`` interpolation.
     """
     u = np.atleast_2d(u)
     pol = emission_policy(model) if policy is None else policy
@@ -393,10 +393,9 @@ def emitted_channel(model: TPWLTerminalModel, u: np.ndarray, *,
         np.interp(vgs_clamped[j], g, row[:, j]) for j in range(len(u[0]))])
     tv, tf = transfer_curve(model)
     if pol.gate_ramp_c1:
-        # Same bound as the emitted factor: limit(ramp, 0, tf[-1]).
-        gate = np.clip(np.asarray(smooth_relu_product(
-            u[0], tv, tf, eps_from_grid(tv)), dtype=float),
-            0.0, float(tf[-1]))
+        gate = np.asarray(smooth_relu_product(u[0], tv, tf,
+                                              eps_from_grid(tv)),
+                          dtype=float)
     else:
         gate = np.clip(np.interp(u[0], tv, tf), 0.0, 1.0)
     x = out * gate * u[1] / (u[1] + saturation_scale(model))
@@ -531,10 +530,8 @@ def emit_subcircuit(model: TPWLTerminalModel, *,
     Curve-2 ``table()`` gate ladder byte-for-byte.  ``True`` replaces only
     that factor with the shared anchored C1 hinge ramp
     (``approximation.smoother.emit_transfer_ramp`` on the ``transfer_curve``
-    data, width ``eps_from_grid(tv)``) wrapped in ``limit(..., 0, tf[-1])``,
-    so the drive is bounded to the measured gate-factor range and flat above
-    the last measured Vgs instead of extrapolating its slope.  The 2-D
-    channel, Qoss fit, Vds grid and clamp are unchanged either way.
+    data, width ``eps_from_grid(tv)``), exactly as audited.  The 2-D channel,
+    Qoss fit, Vds grid and clamp are unchanged either way.
     """
     _registered_vendor(model)
     pol = emission_policy(model) if policy is None else policy
@@ -573,13 +570,10 @@ def emit_subcircuit(model: TPWLTerminalModel, *,
                      + rows(table) + ")")
     if pol.gate_ramp_c1:
         # Audit's low-risk form: only the 101-tooth C0 gate ladder is
-        # replaced, by the shared anchored C1 hinge chain.  The chain is
-        # anchored at Vgs = 0 but does not clamp, so the emitted factor is
-        # bounded to the measured gate-factor range: flat at tf[-1] above
-        # tv[-1] (no last-slope extrapolation) and at 0 below tv[0].  The
-        # channel table, Qoss fit, Vds grid and clamp keep their closed text.
-        ramp = emit_transfer_ramp(tv, tf, eps_from_grid(tv), term=vgs_expr)
-        gate_table = f"limit({ramp},{_f(0.0)},{_f(tf[-1])})"
+        # replaced, by the shared anchored C1 hinge chain.  The channel
+        # table, Qoss fit, Vds grid and clamp keep their closed text.
+        gate_table = emit_transfer_ramp(tv, tf, eps_from_grid(tv),
+                                        term=vgs_expr)
     else:
         gate_table = (
             f"table(limit({vgs_expr},{_f(tv[0])},{_f(tv[-1])}),"
