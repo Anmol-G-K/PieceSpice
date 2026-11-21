@@ -11,7 +11,6 @@ All reported numbers are measured; incomplete simulations stay incomplete.
 from __future__ import annotations
 
 import math
-import os
 import re
 from dataclasses import dataclass, replace
 import json
@@ -71,14 +70,6 @@ _EMITTED_PIN_ROLES = ["drain", "gate", "source"]
 # is a DIAGNOSTIC, not a charge budget: the existing 0.5% charge budget does
 # not bound capacitance error, and the two are reported side by side.
 CAP_ERROR_BUDGET_PCT = 10.0
-
-# Opt-in Cgd local-capacitance target. The 0.5 % charge budget does not bound
-# local C error; when this env flag is set (value = target percentage, or
-# 1/true/on for the 10 % default), the bias-aware Cgd fit greedily adds
-# measured Vdg points until the local cap error meets the target or every
-# measured point is used. Unset keeps canonical/default emission unchanged.
-CGD_CAP_TARGET_ENV = "PIECESPICE_CGD_CAP_TARGET_PCT"
-CGD_CAP_TARGET_PCT = 10.0
 
 # CDG provenance: the legacy extraction measures Crss on a Vds sweep at
 # Vgs=0, where v_DG == v_DS. A bias-aware sweep supplies Cgd on a real Vdg
@@ -190,38 +181,6 @@ def _fit_anchored_charge(
         c_full=c_full)
 
 
-def _cap_error_vector(
-    fit: _ChargeFit, pairs: Sequence[Tuple[float, float]]
-) -> tuple[np.ndarray | None, np.ndarray | None]:
-    """Per-point C-V relative error [%] on the emitted table's grid.
-
-    Returns ``(grid_indices, rel_pct)`` or ``(None, None)`` when no measured
-    capacitance is available.  The grid indices address ``fit.v_full``; the
-    selection loop uses them to add measured points only.
-    """
-    c_meas = np.asarray(fit.c_full, dtype=float) if fit.c_full is not None \
-        else None
-    if c_meas is None or c_meas.size != fit.v_full.size:
-        return None, None
-    vb = np.asarray([p[0] for p in pairs], dtype=float)
-    qb = np.asarray([p[1] for p in pairs], dtype=float)
-    grid = np.asarray(fit.v_full, dtype=float)
-    inside = (grid >= vb[0]) & (grid <= vb[-1])
-    inside_idx = np.flatnonzero(inside)
-    if inside_idx.size < 2:
-        return None, None
-    x = grid[inside_idx]
-    q_emit = np.interp(x, vb, qb)
-    dq_dv = np.gradient(q_emit, x)
-    c_local = c_meas[inside_idx]
-    peak = float(np.max(np.abs(c_local))) if c_local.size else 0.0
-    if not np.isfinite(peak) or peak <= 0.0:
-        return None, None
-    denom = np.maximum(np.abs(c_local), 1e-3 * peak)
-    rel = np.abs(dq_dv - c_local) / denom
-    return inside_idx, 100.0 * rel
-
-
 def _cap_error_pct(fit: _ChargeFit,
                    pairs: Sequence[Tuple[float, float]]) -> float | None:
     """Measured C-V error of the emitted table, in percent of local C.
@@ -233,75 +192,26 @@ def _cap_error_pct(fit: _ChargeFit,
     when no measured capacitance is available: the diagnostic is measured,
     never fabricated.
     """
-    _, rel = _cap_error_vector(fit, pairs)
-    if rel is None:
+    c_meas = np.asarray(fit.c_full, dtype=float) if fit.c_full is not None \
+        else None
+    if c_meas is None or c_meas.size != fit.v_full.size:
         return None
-    return float(np.max(rel))
-
-
-def _extend_cdg_for_cap_target(
-    fit: _ChargeFit,
-    pairs: Sequence[Tuple[float, float]],
-    target_pct: float,
-    *,
-    measured_points: int,
-) -> tuple[list[Tuple[float, float]], dict]:
-    """Greedily add measured Vdg points until the local C error target is met.
-
-    The current pairs already satisfy the 0.5 % charge budget; this second
-    stage only refines the piecewise-linear C approximation.  At each step the
-    unchosen measured grid point with the largest local capacitance error is
-    inserted (farthest-point in C), so no capacitance or charge sample is
-    fabricated.  The loop stops at the target or when every measured point is
-    used; the result is recorded even when the target cannot be met.
-    """
-    target = float(target_pct)
-    if not math.isfinite(target) or target <= 0.0:
-        raise ValueError("Cgd cap target must be finite and > 0")
-    cap = _cap_error_pct(fit, pairs)
-    if cap is None:
-        raise ValueError(
-            "bias-aware Cgd cap target requested but no measured "
-            "capacitance grid is available")
-    before = len(pairs)
-    index_of = {float(v): i for i, v in enumerate(fit.v_full)}
-    chosen: set[int] = set()
-    for v, _ in pairs:
-        key = float(v)
-        if key not in index_of:
-            raise RuntimeError(
-                "Cgd cap-target fit pair is not on the measured grid")
-        chosen.add(index_of[key])
-
-    while cap > target:
-        inside_idx, rel = _cap_error_vector(fit, pairs)
-        if rel is None:
-            raise RuntimeError(
-                "Cgd cap target lost its measured capacitance grid")
-        candidates = [int(i) for i in inside_idx if int(i) not in chosen]
-        if not candidates:
-            break
-        position = {int(i): j for j, i in enumerate(inside_idx)}
-        worst = max(candidates, key=lambda i: float(rel[position[i]]))
-        chosen.add(worst)
-        pairs = sorted(list(pairs) + [
-            (float(fit.v_full[worst]), float(fit.q_full[worst]))])
-        cap = _cap_error_pct(fit, pairs)
-
-    meta = {
-        "enabled": True,
-        "opt_in": CGD_CAP_TARGET_ENV,
-        "target_pct": target,
-        "target_met": bool(cap is not None and cap <= target),
-        "achieved_cap_error_pct": cap,
-        "points_before": int(before),
-        "points_after": int(len(pairs)),
-        "added_points": int(len(pairs) - before),
-        "measured_points_available": int(measured_points),
-        "rule": ("greedy maximum local capacitance error; measured Vdg grid "
-                 "points only; stops at target or all measured points used"),
-    }
-    return pairs, meta
+    vb = np.asarray([p[0] for p in pairs], dtype=float)
+    qb = np.asarray([p[1] for p in pairs], dtype=float)
+    grid = np.asarray(fit.v_full, dtype=float)
+    inside = (grid >= vb[0]) & (grid <= vb[-1])
+    if np.count_nonzero(inside) < 2:
+        return None
+    x = grid[inside]
+    q_emit = np.interp(x, vb, qb)
+    dq_dv = np.gradient(q_emit, x)
+    c_local = c_meas[inside]
+    peak = float(np.max(np.abs(c_local))) if c_local.size else 0.0
+    if not np.isfinite(peak) or peak <= 0.0:
+        return None
+    denom = np.maximum(np.abs(c_local), 1e-3 * peak)
+    rel = np.abs(dq_dv - c_local) / denom
+    return float(100.0 * np.max(rel))
 
 
 def _cap_curve_to_vbus(v, curves, vbus: float):
@@ -355,33 +265,6 @@ class _ChargeTables:
     temperature_c: float | None = None
     vgs_bias_v: float | None = None
     cap_error_budget_pct: float = CAP_ERROR_BUDGET_PCT
-    cdg_cap_target: dict | None = None
-
-
-def _cgd_cap_target_pct() -> float | None:
-    """Parse the opt-in Cgd local-capacitance target.
-
-    Unset/empty returns ``None`` (canonical path unchanged). Truthy tokens
-    select the documented 10 % default; any other value must be a finite
-    percentage > 0. Invalid values fail closed instead of silently disabling
-    the target.
-    """
-    raw = os.environ.get(CGD_CAP_TARGET_ENV)
-    if raw is None or not raw.strip():
-        return None
-    text = raw.strip().lower()
-    if text in ("1", "true", "yes", "on"):
-        return CGD_CAP_TARGET_PCT
-    try:
-        value = float(text)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(
-            f"{CGD_CAP_TARGET_ENV} must be a percentage or a truthy token; "
-            f"got {raw!r}") from exc
-    if not math.isfinite(value) or value <= 0.0:
-        raise ValueError(
-            f"{CGD_CAP_TARGET_ENV} must be finite and > 0; got {raw!r}")
-    return value
 
 
 def _optional_float(value, label: str, vendor: str) -> float | None:
@@ -717,7 +600,6 @@ def _fit_charge_tables(v, ciss, coss, crss, *, vbus,
     cgs_fit = _fit_anchored_charge(v_fit, curves[0], RELTOL)
     cds_fit = _fit_anchored_charge(
         v_fit, curves[1], RELTOL, forced_v=forced_v, forbid_below=forbid_below)
-    cdg_cap_target = None
     if cdg_v is not None and cdg_c is not None:
         cdg_axis_v = np.asarray(cdg_v, dtype=float).ravel()
         cdg_curve = np.asarray(cdg_c, dtype=float).ravel()
@@ -727,13 +609,6 @@ def _fit_charge_tables(v, ciss, coss, crss, *, vbus,
         if not np.all(np.diff(cdg_axis_v) > 0):
             raise ValueError("bias-aware CDG axis must be strictly ascending")
         cdg_fit = _fit_anchored_charge(cdg_axis_v, cdg_curve, RELTOL)
-        if cdg_axis == CDG_AXIS_VDG:
-            target = _cgd_cap_target_pct()
-            if target is not None:
-                cdg_pairs, cdg_cap_target = _extend_cdg_for_cap_target(
-                    cdg_fit, cdg_fit.pairs, target,
-                    measured_points=int(cdg_axis_v.size))
-                cdg_fit = replace(cdg_fit, pairs=cdg_pairs)
     else:
         cdg_fit = _fit_anchored_charge(
             v_fit, curves[2], RELTOL,
@@ -760,7 +635,6 @@ def _fit_charge_tables(v, ciss, coss, crss, *, vbus,
         temperature_c=temperature_c,
         vgs_bias_v=vgs_bias_v,
         cap_error_budget_pct=CAP_ERROR_BUDGET_PCT,
-        cdg_cap_target=cdg_cap_target,
     )
 
 
@@ -1518,7 +1392,6 @@ def _build_spec(
         "cdg_axis": cdg_axis,
         "cdg_source_bias_v": cdg_source_bias,
         "cdg_data_limitation": cdg_limitation,
-        "cdg_cap_target": tables.cdg_cap_target,
         "cv_bias": {
             "source": cv_source,
             "n_sweeps": len(sweeps),

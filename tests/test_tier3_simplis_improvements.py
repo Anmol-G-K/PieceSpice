@@ -7,7 +7,6 @@ introduces a multi-bias or temperature axis that was not measured/persisted.
 from __future__ import annotations
 
 import hashlib
-from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
@@ -23,16 +22,12 @@ from pipeline.tier3_simplis import (
     CAP_ERROR_BUDGET_PCT,
     CDG_AXIS_VDG,
     CDG_AXIS_VGS0,
-    CGD_CAP_TARGET_ENV,
-    CGD_CAP_TARGET_PCT,
     _CV_SINGLE_BIAS_LIMITATION,
     _cap_error_pct,
-    _cgd_cap_target_pct,
     _charge_cap_error_from_details,
     _cv_sweep_from_extracted,
     _cv_sweeps_from_extracted,
     _declared_cv_metadata,
-    _extend_cdg_for_cap_target,
     _fit_anchored_charge,
     _fit_charge_tables,
     _fit_record,
