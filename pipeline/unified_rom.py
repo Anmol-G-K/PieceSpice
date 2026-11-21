@@ -29,10 +29,13 @@ from typing import Any
 
 import numpy as np
 
+from common.acceptance import load_acceptance
 from common.provenance import (
+    artifact_manifest,
     bootstrap_ci,
     environment_metadata,
     file_hashes,
+    verify_artifact_manifest,
 )
 from common.types import (
     PWLModelSpec,
@@ -308,7 +311,12 @@ PROVENANCE: dict[str, dict[str, Any]] = {
     "record_inputs": {
         "source": "config/inputs/<vendor>.yaml, the vendor library, config/outputs/<vendor>/curve*.yaml, and the emitted lib",
         "kind": "source_derived",
-        "rationale": "common/provenance.py:file_hashes hashes the exact inputs used for this record; a missing file stays null",
+        "rationale": "common/provenance.py:file_hashes hashes the exact inputs used for this record; artifact_manifest re-hashes and verifies the same lib and inputs; a missing file stays null and fails verification",
+    },
+    "acceptance_policy": {
+        "source": "config/acceptance.yaml (schema piecespice.acceptance/1.0); common/acceptance.py:load_acceptance",
+        "kind": "source_derived",
+        "rationale": "all scored bars come from the validated policy; the file path, schema, source labels and SHA-256 are copied into the record; a malformed file fails closed, an absent file uses the documented legacy-constant fallback",
     },
     "hybrid_basis": {
         "source": "docs/plans/phase_vi_research_framework.md sections 2.2, 3.2 and 3.3 (C0 base plus ANN residual; independent data-driven ROM; golden timing bars)",
@@ -340,6 +348,29 @@ DPT_BARS_PCT: dict[str, dict[str, tuple[float, float]]] = {
         "cpm2-1200": (4.122, 0.2176),
     },
 }
+
+# The versioned policy is the live source of truth for every scored bar.
+# A missing YAML file falls back to common.acceptance's built-in defaults;
+# a malformed one raises here.  The bar constants above and the aliases below
+# are importable defaults for existing callers, never live gate inputs.
+ACCEPTANCE_PATH = ROOT / "config" / "acceptance.yaml"
+ACCEPTANCE_POLICY = load_acceptance(ACCEPTANCE_PATH)
+
+# Import-only aliases snapshotted from the loaded policy at import time.
+# They are NOT live gate inputs: no scored bar reads these names, so
+# monkeypatching an alias never moves a gate.  Replace ACCEPTANCE_POLICY (or
+# override config/acceptance.yaml) to change bars without a code edit.
+STATIC_BARS_PCT = dict(ACCEPTANCE_POLICY.static_bars_pct)
+DPT_BARS_PCT = {method: dict(bars) for method, bars in
+                ACCEPTANCE_POLICY.dpt_bars_pct.items()}
+ENDPOINT_BAR_PCT = float(ACCEPTANCE_POLICY.worst_endpoint_pct)
+G1_BAND_PP = float(ACCEPTANCE_POLICY.g1_band_pp)
+CHARGE_BUDGET_PCT = float(ACCEPTANCE_POLICY.charge_budget_pct)
+TIMING_BAND_REL = float(ACCEPTANCE_POLICY.timing_band_rel)
+TIMING_BAND_ABS = float(ACCEPTANCE_POLICY.timing_band_abs)
+SPEED_EFFECT_MIN = float(ACCEPTANCE_POLICY.speed_min_solver_speedup)
+SPEED_CI_CONFIDENCE = float(ACCEPTANCE_POLICY.speed_confidence)
+SPEED_CI_RESAMPLES = int(ACCEPTANCE_POLICY.speed_n_resamples)
 
 # The EPC fully-adaptive golden times out; the recorded 100 ns cap is applied
 # to BOTH arms and the row is labelled condition-specific (spec section 3.3).
@@ -2090,13 +2121,15 @@ def _timing_band(bar: float | None) -> tuple[float, float] | None:
 
     A much smaller delay is not automatically better: a device that never
     turns on has a tiny delay.  The half-width is
-    ``max(5 percent of |bar|, TIMING_BAND_ABS)`` so a zero bar cannot accept
-    every value.  A missing bar stays unmeasured.
+    ``max(timing.band_rel * |bar|, timing.band_abs)`` from the acceptance
+    policy, so a zero bar cannot accept every value.  A missing bar stays
+    unmeasured.
     """
     value = _num(bar)
     if value is None:
         return None
-    half = max(abs(value) * TIMING_BAND_REL, TIMING_BAND_ABS)
+    half = max(abs(value) * ACCEPTANCE_POLICY.timing_band_rel,
+               ACCEPTANCE_POLICY.timing_band_abs)
     return value - half, value + half
 
 
@@ -2400,8 +2433,8 @@ def _paired_speedup_ci(speed: dict, key: str) -> dict | None:
         if g is None or r is None or r <= 0.0:
             return None
         ratios.append(g / r)
-    return bootstrap_ci(ratios, confidence=SPEED_CI_CONFIDENCE,
-                        n_resamples=SPEED_CI_RESAMPLES, seed=0)
+    return bootstrap_ci(ratios, confidence=ACCEPTANCE_POLICY.speed_confidence,
+                        n_resamples=ACCEPTANCE_POLICY.speed_n_resamples, seed=0)
 
 
 def _verdicts(gates: dict) -> dict:
@@ -2447,17 +2480,19 @@ def _evaluate_gates(record: dict, observations: dict) -> dict:
           and clock_ok
           and all(a["completion"] for a in (speed["golden"], speed["urom"])))
 
-    bar = STATIC_BARS_PCT.get(vendor)
+    bar = ACCEPTANCE_POLICY.static_bars_pct.get(vendor)
     s_rmse = static.get("full_sweep_rel_rmse_pct")
     s_end = static.get("worst_endpoint_rel_error_pct")
     g1_pass = (bar is not None and s_rmse is not None and s_end is not None
-               and s_rmse <= bar + G1_BAND_PP and s_end <= ENDPOINT_BAR_PCT)
+               and s_rmse <= bar + ACCEPTANCE_POLICY.g1_band_pp
+               and s_end <= ACCEPTANCE_POLICY.worst_endpoint_pct)
     g1 = _gate(g1_pass,
                "measured" if s_rmse is not None else "not_measured",
                {"rel_rmse_pct": s_rmse, "bar_pct": bar,
                 "estimator": static.get("gated_estimator"),
-                "band_pp": G1_BAND_PP, "worst_endpoint_pct": s_end,
-                "endpoint_bar_pct": ENDPOINT_BAR_PCT,
+                "band_pp": ACCEPTANCE_POLICY.g1_band_pp,
+                "worst_endpoint_pct": s_end,
+                "endpoint_bar_pct": ACCEPTANCE_POLICY.worst_endpoint_pct,
                 "span_normalised_pct": static.get("span_normalised_rmse_pct"),
                 "peak_normalised_pct": static.get("peak_normalised_rmse_pct")})
 
@@ -2465,7 +2500,7 @@ def _evaluate_gates(record: dict, observations: dict) -> dict:
     g2 = _gate(bool(derivative.get("pass")),
                derivative.get("status", "not_measured"), derivative)
 
-    bars = DPT_BARS_PCT.get(method, {}).get(vendor)
+    bars = ACCEPTANCE_POLICY.dpt_bars_pct.get(method, {}).get(vendor)
     compare = observations.get("dpt_compare") or {}
     guard_ok = bool(compare.get("guard_ok"))
     dpt_rows = {}
@@ -2539,7 +2574,8 @@ def _evaluate_gates(record: dict, observations: dict) -> dict:
     solver_ci = _paired_speedup_ci(speed, "solver_time_s")
     wall_ci = _paired_speedup_ci(speed, "wall_time_s")
     solver_effect_ok = bool(
-        solver_point is not None and solver_point >= SPEED_EFFECT_MIN)
+        solver_point is not None
+        and solver_point >= ACCEPTANCE_POLICY.speed_min_solver_speedup)
     solver_ci_low = _num((solver_ci or {}).get("low"))
     solver_ci_ok = bool(solver_ci_low is not None and solver_ci_low > 1.0)
     g5_pass = bool(has_counts and clock_ok
@@ -2558,7 +2594,7 @@ def _evaluate_gates(record: dict, observations: dict) -> dict:
                 "completion": {"golden": speed["golden"]["completion"],
                                "urom": speed["urom"]["completion"]},
                 # Speed needs a real effect: the paired point ratio must
-                # reach SPEED_EFFECT_MIN and its 95 percent CI low must
+                # reach the policy effect minimum and its CI low must
                 # exceed 1.0 (a slower model never passes).
                 "solver_speedup": solver_point,
                 "wall_speedup": wall_point,
@@ -2567,7 +2603,7 @@ def _evaluate_gates(record: dict, observations: dict) -> dict:
                 "recorded_solver_speedup": speed_row.get("solver_speedup"),
                 "recorded_solver_speedup_ci95":
                     speed_row.get("solver_speedup_ci95"),
-                "effect_min": SPEED_EFFECT_MIN,
+                "effect_min": ACCEPTANCE_POLICY.speed_min_solver_speedup,
                 "solver_effect_ok": solver_effect_ok,
                 "solver_ci_low_above_one": solver_ci_ok,
                 # Spec 1.3/6: one declared-method row is scoped.  A global
@@ -2599,7 +2635,8 @@ def _evaluate_gates(record: dict, observations: dict) -> dict:
     g6_pass = bool(
         charge_measured and all_charge_monotone and all_charge_zero
         and charge.get("charge_fit_error_pct") is not None
-        and charge["charge_fit_error_pct"] <= CHARGE_BUDGET_PCT
+        and charge["charge_fit_error_pct"] <= (
+            ACCEPTANCE_POLICY.charge_budget_pct)
         and charge.get("c_ds_scaling_excluded")
         and tuning_ok)
     # Artifact Q(0)/Q(Vmax) residuals are diagnostics: the 0.5 % numeric
@@ -2616,7 +2653,7 @@ def _evaluate_gates(record: dict, observations: dict) -> dict:
                 "q_zero_anchored_by_table": zero_by_table,
                 "all_charge_zero_anchored": all_charge_zero,
                 "charge_fit_error_pct": charge.get("charge_fit_error_pct"),
-                "budget_pct": CHARGE_BUDGET_PCT,
+                "budget_pct": ACCEPTANCE_POLICY.charge_budget_pct,
                 "breakpoint_crossings": crossings,
                 "c_ds_scaling_excluded": charge.get("c_ds_scaling_excluded"),
                 "tuning_verdict": record["tuning"]["verdict"],
@@ -2664,7 +2701,8 @@ def _speed_row(plan: dict, speed: dict) -> dict:
         "wall_speedup": wall,
         "solver_speedup_ci95": solver_ci,
         "wall_speedup_ci95": wall_ci,
-        "effect_min_solver_speedup": SPEED_EFFECT_MIN,
+        "effect_min_solver_speedup": (
+            ACCEPTANCE_POLICY.speed_min_solver_speedup),
         "t_last": {"golden": golden["t_last"], "urom": rom["t_last"]},
         "iterations": {"golden": golden["iterations"],
                        "urom": rom["iterations"]},
@@ -2889,8 +2927,8 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
                       else "not_measured",
             "rows": compared,
             "bar_source": GOLDEN_DPT_BAR_SOURCE,
-            "band_rel": TIMING_BAND_REL,
-            "band_abs": TIMING_BAND_ABS,
+            "band_rel": ACCEPTANCE_POLICY.timing_band_rel,
+            "band_abs": ACCEPTANCE_POLICY.timing_band_abs,
             # Self-consistency against this pipeline's own Tier-2 row: a
             # diagnostic, never a G4 or verdict input.
             "tier2_regression": {
@@ -2953,6 +2991,10 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
             (ROOT / "config" / "outputs" / vendor).glob("curve*.yaml")):
         input_paths[_label(curve_path)] = curve_path
     input_hashes = file_hashes(input_paths)
+    # Separate, self-verifying provenance for the exact lib and inputs used.
+    # The record itself is deliberately not hashed here.
+    artifact = artifact_manifest(lib, input_paths)
+    artifact_verified = verify_artifact_manifest(artifact)
 
     record: dict[str, Any] = {
         "schema": SCHEMA,
@@ -2970,6 +3012,9 @@ def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
         "environment": environment_metadata(),
         "input_hashes": input_hashes,
         "record_inputs": list(input_paths),
+        "acceptance_policy": ACCEPTANCE_POLICY.as_record(),
+        "artifact_manifest": artifact,
+        "artifact_manifest_verified": artifact_verified,
         "current_definition": compare.get("current_definition"),
         "current_definition_by_arm":
             compare.get("current_definition_by_arm"),

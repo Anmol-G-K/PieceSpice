@@ -23,12 +23,15 @@ from typing import Any
 import numpy as np
 
 __all__ = [
+    "MANIFEST_SCHEMA",
+    "artifact_manifest",
     "bootstrap_ci",
     "environment_metadata",
     "file_hashes",
     "sha256_bytes",
     "sha256_file",
     "sha256_text",
+    "verify_artifact_manifest",
 ]
 
 
@@ -164,3 +167,75 @@ def bootstrap_ci(
         "confidence": float(confidence),
         "n_resamples": int(n_resamples),
     }
+
+
+MANIFEST_SCHEMA = "piecespice.artifact_manifest/1.0"
+
+
+def _file_entry(path: str | Path | None) -> dict[str, Any] | None:
+    """Hash and size one file in a single pass; missing/unreadable -> None."""
+    if path is None:
+        return None
+    try:
+        target = Path(path)
+        digest = hashlib.sha256()
+        size = 0
+        with target.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+                size += len(chunk)
+    except (OSError, ValueError, TypeError):
+        return None
+    return {"path": str(target), "sha256": digest.hexdigest(), "bytes": size}
+
+
+def artifact_manifest(
+    lib_path: str | Path,
+    inputs: Mapping[str, str | Path],
+    extra: Any = None,
+) -> dict[str, Any]:
+    """Describe the emitted lib and every named input by hash and size.
+
+    A missing file maps to ``None`` in the manifest, never a fabricated hash.
+    ``extra`` is opaque caller metadata and is not used by verification.
+    """
+    if not isinstance(inputs, Mapping):
+        raise TypeError("inputs must be a mapping of label to path")
+    return {
+        "schema": MANIFEST_SCHEMA,
+        "lib": _file_entry(lib_path),
+        "inputs": {str(label): _file_entry(path)
+                   for label, path in inputs.items()},
+        "extra": extra,
+    }
+
+
+def _entry_matches(entry: Any) -> bool:
+    if not isinstance(entry, Mapping) or not isinstance(entry.get("path"), str):
+        return False
+    actual = _file_entry(entry["path"])
+    return (actual is not None
+            and actual["sha256"] == entry.get("sha256")
+            and actual["bytes"] == entry.get("bytes"))
+
+
+def verify_artifact_manifest(manifest: Any) -> dict[str, Any]:
+    """Re-hash a manifest and report every mismatch; fail closed on absence.
+
+    Returns ``{"ok": bool, "mismatches": [...]}``.  A missing file, a changed
+    hash/size, a broken entry or an unrecognised schema is a mismatch.  The
+    record itself is never hashed here.
+    """
+    if not isinstance(manifest, Mapping) or manifest.get("schema") != MANIFEST_SCHEMA:
+        return {"ok": False, "mismatches": ["schema"]}
+    mismatches: list[str] = []
+    if not _entry_matches(manifest.get("lib")):
+        mismatches.append("lib")
+    inputs = manifest.get("inputs")
+    if not isinstance(inputs, Mapping):
+        mismatches.append("inputs")
+    else:
+        for label, entry in inputs.items():
+            if not _entry_matches(entry):
+                mismatches.append(f"inputs.{label}")
+    return {"ok": not mismatches, "mismatches": mismatches}

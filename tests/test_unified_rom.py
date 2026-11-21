@@ -8,7 +8,8 @@ guard fails if a live bench runner is reached, so this module is safe with
 ``PIECESPICE_LIVE=0``.
 """
 from __future__ import annotations
-
+import copy
+import dataclasses
 import hashlib
 import inspect
 import json
@@ -20,10 +21,13 @@ from types import ModuleType
 
 import numpy as np
 import pytest
+import yaml
 from typer.testing import CliRunner
 
 from cli import main as cli_main
 from cli.main import app
+from common.acceptance import DEFAULT_PATH as ACCEPTANCE_CONFIG_PATH
+from common.acceptance import load_acceptance
 from common.types import PWLModelSpec
 from pipeline import registry, unified_rom as urom
 _REAL_BUILD_EMITTED = urom._build_emitted
@@ -553,7 +557,7 @@ def test_record_contract_declares_current_definition_and_speed_ci():
     row_source = inspect.getsource(urom._speed_row)
     assert '"solver_speedup_ci95"' in row_source
     assert '"wall_speedup_ci95"' in row_source
-    assert "SPEED_EFFECT_MIN" in row_source
+    assert "ACCEPTANCE_POLICY.speed_min_solver_speedup" in row_source
 
 
 def test_dpt_bars_provenance_names_the_tier2_control_row():
@@ -2789,8 +2793,12 @@ def test_canonical_c0_irfs_measurement_passes_new_bar_but_fails_old(monkeypatch)
     assert g3["detail"]["urom"]["vds_rel_rmse_pct"] == measured_vds
     assert g3["detail"]["urom"]["id_rel_rmse_pct"] == measured_id
 
-    monkeypatch.setitem(urom.DPT_BARS_PCT["trap/default"], VENDOR,
-                        (8.529, 0.55))
+    copied_dpt = {method: dict(bars) for method, bars in
+                  urom.ACCEPTANCE_POLICY.dpt_bars_pct.items()}
+    copied_dpt["trap/default"][VENDOR] = (8.529, 0.55)
+    old_policy = dataclasses.replace(urom.ACCEPTANCE_POLICY,
+                                     dpt_bars_pct=copied_dpt)
+    monkeypatch.setattr(urom, "ACCEPTANCE_POLICY", old_policy)
     old = _gates(obs)["G3_dpt_waveform"]
     assert old["pass"] is False
     assert old["detail"]["urom"]["bars_vds_id_pct"] == (8.529, 0.55)
@@ -2836,3 +2844,130 @@ def test_cli_explicit_hybrid_basis_is_displayed_and_passed(monkeypatch):
     assert result.exit_code == 0, result.output
     assert calls == [(VENDOR, 3, "urom", "hybrid")]
     assert "basis=hybrid" in _flat(result.output)
+
+
+def _overridden_policy(tmp_path):
+    raw = yaml.safe_load(ACCEPTANCE_CONFIG_PATH.read_text(encoding="utf-8"))
+    raw["static"]["mean_peak_rel_rmse_pct_max"][VENDOR]["value"] = 5.0
+    raw["static"]["worst_endpoint_pct"]["value"] = 1.0
+    raw["dpt"]["trap/default"][VENDOR]["value"] = [1.0, 0.01]
+    raw["timing"]["band_rel"]["value"] = 0.5
+    raw["charge"]["budget_pct"]["value"] = 0.1
+    raw["speed"]["min_solver_speedup"]["value"] = 3.0
+    path = tmp_path / "acceptance.yaml"
+    path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="ascii")
+    return load_acceptance(path)
+
+
+def test_config_override_moves_gate_bars_without_code_edits(monkeypatch,
+                                                            tmp_path):
+    monkeypatch.setattr(urom, "ACCEPTANCE_POLICY", _overridden_policy(tmp_path))
+    gates = _gates(_observations())
+    g1 = gates["G1_static"]
+    assert g1["detail"]["bar_pct"] == 5.0
+    assert g1["detail"]["band_pp"] == urom.G1_BAND_PP  # alias unchanged
+    assert g1["detail"]["endpoint_bar_pct"] == 1.0
+    assert g1["pass"] is False
+    g3 = gates["G3_dpt_waveform"]
+    assert g3["detail"]["golden"]["bars_vds_id_pct"] == (1.0, 0.01)
+    assert g3["pass"] is False
+    assert gates["G6_charge"]["detail"]["budget_pct"] == 0.1
+    assert gates["G5_speed"]["detail"]["effect_min"] == 3.0
+    assert gates["G5_speed"]["pass"] is False
+    assert urom._timing_band(20.0) == pytest.approx((10.0, 30.0))
+
+
+def test_urom_record_carries_policy_manifest_and_verification(monkeypatch,
+                                                              tmp_path):
+    """A fully stubbed run checks record assembly without any simulator."""
+    monkeypatch.setattr(urom, "ROOT", tmp_path)
+    monkeypatch.setattr(registry, "ROOT", tmp_path)
+    config_dir = tmp_path / "config" / "inputs"
+    config_dir.mkdir(parents=True)
+    config_path = config_dir / f"{VENDOR}.yaml"
+    config_path.write_text("x: 1\n", encoding="ascii")
+    vendor_lib = tmp_path / f"{VENDOR}.spi"
+    vendor_lib.write_text("* vendor input\n", encoding="ascii")
+    curve_dir = tmp_path / "config" / "outputs" / VENDOR
+    curve_dir.mkdir(parents=True)
+    curve_path = curve_dir / "curve1.yaml"
+    curve_path.write_text("points: [0, 1]\n", encoding="ascii")
+    lib = tmp_path / "reports" / "models" / f"{VENDOR}_PIECSPICE_UROM.lib"
+    lib.parent.mkdir(parents=True)
+    lib.write_text(".SUBCKT X d g s\n.ENDS\n", encoding="ascii")
+    monkeypatch.setattr(urom, "load_input", lambda vendor: {
+        "library": str(vendor_lib), "dpt": {}, "pins": {}})
+
+    spec = _synthetic_spec()
+    spec.metadata["urom_provenance"] = {"source": "synthetic probe"}
+    tuning_record = {"mode": "off", "status": "not_run",
+                     "verdict": "not_run", "conditions": [], "bounds": {}}
+    plan = {
+        "method_label": "trap/default", "options_lines": [],
+        "temperature": 25.0, "dpt_max_step": 2.0e-9, "repeats": 3,
+        "speed": {"n_pulses": urom.SPEED_N_PULSES, "max_step": None,
+                  "repeats": 3, "end_time_s": 1.0, "timeout_s": 90.0},
+    }
+    monkeypatch.setattr(urom, "_bench_plan", lambda *a, **k: plan)
+    monkeypatch.setattr(urom, "_build_emitted",
+                        lambda *a, **k: (lib, spec, {}, tuning_record))
+    monkeypatch.setattr(urom, "_arm_specs", lambda *a, **k: ({}, {}))
+    monkeypatch.setattr(urom, "_dpt_deck", lambda *a, **k: "dpt deck")
+    monkeypatch.setattr(urom, "_speed_deck", lambda *a, **k: "speed deck")
+    monkeypatch.setattr(urom, "_deck_identity", lambda *a, **k: {
+        "deck_diff_only_dut": True, "effective_options_dumped": True,
+        "tolerance_overrides": [], "libraries_inlined_both_arms": True,
+        "temperature_both_arms": True, "effective_options": {}})
+    speed = {"golden": _arm(2.0, 2.2), "urom": _arm(1.0, 1.1), "repeats": 3}
+    speed["urom"]["log_tail"] = None
+    monkeypatch.setattr(urom, "_run_interleaved_speed",
+                        lambda *a, **k: speed)
+    monkeypatch.setattr(urom, "capture_trajectory", lambda *a, **k: object())
+    waveform = _observations()["dpt"]["golden"]["waveform"]
+
+    def fake_dpt_arm(*args, **kwargs):
+        return {"completed": True, "waveform": dict(waveform),
+                "metrics": {k: 10.0 for k in urom._TIMING_METRICS},
+                "_raw": {}, "log_tail": None}
+
+    monkeypatch.setattr(urom, "_run_dpt_arm", fake_dpt_arm)
+    compare = dict(_observations()["dpt_compare"])
+    compare.update({"current_definition": "synthetic probe",
+                    "current_definition_by_arm": {}, "arms": {}})
+    monkeypatch.setattr(urom, "_dpt_common_compare", lambda *a, **k: compare)
+    monkeypatch.setattr(urom, "_static_bench",
+                        lambda *a, **k: (dict(_observations()["static"]), []))
+    monkeypatch.setattr(urom, "_derivative_checks",
+                        lambda *a, **k: {"pass": True, "status": "measured"})
+    monkeypatch.setattr(urom, "_c0_bit_identity", lambda *a, **k: True)
+    bars = {k: 10.0 for k in urom._TIMING_METRICS}
+    monkeypatch.setattr(urom, "_timing_bars", lambda vendor: bars)
+    monkeypatch.setattr(urom, "_tier2_regression_bars", lambda vendor: bars)
+
+    record = urom.run_unified(VENDOR)
+    policy = record["acceptance_policy"]
+    assert policy["schema"] == "piecespice.acceptance/1.0"
+    assert Path(policy["path"]).is_file()
+    assert len(policy["sha256"]) == 64
+    assert policy["sources"]["static.worst_endpoint_pct"] == (
+        "recorded_baseline")
+    assert policy["values"]["speed_min_solver_speedup"] == (
+        urom.SPEED_EFFECT_MIN)
+
+    manifest = record["artifact_manifest"]
+    assert set(manifest["inputs"]) == set(record["record_inputs"])
+    assert manifest["lib"]["sha256"] == hashlib.sha256(
+        lib.read_bytes()).hexdigest()
+    assert manifest["lib"]["bytes"] == len(lib.read_bytes())
+    assert record["input_hashes"]["emitted_lib"] == manifest["lib"]["sha256"]
+    assert record["environment"]
+    assert record["artifact_manifest_verified"] == {
+        "ok": True, "mismatches": []}
+    assert not any("record" in label for label in manifest["inputs"])
+
+    written = json.loads((tmp_path / record["record_path"]).read_text(
+        encoding="ascii"))
+    assert written["acceptance_policy"] == policy
+    assert written["artifact_manifest"] == manifest
+    assert written["artifact_manifest_verified"] == {
+        "ok": True, "mismatches": []}
