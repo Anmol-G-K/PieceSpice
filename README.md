@@ -618,7 +618,23 @@ recorded Tier-4 efficiency gate remains `N/A` (`output_power_required`):
 E_on/E_off/r_on are evaluated offline, and Vbus×Iload is DC bus input power,
 not converter output power. A separate measured buck bench now supplies
 converter output power: EPC2216 Tier-4 measures 99.87 % there when the run
-completes, while incomplete arms keep their guard reason. The loss LUT's
+completes, while incomplete arms keep their guard reason.
+
+**Tier-4 ANN (`run_vendor_ann`, `*_PIECESPICE_T4_ann.lib`, `tier4_validation_ann.json`).**
+Positive-conductance `C-inf` ANN channel + rational `Q_dep(V)` + Curve-5 `Vdg < 0`
+`Q_gd` excess + calibrated dynamic parasitics, with `LG`/`LS`/`LD` gated to
+SiC-only (`technology: sic`, `Rpar=20`). Speedup reports both raw
+`solver_speedup` and `net_solver_speedup` above the measured LTspice internal
+floor (`LTSPICE_INTERNAL_FLOOR_S = 0.075 s` on a trivial 100-point `.tran 1u 100u`):
+
+| Device | Vds / Id RMSE (%) | td_on / tr / td_off / tf err (%) | E_on / E_off err (%) | n=20 raw / net speedup | n=200 raw / net speedup |
+|---|---|---|---|---|---|
+| `irfs7730pbf` | 1.28 / 2.11 | +12.17 / +18.17 / −6.42 / −1.64 | +30.00 / −7.02 | 1.09× / 1.12× | 1.26× / 1.29× |
+| `csd16412q5a` | 5.33 / 4.12 | −62.84 / +56.54 / +3.50 / +9.18 | −11.04 / −45.53 | 5.18× / 6.62× | 19.17× / 21.04× |
+| `epc2216` | 3.46 / 1.13 | +5.60 / +0.25 / −9.89 / −1.90 | +58.68 / +67.15 | 1.24× / 1.32× | 2.00× / 2.12× |
+| `cpm2-1200` | 6.27 / 5.08 | +0.08 / +54.93 / +16.95 / +41.62 | +54.23 / +56.21 | 1.04× / 1.05× | 1.43× / 1.48× |
+
+The loss LUT's
 finite-node provenance is vendor-specific: IRFS and TI have one `constant_node`
 (`1×1` grid), EPC and CPM2 have `grid_interpolation` with 3 and 4 finite
 nodes respectively; off-node queries are NaN and no unmeasured corner is
@@ -732,7 +748,9 @@ API exists, but the final run reports `tuning.verdict="not_run"`
 (`tuning.mode="off"`).
 
 **Test suite (measured).** Full live suite: **822 passed, 0 skipped,
-1 warning** (`uv run pytest`, 388.84 s). LTspice-free CI on GitHub Actions
+1 warning** (`uv run pytest`, 388.84 s). Local LTspice-free CI
+(`PIECESPICE_LIVE=0`, after `226422e`): **818 passed, 10 skipped,
+1 deselected, 1 warning**. LTspice-free CI on GitHub Actions
 (run **44934384493**, commit `4402640`, both jobs success): **806 passed,
 15 skipped, 1 deselected, 1 warning**. The runner has no `SpiceModels/`, so
 vendor-gated tests skip more than locally (`test_vendor_ti` 5 skipped; buck
@@ -751,6 +769,7 @@ current evidence.
 | Command | Passed | Skipped | Deselected | Warnings |
 |---|---|---|---|---|
 | `uv run pytest` (full live suite, 388.84 s) | 822 | 0 | — | 1 |
+| `PIECESPICE_LIVE=0 .venv\Scripts\python.exe -m pytest -q --deselect tests/test_netlist_builder.py::test_tier2_simulates_and_matches` (local CI, after `226422e`) | 818 | 10 | 1 | 1 |
 | `PIECESPICE_LIVE=0 uv run pytest -q --deselect tests/test_netlist_builder.py::test_tier2_simulates_and_matches` (LTspice-free CI, run 44934384493) | 806 | 15 | 1 | 1 |
 | Live engine module (`tests/test_engine_ltspice.py`) | 19 | — | — | — |
 
