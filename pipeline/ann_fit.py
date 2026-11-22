@@ -28,7 +28,8 @@ from config.yaml_io import load_input, load_output
 from models.ann_netlist_builder import EXP_CAP
 from approximation.smoother import eps_from_grid
 
-__all__ = ["ann_fit_for_vendor", "hybrid_ann_fit_for_vendor"]
+__all__ = ["ann_fit_for_vendor", "hybrid_ann_fit_for_vendor",
+           "calibrate_dynamic_parasitics"]
 
 _THRESHOLD_FACTOR = 0.5          # dI/dVds drop defining the ohmic/sat knee
 _DPT_MAX_POINTS = 60             # cap on extracted high-V/I training points
@@ -246,6 +247,31 @@ def ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True,
             crss_c = np.asarray(c4_ext["crss_curve_f"], dtype=float)
 
             def _fit_cinf_cap(v_arr, c_arr):
+                vk_rat = np.geomspace(max(v_arr[0], 0.1), max(v_arr[-1] * 0.5, 2.0), 3)
+
+                def _res_rat(log_vk):
+                    vks = np.exp(log_vk)
+                    A = np.column_stack([np.ones_like(v_arr)] + [
+                        1.0 / (1.0 + v_arr / vi) ** 2 for vi in vks])
+                    coef, _ = _nnls(A / c_arr[:, None], np.ones_like(v_arr))
+                    return ((A @ coef) - c_arr) / c_arr
+
+                r_rat = _lsq(_res_rat, np.log(vk_rat),
+                             bounds=(np.log(0.02), np.log(v_arr[-1] * 10.0)),
+                             max_nfev=200)
+                vks_r = np.exp(r_rat.x)
+                A_r = np.column_stack([np.ones_like(v_arr)] + [
+                    1.0 / (1.0 + v_arr / vi) ** 2 for vi in vks_r])
+                coef_r, _ = _nnls(A_r / c_arr[:, None], np.ones_like(v_arr))
+                err_rat = float(np.sqrt(np.mean((((A_r @ coef_r) - c_arr) / c_arr) ** 2)) * 100.0)
+                if err_rat < 5.0:
+                    return {
+                        "kind": "rational",
+                        "cmin": float(coef_r[0]),
+                        "terms": [(float(coef_r[k + 1]), float(vks_r[k]))
+                                  for k in range(3)],
+                    }
+
                 vk0 = np.geomspace(max(v_arr[0], 0.2), max(v_arr[-1] * 0.6, 2.0), 4)
 
                 def _res(log_vk):
@@ -279,12 +305,26 @@ def ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True,
             cdg_neg_excess = 0.0
             if qgd_c5 > 1.25 * max(qgd_c4, 1e-15) and vbus <= float(cond.get("Vds_cap_max", vbus)):
                 cdg_neg_excess = (qgd_c5 - qgd_c4) / max(vgs_on - v_plat, 1.0)
+            rds_on_val = None
+            try:
+                c3_ext = _extract(vendor, "curve3_rds_on")
+                ry = np.asarray(c3_ext["curve_rds_mohm"], dtype=float) * 1e-3
+                ry = ry[np.isfinite(ry) & (ry > 0)]
+                if ry.size:
+                    rds_on_val = float(np.median(ry))
+            except Exception:
+                pass
+            r_source_ohm = (0.4 * rds_on_val) if (rds_on_val is not None and rds_on_val < 0.05) else None
             charge_fit.provenance["cinf_caps"] = {
                 "cgs_f": cgs_f,
                 "cds": cds_fit_cinf,
                 "cdg": cdg_fit_cinf,
                 "cdg_neg_excess_f": float(cdg_neg_excess),
                 "r_gate_ohm": c4_ext.get("r_gate_ohm"),
+                "r_source_ohm": r_source_ohm,
+                "l_gate_h": c4_ext.get("l_gate_h"),
+                "l_source_h": c4_ext.get("l_source_h"),
+                "l_drain_h": c4_ext.get("l_drain_h"),
             }
         except Exception:
             pass
@@ -371,6 +411,95 @@ def ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True,
         "record": record,
         "provenance": provenance,
         "limitations": limitations,
+    }
+
+
+def _scale_dynamic_parasitics(
+    lib_text: str, k_cgs: float, k_cdg: float, k_cds: float, k_rg: float,
+) -> str:
+    """Scale RG, C_ISS, C_QOSS, C_RSS without altering DC channel or topology."""
+    out = []
+    for line in lib_text.splitlines():
+        if line.startswith("RG "):
+            parts = line.split()
+            parts[-1] = f"{float(parts[-1]) * k_rg:.6e}"
+            line = " ".join(parts)
+        elif line.startswith("C_ISS "):
+            parts = line.split()
+            parts[-1] = f"{float(parts[-1]) * k_cgs:.6e}"
+            line = " ".join(parts)
+        elif line.startswith("C_QOSS "):
+            expr = line.split("=", 1)[1].strip()
+            line = f"C_QOSS di ss Q = {{({k_cds:.6e})*({expr[1:-1]})}}"
+        elif line.startswith("C_RSS "):
+            expr = line.split("=", 1)[1].strip()
+            line = f"C_RSS di gi Q = {{({k_cdg:.6e})*({expr[1:-1]})}}"
+        out.append(line)
+    return "\n".join(out) + ("\n" if lib_text.endswith("\n") else "")
+
+
+def calibrate_dynamic_parasitics(
+    vendor: str,
+    lib_text: str,
+    subckt_name: str,
+    *,
+    maxfev: int = 45,
+) -> tuple[str, dict[str, Any]]:
+    """Calibrate (k_cgs, k_cdg, k_cds, k_rg) against golden DPT edge metrics.
+
+    Static DC curves and hard channel monotonicity are untouched because
+    capacitors are open at DC and k > 0 preserves dQ/dV > 0.
+    """
+    import tempfile
+    from pathlib import Path
+    from scipy.optimize import minimize
+    from pipeline.tier3 import _dpt_conditions, _waveform_errors
+    from pipeline.tier3_simplis import _run_emitted_dpt
+    from simulation.testbenches.double_pulse import DoublePulseRun, extract_dpt_metrics
+    from simulation.testbenches.dpt_trajectory import capture_trajectory
+
+    traj = capture_trajectory(vendor)
+    dpt = _dpt_conditions(vendor)
+    i_load = float(dpt.get("i_load_target") or (dpt["vbus"] * dpt["t1_on"] / dpt["l_load"]))
+    g_run = DoublePulseRun(
+        time=traj.time, v_ds=traj.input[1], i_d=np.abs(traj.output[0]),
+        v_gs=traj.input[0], v_bus=dpt["vbus"], i_load=i_load,
+        l_load=dpt["l_load"], vgs_on=dpt["vgs_on"], wall_clock_s=0.0,
+        t2_on=dpt["t2_on"], i_d_signed=traj.output[0],
+    )
+    gm = extract_dpt_metrics(g_run)
+    targets = ("td_on_ns", "tr_ns", "td_off_ns", "tf_ns", "e_on_uj", "e_off_uj")
+    alias = f"{vendor}_PIECESPICE_T3_simplis"
+
+    with tempfile.TemporaryDirectory(prefix="piecespice_cal_") as td:
+        tmp = Path(td) / f"{vendor}_cal.lib"
+
+        def _obj(x):
+            kc, kd, ks, kr = np.exp(np.clip(x, -0.9, 0.9))
+            scaled = _scale_dynamic_parasitics(lib_text, kc, kd, ks, kr)
+            tmp.write_text(scaled.replace(subckt_name, alias), encoding="ascii")
+            try:
+                m_run, _, _ = _run_emitted_dpt(tmp, vendor)
+                mm = extract_dpt_metrics(m_run)
+                wf = _waveform_errors(m_run, traj)
+            except Exception:
+                return 100.0
+            loss = 0.01 * (wf["vds_rel_rmse_pct"] ** 2 + wf["id_rel_rmse_pct"] ** 2)
+            for k in targets:
+                gv, mv = gm.get(k), mm.get(k)
+                if gv and mv is not None and np.isfinite(mv):
+                    loss += ((mv - gv) / abs(gv)) ** 2
+                else:
+                    loss += 10.0
+            return float(loss)
+
+        res = minimize(_obj, np.zeros(4), method="Nelder-Mead",
+                       options={"maxfev": int(maxfev), "xatol": 0.03, "fatol": 1e-4})
+    kc, kd, ks, kr = [float(v) for v in np.exp(np.clip(res.x, -0.9, 0.9))]
+    calibrated = _scale_dynamic_parasitics(lib_text, kc, kd, ks, kr)
+    return calibrated, {
+        "k_cgs": kc, "k_cdg": kd, "k_cds": ks, "k_rg": kr,
+        "nfev": int(res.nfev), "loss": float(res.fun),
     }
 
 

@@ -177,21 +177,27 @@ def _resolve_eps(c1_eps) -> float:
 
 
 def _cinf_charge_lines(cinf_caps: dict) -> List[str]:
-    """Emit C-inf tanh Q= charge lines (zero abs() hinges, Q(0)=0)."""
-    def _q_expr(cmin: float, terms: list, term: str) -> str:
+    """Emit C-inf Q= charge lines (zero abs() hinges, Q(0)=0)."""
+    def _q_expr(cap_spec, term: str) -> str:
+        if isinstance(cap_spec, dict) and cap_spec.get("kind") == "rational":
+            cmin = float(cap_spec["cmin"])
+            s = f"{_fmt(cmin)}*({term})"
+            for dc, vk in cap_spec["terms"]:
+                if dc > 0.0:
+                    s += f"+({_fmt(dc)})*({term})/(1+sqrt(({term})*({term})+1.0e-4)/({_fmt(vk)}))"
+            return s
+        cmin, terms = cap_spec
         s = f"{_fmt(cmin)}*({term})"
         for dc, vk in terms:
             if dc > 0.0:
                 s += f"+({_fmt(dc * vk)})*tanh(({term})/({_fmt(vk)}))"
         return s
 
-    lines = ["* --- charge-conserving capacitances (C-inf tanh Q) ---"]
+    lines = ["* --- charge-conserving capacitances (C-inf Q) ---"]
     lines.append(f"C_ISS gi ss {_fmt(cinf_caps['cgs_f'])}")
-    cds_cmin, cds_terms = cinf_caps["cds"]
     lines.append(
-        f"C_QOSS di ss Q = {{{_q_expr(cds_cmin, cds_terms, 'V(di,ss)')}}}")
-    cdg_cmin, cdg_terms = cinf_caps["cdg"]
-    cdg_expr = _q_expr(cdg_cmin, cdg_terms, "V(di,gi)")
+        f"C_QOSS di ss Q = {{{_q_expr(cinf_caps['cds'], 'V(di,ss)')}}}")
+    cdg_expr = _q_expr(cinf_caps["cdg"], "V(di,gi)")
     c_neg = float(cinf_caps.get("cdg_neg_excess_f", 0.0))
     if c_neg > 0.0:
         # Smoothly add excess accumulation C_gd for V(di,gi) < 0 (Vgs > Vds)
@@ -352,10 +358,9 @@ def build_ann_subcircuit(spec, channel_fit: AnnChannelFit,
 
     channel = emit_ann_channel(channel_fit)
     gw = float(channel_fit.coefficients["guard_width"])
-    if channel_fit.coefficients.get("model_form") == "positive_conductance" and \
-            isinstance(charge_fit.provenance, dict) and \
-            charge_fit.provenance.get("cinf_caps"):
-        q_lines = _cinf_charge_lines(charge_fit.provenance["cinf_caps"])
+    cinf_caps = (getattr(charge_fit, "provenance", {}) or {}).get("cinf_caps")
+    if channel_fit.coefficients.get("model_form") == "positive_conductance" and cinf_caps:
+        q_lines = _cinf_charge_lines(cinf_caps)
     else:
         q_lines = _charge_lines(charge_fit, eps,
                                 header="* --- charge-conserving capacitances "
@@ -368,8 +373,27 @@ def build_ann_subcircuit(spec, channel_fit: AnnChannelFit,
         "* Parasitics, D_BODY and semantic pins from the closed Tier-2 builder",
         f"* Guard width: {_fmt(gw)} V (static Curve-1 Vds grid, eps_from_grid)",
     ]
+    pre_ch = list(lines[i_sub + 1:i_ch])
+    if cinf_caps:
+        lg = float(cinf_caps.get("l_gate_h", 0.0) or 0.0)
+        ls = float(cinf_caps.get("l_source_h", 0.0) or 0.0)
+        ld = float(cinf_caps.get("l_drain_h", 0.0) or 0.0)
+        new_pre = []
+        for ln in pre_ch:
+            if lg > 0.0 and ln.startswith("RG g gi "):
+                new_pre.append(f"LG g g_pkg {_fmt(lg)}")
+                new_pre.append(ln.replace("RG g gi ", "RG g_pkg gi ", 1))
+            elif ld > 0.0 and ln.startswith("RD d di "):
+                new_pre.append(f"LD d d_pkg {_fmt(ld)}")
+                new_pre.append(ln.replace("RD d di ", "RD d_pkg di ", 1))
+            elif ls > 0.0 and ln.startswith("RS s ss "):
+                new_pre.append(f"LS s s_pkg {_fmt(ls)}")
+                new_pre.append(ln.replace("RS s ss ", "RS s_pkg ss ", 1))
+            else:
+                new_pre.append(ln)
+        pre_ch = new_pre
     out = header + [lines[i_sub].replace(old, new)] \
-        + lines[i_sub + 1:i_ch] \
+        + pre_ch \
         + [f"G_CH di ss VALUE = {{({channel})}}", ""] \
         + q_lines + body
     text = "\n".join(out)

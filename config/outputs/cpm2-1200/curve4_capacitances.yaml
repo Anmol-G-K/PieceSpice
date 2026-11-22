@@ -120,6 +120,9 @@ extracted:
   - 4.765150512015252e-11
   - 4.1442444029460855e-11
   r_gate_ohm: 1.101976956304879
+  l_gate_h: 0.0
+  l_source_h: 0.0
+  l_drain_h: 0.0
   cv_sweeps:
   - curve_vds:
     - 0.1

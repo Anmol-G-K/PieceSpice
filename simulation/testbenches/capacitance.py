@@ -311,6 +311,45 @@ class CapacitanceTestbench:
                 f"invalid extracted R_g={r_gate!r} Ohm at f={f_hz:.2e} Hz")
         return max(r_gate, 1e-4)
 
+    def extract_package_inductances(
+        self,
+        lib_path,
+        subcircuit_name: str = "",
+        vds: float = 10.0,
+        pin_roles=None,
+        f_hz: float = 5e9,
+    ) -> dict[str, float]:
+        """Extract package inductances (l_gate_h, l_source_h, l_drain_h) at GHz AC.
+
+        At 5 GHz, 1/(w*C) is negligible relative to w*L, so Im(Zg)/w -> Lg+Ls
+        (variant 'a') and Im(Zd)/w -> Ld+Ls (variant 'b'). When package
+        inductance is present (> 50 pH), splits Ld+Ls as 85% Ls / 15% Ld.
+        """
+        w = 2.0 * np.pi * float(f_hz)
+        directive = ACDirective(start_freq=float(f_hz), stop_freq=float(f_hz),
+                                n_points=1, variation="lin")
+        text_a = self._ac_netlist(Path(lib_path), subcircuit_name, pin_roles,
+                                  float(vds), "a", vgs_bias=0.0)
+        res_a = self.engine.run_ac_sweep(text_a, directive)
+        zg = -self._complex_voltage(res_a, sub_gate(pin_roles))
+        l_gs = max(0.0, float(zg.imag) / w) if np.isfinite(zg.imag) else 0.0
+
+        text_b = self._ac_netlist(Path(lib_path), subcircuit_name, pin_roles,
+                                  float(vds), "b", vgs_bias=0.0)
+        res_b = self.engine.run_ac_sweep(text_b, directive)
+        zd = -self._complex_voltage(res_b, "drain")
+        l_ds = max(0.0, float(zd.imag) / w) if np.isfinite(zd.imag) else 0.0
+
+        # Threshold 50 pH filters residual capacitive phase when no bondwire exists.
+        l_source = 0.85 * l_ds if l_ds > 5e-11 else 0.0
+        l_drain = 0.15 * l_ds if l_ds > 5e-11 else 0.0
+        l_gate = l_gs if l_gs > 5e-11 else 0.0
+        return {
+            "l_gate_h": float(l_gate),
+            "l_source_h": float(l_source),
+            "l_drain_h": float(l_drain),
+        }
+
 
 def sub_gate(pin_roles) -> str:
     """External node name bound to the gate role.

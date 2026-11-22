@@ -1186,14 +1186,27 @@ def _build_emitted(vendor: str, *, emit: str, tuning: str,
                 f"{vendor}: ann_fit_for_vendor returned no channel/charge fit")
         cinf_caps = (getattr(charge_fit, "provenance", {}) or {}).get("cinf_caps") or {}
         rg_val = cinf_caps.get("r_gate_ohm")
+        rs_val = cinf_caps.get("r_source_ohm")
 
         def _emit_ann_with_rg(s, widths):
             if rg_val is not None:
                 s.metadata["r_gate"] = float(rg_val)
-            return build_ann_subcircuit(
+            if rs_val is not None:
+                s.metadata["r_source"] = float(rs_val)
+            raw_text = build_ann_subcircuit(
                 s, channel_fit, charge_fit,
                 c1_eps=widths.get("q_oss", widths.get("transfer_vgs", 0.0)),
                 name=stem)
+            if os.environ.get("PIECESPICE_LIVE", "1") != "0":
+                try:
+                    from pipeline.ann_fit import calibrate_dynamic_parasitics
+                    cal_text, cal_meta = calibrate_dynamic_parasitics(
+                        vendor, raw_text, stem)
+                    ann_record.setdefault("record", {})["dynamic_calibration"] = cal_meta
+                    return cal_text
+                except Exception:
+                    pass
+            return raw_text
 
         emitter = _emit_ann_with_rg
     elif c1_variant == C1_TIER2_VARIANT:

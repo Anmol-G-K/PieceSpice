@@ -1082,7 +1082,7 @@ def fit_channel_iv_monotone(
     v_sat: float,
     *,
     neurons: int = 6,
-    alpha: float = 10.0,
+    alpha: float = 4.0,
     guard_width: Optional[float] = None,
     guard_width_provenance: Optional[Dict[str, Any]] = None,
     max_nfev: int = 1500,

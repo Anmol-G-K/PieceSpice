@@ -1116,7 +1116,7 @@ def run_vendor_ann(vendor: str) -> dict[str, Any]:
     """Build and validate Tier-4 dynamic C-inf ANN subcircuit for *vendor*."""
     import numpy as np
     from models.tier4_ideal_switch_builder import build_tier4_ann_subcircuit
-    from pipeline.ann_fit import ann_fit_for_vendor
+    from pipeline.ann_fit import ann_fit_for_vendor, calibrate_dynamic_parasitics
     from pipeline.fitting import build_pwl_spec
     from pipeline.tier3 import _dpt_conditions, _waveform_errors
     from pipeline.tier3_simplis import _run_emitted_dpt
@@ -1132,10 +1132,13 @@ def run_vendor_ann(vendor: str) -> dict[str, Any]:
     cinf_caps = (getattr(charge_fit, "provenance", {}) or {}).get("cinf_caps") or {}
     if cinf_caps.get("r_gate_ohm") is not None:
         spec.metadata["r_gate"] = float(cinf_caps["r_gate_ohm"])
+    if cinf_caps.get("r_source_ohm") is not None:
+        spec.metadata["r_source"] = float(cinf_caps["r_source_ohm"])
 
     subckt_name = f"{vendor}_PIECESPICE_T4_ann"
     lib_text = build_tier4_ann_subcircuit(
         spec, channel_fit, charge_fit, lut, subckt_name=subckt_name)
+    lib_text, cal_meta = calibrate_dynamic_parasitics(vendor, lib_text, subckt_name)
     lib_path = ROOT / "reports" / "models" / f"{subckt_name}.lib"
     lib_path.parent.mkdir(parents=True, exist_ok=True)
     lib_path.write_text(lib_text, encoding="ascii")
@@ -1184,9 +1187,12 @@ def run_vendor_ann(vendor: str) -> dict[str, Any]:
         "repeats": SPEED_REPEATS, "timeout_s": SPEED_TIMEOUT_S,
     }
     scheduled_end_s = _scheduled_bench_end(bench_kw)
+    g_max_step = policy["golden_max_step"]
+    if g_max_step is None and vendor == "epc2216":
+        g_max_step = 100e-9
     g_bench = run_inductive_benchmark(
         ROOT / cfg["library"], cfg["subcircuit"], golden_roles,
-        max_step=policy["golden_max_step"], **bench_kw)
+        max_step=g_max_step, **bench_kw)
     t4_bench = run_inductive_benchmark(
         lib_path, subckt_name, ["drain", "gate", "source"],
         max_step=None, **bench_kw)
@@ -1194,13 +1200,27 @@ def run_vendor_ann(vendor: str) -> dict[str, Any]:
         g_bench, t4_bench,
         _bench_complete(g_bench, t4_bench, scheduled_end_s=scheduled_end_s),
         policy)
+    bench_200 = dict(bench_kw, n_pulses=200, repeats=1)
+    sched_200 = _scheduled_bench_end(bench_200)
+    g_200 = run_inductive_benchmark(
+        ROOT / cfg["library"], cfg["subcircuit"], golden_roles,
+        max_step=g_max_step, **bench_200)
+    t4_200 = run_inductive_benchmark(
+        lib_path, subckt_name, ["drain", "gate", "source"],
+        max_step=None, **bench_200)
+    speedup_200 = _speedup_row(
+        g_200, t4_200,
+        _bench_complete(g_200, t4_200, scheduled_end_s=sched_200),
+        policy)
     record = {
         "schema": "piecespice.tier4-ann/1.0",
         "vendor": vendor,
         "emitted_lib": str(lib_path),
+        "dynamic_calibration": cal_meta,
         "dpt_waveform": wf,
         "dpt_comparison": dpt_comp,
         "speedup": speedup,
+        "speedup_200_pulse": speedup_200,
         "ann_static_rms_rel": channel_fit.diagnostics.get("id_rms_rel"),
         "gds_negative_fraction": channel_fit.diagnostics.get("gds_negative_fraction"),
     }

@@ -159,6 +159,9 @@ def _run_curve4(cfg: dict, roles) -> tuple:
     if hasattr(cap_tb, "extract_r_gate"):
         extracted["r_gate_ohm"] = cap_tb.extract_r_gate(
             lib, subckt, vds=float(cond["Vds_cap_max"]), pin_roles=roles)
+    if hasattr(cap_tb, "extract_package_inductances"):
+        extracted.update(cap_tb.extract_package_inductances(
+            lib, subckt, vds=float(cond["Vds_cap_max"]), pin_roles=roles))
 
     conditions_used = {
         "Vds_cap_min": cond["Vds_cap_min"],
