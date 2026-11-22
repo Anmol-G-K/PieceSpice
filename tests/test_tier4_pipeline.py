@@ -960,3 +960,40 @@ def test_record_publishes_ron_and_vt_selection_provenance(tmp_path,
     assert vt["value_v"] == pytest.approx(vt["curve7_vth_v"])
     assert vt["config_vt_switch_v"] is None
     assert "curve7_jedec_vth" in vt["rule"]
+
+
+def test_speedup_row_computes_net_solver_speedup_above_floor():
+    from simulation.testbenches.speedup_bench import LTSPICE_INTERNAL_FLOOR_S
+
+    assert LTSPICE_INTERNAL_FLOOR_S == pytest.approx(0.075)
+    row = tier4._speedup_row(
+        {"solver_elapsed_s": 0.675, "wall_clock_s": 1.2, "iterations": 10000,
+         "end_time_s": 1e-3},
+        {"solver_elapsed_s": 0.275, "wall_clock_s": 0.8, "iterations": 4000,
+         "end_time_s": 1e-3},
+        complete=True,
+        policy={"golden_max_step": None, "case": "long_adaptive"},
+    )
+    assert row["solver_speedup"] == pytest.approx(0.675 / 0.275)
+    assert row["ltspice_internal_floor_s"] == pytest.approx(0.075)
+    assert row["net_solver_speedup"] == pytest.approx(3.0)
+
+
+def test_ann_package_inductance_sic_only_and_damped():
+    from pipeline.ann_fit import ann_fit_for_vendor
+    from models.ann_netlist_builder import build_ann_subcircuit
+    from pipeline.unified_rom import _pwl_spec
+
+    res_si = ann_fit_for_vendor("csd16412q5a")
+    cinf = res_si["charge_fit"].provenance["cinf_caps"]
+    assert cinf["l_gate_h"] == 0.0
+    assert cinf["l_source_h"] == 0.0
+    assert cinf["l_drain_h"] == 0.0
+
+    # When SiC explicitly passes nonzero package inductance, builder emits Rpar=20
+    cinf_sic = dict(cinf, l_gate_h=1.5e-9, l_source_h=0.4e-9, l_drain_h=0.1e-9)
+    res_si["charge_fit"].provenance["cinf_caps"] = cinf_sic
+    txt = build_ann_subcircuit(
+        _pwl_spec("csd16412q5a"), res_si["channel_fit"], res_si["charge_fit"],
+    )
+    assert "LG g g_pkg" in txt and "Rpar=20" in txt

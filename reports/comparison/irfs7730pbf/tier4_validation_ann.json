@@ -64,8 +64,8 @@
     }
   },
   "speedup": {
-    "solver_speedup": 1.2011661807580174,
-    "wall_speedup": 1.0809820611194012,
+    "solver_speedup": 1.0886524822695036,
+    "wall_speedup": 1.0336933645693558,
     "golden_iterations": 12718.0,
     "tier4_iterations": 10986.0,
     "golden_points": 3432.0,
@@ -79,25 +79,29 @@
     "status": "measured",
     "max_step_s": null,
     "case": "long_adaptive",
-    "method": "LTspice default/trap (both arms)"
+    "method": "LTspice default/trap (both arms)",
+    "ltspice_internal_floor_s": 0.075,
+    "net_solver_speedup": 1.1207729468599035
   },
   "speedup_200_pulse": {
-    "solver_speedup": null,
-    "wall_speedup": null,
+    "solver_speedup": 1.2592047128129602,
+    "wall_speedup": 1.1756899041310596,
     "golden_iterations": 66415.0,
     "tier4_iterations": 56761.0,
     "golden_points": 17980.0,
     "tier4_points": 12922.0,
-    "end_time_s": null,
+    "end_time_s": 0.001796,
     "end_time_s_source": "run_inductive_benchmark bench schedule (.tran stop); not a measured trace endpoint",
     "t_last_s": null,
     "t_last_source": "run_inductive_benchmark discards per-run time vectors; no measured trace endpoint is exposed, so t_last is N/A",
     "measured_trace_endpoint_available": false,
     "completion_basis": "count similarity is not required; lower counts are expected for faster models; aborted runs are rejected by positive iterations/points and no error. Both arms must also be full-schedule run_inductive_benchmark records: end_time_s equals the scheduled 20-pulse .tran stop and repeats == 3. The configured .tran stop is schedule metadata, not a measured trace endpoint.",
-    "status": "N/A",
+    "status": "measured",
     "max_step_s": null,
     "case": "long_adaptive",
-    "method": "LTspice default/trap (both arms)"
+    "method": "LTspice default/trap (both arms)",
+    "ltspice_internal_floor_s": 0.075,
+    "net_solver_speedup": 1.2913907284768211
   },
   "ann_static_rms_rel": 0.012509573552422446,
   "gds_negative_fraction": 0.0

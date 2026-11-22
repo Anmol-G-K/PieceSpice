@@ -10,7 +10,7 @@
   "timing_bar_source": "reports/comparison/<vendor>/tier3_validation.json#dpt_comparison.<metric>.golden (device-current golden DPT; independent of dpt_metrics.json#tier2_metrics)",
   "timing_regression_source": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics (diagnostic only; never scored in G4_timing_energy or in the verdict)",
   "tuning_mode": "off",
-  "emitted_lib_sha256": "77c7e75e5ae138b31c625e3ac23c8818c452a6e119ce41b9a015dae369dd8439",
+  "emitted_lib_sha256": "ecfa0fa7edf1af9b644b9fedf5b5b20207fd3a7b322f31e4bd4972788ad79021",
   "environment": {
     "python_version": "3.13.0",
     "python_implementation": "CPython",
@@ -23,13 +23,13 @@
     "ltspice_version": null
   },
   "input_hashes": {
-    "config/inputs/cpm2-1200.yaml": "ff751222a2e9ace524a7c57a5a4fd5bca45dd4ebcbab477c72905960f8be87db",
+    "config/inputs/cpm2-1200.yaml": "dd221feaf7b6357b8f7bf791846901f024ab55cd0630c883184646dece29fe84",
     "vendor_library:CPM2-1200-0025B-Bare-Die.lib": "26823ab247c44d5d55c681c2db56022a0683a77e007e79296c63ca44263b6e42",
-    "emitted_lib": "77c7e75e5ae138b31c625e3ac23c8818c452a6e119ce41b9a015dae369dd8439",
+    "emitted_lib": "ecfa0fa7edf1af9b644b9fedf5b5b20207fd3a7b322f31e4bd4972788ad79021",
     "config/outputs/cpm2-1200/curve1_output_characteristics.yaml": "dc79c7e8ac0f1c8466c90d5cdcf6541bc8578419d982acd5f5f319d9418d275b",
     "config/outputs/cpm2-1200/curve2_transfer_characteristic.yaml": "c705fcde87120c5575a23164bd03cdcf29f1dc905f1a8e54e1bc57a2affe314b",
     "config/outputs/cpm2-1200/curve3_rds_on.yaml": "b422e4f09d1f9653abcd93e354cd38e2e0757581004bd74ebeaf30389ea65b0d",
-    "config/outputs/cpm2-1200/curve4_capacitances.yaml": "1f8ce00bf88324d2db495a35433ff492a5c2ddc902b0a9d3c72a1eeb2dbd44b3",
+    "config/outputs/cpm2-1200/curve4_capacitances.yaml": "c0666e52e21f8d51b3478b5367679145725b0c56c47f67a920482879405ef4d8",
     "config/outputs/cpm2-1200/curve5_gate_charge.yaml": "85cf6175a4c29eb294fad4655139d752509a123f62edce9fa8d5af094185390b",
     "config/outputs/cpm2-1200/curve6_body_diode.yaml": "6beb76829cbeb9322be87d54e3d7964290fc3930cae57f7fd3e56c0bf42957fc",
     "config/outputs/cpm2-1200/curve7_threshold_voltage.yaml": "688d274748c7aaa5ca7a5f386ca8bed89a9df994b7319acf1a1a7a70dff10c24"
@@ -132,14 +132,14 @@
     "schema": "piecespice.artifact_manifest/1.0",
     "lib": {
       "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\cpm2-1200_PIECSPICE_UROM_ann_trap-default.lib",
-      "sha256": "77c7e75e5ae138b31c625e3ac23c8818c452a6e119ce41b9a015dae369dd8439",
-      "bytes": 3813
+      "sha256": "ecfa0fa7edf1af9b644b9fedf5b5b20207fd3a7b322f31e4bd4972788ad79021",
+      "bytes": 3781
     },
     "inputs": {
       "config/inputs/cpm2-1200.yaml": {
         "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\inputs\\cpm2-1200.yaml",
-        "sha256": "ff751222a2e9ace524a7c57a5a4fd5bca45dd4ebcbab477c72905960f8be87db",
-        "bytes": 3608
+        "sha256": "dd221feaf7b6357b8f7bf791846901f024ab55cd0630c883184646dece29fe84",
+        "bytes": 3625
       },
       "vendor_library:CPM2-1200-0025B-Bare-Die.lib": {
         "path": "SpiceModels\\CPM2-1200-0025B-Bare-Die.lib",
@@ -148,8 +148,8 @@
       },
       "emitted_lib": {
         "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\cpm2-1200_PIECSPICE_UROM_ann_trap-default.lib",
-        "sha256": "77c7e75e5ae138b31c625e3ac23c8818c452a6e119ce41b9a015dae369dd8439",
-        "bytes": 3813
+        "sha256": "ecfa0fa7edf1af9b644b9fedf5b5b20207fd3a7b322f31e4bd4972788ad79021",
+        "bytes": 3781
       },
       "config/outputs/cpm2-1200/curve1_output_characteristics.yaml": {
         "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\cpm2-1200\\curve1_output_characteristics.yaml",
@@ -168,8 +168,8 @@
       },
       "config/outputs/cpm2-1200/curve4_capacitances.yaml": {
         "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\cpm2-1200\\curve4_capacitances.yaml",
-        "sha256": "1f8ce00bf88324d2db495a35433ff492a5c2ddc902b0a9d3c72a1eeb2dbd44b3",
-        "bytes": 12053
+        "sha256": "c0666e52e21f8d51b3478b5367679145725b0c56c47f67a920482879405ef4d8",
+        "bytes": 12107
       },
       "config/outputs/cpm2-1200/curve5_gate_charge.yaml": {
         "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\cpm2-1200\\curve5_gate_charge.yaml",
@@ -228,32 +228,32 @@
     "clock_spread": {
       "median": {
         "solver": {
-          "golden": 0.296,
-          "urom": 0.266
+          "golden": 0.304,
+          "urom": 0.281
         },
         "wall": {
-          "golden": 0.7469052999949781,
-          "urom": 0.6899132999969879
+          "golden": 0.7739747000014177,
+          "urom": 0.733219800007646
         }
       },
       "min": {
         "solver": {
-          "golden": 0.288,
-          "urom": 0.262
+          "golden": 0.28,
+          "urom": 0.25
         },
         "wall": {
-          "golden": 0.7395861000040895,
-          "urom": 0.675765500003763
+          "golden": 0.7693257999926573,
+          "urom": 0.7266107999894302
         }
       },
       "max": {
         "solver": {
-          "golden": 0.33,
-          "urom": 0.275
+          "golden": 0.32,
+          "urom": 0.285
         },
         "wall": {
-          "golden": 0.80125229999976,
-          "urom": 0.6901911000022665
+          "golden": 0.8116569999983767,
+          "urom": 0.7543582000071183
         }
       },
       "missing": [],
@@ -442,8 +442,8 @@
           "status": "measured",
           "expression_matches_mirror": false,
           "q_zero_residual_c": 0.0,
-          "q_vmax_residual_c": -1.3562150538297512e-08,
-          "q_vmax_residual_pct": -22.18706965466136
+          "q_vmax_residual_c": -1.36750795073152e-08,
+          "q_vmax_residual_pct": -22.371816380082905
         },
         "q_iss": {
           "element": "C_ISS",
@@ -637,32 +637,32 @@
         "clock_spread": {
           "median": {
             "solver": {
-              "golden": 0.296,
-              "urom": 0.266
+              "golden": 0.304,
+              "urom": 0.281
             },
             "wall": {
-              "golden": 0.7469052999949781,
-              "urom": 0.6899132999969879
+              "golden": 0.7739747000014177,
+              "urom": 0.733219800007646
             }
           },
           "min": {
             "solver": {
-              "golden": 0.288,
-              "urom": 0.262
+              "golden": 0.28,
+              "urom": 0.25
             },
             "wall": {
-              "golden": 0.7395861000040895,
-              "urom": 0.675765500003763
+              "golden": 0.7693257999926573,
+              "urom": 0.7266107999894302
             }
           },
           "max": {
             "solver": {
-              "golden": 0.33,
-              "urom": 0.275
+              "golden": 0.32,
+              "urom": 0.285
             },
             "wall": {
-              "golden": 0.80125229999976,
-              "urom": 0.6901911000022665
+              "golden": 0.8116569999983767,
+              "urom": 0.7543582000071183
             }
           },
           "missing": [],
@@ -671,17 +671,17 @@
       }
     },
     "G1_static": {
-      "pass": true,
+      "pass": false,
       "status": "measured",
       "detail": {
-        "rel_rmse_pct": 1.2952997963890522,
+        "rel_rmse_pct": 17.562510776352124,
         "bar_pct": 3.4287,
         "estimator": "mean(per_curve_peak_rel_rmse_pct)",
         "band_pp": 0.05,
-        "worst_endpoint_pct": 2.5629830547635315,
+        "worst_endpoint_pct": 27.13832660626327,
         "endpoint_bar_pct": 4.13,
-        "span_normalised_pct": 1.1398756201445586,
-        "peak_normalised_pct": 1.139875620141929
+        "span_normalised_pct": 17.611556392443788,
+        "peak_normalised_pct": 17.611556392383495
       }
     },
     "G2_derivative": {
@@ -692,10 +692,10 @@
         "status": "measured",
         "reason": "finite gm/gds; monotone Q; Vds=0 and gate-cutoff anchors near zero; ANN out-of-range pass",
         "emit": "ann",
-        "gm_min": 3.667587344935441e-10,
-        "gm_max": 29.74147605895996,
-        "gds_min": 0.3879486844295741,
-        "gds_max": 30.975215116582273,
+        "gm_min": 3.1450724691239884e-08,
+        "gm_max": 20.79446029663086,
+        "gds_min": 0.18181193817872554,
+        "gds_max": 22.70007103544208,
         "gm_nonnegative_fraction": 1.0,
         "gm_negative_fraction": 0.0,
         "gds_nonnegative_fraction": 1.0,
@@ -710,16 +710,16 @@
         "ann_channel_probe": {
           "status": "measured",
           "reason": null,
-          "expression_sha256": "3cf7ab9c1221700b853bdf69381ce042905b7a84a2c2bc6fd6c884c1248f9ac4",
+          "expression_sha256": "5835a0eedff2bcc492d26ab07564ee2f1dc893c9d7ed5f407b5136ee8ec8ab19",
           "vgs_on": 20.0,
           "vds_high": 20.0,
-          "cutoff_vgs": 2.1672094145234118,
-          "cutoff_i": 0.015252778446956931,
+          "cutoff_vgs": 1.7172094145234116,
+          "cutoff_i": 0.014800291190331591,
           "cutoff_ok": true,
           "vds_guard": 0.04999999999999982,
           "guard_i": 1.560444212323507,
           "guard_ok": true,
-          "vgs_zero_i": 0.0,
+          "vgs_zero_i": 1.4672870627406112e-08,
           "zero_ok": true,
           "i_high": 345.60292134903517,
           "tolerance_frac": 0.01
@@ -731,7 +731,7 @@
         "charge_derivative_non_negative": true,
         "vds_zero_anchor": true,
         "vth_zero_anchor": true,
-        "cutoff_probe_vgs": 2.1672094145234118,
+        "cutoff_probe_vgs": 1.7172094145234116,
         "out_of_range_check": "pass",
         "activation": "tanh",
         "neurons": 6
@@ -757,8 +757,8 @@
         "urom": {
           "status": "measured",
           "pass": true,
-          "vds_rel_rmse_pct": 2.122399150830629,
-          "id_rel_rmse_pct": 2.238156096962466,
+          "vds_rel_rmse_pct": 2.176442364661066,
+          "id_rel_rmse_pct": 2.141211508838363,
           "bars_vds_id_pct": [
             3.0,
             5.0
@@ -813,7 +813,7 @@
         "rows": {
           "td_on_ns": {
             "status": "measured",
-            "value": 10.079987453314724,
+            "value": 10.260621250952903,
             "bar": 10.252879764066485,
             "band": [
               9.74023577586316,
@@ -823,7 +823,7 @@
           },
           "tr_ns": {
             "status": "measured",
-            "value": 6.936542790298347,
+            "value": 7.286300339200041,
             "bar": 4.703011959080317,
             "band": [
               4.467861361126301,
@@ -833,7 +833,7 @@
           },
           "td_off_ns": {
             "status": "measured",
-            "value": 16.98727913655963,
+            "value": 16.413838599332532,
             "bar": 14.034458010213152,
             "band": [
               13.332735109702494,
@@ -843,7 +843,7 @@
           },
           "tf_ns": {
             "status": "measured",
-            "value": 5.698709856378348,
+            "value": 5.861914462335923,
             "bar": 4.139181554911007,
             "band": [
               3.9322224771654564,
@@ -853,7 +853,7 @@
           },
           "e_on_uj": {
             "status": "measured",
-            "value": 3.782432940616816,
+            "value": 4.2568784836773315,
             "bar": 2.7601594486405885,
             "band": [
               2.622151476208559,
@@ -868,7 +868,7 @@
           },
           "e_off_uj": {
             "status": "measured",
-            "value": 2.0888770159303585,
+            "value": 2.2182426767287695,
             "bar": 1.4200473072736473,
             "band": [
               1.3490449419099648,
@@ -895,7 +895,7 @@
           "rows": {
             "td_on_ns": {
               "status": "measured",
-              "value": 10.079987453314724,
+              "value": 10.260621250952903,
               "bar": 11.780657210018502,
               "band": [
                 11.191624349517577,
@@ -905,7 +905,7 @@
             },
             "tr_ns": {
               "status": "measured",
-              "value": 6.936542790298347,
+              "value": 7.286300339200041,
               "bar": 4.123180135595054,
               "band": [
                 3.917021128815301,
@@ -915,7 +915,7 @@
             },
             "td_off_ns": {
               "status": "measured",
-              "value": 16.98727913655963,
+              "value": 16.413838599332532,
               "bar": 18.242309580736105,
               "band": [
                 17.3301941016993,
@@ -925,7 +925,7 @@
             },
             "tf_ns": {
               "status": "measured",
-              "value": 5.698709856378348,
+              "value": 5.861914462335923,
               "bar": 8.788832112198792,
               "band": [
                 8.349390506588852,
@@ -935,7 +935,7 @@
             },
             "e_on_uj": {
               "status": "measured",
-              "value": 3.782432940616816,
+              "value": 4.2568784836773315,
               "bar": 3.213875373912566,
               "band": [
                 3.053181605216938,
@@ -950,7 +950,7 @@
             },
             "e_off_uj": {
               "status": "measured",
-              "value": 2.0888770159303585,
+              "value": 2.2182426767287695,
               "bar": 3.314410474663301,
               "band": [
                 3.148689950930136,
@@ -983,7 +983,7 @@
         "rows": {
           "td_on_ns": {
             "status": "measured",
-            "value": 10.079987453314724,
+            "value": 10.260621250952903,
             "bar": 11.780657210018502,
             "band": [
               11.191624349517577,
@@ -993,7 +993,7 @@
           },
           "tr_ns": {
             "status": "measured",
-            "value": 6.936542790298347,
+            "value": 7.286300339200041,
             "bar": 4.123180135595054,
             "band": [
               3.917021128815301,
@@ -1003,7 +1003,7 @@
           },
           "td_off_ns": {
             "status": "measured",
-            "value": 16.98727913655963,
+            "value": 16.413838599332532,
             "bar": 18.242309580736105,
             "band": [
               17.3301941016993,
@@ -1013,7 +1013,7 @@
           },
           "tf_ns": {
             "status": "measured",
-            "value": 5.698709856378348,
+            "value": 5.861914462335923,
             "bar": 8.788832112198792,
             "band": [
               8.349390506588852,
@@ -1023,7 +1023,7 @@
           },
           "e_on_uj": {
             "status": "measured",
-            "value": 3.782432940616816,
+            "value": 4.2568784836773315,
             "bar": 3.213875373912566,
             "band": [
               3.053181605216938,
@@ -1038,7 +1038,7 @@
           },
           "e_off_uj": {
             "status": "measured",
-            "value": 2.0888770159303585,
+            "value": 2.2182426767287695,
             "bar": 3.314410474663301,
             "band": [
               3.148689950930136,
@@ -1075,32 +1075,32 @@
         "clock_spread": {
           "median": {
             "solver": {
-              "golden": 0.296,
-              "urom": 0.266
+              "golden": 0.304,
+              "urom": 0.281
             },
             "wall": {
-              "golden": 0.7469052999949781,
-              "urom": 0.6899132999969879
+              "golden": 0.7739747000014177,
+              "urom": 0.733219800007646
             }
           },
           "min": {
             "solver": {
-              "golden": 0.288,
-              "urom": 0.262
+              "golden": 0.28,
+              "urom": 0.25
             },
             "wall": {
-              "golden": 0.7395861000040895,
-              "urom": 0.675765500003763
+              "golden": 0.7693257999926573,
+              "urom": 0.7266107999894302
             }
           },
           "max": {
             "solver": {
-              "golden": 0.33,
-              "urom": 0.275
+              "golden": 0.32,
+              "urom": 0.285
             },
             "wall": {
-              "golden": 0.80125229999976,
-              "urom": 0.6901911000022665
+              "golden": 0.8116569999983767,
+              "urom": 0.7543582000071183
             }
           },
           "missing": [],
@@ -1111,29 +1111,29 @@
           "golden": true,
           "urom": true
         },
-        "solver_speedup": 1.112781954887218,
-        "wall_speedup": 1.0826074812563247,
+        "solver_speedup": 1.081850533807829,
+        "wall_speedup": 1.0555834689588943,
         "solver_speedup_ci95": {
-          "point": 1.0827067669172932,
-          "low": 1.0763636363636362,
-          "high": 1.2595419847328244,
+          "point": 1.12,
+          "low": 1.081850533807829,
+          "high": 1.1228070175438598,
           "n": 3,
           "confidence": 0.95,
           "n_resamples": 2000
         },
         "wall_speedup_ci95": {
-          "point": 1.0821717347449502,
-          "low": 1.0719986120101155,
-          "high": 1.1856957775963677,
+          "point": 1.0651846903633644,
+          "low": 1.0492430782483435,
+          "high": 1.0759570188150904,
           "n": 3,
           "confidence": 0.95,
           "n_resamples": 2000
         },
-        "recorded_solver_speedup": 1.112781954887218,
+        "recorded_solver_speedup": 1.081850533807829,
         "recorded_solver_speedup_ci95": {
-          "point": 1.0827067669172932,
-          "low": 1.0763636363636362,
-          "high": 1.2595419847328244,
+          "point": 1.12,
+          "low": 1.081850533807829,
+          "high": 1.1228070175438598,
           "n": 3,
           "confidence": 0.95,
           "n_resamples": 2000
@@ -1196,8 +1196,8 @@
               "status": "measured",
               "expression_matches_mirror": false,
               "q_zero_residual_c": 0.0,
-              "q_vmax_residual_c": -1.3562150538297512e-08,
-              "q_vmax_residual_pct": -22.18706965466136
+              "q_vmax_residual_c": -1.36750795073152e-08,
+              "q_vmax_residual_pct": -22.371816380082905
             },
             "q_iss": {
               "element": "C_ISS",
@@ -1226,7 +1226,7 @@
         }
       }
     },
-    "fidelity_all_pass": true,
+    "fidelity_all_pass": false,
     "timing_all_pass": false,
     "speed_all_pass": true,
     "all_pass": false
@@ -1234,11 +1234,11 @@
   "runtime": {
     "iterations": {
       "golden": 12492.0,
-      "urom": 10577.0
+      "urom": 10769.0
     },
     "points": {
       "golden": 3092.0,
-      "urom": 2488.0
+      "urom": 2521.0
     },
     "t_last": {
       "golden": 0.000176,
@@ -1246,41 +1246,41 @@
     },
     "repeats": 3,
     "solver_time_s": {
-      "golden": 0.296,
-      "urom": 0.266
+      "golden": 0.304,
+      "urom": 0.281
     },
     "wall_time_s": {
-      "golden": 0.7469052999949781,
-      "urom": 0.6899132999969879
+      "golden": 0.7739747000014177,
+      "urom": 0.733219800007646
     },
     "median": {
       "solver": {
-        "golden": 0.296,
-        "urom": 0.266
+        "golden": 0.304,
+        "urom": 0.281
       },
       "wall": {
-        "golden": 0.7469052999949781,
-        "urom": 0.6899132999969879
+        "golden": 0.7739747000014177,
+        "urom": 0.733219800007646
       }
     },
     "min": {
       "solver": {
-        "golden": 0.288,
-        "urom": 0.262
+        "golden": 0.28,
+        "urom": 0.25
       },
       "wall": {
-        "golden": 0.7395861000040895,
-        "urom": 0.675765500003763
+        "golden": 0.7693257999926573,
+        "urom": 0.7266107999894302
       }
     },
     "max": {
       "solver": {
-        "golden": 0.33,
-        "urom": 0.275
+        "golden": 0.32,
+        "urom": 0.285
       },
       "wall": {
-        "golden": 0.80125229999976,
-        "urom": 0.6901911000022665
+        "golden": 0.8116569999983767,
+        "urom": 0.7543582000071183
       }
     },
     "completion": {
@@ -1292,20 +1292,20 @@
     "n_pulses": 20,
     "max_step": null,
     "method_label": "trap/default",
-    "solver_speedup": 1.112781954887218,
-    "wall_speedup": 1.0826074812563247,
+    "solver_speedup": 1.081850533807829,
+    "wall_speedup": 1.0555834689588943,
     "solver_speedup_ci95": {
-      "point": 1.0827067669172932,
-      "low": 1.0763636363636362,
-      "high": 1.2595419847328244,
+      "point": 1.12,
+      "low": 1.081850533807829,
+      "high": 1.1228070175438598,
       "n": 3,
       "confidence": 0.95,
       "n_resamples": 2000
     },
     "wall_speedup_ci95": {
-      "point": 1.0821717347449502,
-      "low": 1.0719986120101155,
-      "high": 1.1856957775963677,
+      "point": 1.0651846903633644,
+      "low": 1.0492430782483435,
+      "high": 1.0759570188150904,
       "n": 3,
       "confidence": 0.95,
       "n_resamples": 2000
@@ -1317,11 +1317,11 @@
     },
     "iterations": {
       "golden": 12492.0,
-      "urom": 10577.0
+      "urom": 10769.0
     },
     "points": {
       "golden": 3092.0,
-      "urom": 2488.0
+      "urom": 2521.0
     },
     "global_claim": false,
     "min_default_gear": null,
@@ -1331,16 +1331,16 @@
     "waveform_gate_retired": false,
     "energy_only_claim": false
   },
-  "spice_log_tail": "LTspice 26.1.1 for Windows\nCircuit: C:\\Users\\GNKRIS~1\\AppData\\Local\\Temp\\piecespice_tran_0afp4vz3\\tran.net\nStart Time: Sun Nov 22 01:30:19 2026\nsolver = Normal\nMaximum thread count: 16\ntnom = 27\ntemp = 25\nmethod = modified trap\nAsciiRawFile = true\nCompress1stOrder = true\nCompress2ndOrder = true\nDirect Newton iteration succeeded in finding operating point.\nTotal elapsed time: 0.275 seconds.\nTotal iterations: 10577\n\nFiles loaded:\nC:\\Users\\GNKRIS~1\\AppData\\Local\\Temp\\piecespice_tran_0afp4vz3\\tran.net\n\n",
+  "spice_log_tail": "LTspice 26.1.1 for Windows\nCircuit: C:\\Users\\GNKRIS~1\\AppData\\Local\\Temp\\piecespice_tran_gljpw0gd\\tran.net\nStart Time: Sun Nov 22 14:41:14 2026\nsolver = Normal\nMaximum thread count: 16\ntnom = 27\ntemp = 25\nmethod = modified trap\nAsciiRawFile = true\nCompress1stOrder = true\nCompress2ndOrder = true\nDirect Newton iteration succeeded in finding operating point.\nTotal elapsed time: 0.281 seconds.\nTotal iterations: 10769\n\nFiles loaded:\nC:\\Users\\GNKRIS~1\\AppData\\Local\\Temp\\piecespice_tran_gljpw0gd\\tran.net\n\n",
   "dpt_run": {
     "completed": true,
-    "iterations": 21398,
-    "trace_points": 7104,
+    "iterations": 21543,
+    "trace_points": 7108,
     "golden_trace_points": 7154,
     "t_last": 1.4e-05,
     "waveform": {
-      "vds_rel_rmse_pct": 2.122399150830629,
-      "id_rel_rmse_pct": 2.238156096962466,
+      "vds_rel_rmse_pct": 2.176442364661066,
+      "id_rel_rmse_pct": 2.141211508838363,
       "compare_points": 7000,
       "compare_grid_step_s": 2.0002857551078724e-09,
       "current_definition": "abs(I(Lload) - I(Dclamp))",
@@ -1348,17 +1348,17 @@
       "role": "fidelity measurement"
     },
     "metrics": {
-      "td_on_ns": 10.079987453314724,
-      "tr_ns": 6.936542790298347,
-      "td_off_ns": 16.98727913655963,
-      "tf_ns": 5.698709856378348,
-      "dv_dt_max_v_per_ns": 387.697278976,
-      "di_dt_max_a_per_ns": 740.8529243667855,
-      "e_on_uj": 3.782432940616816,
-      "e_off_uj": 2.0888770159303585,
+      "td_on_ns": 10.260621250952903,
+      "tr_ns": 7.286300339200041,
+      "td_off_ns": 16.413838599332532,
+      "tf_ns": 5.861914462335923,
+      "dv_dt_max_v_per_ns": 490.35706368,
+      "di_dt_max_a_per_ns": 1213.7619108398835,
+      "e_on_uj": 4.2568784836773315,
+      "e_off_uj": 2.2182426767287695,
       "e_oss_uj": null,
-      "i_peak_a": 26.765777587894178,
-      "wall_clock_s": 0.8358117999960086,
+      "i_peak_a": 26.539978027347303,
+      "wall_clock_s": 0.9469010000029812,
       "energy_current_definition": "I(Lload)-I(Dclamp) signed"
     },
     "current_definition": "abs(I(Lload) - I(Dclamp))",
@@ -1367,8 +1367,8 @@
     "error": null
   },
   "dpt_waveform": {
-    "vds_rel_rmse_pct": 2.122399150830629,
-    "id_rel_rmse_pct": 2.238156096962466,
+    "vds_rel_rmse_pct": 2.176442364661066,
+    "id_rel_rmse_pct": 2.141211508838363,
     "compare_points": 7000,
     "compare_grid_step_s": 2.0002857551078724e-09,
     "current_definition": "abs(I(Lload) - I(Dclamp))",
@@ -1402,7 +1402,7 @@
         "e_off_uj": 1.4200473072736473,
         "e_oss_uj": null,
         "i_peak_a": 26.82243537902832,
-        "wall_clock_s": 0.8954639000003226,
+        "wall_clock_s": 0.981312899995828,
         "energy_current_definition": "I(Lload)-I(Dclamp) signed"
       },
       "current_definition": "abs(I(Lload) - I(Dclamp))",
@@ -1412,13 +1412,13 @@
     },
     "urom": {
       "completed": true,
-      "iterations": 21398,
-      "trace_points": 7104,
+      "iterations": 21543,
+      "trace_points": 7108,
       "golden_trace_points": 7154,
       "t_last": 1.4e-05,
       "waveform": {
-        "vds_rel_rmse_pct": 2.122399150830629,
-        "id_rel_rmse_pct": 2.238156096962466,
+        "vds_rel_rmse_pct": 2.176442364661066,
+        "id_rel_rmse_pct": 2.141211508838363,
         "compare_points": 7000,
         "compare_grid_step_s": 2.0002857551078724e-09,
         "current_definition": "abs(I(Lload) - I(Dclamp))",
@@ -1426,17 +1426,17 @@
         "role": "fidelity measurement"
       },
       "metrics": {
-        "td_on_ns": 10.079987453314724,
-        "tr_ns": 6.936542790298347,
-        "td_off_ns": 16.98727913655963,
-        "tf_ns": 5.698709856378348,
-        "dv_dt_max_v_per_ns": 387.697278976,
-        "di_dt_max_a_per_ns": 740.8529243667855,
-        "e_on_uj": 3.782432940616816,
-        "e_off_uj": 2.0888770159303585,
+        "td_on_ns": 10.260621250952903,
+        "tr_ns": 7.286300339200041,
+        "td_off_ns": 16.413838599332532,
+        "tf_ns": 5.861914462335923,
+        "dv_dt_max_v_per_ns": 490.35706368,
+        "di_dt_max_a_per_ns": 1213.7619108398835,
+        "e_on_uj": 4.2568784836773315,
+        "e_off_uj": 2.2182426767287695,
         "e_oss_uj": null,
-        "i_peak_a": 26.765777587894178,
-        "wall_clock_s": 0.8358117999960086,
+        "i_peak_a": 26.539978027347303,
+        "wall_clock_s": 0.9469010000029812,
         "energy_current_definition": "I(Lload)-I(Dclamp) signed"
       },
       "current_definition": "abs(I(Lload) - I(Dclamp))",
@@ -1491,8 +1491,8 @@
         "role": "control: golden self-comparison, not a fidelity measure"
       },
       "urom": {
-        "vds_rel_rmse_pct": 2.122399150830629,
-        "id_rel_rmse_pct": 2.238156096962466,
+        "vds_rel_rmse_pct": 2.176442364661066,
+        "id_rel_rmse_pct": 2.141211508838363,
         "compare_points": 7000,
         "compare_grid_step_s": 2.0002857551078724e-09,
         "current_definition": "abs(I(Lload) - I(Dclamp))",
@@ -1510,25 +1510,25 @@
     "current_identity_match": true
   },
   "static": {
-    "full_sweep_rel_rmse_pct": 1.2952997963890522,
-    "span_normalised_rmse_pct": 1.1398756201445586,
-    "peak_normalised_rmse_pct": 1.139875620141929,
-    "worst_endpoint_rel_error_pct": 2.5629830547635315,
+    "full_sweep_rel_rmse_pct": 17.562510776352124,
+    "span_normalised_rmse_pct": 17.611556392443788,
+    "peak_normalised_rmse_pct": 17.611556392383495,
+    "worst_endpoint_rel_error_pct": 27.13832660626327,
     "per_curve_peak_rel_rmse_pct": [
-      2.2266752091359603,
-      1.916734688367145,
-      1.3169379450553427,
-      0.9628132952285153,
-      0.7447950516405611,
-      0.6038425889067893
+      17.739002334450234,
+      18.179006905257364,
+      17.947119813097732,
+      17.484110450316756,
+      17.143264040361718,
+      16.882561114628952
     ],
     "per_curve_span_rel_rmse_pct": [
-      2.2266752091464617,
-      1.9167346883732168,
-      1.3169379450585685,
-      0.9628132952305487,
-      0.7447950516420019,
-      0.603842588907899
+      17.739002334533893,
+      18.17900690531495,
+      17.947119813141693,
+      17.484110450353683,
+      17.143264040394875,
+      16.88256111465998
     ],
     "gated_estimator": "mean(per_curve_peak_rel_rmse_pct)",
     "provenance": {
@@ -1564,32 +1564,32 @@
       "clock_spread": {
         "median": {
           "solver": {
-            "golden": 0.296,
-            "urom": 0.266
+            "golden": 0.304,
+            "urom": 0.281
           },
           "wall": {
-            "golden": 0.7469052999949781,
-            "urom": 0.6899132999969879
+            "golden": 0.7739747000014177,
+            "urom": 0.733219800007646
           }
         },
         "min": {
           "solver": {
-            "golden": 0.288,
-            "urom": 0.262
+            "golden": 0.28,
+            "urom": 0.25
           },
           "wall": {
-            "golden": 0.7395861000040895,
-            "urom": 0.675765500003763
+            "golden": 0.7693257999926573,
+            "urom": 0.7266107999894302
           }
         },
         "max": {
           "solver": {
-            "golden": 0.33,
-            "urom": 0.275
+            "golden": 0.32,
+            "urom": 0.285
           },
           "wall": {
-            "golden": 0.80125229999976,
-            "urom": 0.6901911000022665
+            "golden": 0.8116569999983767,
+            "urom": 0.7543582000071183
           }
         },
         "missing": [],
@@ -1792,7 +1792,7 @@
     }
   },
   "verdict": "reject",
-  "fidelity_verdict": "accept",
+  "fidelity_verdict": "reject",
   "timing_verdict": "reject",
   "speed_verdict": "accept",
   "overall_verdict": "reject"

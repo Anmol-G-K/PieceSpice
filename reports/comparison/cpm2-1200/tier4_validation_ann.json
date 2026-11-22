@@ -1,0 +1,108 @@
+{
+  "schema": "piecespice.tier4-ann/1.0",
+  "vendor": "cpm2-1200",
+  "emitted_lib": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\cpm2-1200_PIECESPICE_T4_ann.lib",
+  "dynamic_calibration": {
+    "k_cgs": 1.0,
+    "k_cdg": 1.0,
+    "k_cds": 1.0,
+    "k_rg": 1.0002500312526044,
+    "nfev": 45,
+    "loss": 1.765461014813464
+  },
+  "dpt_waveform": {
+    "vds_rel_rmse_pct": 6.271909826393045,
+    "id_rel_rmse_pct": 5.083527081045481,
+    "compare_points": 7154,
+    "current_definition": "I(Lload)-I(Dclamp)"
+  },
+  "dpt_comparison": {
+    "td_on_ns": {
+      "golden": 10.252879764066485,
+      "tier4_ann": 10.260621250952903,
+      "rel_err_pct": 0.07550548786839664
+    },
+    "tr_ns": {
+      "golden": 4.703011959080317,
+      "tier4_ann": 7.286300339200041,
+      "rel_err_pct": 54.92838212184539
+    },
+    "td_off_ns": {
+      "golden": 14.034458010213152,
+      "tier4_ann": 16.413838599332532,
+      "rel_err_pct": 16.953847361884996
+    },
+    "tf_ns": {
+      "golden": 4.139181554911007,
+      "tier4_ann": 5.861914462335923,
+      "rel_err_pct": 41.620133946068364
+    },
+    "dv_dt_max_v_per_ns": {
+      "golden": 373.7322739993671,
+      "tier4_ann": 490.35706368,
+      "rel_err_pct": 31.205437098758665
+    },
+    "di_dt_max_a_per_ns": {
+      "golden": 986.2625878706833,
+      "tier4_ann": 1213.7619108398835,
+      "rel_err_pct": 23.066810580371463
+    },
+    "e_on_uj": {
+      "golden": 2.7601594486405885,
+      "tier4_ann": 4.2568784836773315,
+      "rel_err_pct": 54.22581785171487
+    },
+    "e_off_uj": {
+      "golden": 1.4200473072736473,
+      "tier4_ann": 2.2182426767287695,
+      "rel_err_pct": 56.20906890683661
+    },
+    "i_peak_a": {
+      "golden": 26.82243537902832,
+      "tier4_ann": 26.539978027347303,
+      "rel_err_pct": -1.0530637792191786
+    }
+  },
+  "speedup": {
+    "solver_speedup": 1.0416666666666667,
+    "wall_speedup": 1.0226395744727015,
+    "golden_iterations": 12492.0,
+    "tier4_iterations": 10769.0,
+    "golden_points": 3092.0,
+    "tier4_points": 2521.0,
+    "end_time_s": 0.000176,
+    "end_time_s_source": "run_inductive_benchmark bench schedule (.tran stop); not a measured trace endpoint",
+    "t_last_s": null,
+    "t_last_source": "run_inductive_benchmark discards per-run time vectors; no measured trace endpoint is exposed, so t_last is N/A",
+    "measured_trace_endpoint_available": false,
+    "completion_basis": "count similarity is not required; lower counts are expected for faster models; aborted runs are rejected by positive iterations/points and no error. Both arms must also be full-schedule run_inductive_benchmark records: end_time_s equals the scheduled 20-pulse .tran stop and repeats == 3. The configured .tran stop is schedule metadata, not a measured trace endpoint.",
+    "status": "measured",
+    "max_step_s": null,
+    "case": "long_adaptive",
+    "method": "LTspice default/trap (both arms)",
+    "ltspice_internal_floor_s": 0.075,
+    "net_solver_speedup": 1.0548523206751055
+  },
+  "speedup_200_pulse": {
+    "solver_speedup": 1.4313725490196079,
+    "wall_speedup": 1.3197546677469363,
+    "golden_iterations": 83115.0,
+    "tier4_iterations": 70558.0,
+    "golden_points": 20352.0,
+    "tier4_points": 15013.0,
+    "end_time_s": 0.001796,
+    "end_time_s_source": "run_inductive_benchmark bench schedule (.tran stop); not a measured trace endpoint",
+    "t_last_s": null,
+    "t_last_source": "run_inductive_benchmark discards per-run time vectors; no measured trace endpoint is exposed, so t_last is N/A",
+    "measured_trace_endpoint_available": false,
+    "completion_basis": "count similarity is not required; lower counts are expected for faster models; aborted runs are rejected by positive iterations/points and no error. Both arms must also be full-schedule run_inductive_benchmark records: end_time_s equals the scheduled 20-pulse .tran stop and repeats == 3. The configured .tran stop is schedule metadata, not a measured trace endpoint.",
+    "status": "measured",
+    "max_step_s": null,
+    "case": "long_adaptive",
+    "method": "LTspice default/trap (both arms)",
+    "ltspice_internal_floor_s": 0.075,
+    "net_solver_speedup": 1.482003129890454
+  },
+  "ann_static_rms_rel": 0.014108469695081156,
+  "gds_negative_fraction": 0.0
+}

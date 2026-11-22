@@ -8,6 +8,7 @@
 
 device: cpm2-1200
 vendor: wolfspeed
+technology: sic
 library: SpiceModels/CPM2-1200-0025B-Bare-Die.lib
 subcircuit: CPM2-1200-0025B
 

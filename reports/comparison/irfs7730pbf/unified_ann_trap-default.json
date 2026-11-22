@@ -228,32 +228,32 @@
     "clock_spread": {
       "median": {
         "solver": {
-          "golden": 0.442,
-          "urom": 0.324
+          "golden": 0.29,
+          "urom": 0.289
         },
         "wall": {
-          "golden": 0.9615423000068404,
-          "urom": 0.8045164000068326
+          "golden": 0.7647031999949832,
+          "urom": 0.7762705000059213
         }
       },
       "min": {
         "solver": {
-          "golden": 0.423,
-          "urom": 0.297
+          "golden": 0.273,
+          "urom": 0.274
         },
         "wall": {
-          "golden": 0.9370211999921594,
-          "urom": 0.8040878999890992
+          "golden": 0.7543361999996705,
+          "urom": 0.7616466000035871
         }
       },
       "max": {
         "solver": {
-          "golden": 0.455,
-          "urom": 0.406
+          "golden": 0.294,
+          "urom": 0.295
         },
         "wall": {
-          "golden": 1.0871457000030205,
-          "urom": 0.9521951999922749
+          "golden": 0.7829888999985997,
+          "urom": 0.8065869999991264
         }
       },
       "missing": [],
@@ -636,32 +636,32 @@
         "clock_spread": {
           "median": {
             "solver": {
-              "golden": 0.442,
-              "urom": 0.324
+              "golden": 0.29,
+              "urom": 0.289
             },
             "wall": {
-              "golden": 0.9615423000068404,
-              "urom": 0.8045164000068326
+              "golden": 0.7647031999949832,
+              "urom": 0.7762705000059213
             }
           },
           "min": {
             "solver": {
-              "golden": 0.423,
-              "urom": 0.297
+              "golden": 0.273,
+              "urom": 0.274
             },
             "wall": {
-              "golden": 0.9370211999921594,
-              "urom": 0.8040878999890992
+              "golden": 0.7543361999996705,
+              "urom": 0.7616466000035871
             }
           },
           "max": {
             "solver": {
-              "golden": 0.455,
-              "urom": 0.406
+              "golden": 0.294,
+              "urom": 0.295
             },
             "wall": {
-              "golden": 1.0871457000030205,
-              "urom": 0.9521951999922749
+              "golden": 0.7829888999985997,
+              "urom": 0.8065869999991264
             }
           },
           "missing": [],
@@ -1064,7 +1064,7 @@
       "scored": false
     },
     "G5_speed": {
-      "pass": true,
+      "pass": false,
       "status": "measured",
       "detail": {
         "scoped_row_valid": true,
@@ -1074,32 +1074,32 @@
         "clock_spread": {
           "median": {
             "solver": {
-              "golden": 0.442,
-              "urom": 0.324
+              "golden": 0.29,
+              "urom": 0.289
             },
             "wall": {
-              "golden": 0.9615423000068404,
-              "urom": 0.8045164000068326
+              "golden": 0.7647031999949832,
+              "urom": 0.7762705000059213
             }
           },
           "min": {
             "solver": {
-              "golden": 0.423,
-              "urom": 0.297
+              "golden": 0.273,
+              "urom": 0.274
             },
             "wall": {
-              "golden": 0.9370211999921594,
-              "urom": 0.8040878999890992
+              "golden": 0.7543361999996705,
+              "urom": 0.7616466000035871
             }
           },
           "max": {
             "solver": {
-              "golden": 0.455,
-              "urom": 0.406
+              "golden": 0.294,
+              "urom": 0.295
             },
             "wall": {
-              "golden": 1.0871457000030205,
-              "urom": 0.9521951999922749
+              "golden": 0.7829888999985997,
+              "urom": 0.8065869999991264
             }
           },
           "missing": [],
@@ -1110,36 +1110,36 @@
           "golden": true,
           "urom": true
         },
-        "solver_speedup": 1.3641975308641976,
-        "wall_speedup": 1.1951804835783015,
+        "solver_speedup": 1.0034602076124568,
+        "wall_speedup": 0.9850988798223687,
         "solver_speedup_ci95": {
-          "point": 1.404320987654321,
-          "low": 1.0886699507389161,
-          "high": 1.4242424242424243,
+          "point": 1.0173010380622838,
+          "low": 0.9254237288135594,
+          "high": 1.0583941605839415,
           "n": 3,
           "confidence": 0.95,
           "n_resamples": 2000
         },
         "wall_speedup_ci95": {
-          "point": 1.1647011794715452,
-          "low": 1.1417256671865605,
-          "high": 1.195817397600282,
+          "point": 0.9717439990234287,
+          "low": 0.9707432676195472,
+          "high": 1.0040131472934846,
           "n": 3,
           "confidence": 0.95,
           "n_resamples": 2000
         },
-        "recorded_solver_speedup": 1.3641975308641976,
+        "recorded_solver_speedup": 1.0034602076124568,
         "recorded_solver_speedup_ci95": {
-          "point": 1.404320987654321,
-          "low": 1.0886699507389161,
-          "high": 1.4242424242424243,
+          "point": 1.0173010380622838,
+          "low": 0.9254237288135594,
+          "high": 1.0583941605839415,
           "n": 3,
           "confidence": 0.95,
           "n_resamples": 2000
         },
         "effect_min": 1.05,
-        "solver_effect_ok": true,
-        "solver_ci_low_above_one": true,
+        "solver_effect_ok": false,
+        "solver_ci_low_above_one": false,
         "global_claim": false,
         "min_default_gear": null
       }
@@ -1227,7 +1227,7 @@
     },
     "fidelity_all_pass": false,
     "timing_all_pass": false,
-    "speed_all_pass": true,
+    "speed_all_pass": false,
     "all_pass": false
   },
   "runtime": {
@@ -1245,41 +1245,41 @@
     },
     "repeats": 3,
     "solver_time_s": {
-      "golden": 0.442,
-      "urom": 0.324
+      "golden": 0.29,
+      "urom": 0.289
     },
     "wall_time_s": {
-      "golden": 0.9615423000068404,
-      "urom": 0.8045164000068326
+      "golden": 0.7647031999949832,
+      "urom": 0.7762705000059213
     },
     "median": {
       "solver": {
-        "golden": 0.442,
-        "urom": 0.324
+        "golden": 0.29,
+        "urom": 0.289
       },
       "wall": {
-        "golden": 0.9615423000068404,
-        "urom": 0.8045164000068326
+        "golden": 0.7647031999949832,
+        "urom": 0.7762705000059213
       }
     },
     "min": {
       "solver": {
-        "golden": 0.423,
-        "urom": 0.297
+        "golden": 0.273,
+        "urom": 0.274
       },
       "wall": {
-        "golden": 0.9370211999921594,
-        "urom": 0.8040878999890992
+        "golden": 0.7543361999996705,
+        "urom": 0.7616466000035871
       }
     },
     "max": {
       "solver": {
-        "golden": 0.455,
-        "urom": 0.406
+        "golden": 0.294,
+        "urom": 0.295
       },
       "wall": {
-        "golden": 1.0871457000030205,
-        "urom": 0.9521951999922749
+        "golden": 0.7829888999985997,
+        "urom": 0.8065869999991264
       }
     },
     "completion": {
@@ -1291,20 +1291,20 @@
     "n_pulses": 20,
     "max_step": null,
     "method_label": "trap/default",
-    "solver_speedup": 1.3641975308641976,
-    "wall_speedup": 1.1951804835783015,
+    "solver_speedup": 1.0034602076124568,
+    "wall_speedup": 0.9850988798223687,
     "solver_speedup_ci95": {
-      "point": 1.404320987654321,
-      "low": 1.0886699507389161,
-      "high": 1.4242424242424243,
+      "point": 1.0173010380622838,
+      "low": 0.9254237288135594,
+      "high": 1.0583941605839415,
       "n": 3,
       "confidence": 0.95,
       "n_resamples": 2000
     },
     "wall_speedup_ci95": {
-      "point": 1.1647011794715452,
-      "low": 1.1417256671865605,
-      "high": 1.195817397600282,
+      "point": 0.9717439990234287,
+      "low": 0.9707432676195472,
+      "high": 1.0040131472934846,
       "n": 3,
       "confidence": 0.95,
       "n_resamples": 2000
@@ -1330,7 +1330,7 @@
     "waveform_gate_retired": false,
     "energy_only_claim": false
   },
-  "spice_log_tail": "LTspice 26.1.1 for Windows\nCircuit: C:\\Users\\GNKRIS~1\\AppData\\Local\\Temp\\piecespice_tran_kx4wwzyb\\tran.net\nStart Time: Sun Nov 22 11:03:02 2026\nsolver = Normal\nMaximum thread count: 16\ntnom = 27\ntemp = 25\nmethod = modified trap\nAsciiRawFile = true\nCompress1stOrder = true\nCompress2ndOrder = true\nDirect Newton iteration succeeded in finding operating point.\nTotal elapsed time: 0.324 seconds.\nTotal iterations: 10986\n\nFiles loaded:\nC:\\Users\\GNKRIS~1\\AppData\\Local\\Temp\\piecespice_tran_kx4wwzyb\\tran.net\n\n",
+  "spice_log_tail": "LTspice 26.1.1 for Windows\nCircuit: C:\\Users\\GNKRIS~1\\AppData\\Local\\Temp\\piecespice_tran_7yrxqfho\\tran.net\nStart Time: Sun Nov 22 14:13:02 2026\nsolver = Normal\nMaximum thread count: 16\ntnom = 27\ntemp = 25\nmethod = modified trap\nAsciiRawFile = true\nCompress1stOrder = true\nCompress2ndOrder = true\nDirect Newton iteration succeeded in finding operating point.\nTotal elapsed time: 0.274 seconds.\nTotal iterations: 10986\n\nFiles loaded:\nC:\\Users\\GNKRIS~1\\AppData\\Local\\Temp\\piecespice_tran_7yrxqfho\\tran.net\n\n",
   "dpt_run": {
     "completed": true,
     "iterations": 21332,
@@ -1357,7 +1357,7 @@
       "e_off_uj": 72.26084064956707,
       "e_oss_uj": null,
       "i_peak_a": 138.0802764892507,
-      "wall_clock_s": 1.177489699999569,
+      "wall_clock_s": 0.9208027999993647,
       "energy_current_definition": "I(Lload)-I(Dclamp) signed"
     },
     "current_definition": "abs(I(Lload) - I(Dclamp))",
@@ -1401,7 +1401,7 @@
         "e_off_uj": 77.71585232747914,
         "e_oss_uj": null,
         "i_peak_a": 138.53150939941406,
-        "wall_clock_s": 1.1817475000134436,
+        "wall_clock_s": 0.9333927999978187,
         "energy_current_definition": "I(Lload)-I(Dclamp) signed"
       },
       "current_definition": "abs(I(Lload) - I(Dclamp))",
@@ -1435,7 +1435,7 @@
         "e_off_uj": 72.26084064956707,
         "e_oss_uj": null,
         "i_peak_a": 138.0802764892507,
-        "wall_clock_s": 1.177489699999569,
+        "wall_clock_s": 0.9208027999993647,
         "energy_current_definition": "I(Lload)-I(Dclamp) signed"
       },
       "current_definition": "abs(I(Lload) - I(Dclamp))",
@@ -1561,32 +1561,32 @@
       "clock_spread": {
         "median": {
           "solver": {
-            "golden": 0.442,
-            "urom": 0.324
+            "golden": 0.29,
+            "urom": 0.289
           },
           "wall": {
-            "golden": 0.9615423000068404,
-            "urom": 0.8045164000068326
+            "golden": 0.7647031999949832,
+            "urom": 0.7762705000059213
           }
         },
         "min": {
           "solver": {
-            "golden": 0.423,
-            "urom": 0.297
+            "golden": 0.273,
+            "urom": 0.274
           },
           "wall": {
-            "golden": 0.9370211999921594,
-            "urom": 0.8040878999890992
+            "golden": 0.7543361999996705,
+            "urom": 0.7616466000035871
           }
         },
         "max": {
           "solver": {
-            "golden": 0.455,
-            "urom": 0.406
+            "golden": 0.294,
+            "urom": 0.295
           },
           "wall": {
-            "golden": 1.0871457000030205,
-            "urom": 0.9521951999922749
+            "golden": 0.7829888999985997,
+            "urom": 0.8065869999991264
           }
         },
         "missing": [],
@@ -1791,6 +1791,6 @@
   "verdict": "reject",
   "fidelity_verdict": "reject",
   "timing_verdict": "reject",
-  "speed_verdict": "accept",
+  "speed_verdict": "reject",
   "overall_verdict": "reject"
 }

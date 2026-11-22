@@ -315,6 +315,11 @@ def ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True,
             except Exception:
                 pass
             r_source_ohm = (0.4 * rds_on_val) if (rds_on_val is not None and rds_on_val < 0.05) else None
+            _in_cfg = load_input(vendor)
+            _is_sic = (
+                str(_in_cfg.get("technology", "")).lower() == "sic"
+                or str(_in_cfg.get("vendor", "")).lower() == "wolfspeed"
+            )
             charge_fit.provenance["cinf_caps"] = {
                 "cgs_f": cgs_f,
                 "cds": cds_fit_cinf,
@@ -322,9 +327,9 @@ def ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True,
                 "cdg_neg_excess_f": float(cdg_neg_excess),
                 "r_gate_ohm": c4_ext.get("r_gate_ohm"),
                 "r_source_ohm": r_source_ohm,
-                "l_gate_h": c4_ext.get("l_gate_h"),
-                "l_source_h": c4_ext.get("l_source_h"),
-                "l_drain_h": c4_ext.get("l_drain_h"),
+                "l_gate_h": c4_ext.get("l_gate_h") if _is_sic else 0.0,
+                "l_source_h": c4_ext.get("l_source_h") if _is_sic else 0.0,
+                "l_drain_h": c4_ext.get("l_drain_h") if _is_sic else 0.0,
             }
         except Exception:
             pass

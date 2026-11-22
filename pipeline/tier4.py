@@ -420,7 +420,8 @@ def _scheduled_bench_end(bench_kw: dict) -> float:
 
 
 def _bench_complete(left: dict, right: dict, *,
-                    scheduled_end_s: float) -> bool:
+                    scheduled_end_s: float,
+                    expected_repeats: int = SPEED_REPEATS) -> bool:
     """Anti-fake guard: each arm must be a complete, full-schedule run.
 
     ``run_inductive_benchmark`` returns measured iterations, trace_points and
@@ -444,7 +445,7 @@ def _bench_complete(left: dict, right: dict, *,
                 or not math.isclose(end_time_s, scheduled_end_s,
                                     rel_tol=1e-12, abs_tol=0.0)):
             return False
-        if _num(arm.get("repeats")) != SPEED_REPEATS:
+        if _num(arm.get("repeats")) != expected_repeats:
             return False
     return True
 
@@ -654,10 +655,17 @@ def _speedup_row(golden: dict, tier4: dict, complete: bool,
         "method": SPEED_METHOD,
     }
     if complete:
+        from simulation.testbenches.speedup_bench import LTSPICE_INTERNAL_FLOOR_S
         gs, ts = _num(golden.get("solver_elapsed_s")), _num(tier4.get("solver_elapsed_s"))
         gw, tw = _num(golden.get("wall_clock_s")), _num(tier4.get("wall_clock_s"))
         if gs and ts:
             row["solver_speedup"] = gs / ts
+            row["ltspice_internal_floor_s"] = LTSPICE_INTERNAL_FLOOR_S
+            if gs > LTSPICE_INTERNAL_FLOOR_S and ts > LTSPICE_INTERNAL_FLOOR_S:
+                row["net_solver_speedup"] = (
+                    (gs - LTSPICE_INTERNAL_FLOOR_S)
+                    / (ts - LTSPICE_INTERNAL_FLOOR_S)
+                )
         if gw and tw:
             row["wall_speedup"] = gw / tw
     return row
@@ -1210,7 +1218,7 @@ def run_vendor_ann(vendor: str) -> dict[str, Any]:
         max_step=None, **bench_200)
     speedup_200 = _speedup_row(
         g_200, t4_200,
-        _bench_complete(g_200, t4_200, scheduled_end_s=sched_200),
+        _bench_complete(g_200, t4_200, scheduled_end_s=sched_200, expected_repeats=1),
         policy)
     record = {
         "schema": "piecespice.tier4-ann/1.0",

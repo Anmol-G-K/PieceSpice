@@ -381,13 +381,13 @@ def build_ann_subcircuit(spec, channel_fit: AnnChannelFit,
         new_pre = []
         for ln in pre_ch:
             if lg > 0.0 and ln.startswith("RG g gi "):
-                new_pre.append(f"LG g g_pkg {_fmt(lg)}")
+                new_pre.append(f"LG g g_pkg {_fmt(lg)} Rpar=20")
                 new_pre.append(ln.replace("RG g gi ", "RG g_pkg gi ", 1))
             elif ld > 0.0 and ln.startswith("RD d di "):
-                new_pre.append(f"LD d d_pkg {_fmt(ld)}")
+                new_pre.append(f"LD d d_pkg {_fmt(ld)} Rpar=20")
                 new_pre.append(ln.replace("RD d di ", "RD d_pkg di ", 1))
             elif ls > 0.0 and ln.startswith("RS s ss "):
-                new_pre.append(f"LS s s_pkg {_fmt(ls)}")
+                new_pre.append(f"LS s s_pkg {_fmt(ls)} Rpar=20")
                 new_pre.append(ln.replace("RS s ss ", "RS s_pkg ss ", 1))
             else:
                 new_pre.append(ln)

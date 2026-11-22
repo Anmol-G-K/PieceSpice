@@ -1204,8 +1204,12 @@ def _build_emitted(vendor: str, *, emit: str, tuning: str,
                         vendor, raw_text, stem)
                     ann_record.setdefault("record", {})["dynamic_calibration"] = cal_meta
                     return cal_text
-                except Exception:
-                    pass
+                except Exception as exc:
+                    import warnings
+                    warnings.warn(
+                        f"dynamic_calibration skipped for {vendor}: {exc}",
+                        RuntimeWarning, stacklevel=2,
+                    )
             return raw_text
 
         emitter = _emit_ann_with_rg

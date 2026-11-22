@@ -23,6 +23,11 @@ import numpy as np
 from simulation.engine import SpiceEngine, TranDirective
 from simulation.netlist_text import NetlistBuilder
 
+# Measured LTspice internal `Total elapsed time` floor on a trivial 100-point
+# resistive `.tran 1u 100u` circuit (`V1 in 0 1.0; R1 in 0 1k`; 237 iters,
+# median of 3 runs = 0.075 s, wall = 0.5362 s).
+LTSPICE_INTERNAL_FLOOR_S: float = 0.075
+
 
 @dataclass(frozen=True)
 class SpeedupRun:
@@ -177,6 +182,7 @@ def run_switching_benchmark(
     def median(name):
         return float(np.median([getattr(r, name) for r in runs]))
 
+    solver_med = median("solver_elapsed_s")
     return {
         "library": str(library_path),
         "subcircuit": subcircuit_name,
@@ -185,7 +191,9 @@ def run_switching_benchmark(
         "end_time_s": end,
         "repeats": int(repeats),
         "wall_clock_s": median("wall_clock_s"),
-        "solver_elapsed_s": median("solver_elapsed_s"),
+        "solver_elapsed_s": solver_med,
+        "ltspice_internal_floor_s": LTSPICE_INTERNAL_FLOOR_S,
+        "net_solver_elapsed_s": max(solver_med - LTSPICE_INTERNAL_FLOOR_S, 1e-4),
         "iterations": median("iterations"),
         "trace_points": median("trace_points"),
         "trace_names": median("trace_names"),
