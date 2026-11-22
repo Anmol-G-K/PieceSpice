@@ -9,7 +9,7 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![LTspice](https://img.shields.io/badge/LTspice-26-orange)](https://www.analog.com/en/resources/design-tools-and-calculators/ltspice-simulator.html)
 [![spicelib](https://img.shields.io/badge/spicelib-powered-yellow)](https://pypi.org/project/spicelib/)
-[![Tests](https://img.shields.io/badge/tests-822%20passed%20%C2%B7%200%20skipped%20%C2%B7%201%20warning-brightgreen?logo=pytest&logoColor=white)](#testing)
+[![Tests](https://img.shields.io/badge/tests-830%20passed%20%C2%B7%200%20skipped%20%C2%B7%202%20warnings-brightgreen?logo=pytest&logoColor=white)](#testing)
 [![License](https://img.shields.io/badge/license-TBD-lightgrey)]()
 [![uv](https://img.shields.io/badge/managed%20with-uv-dead00?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
 
@@ -621,18 +621,25 @@ converter output power: EPC2216 Tier-4 measures 99.87 % there when the run
 completes, while incomplete arms keep their guard reason.
 
 **Tier-4 ANN (`run_vendor_ann`, `*_PIECESPICE_T4_ann.lib`, `tier4_validation_ann.json`).**
-Positive-conductance `C-inf` ANN channel + rational `Q_dep(V)` + Curve-5 `Vdg < 0`
-`Q_gd` excess + calibrated dynamic parasitics, with `LG`/`LS`/`LD` gated to
-SiC-only (`technology: sic`, `Rpar=20`). Speedup reports both raw
+Positive-conductance `C-inf` ANN channel (trainable `alpha`, `vth_eff`,
+per-curve peak normalization, `r_source_ohm=None`) + rational `Q_dep(V)` +
+Curve-5 `Vdg < 0` `Q_gd` excess + calibrated dynamic parasitics, with package
+inductances (`LG`/`LS`/`LD`) opt-in via `package_inductance: true/false`
+(default `false`, `Rpar=20` damping when enabled). Speedup reports both raw
 `solver_speedup` and `net_solver_speedup` above the measured LTspice internal
 floor (`LTSPICE_INTERNAL_FLOOR_S = 0.075 s` on a trivial 100-point `.tran 1u 100u`):
 
 | Device | Vds / Id RMSE (%) | td_on / tr / td_off / tf err (%) | E_on / E_off err (%) | n=20 raw / net speedup | n=200 raw / net speedup |
 |---|---|---|---|---|---|
-| `irfs7730pbf` | 1.28 / 2.11 | +12.17 / +18.17 / −6.42 / −1.64 | +30.00 / −7.02 | 1.09× / 1.12× | 1.26× / 1.29× |
-| `csd16412q5a` | 5.33 / 4.12 | −62.84 / +56.54 / +3.50 / +9.18 | −11.04 / −45.53 | 5.18× / 6.62× | 19.17× / 21.04× |
-| `epc2216` | 3.46 / 1.13 | +5.60 / +0.25 / −9.89 / −1.90 | +58.68 / +67.15 | 1.24× / 1.32× | 2.00× / 2.12× |
-| `cpm2-1200` | 6.27 / 5.08 | +0.08 / +54.93 / +16.95 / +41.62 | +54.23 / +56.21 | 1.04× / 1.05× | 1.43× / 1.48× |
+| `irfs7730pbf` | 0.47 / 0.66 | +0.03 / −3.92 / +2.53 / −3.50 | +2.95 / −11.82 | 0.96× / 0.95× | 0.96× / 0.95× |
+| `csd16412q5a` | 6.32 / 4.60 | −68.04 / +26.31 / +11.38 / −7.25 | −21.66 / −55.09 | 5.63× / 7.45× | 19.33× / 21.43× |
+| `epc2216` | 2.68 / 0.83 | +1.22 / +1.24 / +0.82 / −3.15 | +27.69 / +41.24 | 1.10× / 1.14× | 2.25× / 2.43× |
+| `cpm2-1200` | 2.50 / 2.12 | −13.69 / −12.44 / −5.15 / −0.67 | +20.94 / +6.26 | 1.21× / 1.29× | 1.46× / 1.53× |
+
+Tier lock summary: Tier-2, Tier-3 `v1`, and Tier-3 `simplis` (`C^0` PWL ceiling:
+EPC `0.47%/0.18%`, CPM2 `0.59%/1.05%`, TI `5.59×`) are locked; `irfs7730pbf`
+golden is a 3-element `LEVEL=1` MOSFET (~1× speedup ceiling), and `epc2216`
+sub-nanosecond edge (`0.85 ns`) caps switching energy alignment.
 
 The loss LUT's
 finite-node provenance is vendor-specific: IRFS and TI have one `constant_node`
@@ -729,29 +736,29 @@ wall is golden-stiffness driven, EPC is slower than golden on solver
 (0.9863×), and IRFS is at unity on solver (1.0073×) with wall below 1×
 (0.9860×). CPM2's 1.1023× / 1.0583× is a small, bench-scoped gain.
 
-**ANN basis — fitted charge net, still rejected 4/4.** ANN is a separate basis
-chosen by `--basis ann`, not a variant: the keyed non-default records
-`reports/comparison/<vendor>/unified_ann_trap-default.json` and libs
-`reports/models/<vendor>_PIECSPICE_UROM_ann_trap-default.lib` carry
-`channel_basis="ann"` and a measured `ann_fit` (`isru`, 10 neurons). Its
-charge is emitted from the fitted net (`c1.status="measured"`,
-`monotone_q=true`, `q_zero_anchored=true`; G6 passes on all four under the
-0.5 % charge budget). The monotone penalty is a **soft** least-squares penalty
-on negative gm/gds with `hard_guarantee=false` — it reduces but does not prove
-non-negative differential conductance. The fit path carries hold-out fields
-(`holdout_id_rms_rel`, `holdout_gm_rms_rel`, `holdout_gds_rms_rel`,
+**ANN basis — fitted charge net + `positive_conductance` channel (`fidelity_all_pass` 4/4, `verdict=reject` 4/4).**
+ANN is a separate basis chosen by `--basis ann`, not a variant: the keyed
+non-default records `reports/comparison/<vendor>/unified_ann_trap-default.json`
+and libs `reports/models/<vendor>_PIECSPICE_UROM_ann_trap-default.lib` carry
+`channel_basis="ann"` using the `positive_conductance` (`tanh`, 6 neurons,
+`hard_guarantee=true` for `gds > 0`) channel and fitted rational/log charge net.
+All four vendors pass **G0, G1_static (1.00–2.07 %, worst endpoint 1.29–4.02 %),
+G2_derivative (`gm/gds` negative fraction `0.0`), G3_dpt_waveform
+(0.42–2.24 % Vds, 0.40–1.43 % Id), and G6_charge (`monotone_q=true`,
+`q_zero_anchored=true`, 0.5 % budget)** (`fidelity_all_pass=true` 4/4), while
+overall `verdict` remains `reject` 4/4 on G4/G5. The fit path carries hold-out
+fields (`holdout_id_rms_rel`, `holdout_gm_rms_rel`, `holdout_gds_rms_rel`,
 `holdout_n`) and reports them as `not_measured` when no hold-out is reserved.
-All four keyed ANN rows reject. Each canonical record's `artifact_manifest`
-and every record's `emitted_lib_sha256` match the on-disk lib and inputs; the
-canonical and keyed paths never clobber each other. A fixed-topology tuning
-API exists, but the final run reports `tuning.verdict="not_run"`
-(`tuning.mode="off"`).
+Each canonical record's `artifact_manifest` and every record's
+`emitted_lib_sha256` match the on-disk lib and inputs; the canonical and keyed
+paths never clobber each other. A fixed-topology tuning API exists, but the
+final run reports `tuning.verdict="not_run"` (`tuning.mode="off"`).
 
-**Test suite (measured).** Full live suite: **822 passed, 0 skipped,
-1 warning** (`uv run pytest`, 388.84 s). Local LTspice-free CI
-(`PIECESPICE_LIVE=0`, after `226422e`): **818 passed, 10 skipped,
-1 deselected, 1 warning**. LTspice-free CI on GitHub Actions
-(run **44934384493**, commit `4402640`, both jobs success): **806 passed,
+**Test suite (measured).** Full live suite: **830 passed, 0 skipped,
+2 warnings** (`.venv\Scripts\python.exe -m pytest -q`, 396.77 s). Local LTspice-free
+CI (`PIECESPICE_LIVE=0`): **819 passed, 10 skipped, 1 deselected, 1 warning**
+(737.00 s). Previous GitHub Actions CI (run **44934384493**, commit `4402640`,
+both jobs success): **806 passed,
 15 skipped, 1 deselected, 1 warning**. The runner has no `SpiceModels/`, so
 vendor-gated tests skip more than locally (`test_vendor_ti` 5 skipped; buck
 19 passed / 4 skipped, versus 3 passed / 2 skipped and 21 passed / 2 skipped
@@ -768,9 +775,9 @@ current evidence.
 
 | Command | Passed | Skipped | Deselected | Warnings |
 |---|---|---|---|---|
-| `uv run pytest` (full live suite, 388.84 s) | 822 | 0 | — | 1 |
-| `PIECESPICE_LIVE=0 .venv\Scripts\python.exe -m pytest -q --deselect tests/test_netlist_builder.py::test_tier2_simulates_and_matches` (local CI, after `226422e`) | 818 | 10 | 1 | 1 |
-| `PIECESPICE_LIVE=0 uv run pytest -q --deselect tests/test_netlist_builder.py::test_tier2_simulates_and_matches` (LTspice-free CI, run 44934384493) | 806 | 15 | 1 | 1 |
+| `uv run pytest` (full live suite, 396.77 s) | 830 | 0 | — | 2 |
+| `PIECESPICE_LIVE=0 .venv\Scripts\python.exe -m pytest -q --deselect tests/test_netlist_builder.py::test_tier2_simulates_and_matches` (local CI) | 819 | 10 | 1 | 1 |
+| `PIECESPICE_LIVE=0 uv run pytest -q --deselect tests/test_netlist_builder.py::test_tier2_simulates_and_matches` (GitHub CI, run 44934384493) | 806 | 15 | 1 | 1 |
 | Live engine module (`tests/test_engine_ltspice.py`) | 19 | — | — | — |
 
 *AES-STD100 caveat above applies to the fidelity figures these tests
@@ -831,10 +838,10 @@ writes fixed `figures/converter/` plots.
 ## 🧪 Testing
 
 ```bash
-uv run pytest                # full live suite: 822 passed, 0 skipped, 1 warning (388.84 s)
+uv run pytest                # full live suite: 830 passed, 0 skipped, 2 warnings (396.77 s)
 PIECESPICE_LIVE=0 uv run pytest -q \
   --deselect tests/test_netlist_builder.py::test_tier2_simulates_and_matches
-                             # LTspice-free CI: 806 passed, 15 skipped, 1 deselected, 1 warning
+                             # local CI: 819 passed, 10 skipped, 1 deselected, 1 warning (GitHub run 44934384493: 806/15/1/1)
 uv run pytest tests/test_engine_ltspice.py -q   # live engine module: 19 passed
 uv run pytest tests/test_pwlf_fit.py -v    # single module
 ```

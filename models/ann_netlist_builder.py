@@ -113,7 +113,8 @@ def emit_ann_channel(fit: AnnChannelFit, vgs_term: str = "V(gi,ss)",
         isat = _mlp1d(c["sat"], float(c["scale_i"]))
         vk = f"({_fmt(c['vknee_min'])}+{_mlp1d(c['knee'], float(c['scale_v']))})"
         gout = _mlp1d(c["gout"], float(c["scale_g"]))
-        cut = f"(0.5*(1+tanh({_fmt(c['alpha'])}*(({vgs_term})-({_fmt(fit.v_th)})))))"
+        vth_c = float(c.get("vth_eff", fit.v_th))
+        cut = f"(0.5*(1+tanh({_fmt(c['alpha'])}*(({vgs_term})-({_fmt(vth_c)})))))"
         expr = f"({cut}*({isat}*tanh(({vds_term})/{vk})+{gout}*({vds_term})))"
         expr.encode("ascii")
         return expr

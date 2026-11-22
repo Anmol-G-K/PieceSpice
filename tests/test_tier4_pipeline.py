@@ -979,7 +979,7 @@ def test_speedup_row_computes_net_solver_speedup_above_floor():
     assert row["net_solver_speedup"] == pytest.approx(3.0)
 
 
-def test_ann_package_inductance_sic_only_and_damped():
+def test_ann_package_inductance_flag_and_damped():
     from pipeline.ann_fit import ann_fit_for_vendor
     from models.ann_netlist_builder import build_ann_subcircuit
     from pipeline.unified_rom import _pwl_spec
@@ -989,11 +989,35 @@ def test_ann_package_inductance_sic_only_and_damped():
     assert cinf["l_gate_h"] == 0.0
     assert cinf["l_source_h"] == 0.0
     assert cinf["l_drain_h"] == 0.0
+    assert cinf["r_source_ohm"] is None
 
-    # When SiC explicitly passes nonzero package inductance, builder emits Rpar=20
-    cinf_sic = dict(cinf, l_gate_h=1.5e-9, l_source_h=0.4e-9, l_drain_h=0.1e-9)
-    res_si["charge_fit"].provenance["cinf_caps"] = cinf_sic
+    # When package_inductance explicitly provides nonzero inductance, builder emits Rpar=20
+    cinf_pkg = dict(cinf, l_gate_h=1.5e-9, l_source_h=0.4e-9, l_drain_h=0.1e-9)
+    res_si["charge_fit"].provenance["cinf_caps"] = cinf_pkg
     txt = build_ann_subcircuit(
         _pwl_spec("csd16412q5a"), res_si["channel_fit"], res_si["charge_fit"],
     )
     assert "LG g g_pkg" in txt and "Rpar=20" in txt
+
+
+def test_fit_channel_iv_monotone_subthreshold_and_static_accuracy():
+    import numpy as np
+    from config.yaml_io import load_input
+    from metrics.static import compute_curve_error
+    from pipeline.ann_fit import _channel_families, ann_fit_for_vendor
+
+    res = ann_fit_for_vendor("irfs7730pbf")
+    fit = res["channel_fit"]
+    assert "alpha" in fit.coefficients and fit.coefficients["alpha"] >= 2.0
+    assert "vth_eff" in fit.coefficients and fit.coefficients["vth_eff"] >= fit.v_th
+    assert fit.diagnostics["gds_negative_fraction"] == 0.0
+
+    fams, _ = _channel_families("irfs7730pbf", load_input("irfs7730pbf")["conditions"])
+    errs = []
+    for c in fams:
+        vd, yi = c.to_numpy()
+        vg = np.full_like(vd, float(c.family_value))
+        yp, _, _ = fit.evaluate(vg, vd)
+        errs.append(compute_curve_error(yi, yp).peak_rmse_pct)
+    assert float(np.mean(errs)) < 5.0
+    assert max(errs) < 5.0

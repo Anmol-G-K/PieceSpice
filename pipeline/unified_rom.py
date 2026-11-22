@@ -1943,8 +1943,9 @@ def _ann_channel_artifact_probe(lib_text: str, ann_record: dict,
         return probe
     vgs_on, vds_high = max(drives), max(grid)
     vgs_cut = vth - ANN_CUTOFF_PROBE_WIDTHS / alpha
-    vds_guard = 0.5 * min(guard, vsat)
-    if vds_high <= 0.0 or vds_guard <= 0.0:
+    is_pos_cond = (coeffs.get("model_form") == "positive_conductance")
+    vds_guard = 0.0 if is_pos_cond else 0.5 * min(guard, vsat)
+    if vds_high <= 0.0 or (vds_guard <= 0.0 and not is_pos_cond):
         probe["reason"] = "non-positive ANN guard probe voltage"
         return probe
 

@@ -305,31 +305,21 @@ def ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True,
             cdg_neg_excess = 0.0
             if qgd_c5 > 1.25 * max(qgd_c4, 1e-15) and vbus <= float(cond.get("Vds_cap_max", vbus)):
                 cdg_neg_excess = (qgd_c5 - qgd_c4) / max(vgs_on - v_plat, 1.0)
-            rds_on_val = None
-            try:
-                c3_ext = _extract(vendor, "curve3_rds_on")
-                ry = np.asarray(c3_ext["curve_rds_mohm"], dtype=float) * 1e-3
-                ry = ry[np.isfinite(ry) & (ry > 0)]
-                if ry.size:
-                    rds_on_val = float(np.median(ry))
-            except Exception:
-                pass
-            r_source_ohm = (0.4 * rds_on_val) if (rds_on_val is not None and rds_on_val < 0.05) else None
+            # Do not inject uncompensated series r_source_ohm after training
+            # G_CH on terminal Curve 1/2 (Vgs, Vds); package_inductance is
+            # opt-in per device via config (default False to preserve speedup).
             _in_cfg = load_input(vendor)
-            _is_sic = (
-                str(_in_cfg.get("technology", "")).lower() == "sic"
-                or str(_in_cfg.get("vendor", "")).lower() == "wolfspeed"
-            )
+            _enable_pkg_l = bool(_in_cfg.get("package_inductance", False))
             charge_fit.provenance["cinf_caps"] = {
                 "cgs_f": cgs_f,
                 "cds": cds_fit_cinf,
                 "cdg": cdg_fit_cinf,
                 "cdg_neg_excess_f": float(cdg_neg_excess),
                 "r_gate_ohm": c4_ext.get("r_gate_ohm"),
-                "r_source_ohm": r_source_ohm,
-                "l_gate_h": c4_ext.get("l_gate_h") if _is_sic else 0.0,
-                "l_source_h": c4_ext.get("l_source_h") if _is_sic else 0.0,
-                "l_drain_h": c4_ext.get("l_drain_h") if _is_sic else 0.0,
+                "r_source_ohm": None,
+                "l_gate_h": c4_ext.get("l_gate_h") if _enable_pkg_l else 0.0,
+                "l_source_h": c4_ext.get("l_source_h") if _enable_pkg_l else 0.0,
+                "l_drain_h": c4_ext.get("l_drain_h") if _enable_pkg_l else 0.0,
             }
         except Exception:
             pass
@@ -448,7 +438,7 @@ def calibrate_dynamic_parasitics(
     lib_text: str,
     subckt_name: str,
     *,
-    maxfev: int = 45,
+    maxfev: int = 60,
 ) -> tuple[str, dict[str, Any]]:
     """Calibrate (k_cgs, k_cdg, k_cds, k_rg) against golden DPT edge metrics.
 
@@ -480,7 +470,7 @@ def calibrate_dynamic_parasitics(
         tmp = Path(td) / f"{vendor}_cal.lib"
 
         def _obj(x):
-            kc, kd, ks, kr = np.exp(np.clip(x, -0.9, 0.9))
+            kc, kd, ks, kr = np.exp(np.clip(x, -1.2, 1.2))
             scaled = _scale_dynamic_parasitics(lib_text, kc, kd, ks, kr)
             tmp.write_text(scaled.replace(subckt_name, alias), encoding="ascii")
             try:
@@ -498,9 +488,13 @@ def calibrate_dynamic_parasitics(
                     loss += 10.0
             return float(loss)
 
-        res = minimize(_obj, np.zeros(4), method="Nelder-Mead",
-                       options={"maxfev": int(maxfev), "xatol": 0.03, "fatol": 1e-4})
-    kc, kd, ks, kr = [float(v) for v in np.exp(np.clip(res.x, -0.9, 0.9))]
+        initial_simplex = np.vstack([np.zeros(4), np.eye(4) * 0.25])
+        res = minimize(
+            _obj, np.zeros(4), method="Nelder-Mead",
+            options={"initial_simplex": initial_simplex,
+                     "maxfev": int(maxfev), "xatol": 0.02, "fatol": 1e-4},
+        )
+    kc, kd, ks, kr = [float(v) for v in np.exp(np.clip(res.x, -1.2, 1.2))]
     calibrated = _scale_dynamic_parasitics(lib_text, kc, kd, ks, kr)
     return calibrated, {
         "k_cgs": kc, "k_cdg": kd, "k_cds": ks, "k_rg": kr,

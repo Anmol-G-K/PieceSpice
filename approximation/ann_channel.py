@@ -665,7 +665,8 @@ def _channel_jet(fit: "AnnChannelFit", vgs: Jet2, vds: Jet2,
         isat = _mlp1d_jet(c["sat"], g, float(c["scale_i"]))
         vknee = float(c["vknee_min"]) + _mlp1d_jet(c["knee"], g, float(c["scale_v"]))
         gout = _mlp1d_jet(c["gout"], g, float(c["scale_g"]))
-        cut = 0.5 * (1.0 + (float(c["alpha"]) * (vgs - fit.v_th)).tanh())
+        vth_c = float(c.get("vth_eff", fit.v_th))
+        cut = 0.5 * (1.0 + (float(c["alpha"]) * (vgs - vth_c)).tanh())
         return cut * (isat * (vds / vknee).tanh() + gout * vds)
     t = None
     if np.asarray(c["w1"]).shape[1] == 3:
@@ -1104,8 +1105,13 @@ def fit_channel_iv_monotone(
         vg_all.append(np.full_like(x, vgs_val))
         vd_all.append(x)
         id_all.append(y)
-        peak = max(float(np.max(np.abs(y))), 1.0)
-        w_all.append(np.full_like(x, 1.0 / peak))
+        # Match G1 compute_curve_error peak floor (1e-9) and normalize by sqrt(N)
+        # so least_squares minimizes mean squared per-curve peak relative error.
+        peak = max(float(np.max(np.abs(y))), 1e-9)
+        w = np.full_like(x, 1.0 / (peak * float(np.sqrt(max(len(x), 1)))))
+        if x.size:
+            w[int(np.argmax(x))] *= 2.0
+        w_all.append(w)
     vg_v = np.concatenate(vg_all)
     vd_v = np.concatenate(vd_all)
     id_v = np.concatenate(id_all)
@@ -1123,9 +1129,13 @@ def fit_channel_iv_monotone(
     def _sp(x):
         return np.log1p(np.exp(np.clip(x, -40.0, 40.0)))
 
+    n1 = 3 * H + 1
+    n_mlp = 3 * n1
+
     def _eval(p):
-        n1 = 3 * H + 1
-        ps, pk, po = p[:n1], p[n1:2 * n1], p[2 * n1:3 * n1]
+        ps, pk, po = p[:n1], p[n1:2 * n1], p[2 * n1:n_mlp]
+        a_fit = float(p[n_mlp])
+        vth_fit = float(p[n_mlp + 1])
         g = (vg_v - mu_g) / sig_g
 
         def _mlp(par, sc):
@@ -1136,15 +1146,21 @@ def fit_channel_iv_monotone(
         isat = _mlp(ps, scale_i)
         vk = vknee_min + _mlp(pk, scale_v)
         gout = _mlp(po, scale_g)
-        cut = 0.5 * (1.0 + np.tanh(float(alpha) * (vg_v - float(v_th))))
+        cut = 0.5 * (1.0 + np.tanh(a_fit * (vg_v - vth_fit)))
         return cut * (isat * np.tanh(vd_v / vk) + gout * vd_v)
 
     rng = np.random.default_rng(seed)
-    p0 = rng.normal(0.0, 0.5, size=3 * (3 * H + 1))
+    p0_mlp = rng.normal(0.0, 0.5, size=n_mlp)
+    a0 = float(np.clip(alpha, 2.0, 35.0))
+    p0 = np.concatenate([p0_mlp, [a0, float(v_th)]])
+    lb = np.concatenate([np.full(n_mlp, -np.inf), [2.0, float(v_th)]])
+    ub = np.concatenate([np.full(n_mlp, np.inf), [35.0, float(v_th) + 0.5]])
     res = least_squares(lambda p: wt_v * (_eval(p) - id_v), p0,
-                        max_nfev=max_nfev, ftol=1e-8, xtol=1e-8)
+                        bounds=(lb, ub),
+                        max_nfev=max_nfev, ftol=1e-9, xtol=1e-9)
     p = res.x
-    n1 = 3 * H + 1
+    alpha_fit = float(p[n_mlp])
+    vth_eff_fit = float(p[n_mlp + 1])
 
     def _pack(par):
         return {
@@ -1165,7 +1181,8 @@ def fit_channel_iv_monotone(
         "scale_v": scale_v,
         "scale_g": scale_g,
         "vknee_min": vknee_min,
-        "alpha": float(alpha),
+        "alpha": alpha_fit,
+        "vth_eff": vth_eff_fit,
         "guard_width": gw,
         "sat": _pack(p[:n1]),
         "knee": _pack(p[n1:2 * n1]),

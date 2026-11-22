@@ -3,73 +3,73 @@
   "vendor": "irfs7730pbf",
   "emitted_lib": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\irfs7730pbf_PIECESPICE_T4_ann.lib",
   "dynamic_calibration": {
-    "k_cgs": 1.0,
-    "k_cdg": 1.0000312504882862,
-    "k_cds": 1.0,
-    "k_rg": 1.000218773927526,
-    "nfev": 45,
-    "loss": 0.20823567157850995
+    "k_cgs": 0.9683046516508369,
+    "k_cdg": 0.9801785145993882,
+    "k_cds": 0.9796054320167087,
+    "k_rg": 0.9844260882524515,
+    "nfev": 60,
+    "loss": 0.024768826404777677
   },
   "dpt_waveform": {
-    "vds_rel_rmse_pct": 1.2830408976485876,
-    "id_rel_rmse_pct": 2.1123097471268557,
+    "vds_rel_rmse_pct": 0.4710072113296702,
+    "id_rel_rmse_pct": 0.6564890609057364,
     "compare_points": 7114,
     "current_definition": "I(Lload)-I(Dclamp)"
   },
   "dpt_comparison": {
     "td_on_ns": {
       "golden": 32.29627698150211,
-      "tier4_ann": 36.225327598559055,
-      "rel_err_pct": 12.1656456541642
+      "tier4_ann": 32.30531139334853,
+      "rel_err_pct": 0.027973539648536373
     },
     "tr_ns": {
       "golden": 25.84350961529235,
-      "tier4_ann": 30.539267301538853,
-      "rel_err_pct": 18.169969002460434
+      "tier4_ann": 24.830238208165923,
+      "rel_err_pct": -3.9207964483540816
     },
     "td_off_ns": {
       "golden": 62.182902750101924,
-      "tier4_ann": 58.19338905810242,
-      "rel_err_pct": -6.415772689210727
+      "tier4_ann": 63.75341802834123,
+      "rel_err_pct": 2.5256384131034015
     },
     "tf_ns": {
       "golden": 26.538999478329874,
-      "tier4_ann": 26.10370266436493,
-      "rel_err_pct": -1.6402156167205153
+      "tier4_ann": 25.610905051223764,
+      "rel_err_pct": -3.497096519648133
     },
     "dv_dt_max_v_per_ns": {
       "golden": 35.93467060024436,
-      "tier4_ann": 27.759054848,
-      "rel_err_pct": -22.751330722338007
+      "tier4_ann": 29.237518336,
+      "rel_err_pct": -18.6370214402322
     },
     "di_dt_max_a_per_ns": {
       "golden": 443.4892816651921,
-      "tier4_ann": 249.56441879425574,
-      "rel_err_pct": -43.727068700013824
+      "tier4_ann": 578.8066160715199,
+      "rel_err_pct": 30.51197402071248
     },
     "e_on_uj": {
       "golden": 45.245028252444335,
-      "tier4_ann": 58.82064877229505,
-      "rel_err_pct": 30.004668013700048
+      "tier4_ann": 46.57840479942104,
+      "rel_err_pct": 2.9470122983173663
     },
     "e_off_uj": {
       "golden": 77.71585232747914,
-      "tier4_ann": 72.26084064956707,
-      "rel_err_pct": -7.019175000392114
+      "tier4_ann": 68.52896896308674,
+      "rel_err_pct": -11.821118972845722
     },
     "i_peak_a": {
       "golden": 138.53150939941406,
-      "tier4_ann": 138.0802764892507,
-      "rel_err_pct": -0.3257258309821491
+      "tier4_ann": 138.60096740722656,
+      "rel_err_pct": 0.050138779338813576
     }
   },
   "speedup": {
-    "solver_speedup": 1.0886524822695036,
-    "wall_speedup": 1.0336933645693558,
+    "solver_speedup": 0.9647887323943664,
+    "wall_speedup": 0.9820055795595573,
     "golden_iterations": 12718.0,
-    "tier4_iterations": 10986.0,
+    "tier4_iterations": 14402.0,
     "golden_points": 3432.0,
-    "tier4_points": 2511.0,
+    "tier4_points": 3029.0,
     "end_time_s": 0.000176,
     "end_time_s_source": "run_inductive_benchmark bench schedule (.tran stop); not a measured trace endpoint",
     "t_last_s": null,
@@ -81,15 +81,15 @@
     "case": "long_adaptive",
     "method": "LTspice default/trap (both arms)",
     "ltspice_internal_floor_s": 0.075,
-    "net_solver_speedup": 1.1207729468599035
+    "net_solver_speedup": 0.9521531100478471
   },
   "speedup_200_pulse": {
-    "solver_speedup": 1.2592047128129602,
-    "wall_speedup": 1.1756899041310596,
+    "solver_speedup": 0.9550387596899225,
+    "wall_speedup": 1.0133238159344051,
     "golden_iterations": 66415.0,
-    "tier4_iterations": 56761.0,
+    "tier4_iterations": 67988.0,
     "golden_points": 17980.0,
-    "tier4_points": 12922.0,
+    "tier4_points": 14539.0,
     "end_time_s": 0.001796,
     "end_time_s_source": "run_inductive_benchmark bench schedule (.tran stop); not a measured trace endpoint",
     "t_last_s": null,
@@ -101,8 +101,8 @@
     "case": "long_adaptive",
     "method": "LTspice default/trap (both arms)",
     "ltspice_internal_floor_s": 0.075,
-    "net_solver_speedup": 1.2913907284768211
+    "net_solver_speedup": 0.9491228070175438
   },
-  "ann_static_rms_rel": 0.012509573552422446,
+  "ann_static_rms_rel": 0.0012541023033758275,
   "gds_negative_fraction": 0.0
 }
