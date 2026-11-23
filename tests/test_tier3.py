@@ -1635,7 +1635,7 @@ def test_ann_fit_record_uses_actual_q0_used(monkeypatch):
             activation="isru", neurons=2, loss_weights={"id": 1.0},
             diagnostics={"derivative_terms": ["gm"]},
             train_range={"vds": [0.0, 10.0]}, out_of_range_check="pass",
-            provenance={})
+            provenance={}, v_th=1.0)
 
     charge_prov = {"q0_used": {"oss": 1.5e-8, "iss": 2.5e-10, "rss": 1.0e-8},
                    "derivative_terms": ["dq"]}
@@ -1644,7 +1644,17 @@ def test_ann_fit_record_uses_actual_q0_used(monkeypatch):
                         lambda v: {"device": "TOY", "conditions": {}})
     monkeypatch.setattr(ann_fit_mod, "_channel_families",
                         lambda v, c: (fams, 10.0))
-    monkeypatch.setattr(ann_fit_mod, "_extract", lambda v, b: {"vth_v": 1.0})
+    def _toy_extract(v, bench):
+        if bench == "curve7_threshold_voltage":
+            return {
+                "vth_v": 1.0,
+                "curve_vgs": [0.0, 1.0, 2.0, 3.0],
+                "curve_id": [0.0, 1.0e-3, 0.1, 1.0],
+                "Id_th_target": 1.0e-3,
+            }
+        return {"vth_v": 1.0}
+
+    monkeypatch.setattr(ann_fit_mod, "_extract", _toy_extract)
     monkeypatch.setattr(ann_fit_mod, "_charge_curves", lambda v, c: (None, None, {}))
     monkeypatch.setattr(ann_fit_mod, "_dpt_points",
                         lambda v, m: (None, {"status": "disabled",
