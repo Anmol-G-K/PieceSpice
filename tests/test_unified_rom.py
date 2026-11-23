@@ -1079,6 +1079,14 @@ def test_speed_row_withholds_ratios_until_completion_counts_exist():
     assert solver_ci["n"] == 3
     assert solver_ci["confidence"] == urom.SPEED_CI_CONFIDENCE == 0.95
     assert solver_ci["n_resamples"] == urom.SPEED_CI_RESAMPLES
+    assert row["net_solver_speedup"] == pytest.approx(
+        (2.0 - urom.LTSPICE_INTERNAL_FLOOR_S)
+        / (1.0 - urom.LTSPICE_INTERNAL_FLOOR_S))
+    assert row["net_solver_speedup_ci95"]["point"] == pytest.approx(
+        row["net_solver_speedup"])
+    assert row["net_solver_speedup_ci95"]["low"] > 1.0
+    assert row["ltspice_internal_floor_s"] == pytest.approx(
+        urom.LTSPICE_INTERNAL_FLOOR_S)
     assert row["wall_speedup_ci95"]["point"] == pytest.approx(2.0)
     assert "aborts are failures" in row["completion_basis"]
     assert "3 interleaved repeats" in row["completion_basis"]
@@ -1088,8 +1096,10 @@ def test_speed_row_withholds_ratios_until_completion_counts_exist():
     missing = urom._speed_row(plan, speed)
     assert missing["solver_speedup"] is None
     assert missing["wall_speedup"] is None
+    assert missing["net_solver_speedup"] is None
     assert missing["solver_speedup_ci95"] is None
     assert missing["wall_speedup_ci95"] is None
+    assert missing["net_solver_speedup_ci95"] is None
     assert missing["method_label"] == "trap/default"
     assert missing["n_pulses"] == 20
     assert missing["t_last"]["urom"] == 1.0

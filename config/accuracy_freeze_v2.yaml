@@ -1,14 +1,15 @@
 schema: piecespice.accuracy_freeze/2.0
 frozen_at: "2026-11-24T00:00:00+05:30"
 source_commit: "d76c4ed"
+refresh_note: "2026-11-24: UROM ANN speed fields and EPC n=200 max-step corrected; accuracy values unchanged."
 policy: "Accuracy is frozen for speed contract v2; any new accuracy change requires a new freeze."
 replication: "Independent second-system replication explicitly deferred by decision 2026-11-24."
 records:
   unified_ann_trap-default:
-    cpm2-1200: "c070ef51d5b7f6019a8763c129ffdaf5a5b40870f9e3140808e595133e3ce1c0"
-    csd16412q5a: "f80b6d0eff8957c7e289ff22d4c098446f4327b9bc2da2157fe6bb8c2f1ccd97"
-    epc2216: "5ead81b072c3bd45b23756997283de1c828a6a383af79e5ae4c1bba3fc5e7df7"
-    irfs7730pbf: "5d3da5d1ecc7d7fb81b6cf5aee216505c9138f667c96bad1e8973407b831d912"
+    cpm2-1200: "89e3458ce379254784318d2f0a1aad6c84c59dd5aca696a7dc8981a3c1a8cd47"
+    csd16412q5a: "d5ab818861c384f9853db1064f2a85daeff27e49a2a9f408dcf62367a505314d"
+    epc2216: "8932ce86259bbd3c72f9c86cd534f8e3007c4854bd529e03c91069e3cdef4095"
+    irfs7730pbf: "e11f3a04e8a26a3a6cb40ad105cef7dc133bdef41756d9c20259882b8318f201"
   tier4_validation_ann:
     cpm2-1200: "d6c273abfba2b3a7f673f9852c7892ffe3586f9147860d4b152c5edba5ac019a"
     csd16412q5a: "99ca4bcf894f360a5537631090b8db4ce16f50a046eac7f00409124e88890b71"

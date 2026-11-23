@@ -57,6 +57,7 @@ from pipeline.curves import _cap_ref_vds
 from simulation.engine import SpiceEngine, TranDirective
 from simulation.netlist_text import NetlistBuilder
 from simulation.testbenches.speedup_bench import (
+    LTSPICE_INTERNAL_FLOOR_S,
     _elapsed as _solver_elapsed,
     _iterations as _log_iterations,
     _pulse_train,
@@ -2980,6 +2981,31 @@ def _evaluate_gates(record: dict, observations: dict) -> dict:
     return gates
 
 
+def _paired_net_speedup_ci(speed: dict) -> dict | None:
+    """Paired per-repeat bootstrap of net solver speedup.
+
+    Net time removes the measured LTspice floor from both arms. A repeat at
+    or below the floor has no defined net ratio and returns None; no ratio is
+    fabricated from medians.
+    """
+    golden = (speed.get("golden") or {}).get("per_repeat") or []
+    rom = (speed.get("urom") or {}).get("per_repeat") or []
+    if not golden or not rom or len(golden) != len(rom):
+        return None
+    ratios: list[float] = []
+    for g_row, r_row in zip(golden, rom):
+        g = _num(g_row.get("solver_time_s"))
+        r = _num(r_row.get("solver_time_s"))
+        if (g is None or r is None
+                or g <= LTSPICE_INTERNAL_FLOOR_S
+                or r <= LTSPICE_INTERNAL_FLOOR_S):
+            return None
+        ratios.append((g - LTSPICE_INTERNAL_FLOOR_S)
+                      / (r - LTSPICE_INTERNAL_FLOOR_S))
+    return bootstrap_ci(ratios, confidence=ACCEPTANCE_POLICY.speed_confidence,
+                        n_resamples=ACCEPTANCE_POLICY.speed_n_resamples, seed=0)
+
+
 def _speed_row(plan: dict, speed: dict) -> dict:
     golden, rom = speed["golden"], speed["urom"]
     counts_ready = golden["completion"] and rom["completion"]
@@ -2987,18 +3013,29 @@ def _speed_row(plan: dict, speed: dict) -> dict:
         if counts_ready and rom["solver_time_s"] else None
     wall = _num(golden["wall_time_s"] / rom["wall_time_s"]) \
         if counts_ready and rom["wall_time_s"] else None
+    g_solver = _num(golden.get("solver_time_s"))
+    r_solver = _num(rom.get("solver_time_s"))
+    net = (_num((g_solver - LTSPICE_INTERNAL_FLOOR_S)
+                / (r_solver - LTSPICE_INTERNAL_FLOOR_S))
+           if (counts_ready and g_solver is not None and r_solver is not None
+               and g_solver > LTSPICE_INTERNAL_FLOOR_S
+               and r_solver > LTSPICE_INTERNAL_FLOOR_S) else None)
     solver_ci = (_paired_speedup_ci(speed, "solver_time_s")
                  if counts_ready else None)
     wall_ci = (_paired_speedup_ci(speed, "wall_time_s")
                if counts_ready else None)
+    net_ci = _paired_net_speedup_ci(speed) if counts_ready else None
     return {
         "n_pulses": plan["speed"]["n_pulses"],
         "max_step": plan["speed"]["max_step"],
         "method_label": plan["method_label"],
         "solver_speedup": solver,
         "wall_speedup": wall,
+        "net_solver_speedup": net,
         "solver_speedup_ci95": solver_ci,
         "wall_speedup_ci95": wall_ci,
+        "net_solver_speedup_ci95": net_ci,
+        "ltspice_internal_floor_s": LTSPICE_INTERNAL_FLOOR_S,
         "effect_min_solver_speedup": (
             ACCEPTANCE_POLICY.speed_min_solver_speedup),
         "t_last": {"golden": golden["t_last"], "urom": rom["t_last"]},
@@ -3113,6 +3150,39 @@ def _dpt_high_vi_provenance(vendor: str, ann_record: dict,
         "external_source_status": source_prov.get("external_source_status"),
         "dpt_informed": bool(used),
     }
+
+def measure_speed(vendor: str, *, n_pulses: int = 200,
+                  repeats: int = SPEED_REPEATS,
+                  lib: str | Path | None = None,
+                  method: str = "trap/default") -> dict:
+    """Measure UROM speed at a declared pulse count, with net solver metrics.
+
+    This is the contract-v2 measurement path: it uses ``_bench_plan`` so the
+    vendor's measured ``ADAPTIVE_MAX_STEP`` (e.g. EPC's 100 ns cap) is kept,
+    runs the same interleaved repeats as the record path, and returns
+    ``_speed_row`` with raw/net solver, wall, CI and floor provenance.
+    No accuracy record is modified.
+    """
+    if int(n_pulses) < 1:
+        raise ValueError("n_pulses must be positive")
+    plan = _bench_plan(vendor, method, int(repeats))
+    plan["speed"]["n_pulses"] = int(n_pulses)
+    last_width = plan["t1_width"] if n_pulses == 1 else plan["t2_width"]
+    plan["speed"]["end_time_s"] = (
+        1.0e-6 + (int(n_pulses) - 1) * (plan["t2_on"] - plan["t1_on"])
+        + last_width + 2.0e-6)
+    rom_lib = (Path(lib) if lib is not None else
+               _lib_path_for_config(vendor, emit="ann", method=method,
+                                    tuning="off", c1_variant=None))
+    golden, rom = _arm_specs(vendor, rom_lib)
+    decks = {"golden": _speed_deck(plan, golden),
+             "urom": _speed_deck(plan, rom)}
+    speed = _run_interleaved_speed(plan, golden, rom, decks)
+    row = _speed_row(plan, speed)
+    row["library_path"] = str(rom_lib)
+    row["measured_at"] = "contract-v2"
+    return row
+
 
 def run_unified(vendor: str, *, variant: str = DEFAULT_VARIANT,
                 method: str = "trap/default", emit: str = "tier2",

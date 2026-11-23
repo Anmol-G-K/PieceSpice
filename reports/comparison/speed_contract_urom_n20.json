@@ -1,0 +1,198 @@
+{
+  "irfs7730pbf": {
+    "n_pulses": 20,
+    "max_step": null,
+    "method_label": "trap/default",
+    "solver_speedup": 0.9620253164556962,
+    "wall_speedup": 0.9672749108855235,
+    "net_solver_speedup": 0.950207468879668,
+    "solver_speedup_ci95": {
+      "point": 0.9620253164556962,
+      "low": 0.9358974358974358,
+      "high": 0.9781931464174455,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "wall_speedup_ci95": {
+      "point": 0.9672749108855235,
+      "low": 0.9347420286290614,
+      "high": 1.0559004459098067,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "net_solver_speedup_ci95": {
+      "point": 0.950207468879668,
+      "low": 0.9156118143459915,
+      "high": 0.9715447154471545,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "ltspice_internal_floor_s": 0.075,
+    "effect_min_solver_speedup": 1.05,
+    "t_last": {
+      "golden": 0.000176,
+      "urom": 0.000176
+    },
+    "iterations": {
+      "golden": 12718.0,
+      "urom": 14402.0
+    },
+    "points": {
+      "golden": 3432.0,
+      "urom": 3029.0
+    },
+    "global_claim": false,
+    "min_default_gear": null,
+    "completion_basis": "iterations > 0; trace points >= 50 percent of median; t_last >= 0.999 x scheduled end; 3 interleaved repeats; aborts are failures"
+  },
+  "csd16412q5a": {
+    "n_pulses": 20,
+    "max_step": null,
+    "method_label": "trap/default",
+    "solver_speedup": 5.633333333333334,
+    "wall_speedup": 3.3976034279912244,
+    "net_solver_speedup": 7.177777777777778,
+    "solver_speedup_ci95": {
+      "point": 5.633333333333334,
+      "low": 5.587662337662338,
+      "high": 5.69023569023569,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "wall_speedup_ci95": {
+      "point": 3.438821099906472,
+      "low": 3.3334052318488836,
+      "high": 3.477237299362556,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "net_solver_speedup_ci95": {
+      "point": 7.177777777777778,
+      "low": 7.0643776824034346,
+      "high": 7.274774774774776,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "ltspice_internal_floor_s": 0.075,
+    "effect_min_solver_speedup": 1.05,
+    "t_last": {
+      "golden": 0.000176,
+      "urom": 0.000176
+    },
+    "iterations": {
+      "golden": 131558.0,
+      "urom": 12163.0
+    },
+    "points": {
+      "golden": 44050.0,
+      "urom": 2812.0
+    },
+    "global_claim": false,
+    "min_default_gear": null,
+    "completion_basis": "iterations > 0; trace points >= 50 percent of median; t_last >= 0.999 x scheduled end; 3 interleaved repeats; aborts are failures"
+  },
+  "epc2216": {
+    "n_pulses": 20,
+    "max_step": 1e-07,
+    "method_label": "trap/default",
+    "solver_speedup": 1.089171974522293,
+    "wall_speedup": 1.0535688415903355,
+    "net_solver_speedup": 1.1171548117154813,
+    "solver_speedup_ci95": {
+      "point": 1.089171974522293,
+      "low": 1.073015873015873,
+      "high": 1.1322580645161289,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "wall_speedup_ci95": {
+      "point": 1.0535688415903355,
+      "low": 1.0393221316112748,
+      "high": 1.0757889338389577,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "net_solver_speedup_ci95": {
+      "point": 1.1171548117154813,
+      "low": 1.0958333333333334,
+      "high": 1.174468085106383,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "ltspice_internal_floor_s": 0.075,
+    "effect_min_solver_speedup": 1.05,
+    "t_last": {
+      "golden": 0.000176,
+      "urom": 0.000176
+    },
+    "iterations": {
+      "golden": 16514.0,
+      "urom": 13717.0
+    },
+    "points": {
+      "golden": 4047.0,
+      "urom": 3410.0
+    },
+    "global_claim": false,
+    "min_default_gear": null,
+    "completion_basis": "iterations > 0; trace points >= 50 percent of median; t_last >= 0.999 x scheduled end; 3 interleaved repeats; aborts are failures"
+  },
+  "cpm2-1200": {
+    "n_pulses": 20,
+    "max_step": null,
+    "method_label": "trap/default",
+    "solver_speedup": 1.1326530612244898,
+    "wall_speedup": 1.0422990145740636,
+    "net_solver_speedup": 1.1780821917808222,
+    "solver_speedup_ci95": {
+      "point": 1.1482758620689657,
+      "low": 1.1326530612244898,
+      "high": 1.1754966887417218,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "wall_speedup_ci95": {
+      "point": 1.0422990145740636,
+      "low": 0.9898761712075588,
+      "high": 1.0625199108778192,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "net_solver_speedup_ci95": {
+      "point": 1.2000000000000002,
+      "low": 1.1780821917808222,
+      "high": 1.2334801762114538,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "ltspice_internal_floor_s": 0.075,
+    "effect_min_solver_speedup": 1.05,
+    "t_last": {
+      "golden": 0.000176,
+      "urom": 0.000176
+    },
+    "iterations": {
+      "golden": 12492.0,
+      "urom": 11384.0
+    },
+    "points": {
+      "golden": 3092.0,
+      "urom": 2710.0
+    },
+    "global_claim": false,
+    "min_default_gear": null,
+    "completion_basis": "iterations > 0; trace points >= 50 percent of median; t_last >= 0.999 x scheduled end; 3 interleaved repeats; aborts are failures"
+  }
+}
