@@ -631,10 +631,16 @@ floor (`LTSPICE_INTERNAL_FLOOR_S = 0.075 s` on a trivial 100-point `.tran 1u 100
 
 | Device | Vds / Id RMSE (%) | td_on / tr / td_off / tf err (%) | E_on / E_off err (%) | n=20 raw / net speedup | n=200 raw / net speedup |
 |---|---|---|---|---|---|
-| `irfs7730pbf` | 0.47 / 0.66 | +0.03 / −3.92 / +2.53 / −3.50 | +2.95 / −11.82 | 0.96× / 0.95× | 0.96× / 0.95× |
-| `csd16412q5a` | 6.32 / 4.60 | −68.04 / +26.31 / +11.38 / −7.25 | −21.66 / −55.09 | 5.63× / 7.45× | 19.33× / 21.43× |
-| `epc2216` | 2.68 / 0.83 | +1.22 / +1.24 / +0.82 / −3.15 | +27.69 / +41.24 | 1.10× / 1.14× | 2.25× / 2.43× |
-| `cpm2-1200` | 2.50 / 2.12 | −13.69 / −12.44 / −5.15 / −0.67 | +20.94 / +6.26 | 1.21× / 1.29× | 1.46× / 1.53× |
+| `irfs7730pbf` | 0.47 / 0.66 | +0.03 / −3.92 / +2.53 / −3.50 | +2.95 / −11.82 | 0.96× / 0.95× | 1.02× / 1.02× |
+| `csd16412q5a` | 4.05 / 4.15 | −43.19 / +2.33 / +2.40 / −32.03 | −16.47 / −65.17 | 5.31× / 6.49× | 37.27× / 40.52× |
+| `epc2216` | 0.35 / 0.24 | +1.25 / −0.16 / +0.84 / −6.13 | +4.51 / +2.03 | 1.17× / 1.23× | 2.03× / 2.15× |
+| `cpm2-1200` | 2.03 / 2.10 | −11.87 / −2.70 / −0.54 / +3.11 | +18.24 / −5.14 | 1.12× / 1.15× | 1.31× / 1.34× |
+
+The Curve-7 cutoff calibration applies only when every Curve-1 family starts
+at/above the measured Vth; IRFS retains its joint-fit cutoff and is explicitly
+`not_applicable_no_subthreshold_static_coverage`. At 5 % the T4_ANN G4 pass
+counts are IRFS 5/6, EPC 5/6, CPM2 3/6, TI 2/6; at 7 % EPC is 6/6 and CPM2 is
+4/6. No all-pass claim is made.
 
 Tier lock summary: Tier-2, Tier-3 `v1`, and Tier-3 `simplis` (`C^0` PWL ceiling:
 EPC `0.47%/0.18%`, CPM2 `0.59%/1.05%`, TI `5.59×`) are locked; `irfs7730pbf`
@@ -744,7 +750,7 @@ and libs `reports/models/<vendor>_PIECSPICE_UROM_ann_trap-default.lib` carry
 `hard_guarantee=true` for `gds > 0`) channel and fitted rational/log charge net.
 All four vendors pass **G0, G1_static (1.00–2.07 %, worst endpoint 1.29–4.02 %),
 G2_derivative (`gm/gds` negative fraction `0.0`), G3_dpt_waveform
-(0.42–2.24 % Vds, 0.40–1.43 % Id), and G6_charge (`monotone_q=true`,
+(0.11–1.48 % Vds, 0.03–1.24 % Id), and G6_charge (`monotone_q=true`,
 `q_zero_anchored=true`, 0.5 % budget)** (`fidelity_all_pass=true` 4/4), while
 overall `verdict` remains `reject` 4/4 on G4/G5. The fit path carries hold-out
 fields (`holdout_id_rms_rel`, `holdout_gm_rms_rel`, `holdout_gds_rms_rel`,

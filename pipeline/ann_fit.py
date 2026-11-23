@@ -119,6 +119,35 @@ def _static_guard_width(families: List[CurveData]
     return width, prov
 
 
+def _curve7_cutoff_gate(families: List[CurveData], v_th: float
+                        ) -> Dict[str, Any]:
+    """Decide whether the measured Curve-7 cutoff refit is applicable.
+
+    The post-fit calibration changes only ``(alpha, vth_eff)`` while keeping
+    the static base fixed.  That is safe only when every measured Curve-1
+    family starts at or above the measured Vth: then the static fit has no
+    sub-threshold family whose current the cutoff refit could move, so G1
+    cannot be disturbed.  When Curve-1 extends below Vth (for example IRFS
+    at 3.0 V vs Vth 4.348 V) the measured Curve-7 turn-on and the static
+    output characteristic are inconsistent under a fixed base; the joint-fit
+    cutoff is retained and the rejection is recorded, never claimed as a
+    measured calibration.
+    """
+    if not families:
+        raise ValueError("Curve-7 gate needs at least one Curve-1 family")
+    min_vgs = min(_family_value(f) for f in families)
+    v_th = float(v_th)
+    applicable = bool(np.isfinite(min_vgs) and np.isfinite(v_th)
+                      and min_vgs >= v_th)
+    return {
+        "applicable": applicable,
+        "status": ("applicable_static_coverage_at_or_above_vth" if applicable
+                   else "not_applicable_no_subthreshold_static_coverage"),
+        "min_curve1_vgs_v": float(min_vgs),
+        "v_th_v": v_th,
+    }
+
+
 def _charge_curves(vendor: str, cond: Dict[str, Any]
                    ) -> Tuple[CurveData, CurveData, Dict[str, Any]]:
     """Curve-4 capacitance anchor + Curve-5 gate-charge plateau."""
@@ -216,10 +245,10 @@ def ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True,
     families, vmax = _channel_families(vendor, cond)
     guard_width, guard_prov = _static_guard_width(families)
 
-    v_th = float(_extract(vendor, "curve7_threshold_voltage")["vth_v"])
+    c7_ext = _extract(vendor, "curve7_threshold_voltage")
+    v_th = float(c7_ext["vth_v"])
     v_sat = _v_sat(families)
     c4, plateau, cap_meta = _charge_curves(vendor, cond)
-
     dpt, dpt_prov = (None, {"source": "dpt_trajectory", "status": "disabled",
                             "sample_indices": [], "n_points": 0,
                             "sample_selection": None,
@@ -230,11 +259,41 @@ def ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True,
     channel_inputs: List[Any] = list(families)
     if dpt is not None and model_form == "legacy_exp":
         channel_inputs.append(dpt)
+    curve7_kwargs: Dict[str, Any] = {}
+    cutoff_gate: Optional[Dict[str, Any]] = None
+    if model_form == "positive_conductance":
+        cutoff_gate = _curve7_cutoff_gate(families, v_th)
+        if cutoff_gate["applicable"]:
+            c7_vgs = c7_ext.get("curve_vgs")
+            c7_id = c7_ext.get("curve_id")
+            if (c7_vgs is None or c7_id is None
+                    or len(c7_vgs) == 0 or len(c7_id) == 0):
+                raise ValueError(
+                    f"{vendor}: Curve-7 curve_vgs/curve_id missing; the "
+                    "positive_conductance cutoff cannot fall back to the "
+                    "joint-fit cutoff")
+            curve7_kwargs = {
+                "curve7_vgs": c7_vgs,
+                "curve7_id": c7_id,
+                "curve7_id_th_target": c7_ext.get("Id_th_target"),
+            }
     channel_fit = fit_channel_iv(
         channel_inputs, v_th, v_sat,
         guard_width=guard_width, guard_width_provenance=guard_prov,
         holdout_fraction=holdout_fraction, holdout_mask=holdout_mask,
-        temperature_c=temperature_c, model_form=model_form)
+        temperature_c=temperature_c, model_form=model_form,
+        **curve7_kwargs)
+    if cutoff_gate is not None and not cutoff_gate["applicable"]:
+        rejection = {
+            **cutoff_gate,
+            "source": "curve1_output_characteristics min family Vgs vs "
+                      "curve7_threshold_voltage:vth_v",
+            "reason": "Curve-1 has a family below the measured Vth; refitting "
+                      "the fixed-base cutoff on Curve-7 would move the "
+                      "on-state cutoff and conflict with G1 static accuracy",
+        }
+        channel_fit.provenance["curve7_cutoff"] = rejection
+        channel_fit.diagnostics["curve7_cutoff"] = rejection
     charge_fit: AnnChargeFit = fit_charge_qv(c4, plateau)
     if model_form == "positive_conductance":
         try:
@@ -352,6 +411,9 @@ def ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True,
             "(log-Q0 offsets actually used per table); q0_offset is the "
             "q_oss entry; charge_fit.q0 is the caller override (None here)",
         "guard_width_v": float(guard_width),
+        "cutoff_alpha": ch_coef.get("alpha"),
+        "vth_eff_v": ch_coef.get("vth_eff", channel_fit.v_th),
+        "curve7_cutoff": ch_prov.get("curve7_cutoff"),
         "out_of_range_check": channel_fit.out_of_range_check,
         **holdout_fields,
         "holdout_selection": ch_diag.get("holdout_selection"),
@@ -376,6 +438,7 @@ def ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True,
         "v_th_source": "curve7_threshold_voltage:vth_v",
         "v_sat_source": "curve1 top-Vgs curve, dI/dVds half-initial rule",
         "v_sat_value": v_sat,
+        "curve7_cutoff": ch_prov.get("curve7_cutoff"),
         "cap_equivalents": cap_meta,
         "channel_fit": ch_prov,
         "charge_fit": charge_prov,
@@ -392,9 +455,10 @@ def ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True,
         "Curve-4 extracts only cap equivalents at one reference bias; charge "
         "tables are source-derived Q(Cref)=Cref*Vref anchors where no C(V) "
         "sweep exists, not a learned 2-D Q(Vgs,Vds) surface.",
-        "Physics guards (VDS=0 transform, tanh Vth cutoff, low-VDS guard, "
-        "alpha=10) are adopted from CONDITIONAL external sources; their "
-        "numeric values are not verified PieceSpice results.",
+        "Physics guards (VDS=0 transform, low-VDS guard) are adopted from "
+        "CONDITIONAL external sources; the positive-conductance tanh cutoff "
+        "is fitted to measured Curve-7 subthreshold current, not a verified "
+        "PieceSpice result.",
         "Static/offline fit quality is not a fidelity gate; G1-G6 remain "
         "with T5 and no speed number is implied by this record.",
     ]

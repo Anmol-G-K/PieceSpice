@@ -39,7 +39,7 @@ from scipy.optimize import least_squares
 from approximation.smoother import eps_from_grid
 
 __all__ = ["Jet2", "DptPoints", "AnnChannelFit", "fit_channel_iv",
-           "default_loss_weights"]
+           "default_loss_weights", "calibrate_cutoff_curve7"]
 
 
 # Project-decision optimizer settings (NOT emitter physical constants).
@@ -51,6 +51,20 @@ _OPT_STARTS = 3                 # deterministic seeded restarts, best cost wins
 _OPT_TOL = 1e-8                 # xtol/ftol/gtol: explicit convergence criterion
 _OPT_NO_IMPROVE = 1e-6       # relative cost plateau => deterministic stop
 _CUTOFF_ALPHA = 10.0          # source-derived initial value (Yang TPEL 2022)
+# Positive-conductance cutoff optimisation range (project decision, shared by
+# the joint Curve-1/2 fit and the measured Curve-7 post-fit calibration).
+_CUTOFF_ALPHA_MIN = 2.0
+_CUTOFF_ALPHA_MAX = 35.0
+# Curve-7 cutoff calibration: measurement/numerical tolerances, never device
+# or emitter constants.  The fallback subthreshold selection is a documented
+# fraction of the *measured* peak used only when the extracted Curve-7
+# ``Id_th_target`` is absent.
+_CURVE7_MIN_SUBTHRESHOLD_POINTS = 3
+_CURVE7_SUBTHRESHOLD_FRACTION = 0.01
+_CURVE7_MONOTONE_RTOL = 1e-9   # relative to measured peak: float-noise band
+_CURVE7_LOG_FLOOR_RTOL = 1e-12  # log floor relative to measured peak
+_CUTOFF_MAX_NFEV = 240
+_CUTOFF_STARTS = 3
 _MAX_NEURONS = 10             # E3 Fig.12 overfit guard (ANN study R7)
 _DEFAULT_WEIGHTS = {"id": 1.0, "gm": 0.3, "gds": 0.3,
                     "gm2": 0.1, "gds2": 0.1}
@@ -695,12 +709,18 @@ def fit_channel_iv(curves_1_2: Any, v_th: float, v_sat: float, *,
                    holdout_fraction: float = 0.0,
                    holdout_mask: Optional[Any] = None,
                    temperature_c: Optional[Any] = None,
-                   model_form: str = "legacy_exp") -> AnnChannelFit:
+                   model_form: str = "legacy_exp",
+                   curve7_vgs: Optional[Any] = None,
+                   curve7_id: Optional[Any] = None,
+                   curve7_id_th_target: Optional[float] = None
+                   ) -> AnnChannelFit:
     if model_form == "positive_conductance":
         return fit_channel_iv_monotone(
             curves_1_2, v_th, v_sat,
             guard_width=guard_width,
-            guard_width_provenance=guard_width_provenance)
+            guard_width_provenance=guard_width_provenance,
+            curve7_vgs=curve7_vgs, curve7_id=curve7_id,
+            curve7_id_th_target=curve7_id_th_target)
     """Fit the guarded ANN channel; return analytic coefficients + diagnostics.
 
     ``curves_1_2`` accepts a CurveData family, a list of CurveData, a
@@ -714,6 +734,11 @@ def fit_channel_iv(curves_1_2: Any, v_th: float, v_sat: float, *,
     hold-out metrics are reported as ``not_measured``.  ``temperature_c``
     adds a third normalised input column; when absent the fit and emission
     stay in the existing two-input form.
+
+    ``curve7_vgs``/``curve7_id``/``curve7_id_th_target`` are consumed only by
+    ``model_form == "positive_conductance"``: the measured diode-connected
+    Curve-7 transfer refits ``(alpha, vth_eff)`` after the static fit.  The
+    legacy exponential path ignores them.
     """
     if activation not in _SUPPORTED:
         raise ValueError(f"activation must be one of {_SUPPORTED}")
@@ -1077,6 +1102,218 @@ def fit_channel_iv(curves_1_2: Any, v_th: float, v_sat: float, *,
     return fit
 
 
+def _positive_base_current(fit: "AnnChannelFit", vgs: np.ndarray,
+                           vds: np.ndarray) -> np.ndarray:
+    """Uncut positive-conductance channel ``I_sat*tanh(Vds/Vk) + g_out*Vds``.
+
+    This is the fit's analytic base with the tanh cutoff divided out, so the
+    post-fit Curve-7 calibration can re-use the fixed static coefficients
+    without evaluating (and inverting) a possibly under-flowed cutoff.
+    """
+    c = fit.coefficients
+    if c.get("model_form") != "positive_conductance":
+        raise ValueError("positive-conductance coefficients are required")
+    vgs = np.asarray(vgs, dtype=float)
+    vds = np.asarray(vds, dtype=float)
+    g = (vgs - float(c["vgs_center"])) / float(c["vgs_scale"])
+
+    def _mlp(par: Dict[str, Any], scale: float) -> np.ndarray:
+        w1 = np.asarray(par["w1"], dtype=float)
+        b1 = np.asarray(par["b1"], dtype=float)
+        w2 = np.asarray(par["w2"], dtype=float)
+        u = float(par["b2"]) + np.tanh(g[:, None] * w1[None, :]
+                                       + b1[None, :]) @ w2
+        return float(scale) * np.log1p(np.exp(np.clip(u, -40.0, 40.0)))
+
+    isat = _mlp(c["sat"], float(c["scale_i"]))
+    vknee = float(c["vknee_min"]) + _mlp(c["knee"], float(c["scale_v"]))
+    gout = _mlp(c["gout"], float(c["scale_g"]))
+    return isat * np.tanh(vds / vknee) + gout * vds
+
+
+def _curve7_samples(vgs7: Any, id7: Any) -> Tuple[np.ndarray, np.ndarray,
+                                                  float]:
+    """Validate and normalise measured Curve-7 (drain tied to gate) samples.
+
+    Raises ``ValueError`` (fail closed) on empty/malformed data instead of
+    substituting the old ``alpha=4`` / ``vth_eff=v_th`` cutoff.  Monotonicity
+    is required up to a relative float-noise band derived from the measured
+    peak; a genuine decrease fails.
+    """
+    vgs = np.asarray(vgs7, dtype=float).ravel()
+    ids = np.asarray(id7, dtype=float).ravel()
+    if vgs.size == 0 or ids.size == 0:
+        raise ValueError("Curve-7 data is empty")
+    if vgs.size != ids.size:
+        raise ValueError("Curve-7 Vgs and Id must have equal length")
+    if not (np.all(np.isfinite(vgs)) and np.all(np.isfinite(ids))):
+        raise ValueError("Curve-7 data contains non-finite samples")
+    order = np.argsort(vgs, kind="stable")
+    vgs, ids = vgs[order], ids[order]
+    if np.any(np.diff(vgs) <= 0.0):
+        raise ValueError("Curve-7 Vgs is not strictly increasing")
+    if np.any(ids < 0.0):
+        raise ValueError("Curve-7 Id is negative")
+    peak = float(np.max(ids))
+    if not np.isfinite(peak) or peak <= 0.0:
+        raise ValueError("Curve-7 Id has no positive measured current")
+    if np.any(np.diff(ids) < -_CURVE7_MONOTONE_RTOL * peak):
+        raise ValueError("Curve-7 Id is non-monotone")
+    return vgs, ids, peak
+
+
+def _curve7_subthreshold_mask(ids: np.ndarray, peak: float,
+                              id_th_target: Optional[float]
+                              ) -> Tuple[np.ndarray, float, str]:
+    """Subthreshold sample mask plus the threshold-current definition used."""
+    if id_th_target is None:
+        id_th = _CURVE7_SUBTHRESHOLD_FRACTION * peak
+        source = (f"data-derived {_CURVE7_SUBTHRESHOLD_FRACTION:g} x measured "
+                  f"Curve-7 peak {peak:.6g} A (Id_th_target absent)")
+    else:
+        id_th = float(id_th_target)
+        if not np.isfinite(id_th) or id_th <= 0.0:
+            raise ValueError("Curve-7 Id_th_target must be finite and > 0")
+        source = "curve7_threshold_voltage:Id_th_target"
+    mask = ids <= id_th
+    # The zero-current anchor is always part of the calibration set; the
+    # analytic base is exactly zero at Vgs=Vds=0, so it pins the log floor.
+    mask[int(np.argmin(np.abs(ids)))] = True
+    return mask, float(id_th), source
+
+
+def calibrate_cutoff_curve7(fit: "AnnChannelFit", vgs7: Any, id7: Any, *,
+                            id_th_target: Optional[float] = None
+                            ) -> Dict[str, Any]:
+    """Post-fit ``(alpha, vth_eff)`` calibration on measured Curve-7 data.
+
+    Only the two positive-conductance cutoff parameters are refitted; the
+    static ``isat``/``knee``/``gout`` coefficients, their scales, the topology
+    and the G1/G2 emission semantics are untouched.  Residuals are log10
+    current errors on the measured subthreshold samples, with the drain tied
+    to the gate (Curve-7 JEDEC constant-current sweep).  ``alpha`` stays inside
+    the existing ``[2, 35]`` range and ``vth_eff`` inside
+    ``[v_th, v_th + (max(vgs7) - v_th)]``.
+
+    Raises ``ValueError``/``RuntimeError`` (fail closed) when Curve-7 is
+    missing, non-finite, non-monotone, has fewer than three subthreshold
+    points, or the optimizer cannot produce a finite, ordered result.
+    """
+    if not isinstance(fit, AnnChannelFit):
+        raise TypeError("fit must be an AnnChannelFit")
+    if fit.coefficients.get("model_form") != "positive_conductance":
+        raise ValueError("Curve-7 cutoff calibration requires "
+                         "model_form='positive_conductance'")
+    vgs, ids, peak = _curve7_samples(vgs7, id7)
+    mask, id_th, id_th_source = _curve7_subthreshold_mask(
+        ids, peak, id_th_target)
+    n_used = int(np.count_nonzero(mask))
+    if n_used < _CURVE7_MIN_SUBTHRESHOLD_POINTS:
+        raise ValueError(f"Curve-7 has only {n_used} subthreshold points "
+                         f"(need >= {_CURVE7_MIN_SUBTHRESHOLD_POINTS})")
+    vg, target_id = vgs[mask], ids[mask]
+    positive = target_id[target_id > 0.0]
+    if positive.size == 0:
+        raise ValueError("Curve-7 subthreshold samples have no positive "
+                         "current to anchor the log residual")
+    floor = max(float(np.min(positive)), peak * _CURVE7_LOG_FLOOR_RTOL)
+    # Drain tied to gate in the Curve-7 sweep.
+    base = _positive_base_current(fit, vg, vg)
+    if not np.all(np.isfinite(base)):
+        raise ValueError("static channel is non-finite on Curve-7 samples")
+
+    log_target = np.log10(target_id + floor)
+
+    def _log_residual(p: np.ndarray) -> np.ndarray:
+        alpha, vth = float(p[0]), float(p[1])
+        cut = 0.5 * (1.0 + np.tanh(alpha * (vg - vth)))
+        pred = np.maximum(cut * base, 0.0)
+        return np.log10(pred + floor) - log_target
+
+    def _log_rms(p: np.ndarray) -> float:
+        r = _log_residual(p)
+        return float(np.sqrt(np.mean(r * r)))
+
+    c = fit.coefficients
+    alpha_before = float(c["alpha"])
+    vth_before = float(c.get("vth_eff", fit.v_th))
+    vth_lo = float(fit.v_th)
+    vth_hi = vth_lo + (float(np.max(vgs)) - vth_lo)
+    if not (np.isfinite(alpha_before) and np.isfinite(vth_before)):
+        raise ValueError("existing cutoff parameters are non-finite")
+    if not np.isfinite(vth_lo) or not np.isfinite(vth_hi) or vth_hi <= vth_lo:
+        raise ValueError("Curve-7 measured Vgs span does not extend above "
+                         "v_th; cutoff is unidentifiable")
+    lb = np.array([_CUTOFF_ALPHA_MIN, vth_lo], dtype=float)
+    ub = np.array([_CUTOFF_ALPHA_MAX, vth_hi], dtype=float)
+
+    # Deterministic starts: the joint-fit cutoff, plus two interior Vth
+    # positions spread over the measured above-threshold span.  Best cost wins.
+    alpha0 = float(np.clip(alpha_before, lb[0], ub[0]))
+    span = ub[1] - lb[1]
+    starts = [np.array([alpha0, float(np.clip(vth_before, lb[1], ub[1]))])]
+    for k in range(1, _CUTOFF_STARTS):
+        starts.append(np.array([alpha0, lb[1] + span * k / _CUTOFF_STARTS]))
+    best = None
+    nfev_total = 0
+    for p0 in starts:
+        p0 = np.clip(p0, lb, ub)
+        sol = least_squares(_log_residual, p0, bounds=(lb, ub),
+                            max_nfev=_CUTOFF_MAX_NFEV,
+                            xtol=_OPT_TOL, ftol=_OPT_TOL, gtol=_OPT_TOL)
+        nfev_total += int(sol.nfev)
+        if best is None or sol.cost < best.cost:
+            best = sol
+    if best is None:  # pragma: no cover - _CUTOFF_STARTS >= 1
+        raise RuntimeError("Curve-7 cutoff calibration ran no starts")
+    alpha_after = float(best.x[0])
+    vth_after = float(best.x[1])
+    if not (np.isfinite(alpha_after) and np.isfinite(vth_after)
+            and lb[0] <= alpha_after <= ub[0]
+            and lb[1] <= vth_after <= ub[1]):
+        raise RuntimeError("Curve-7 cutoff calibration produced invalid "
+                           "alpha/vth_eff")
+    log_rms_before = _log_rms(np.array([alpha_before, vth_before]))
+    log_rms_after = _log_rms(np.array([alpha_after, vth_after]))
+    if not (np.isfinite(log_rms_before) and np.isfinite(log_rms_after)):
+        raise RuntimeError("Curve-7 cutoff calibration produced a non-finite "
+                           "log residual")
+    if log_rms_after > log_rms_before:
+        raise RuntimeError("Curve-7 cutoff calibration did not reduce the "
+                           f"log-RMS ({log_rms_before:.6g} -> "
+                           f"{log_rms_after:.6g}); refusing a silent fallback")
+
+    c["alpha"] = alpha_after
+    c["vth_eff"] = vth_after
+    diag: Dict[str, Any] = {
+        "status": "measured",
+        "source": "curve7_threshold_voltage:curve_vgs,curve_id "
+                  "(drain tied to gate)",
+        "points_used": n_used,
+        "points_total": int(vgs.size),
+        "id_th_target_a": float(id_th),
+        "id_th_target_source": id_th_source,
+        "alpha_before": alpha_before,
+        "alpha_after": alpha_after,
+        "alpha_bounds": [float(lb[0]), float(ub[0])],
+        "vth_eff_before": vth_before,
+        "vth_eff_after": vth_after,
+        "vth_eff_bounds": [float(vth_lo), float(vth_hi)],
+        "log10_floor_a": float(floor),
+        "log_rms_before": log_rms_before,
+        "log_rms_after": log_rms_after,
+        "residual": "log10(cut*base+floor)-log10(Id7+floor)",
+        "optimizer": {
+            "method": "scipy.optimize.least_squares",
+            "max_nfev_per_start": _CUTOFF_MAX_NFEV,
+            "starts": len(starts),
+            "nfev": nfev_total,
+        },
+    }
+    fit.provenance["curve7_cutoff"] = diag
+    return diag
+
+
 def fit_channel_iv_monotone(
     curves_1_2: Any,
     v_th: float,
@@ -1088,12 +1325,20 @@ def fit_channel_iv_monotone(
     guard_width_provenance: Optional[Dict[str, Any]] = None,
     max_nfev: int = 1500,
     seed: int = 42,
+    curve7_vgs: Optional[Any] = None,
+    curve7_id: Optional[Any] = None,
+    curve7_id_th_target: Optional[float] = None,
 ) -> AnnChannelFit:
     """Fit a C-inf positive-conductance ANN channel (hard gds > 0).
 
     I_D(Vgs, Vds) = cut(Vgs) * (I_sat(Vgs)*tanh(Vds/V_knee(Vgs)) + g_out(Vgs)*Vds)
     where I_sat, V_knee, g_out are softplus-bounded 1-D tanh MLPs in Vgs.
     Guarantees I_D(Vgs, 0) = 0 and dI_D/dVds > 0 everywhere (no negative gds).
+
+    When ``curve7_vgs``/``curve7_id`` are supplied, the measured diode-connected
+    Curve-7 transfer data refits only ``(alpha, vth_eff)`` after the static
+    fit via :func:`calibrate_cutoff_curve7`; a malformed Curve-7 sample fails
+    closed instead of keeping the joint-fit cutoff silently.
     """
     curves = list(curves_1_2)
     if not curves:
@@ -1151,10 +1396,12 @@ def fit_channel_iv_monotone(
 
     rng = np.random.default_rng(seed)
     p0_mlp = rng.normal(0.0, 0.5, size=n_mlp)
-    a0 = float(np.clip(alpha, 2.0, 35.0))
+    a0 = float(np.clip(alpha, _CUTOFF_ALPHA_MIN, _CUTOFF_ALPHA_MAX))
     p0 = np.concatenate([p0_mlp, [a0, float(v_th)]])
-    lb = np.concatenate([np.full(n_mlp, -np.inf), [2.0, float(v_th)]])
-    ub = np.concatenate([np.full(n_mlp, np.inf), [35.0, float(v_th) + 0.5]])
+    lb = np.concatenate([np.full(n_mlp, -np.inf),
+                         [_CUTOFF_ALPHA_MIN, float(v_th)]])
+    ub = np.concatenate([np.full(n_mlp, np.inf),
+                         [_CUTOFF_ALPHA_MAX, float(v_th) + 0.5]])
     res = least_squares(lambda p: wt_v * (_eval(p) - id_v), p0,
                         bounds=(lb, ub),
                         max_nfev=max_nfev, ftol=1e-9, xtol=1e-9)
@@ -1211,6 +1458,12 @@ def fit_channel_iv_monotone(
             "optimizer_nfev": int(res.nfev),
         },
     )
+    if curve7_vgs is not None or curve7_id is not None:
+        if curve7_vgs is None or curve7_id is None:
+            raise ValueError("Curve-7 cutoff calibration needs both "
+                             "curve7_vgs and curve7_id")
+        calibrate_cutoff_curve7(fit, curve7_vgs, curve7_id,
+                                id_th_target=curve7_id_th_target)
     pred, gm, gds = fit.evaluate(vg_v, vd_v)
     fit.diagnostics = {
         "id_rms_rel": float(np.sqrt(np.mean((wt_v * (pred - id_v)) ** 2))),
@@ -1223,4 +1476,6 @@ def fit_channel_iv_monotone(
         "derivative_terms": ["gm", "gds"],
         "monotone_penalty": {"hard_guarantee": True},
     }
+    if "curve7_cutoff" in fit.provenance:
+        fit.diagnostics["curve7_cutoff"] = fit.provenance["curve7_cutoff"]
     return fit
