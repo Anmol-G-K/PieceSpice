@@ -1,0 +1,28 @@
+{
+  "schema": "piecespice.speed_contract_result/2.0",
+  "measured_at": "2026-11-24T00:00:00+05:30",
+  "accuracy_freeze": "config/accuracy_freeze_v2.yaml",
+  "contract": "config/speed_contract_v2.yaml",
+  "primary_workload": "dpt-200",
+  "repeats": 3,
+  "status": "target_not_met",
+  "reason": "No non-TI row has a measured 1.5x lower confidence bound at dpt-200; existing T4 n=200 records store medians only, UROM EPC n=200 timed out, and the remaining point estimates are below 1.5x.",
+  "t4_ann": {
+    "irfs7730pbf": {"solver_speedup": 1.0155131264916468, "net_solver_speedup": 1.017038007863696, "status": "fail"},
+    "csd16412q5a": {"solver_speedup": 37.26783754116356, "net_solver_speedup": 40.52, "status": "golden_stiffness_outlier"},
+    "epc2216": {"solver_speedup": 2.0309859154929577, "net_solver_speedup": 2.154, "status": "point_above_1.5_ci_not_stored"},
+    "cpm2-1200": {"solver_speedup": 1.313084112149533, "net_solver_speedup": 1.34, "status": "fail"}
+  },
+  "urom_ann": {
+    "irfs7730pbf": {"solver_speedup": 1.0160098522167487, "status": "fail"},
+    "csd16412q5a": {"solver_speedup": 18.284023668639055, "status": "golden_stiffness_outlier"},
+    "epc2216": {"solver_speedup": null, "status": "N/A", "reason": "LTspice timeout after 300 s"},
+    "cpm2-1200": {"solver_speedup": 1.3357228195937876, "status": "fail"}
+  },
+  "diagnostic_dpt_20": {
+    "t4_ann": {"irfs7730pbf": 0.9616519174041298, "csd16412q5a": 5.314285714285715, "epc2216": 1.1705685618729096, "cpm2-1200": 1.1158940397350994},
+    "urom_ann": {"irfs7730pbf": 0.8819875776397514, "csd16412q5a": 5.5673076923076925, "epc2216": 1.0422960725075527, "cpm2-1200": 1.0789473684210527}
+  },
+  "ci95": "not stored for the n=200 T4 records; UROM n=200 run exposed medians only. A v2 release claim requires paired per-repeat samples and a lower bound.",
+  "replication": "deferred by decision"
+}

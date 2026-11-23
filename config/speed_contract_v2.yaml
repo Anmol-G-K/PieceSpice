@@ -1,0 +1,47 @@
+schema: piecespice.speed_contract/2.0
+adopted_at: "2026-11-24T00:00:00+05:30"
+accuracy_freeze: "config/accuracy_freeze_v2.yaml"
+accuracy_policy: "speed is N/A unless the frozen record hashes match and the frozen accuracy gate is accepted"
+replication: "independent second-system replication explicitly deferred by decision 2026-11-24"
+repeats: 3
+warmup_runs: 1
+confidence: 0.95
+floor_s: 0.075
+workloads:
+  dpt-20:
+    role: diagnostic
+    pulses: 20
+    release_claim: false
+  dpt-200:
+    role: primary
+    pulses: 200
+    release_claim: true
+  buck-converter:
+    role: application_check
+    release_claim: false
+targets:
+  primary:
+    metric: net_solver_speedup_ci95_low
+    minimum: 1.5
+    stretch: 2.0
+  three_x:
+    allowed_only_for: "event-driven or compiled architecture, or explicitly changed workload"
+    universal: false
+  point_estimate_rule: "a point above target with lower CI below target is inconclusive; a point below target is fail"
+reporting:
+  required:
+    - absolute_golden_time_s
+    - absolute_model_time_s
+    - raw_solver_speedup
+    - net_solver_speedup
+    - wall_speedup
+    - ci95_low_high
+    - golden_iterations
+    - model_iterations
+    - accuracy_record_sha256
+    - all_workloads
+  forbid:
+    - cherry_picking
+    - ratio_averaging_primary
+    - unlabeled_abs_energy
+    - speed_claim_with_accuracy_freeze_mismatch
