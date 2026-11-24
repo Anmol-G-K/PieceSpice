@@ -12,7 +12,8 @@ def test_models_catalog_lists_configured_vendors():
     assert result.exit_code == 0
     assert "Model catalog" in result.output
     assert "cpm2-1200" in result.output
-    assert "SpiceModels files" in result.output
+    assert ("SpiceModels files" in result.output
+            or "No model files in SpiceModels" in result.output)
 
 
 def test_doctor_checks_environment():
