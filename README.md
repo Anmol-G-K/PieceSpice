@@ -120,6 +120,9 @@ solver, no special runtime. Drop the generated `.lib` into any SPICE flow
 that supports behavioral sources and charge-defined capacitors (validated on
 LTspice 26) and simulate against the golden model.
 
+> **Documentation status.** All files under `docs/` are work in progress and
+> are git-crypt encrypted. `README.md` remains the public documentation file.
+
 ---
 
 ## ✨ How It Works
@@ -839,7 +842,7 @@ PieceSpice/
 │   ├── converter.yaml    # Buck bench operating point + model selection
 │   └── outputs/          # Extracted curve data (YAML)
 ├── data/                 # Captured golden switching waveforms (CSV)
-├── docs/                 # Architecture, log, reports, and plans
+├── docs/                 # WIP docs (git-crypt encrypted)
 ├── figures/
 │   ├── <vendor>/
 │   │   ├── 01_*, 02_*    # extraction / analysis figures
