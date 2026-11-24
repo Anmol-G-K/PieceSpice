@@ -1,0 +1,206 @@
+{
+  "irfs7730pbf": {
+    "n_pulses": 200,
+    "max_step": null,
+    "method_label": "trap/default",
+    "solver_speedup": 0.9768009768009769,
+    "wall_speedup": 1.024045345044816,
+    "net_solver_speedup": 0.974462365591398,
+    "solver_speedup_ci95": {
+      "point": 0.9768009768009769,
+      "low": 0.9650180940892643,
+      "high": 1.0506493506493506,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "wall_speedup_ci95": {
+      "point": 1.024045345044816,
+      "low": 1.0069401811307659,
+      "high": 1.1036748007601656,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "net_solver_speedup_ci95": {
+      "point": 0.974462365591398,
+      "low": 0.9615384615384617,
+      "high": 1.056115107913669,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "ltspice_internal_floor_s": 0.075,
+    "effect_min_solver_speedup": 1.05,
+    "t_last": {
+      "golden": 0.001796,
+      "urom": 0.001796
+    },
+    "iterations": {
+      "golden": 66415.0,
+      "urom": 67988.0
+    },
+    "points": {
+      "golden": 17980.0,
+      "urom": 14539.0
+    },
+    "global_claim": false,
+    "min_default_gear": null,
+    "completion_basis": "iterations > 0; trace points >= 50 percent of median; t_last >= 0.999 x scheduled end; 3 interleaved repeats; aborts are failures",
+    "library_path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\irfs7730pbf_PIECSPICE_UROM_ann_trap-default.lib",
+    "measured_at": "contract-v2"
+  },
+  "csd16412q5a": {
+    "n_pulses": 200,
+    "max_step": null,
+    "method_label": "trap/default",
+    "solver_speedup": 15.638619201725996,
+    "wall_speedup": 13.565490610776807,
+    "net_solver_speedup": 16.927230046948356,
+    "solver_speedup_ci95": {
+      "point": 15.917777777777777,
+      "low": 14.80796731358529,
+      "high": 16.161812297734627,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "wall_speedup_ci95": {
+      "point": 13.565490610776807,
+      "low": 13.169235799196596,
+      "high": 13.70166923959864,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "net_solver_speedup_ci95": {
+      "point": 17.273939393939393,
+      "low": 15.95353982300885,
+      "high": 17.496478873239436,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "ltspice_internal_floor_s": 0.075,
+    "effect_min_solver_speedup": 1.05,
+    "t_last": {
+      "golden": 0.001796,
+      "urom": 0.001796
+    },
+    "iterations": {
+      "golden": 1302874.0,
+      "urom": 69595.0
+    },
+    "points": {
+      "golden": 429894.0,
+      "urom": 16335.0
+    },
+    "global_claim": false,
+    "min_default_gear": null,
+    "completion_basis": "iterations > 0; trace points >= 50 percent of median; t_last >= 0.999 x scheduled end; 3 interleaved repeats; aborts are failures",
+    "library_path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\csd16412q5a_PIECSPICE_UROM_ann_trap-default.lib",
+    "measured_at": "contract-v2"
+  },
+  "epc2216": {
+    "n_pulses": 200,
+    "max_step": 1e-07,
+    "method_label": "trap/default",
+    "solver_speedup": 1.1473851030110935,
+    "wall_speedup": 1.1265158850888535,
+    "net_solver_speedup": 1.156697556866049,
+    "solver_speedup_ci95": {
+      "point": 1.1473851030110935,
+      "low": 1.112236944660951,
+      "high": 1.1847389558232932,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "wall_speedup_ci95": {
+      "point": 1.1265158850888535,
+      "low": 1.075701119872494,
+      "high": 1.1682590940167719,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "net_solver_speedup_ci95": {
+      "point": 1.156697556866049,
+      "low": 1.1192052980132452,
+      "high": 1.1965811965811965,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "ltspice_internal_floor_s": 0.075,
+    "effect_min_solver_speedup": 1.05,
+    "t_last": {
+      "golden": 0.001796,
+      "urom": 0.001796
+    },
+    "iterations": {
+      "golden": 138752.0,
+      "urom": 114426.0
+    },
+    "points": {
+      "golden": 36391.0,
+      "urom": 30870.0
+    },
+    "global_claim": false,
+    "min_default_gear": null,
+    "completion_basis": "iterations > 0; trace points >= 50 percent of median; t_last >= 0.999 x scheduled end; 3 interleaved repeats; aborts are failures",
+    "library_path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\epc2216_PIECSPICE_UROM_ann_trap-default.lib",
+    "measured_at": "contract-v2"
+  },
+  "cpm2-1200": {
+    "n_pulses": 200,
+    "max_step": null,
+    "method_label": "trap/default",
+    "solver_speedup": 1.3549190535491906,
+    "wall_speedup": 1.2847074303228112,
+    "net_solver_speedup": 1.3914835164835164,
+    "solver_speedup_ci95": {
+      "point": 1.3549190535491906,
+      "low": 1.3381818181818184,
+      "high": 1.3738910012674272,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "wall_speedup_ci95": {
+      "point": 1.2701799155697717,
+      "low": 1.2568890757737308,
+      "high": 1.2853310730921286,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "net_solver_speedup_ci95": {
+      "point": 1.3914835164835164,
+      "low": 1.372,
+      "high": 1.4131652661064427,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "ltspice_internal_floor_s": 0.075,
+    "effect_min_solver_speedup": 1.05,
+    "t_last": {
+      "golden": 0.001796,
+      "urom": 0.001796
+    },
+    "iterations": {
+      "golden": 83115.0,
+      "urom": 67927.0
+    },
+    "points": {
+      "golden": 20352.0,
+      "urom": 15878.0
+    },
+    "global_claim": false,
+    "min_default_gear": null,
+    "completion_basis": "iterations > 0; trace points >= 50 percent of median; t_last >= 0.999 x scheduled end; 3 interleaved repeats; aborts are failures",
+    "library_path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\cpm2-1200_PIECSPICE_UROM_ann_trap-default.lib",
+    "measured_at": "contract-v2"
+  }
+}

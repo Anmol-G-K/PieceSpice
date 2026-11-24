@@ -1,0 +1,171 @@
+{
+  "irfs7730pbf": {
+    "solver_speedup": 0.9610778443113772,
+    "wall_speedup": 0.9412989953888161,
+    "golden": {
+      "solver_elapsed_s": 0.321,
+      "iterations": 12718.0,
+      "trace_points": 3432.0,
+      "wall_clock_s": 0.8429982000016025,
+      "completed": true
+    },
+    "simplis": {
+      "solver_elapsed_s": 0.334,
+      "iterations": 14299.0,
+      "trace_points": 3250.0,
+      "wall_clock_s": 0.8955690000002505,
+      "completed": true
+    },
+    "guard": {
+      "golden": {
+        "t_last_s": 0.000176,
+        "iterations": 12718,
+        "trace_points": 3432,
+        "solver_elapsed_s": 0.323
+      },
+      "simplis": {
+        "t_last_s": 0.000176,
+        "iterations": 14299,
+        "trace_points": 3250,
+        "solver_elapsed_s": 0.332
+      }
+    },
+    "regressed": [
+      "static_full_sweep_rel_rmse_pct",
+      "dpt_waveform_id_rel_rmse_pct"
+    ],
+    "cgs": {
+      "mode": "linear",
+      "chord_deviation": 0.0005656440153336745,
+      "rel_tolerance": 0.005
+    }
+  },
+  "csd16412q5a": {
+    "solver_speedup": 5.078947368421052,
+    "wall_speedup": 3.069577557324401,
+    "golden": {
+      "solver_elapsed_s": 1.737,
+      "iterations": 131558.0,
+      "trace_points": 44050.0,
+      "wall_clock_s": 2.643471999999747,
+      "completed": true
+    },
+    "simplis": {
+      "solver_elapsed_s": 0.342,
+      "iterations": 12250.0,
+      "trace_points": 3015.0,
+      "wall_clock_s": 0.8611842999998771,
+      "completed": true
+    },
+    "guard": {
+      "golden": {
+        "t_last_s": 0.000176,
+        "iterations": 131558,
+        "trace_points": 44050,
+        "solver_elapsed_s": 1.738
+      },
+      "simplis": {
+        "t_last_s": 0.000176,
+        "iterations": 12250,
+        "trace_points": 3015,
+        "solver_elapsed_s": 0.318
+      }
+    },
+    "regressed": [
+      "static_full_sweep_rel_rmse_pct",
+      "dpt_waveform_vds_rel_rmse_pct",
+      "abs_rel_err_tf_ns",
+      "abs_rel_err_e_on_uj"
+    ],
+    "cgs": {
+      "mode": "linear",
+      "chord_deviation": 2.0853838032001607e-05,
+      "rel_tolerance": 0.005
+    }
+  },
+  "epc2216": {
+    "solver_speedup": 1.0802469135802468,
+    "wall_speedup": 1.0592045047900336,
+    "golden": {
+      "solver_elapsed_s": 0.35,
+      "iterations": 16514.0,
+      "trace_points": 4047.0,
+      "wall_clock_s": 0.9150436999989324,
+      "completed": true
+    },
+    "simplis": {
+      "solver_elapsed_s": 0.324,
+      "iterations": 12665.0,
+      "trace_points": 3011.0,
+      "wall_clock_s": 0.863897100003669,
+      "completed": true
+    },
+    "guard": {
+      "golden": {
+        "t_last_s": 0.000176,
+        "iterations": 16514,
+        "trace_points": 4047,
+        "solver_elapsed_s": 0.35
+      },
+      "simplis": {
+        "t_last_s": 0.000176,
+        "iterations": 12665,
+        "trace_points": 3011,
+        "solver_elapsed_s": 0.31
+      }
+    },
+    "regressed": [
+      "dpt_waveform_vds_rel_rmse_pct",
+      "abs_rel_err_tr_ns",
+      "abs_rel_err_tf_ns"
+    ],
+    "cgs": {
+      "mode": "linear",
+      "chord_deviation": 0.0009889574996239526,
+      "rel_tolerance": 0.005
+    }
+  },
+  "cpm2-1200": {
+    "solver_speedup": 1.1241830065359477,
+    "wall_speedup": 1.0656653903050346,
+    "golden": {
+      "solver_elapsed_s": 0.344,
+      "iterations": 12492.0,
+      "trace_points": 3092.0,
+      "wall_clock_s": 0.8725827000016579,
+      "completed": true
+    },
+    "simplis": {
+      "solver_elapsed_s": 0.306,
+      "iterations": 10380.0,
+      "trace_points": 2572.0,
+      "wall_clock_s": 0.8188149000052363,
+      "completed": true
+    },
+    "guard": {
+      "golden": {
+        "t_last_s": 0.000176,
+        "iterations": 12492,
+        "trace_points": 3092,
+        "solver_elapsed_s": 0.345
+      },
+      "simplis": {
+        "t_last_s": 0.000176,
+        "iterations": 10380,
+        "trace_points": 2572,
+        "solver_elapsed_s": 0.313
+      }
+    },
+    "regressed": [
+      "static_full_sweep_rel_rmse_pct",
+      "abs_rel_err_tf_ns",
+      "abs_rel_err_e_on_uj",
+      "abs_rel_err_e_off_uj"
+    ],
+    "cgs": {
+      "mode": "linear",
+      "chord_deviation": 1.7088819197969015e-05,
+      "rel_tolerance": 0.005
+    }
+  }
+}

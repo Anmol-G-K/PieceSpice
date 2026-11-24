@@ -9,9 +9,10 @@ from approximation.charge_model import compute_charge_qoss
 def test_pwlf_fit():
     x = np.linspace(0, 10, 50)
     y = np.where(x < 5, 2 * x, 10 + 0.5 * (x - 5))
-    bkpts, y_pred, rmse = fit_piecewise_linear(x, y, n_segments=2)
-    assert len(bkpts) == 3
-    assert rmse < 0.1
+    result = fit_piecewise_linear(x, y, n_segments=2)
+    assert result.n_segments == 2
+    assert len(result.breakpoints_x) == 3
+    assert result.rmse < 0.1
 
 
 def test_rdp_compress():

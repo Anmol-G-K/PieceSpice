@@ -214,9 +214,20 @@ pyrightconfig.json
 MISC/*
 Spice-Library/*
 SpiceModels/*
-.codegraph/
+.codegraph/*
+.benchmarks/*
+download/
+downloads/
+data/
+
 
 *.lib
+!reports/models/*_PIECESPICE_T2.lib
+!reports/models/*_PIECESPICE_T3.lib
+!reports/models/*_PIECESPICE_T3_simplis.lib
+!reports/models/*_PIECESPICE_T4.lib
+!reports/models/*_PIECSPICE_UROM.lib
+!reports/models/*_PIECSPICE_UROM_ann_trap-default.lib
 *.zip
 *.7z
 *.tar
@@ -224,3 +235,10 @@ SpiceModels/*
 *.tgz
 *.tar.bz2
 *.tar.xz
+
+# Generated during local runs / CI; new plots live in figures/<model>/.
+.pytest_cache/
+.ruff_cache/
+reports/pytest_report.html
+reports/models_check/
+simulation/reports/

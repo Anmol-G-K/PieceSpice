@@ -1,0 +1,130 @@
+{
+  "irfs7730pbf": {
+    "A_base": {
+      "mean_rel": 14.5,
+      "worst_rel": 35.18,
+      "mean_norm": 14.5,
+      "worst_end": 3.48
+    },
+    "B_unclamped": {
+      "mean_rel": 17.76,
+      "worst_rel": 22.58,
+      "mean_norm": 17.76,
+      "worst_end": 5.51
+    },
+    "C_perVgs_rds": {
+      "mean_rel": 16.83,
+      "worst_rel": 51.38,
+      "mean_norm": 16.83,
+      "worst_end": 5.21
+    },
+    "D_perVgs_fit": {
+      "mean_rel": 6.56,
+      "worst_rel": 14.34,
+      "mean_norm": 6.56,
+      "worst_end": 16.14
+    },
+    "E_vgs_minus_vth": {
+      "mean_rel": 19.94,
+      "worst_rel": 51.38,
+      "mean_norm": 19.94,
+      "worst_end": 8.74
+    }
+  },
+  "csd16412q5a": {
+    "A_base": {
+      "mean_rel": 9.99,
+      "worst_rel": 13.44,
+      "mean_norm": 9.99,
+      "worst_end": 0.5
+    },
+    "B_unclamped": {
+      "mean_rel": 10.72,
+      "worst_rel": 14.52,
+      "mean_norm": 10.72,
+      "worst_end": 0.92
+    },
+    "C_perVgs_rds": {
+      "mean_rel": 11.21,
+      "worst_rel": 17.11,
+      "mean_norm": 11.21,
+      "worst_end": 0.9
+    },
+    "D_perVgs_fit": {
+      "mean_rel": 9.49,
+      "worst_rel": 13.4,
+      "mean_norm": 9.49,
+      "worst_end": 0.81
+    },
+    "E_vgs_minus_vth": {
+      "mean_rel": 18.07,
+      "worst_rel": 27.37,
+      "mean_norm": 18.07,
+      "worst_end": 16.05
+    }
+  },
+  "epc2216": {
+    "A_base": {
+      "mean_rel": 9.26,
+      "worst_rel": 11.87,
+      "mean_norm": 9.26,
+      "worst_end": 0.17
+    },
+    "B_unclamped": {
+      "mean_rel": 9.26,
+      "worst_rel": 11.87,
+      "mean_norm": 9.26,
+      "worst_end": 0.17
+    },
+    "C_perVgs_rds": {
+      "mean_rel": 3.83,
+      "worst_rel": 6.52,
+      "mean_norm": 3.83,
+      "worst_end": 0.17
+    },
+    "D_perVgs_fit": {
+      "mean_rel": 1.9,
+      "worst_rel": 2.36,
+      "mean_norm": 1.9,
+      "worst_end": 0.17
+    },
+    "E_vgs_minus_vth": {
+      "mean_rel": 15.13,
+      "worst_rel": 22.32,
+      "mean_norm": 15.13,
+      "worst_end": 0.46
+    }
+  },
+  "cpm2-1200": {
+    "A_base": {
+      "mean_rel": 14.56,
+      "worst_rel": 23.22,
+      "mean_norm": 14.56,
+      "worst_end": 0.37
+    },
+    "B_unclamped": {
+      "mean_rel": 9.17,
+      "worst_rel": 23.75,
+      "mean_norm": 9.17,
+      "worst_end": 4.05
+    },
+    "C_perVgs_rds": {
+      "mean_rel": 9.41,
+      "worst_rel": 11.92,
+      "mean_norm": 9.41,
+      "worst_end": 3.98
+    },
+    "D_perVgs_fit": {
+      "mean_rel": 2.83,
+      "worst_rel": 3.43,
+      "mean_norm": 2.83,
+      "worst_end": 6.79
+    },
+    "E_vgs_minus_vth": {
+      "mean_rel": 12.52,
+      "worst_rel": 15.96,
+      "mean_norm": 12.52,
+      "worst_end": 18.75
+    }
+  }
+}

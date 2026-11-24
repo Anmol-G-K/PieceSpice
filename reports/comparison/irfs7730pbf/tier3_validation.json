@@ -1,0 +1,333 @@
+{
+  "schema": "piecespice.tier3/2.0",
+  "vendor": "irfs7730pbf",
+  "variant": "v1",
+  "emission": {
+    "compact": false,
+    "rel_tol": 0.005,
+    "table_points": 29,
+    "vgs_points": 22,
+    "max_rel_error_pct": 0.0,
+    "estimated_literal_count": 1395,
+    "source": "default"
+  },
+  "methods": [
+    "TPWL (Rewienski & White 2003)",
+    "POD-DEIM anchors (Chaturantabut & Sorensen 2010)"
+  ],
+  "algorithm": {
+    "weight_exponent": 25.0,
+    "cells": 32,
+    "pod_energy": [
+      0.977344389766151,
+      0.022655610233848912
+    ],
+    "deim_seed_count": 2,
+    "edge_smoothing_window": 21,
+    "anchors_scaled": [
+      [
+        -0.4989799387168823,
+        0.5045796685807056
+      ],
+      [
+        0.5010200612831177,
+        0.49757102467218817
+      ],
+      [
+        -0.04897993871688229,
+        -0.49559041595535286
+      ],
+      [
+        0.5010200612831177,
+        -0.21437476466467065
+      ],
+      [
+        -0.4989799387168823,
+        -0.10978686122753183
+      ],
+      [
+        0.03151904275894779,
+        0.4918799372263611
+      ],
+      [
+        -0.4489799387168823,
+        -0.4890385135933331
+      ],
+      [
+        0.5010200612831177,
+        0.14432062437905788
+      ],
+      [
+        0.3010200612831177,
+        -0.49559041595535286
+      ],
+      [
+        -0.1989799387168823,
+        -0.23871883975760713
+      ],
+      [
+        0.10102006128311772,
+        -0.23871883975760713
+      ],
+      [
+        -0.4989799387168823,
+        0.2427195841307583
+      ],
+      [
+        -0.244660318584436,
+        0.5045135261880002
+      ],
+      [
+        0.5010200612831177,
+        -0.42623509038196156
+      ],
+      [
+        0.3010200612831177,
+        -0.28752443923517884
+      ],
+      [
+        0.2315190427589478,
+        0.497397976575125
+      ],
+      [
+        -0.2489799387168823,
+        -0.4891454376705778
+      ],
+      [
+        -0.4989799387168823,
+        -0.29549905849310215
+      ],
+      [
+        0.10102006128311772,
+        -0.4108227958100968
+      ],
+      [
+        -0.04897993871688229,
+        -0.32348645990286323
+      ],
+      [
+        -0.4989799387168823,
+        0.04413714287216745
+      ],
+      [
+        0.5010200612831177,
+        0.2878384948287915
+      ],
+      [
+        0.5010200612831177,
+        0.0026585134911761713
+      ],
+      [
+        -0.1989799387168823,
+        -0.36972334361845743
+      ],
+      [
+        -0.4989799387168823,
+        0.3590764974681475
+      ],
+      [
+        -0.385130871028894,
+        0.4810280773411089
+      ],
+      [
+        0.5010200612831177,
+        -0.32091774414088575
+      ],
+      [
+        0.3010200612831177,
+        -0.3928417854762546
+      ],
+      [
+        -0.06848095724105221,
+        0.48809208488203887
+      ],
+      [
+        0.1315190427589478,
+        0.4959539166620901
+      ],
+      [
+        -0.34897993871688227,
+        -0.4890993454561982
+      ],
+      [
+        -0.14897993871688228,
+        -0.4891795607147033
+      ]
+    ],
+    "v_block_vth": 4.348318313631395,
+    "v_width_v": 0.09933774834437085
+  },
+  "function_fit": {
+    "static_curve_rmse_rel": 2.1623174799637424,
+    "emitted_static_curve_rmse_rel": 0.016986504438304583,
+    "static_samples": 505,
+    "heldout_id_rmse_rel": 51016665.49446456,
+    "heldout_qg_rmse_rel": 0.11254048018930404,
+    "cell_selection_error_rel": 0.016986504438304583
+  },
+  "generalization": {
+    "status": "not_measured",
+    "n_trajectories": 1,
+    "trajectory_sources": [
+      "irfs7730pbf:primary"
+    ],
+    "cv_status": "not_measured",
+    "holdout_id_rmse_rel": "not_measured",
+    "holdout_qg_rmse_rel": "not_measured",
+    "selection_error_source": "emitted_static_rmse_rel",
+    "reason": "no config['tier3']['training_conditions']; single configured DPT trajectory only",
+    "physical_elements": {
+      "include_gate_charge": false,
+      "include_body_diode": false,
+      "include_parasitics": false
+    }
+  },
+  "dpt_run": {
+    "completed": true,
+    "trace_points": 7453,
+    "golden_trace_points": 7114,
+    "iterations": 20840,
+    "t_last_s": 1.4e-05,
+    "error": null,
+    "waveform": {
+      "vds_rel_rmse_pct": 12.69782728030255,
+      "id_rel_rmse_pct": 10.958241287070104,
+      "compare_points": 7114,
+      "current_definition": "I(Lload)-I(Dclamp)"
+    },
+    "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+    "golden_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+    "current_definitions": {
+      "golden": "I(Lload)-I(Dclamp)",
+      "tier3": "I(Lload)-I(Dclamp)"
+    }
+  },
+  "dpt_comparison": {
+    "td_on_ns": {
+      "golden": 32.29627698150211,
+      "tier3": 7.28013718858105,
+      "tier3_rel_err_pct": -77.45827733410017,
+      "tier2": 17.081334133714805,
+      "tier2_rel_err_pct": -47.11051634992404
+    },
+    "tr_ns": {
+      "golden": 25.84350961529235,
+      "tier3": 1.1840159391480125,
+      "tier3_rel_err_pct": -95.41851723402384,
+      "tier2": 2.892552707266252,
+      "tier2_rel_err_pct": -88.80743076182407
+    },
+    "td_off_ns": {
+      "golden": 62.182902750101924,
+      "tier3": 7.7454353194928975,
+      "tier3_rel_err_pct": -87.54410782233835,
+      "tier2": 17.134184632214943,
+      "tier2_rel_err_pct": -72.44550531667346
+    },
+    "tf_ns": {
+      "golden": 26.538999478329874,
+      "tier3": 1.4734093641872195,
+      "tier3_rel_err_pct": -94.4481352230693,
+      "tier2": 2.5289703561538817,
+      "tier2_rel_err_pct": -90.47073964405146
+    },
+    "dv_dt_max_v_per_ns": {
+      "golden": 35.93467060024436,
+      "tier3": 2952.53049344,
+      "tier3_rel_err_pct": 8116.383910361828,
+      "tier2": 587.4770711811311,
+      "tier2_rel_err_pct": 1534.8475201471201
+    },
+    "di_dt_max_a_per_ns": {
+      "golden": 443.4892816651921,
+      "tier3": 14250.666296363337,
+      "tier3_rel_err_pct": 3113.3056841544453,
+      "tier2": 3047.309280530866,
+      "tier2_rel_err_pct": 587.121291655342
+    },
+    "e_on_uj": {
+      "golden": 45.245028252444335,
+      "tier3": 7.937976086543432,
+      "tier3_rel_err_pct": -82.45558375551553,
+      "tier2": 12.87606452326207,
+      "tier2_rel_err_pct": -71.54148196920079,
+      "golden_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+      "tier3_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+      "tier2_energy_current_definition": "I(Lload)-I(Dclamp) signed"
+    },
+    "e_off_uj": {
+      "golden": 77.71585232747914,
+      "tier3": 3.316174824285924,
+      "tier3_rel_err_pct": -95.73294929545104,
+      "tier2": 12.874695226822267,
+      "tier2_rel_err_pct": -83.43363053837348,
+      "golden_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+      "tier3_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+      "tier2_energy_current_definition": "I(Lload)-I(Dclamp) signed"
+    },
+    "i_peak_a": {
+      "golden": 138.53150939941406,
+      "tier3": 137.2167358398615,
+      "tier3_rel_err_pct": -0.9490790689082826,
+      "tier2": 136.99034118652344,
+      "tier2_rel_err_pct": -1.1125037325964078
+    }
+  },
+  "energy_current_definition": {
+    "golden": "I(Lload)-I(Dclamp) signed",
+    "tier3": "I(Lload)-I(Dclamp) signed",
+    "tier2": "I(Lload)-I(Dclamp) signed",
+    "rule": "switching energy integrates the signed device current I(Lload)-I(Dclamp); timing/G3 remain on its absolute magnitude"
+  },
+  "runtime": {
+    "method": "default/trap",
+    "max_step_s": 2e-09,
+    "end_time_s": 1.4e-05,
+    "guard": {
+      "golden": {
+        "t_last_s": 1.4e-05,
+        "iterations": 14825,
+        "trace_points": 7114,
+        "end_time_s": 1.4e-05
+      },
+      "tier3": {
+        "t_last_s": 1.4e-05,
+        "iterations": 20840,
+        "trace_points": 7453,
+        "end_time_s": 1.4e-05
+      }
+    },
+    "golden": {
+      "wall_clock_s": 0.8250843999994686,
+      "solver_elapsed_s": 0.349,
+      "iterations": 14825.0,
+      "trace_points": 7114.0,
+      "t_last_s": 1.4e-05
+    },
+    "tier3": {
+      "wall_clock_s": 1.1110656000018935,
+      "solver_elapsed_s": 0.592,
+      "iterations": 20840.0,
+      "trace_points": 7453.0,
+      "t_last_s": 1.4e-05
+    },
+    "tier3_bench_completed": true,
+    "solver_speedup": 0.589527027027027,
+    "bench_wall_s": {
+      "golden": 2.492534099998011,
+      "tier3": 3.3003076999957557
+    },
+    "scope": "forced 2ns fidelity control; not the adaptive speed claim"
+  },
+  "current_definitions": {
+    "golden": "I(Lload)-I(Dclamp)",
+    "tier3": "I(Lload)-I(Dclamp)"
+  },
+  "build_seconds": {
+    "capture": 0.9082614999933867,
+    "training_captures": 3.00002284348011e-07,
+    "fit": 24.837675499999023
+  },
+  "spice_log_tail": "Total elapsed time: 0.573 seconds.\nTotal iterations: 20840\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_8o09dpqi\\tran.net\n",
+  "emitted_lib": "reports\\models\\irfs7730pbf_PIECESPICE_T3.lib"
+}

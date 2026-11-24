@@ -1,194 +1,448 @@
-"""NgSpice execution engine using PySpice with error isolation.
+"""Simulation execution engine for the spicelib + LTspice backend.
 
-Every analysis call wraps PySpice/ngspice exceptions with the circuit title and
-the solver options in effect, so convergence failures are diagnosable instead
-of surfacing as bare low-level errors. A hard ngspice shared-library crash
-still terminates the host process (PySpice limitation) — that cannot be caught
-at this layer; long unattended runs should use process-level isolation.
+Replaces the retired PySpice/ngspice in-process engine. Architecture:
+
+- Netlist TEXT goes in (testbenches generate complete SPICE netlists via
+  the shared text-builder utilities; the engine never parses circuits).
+- LTspice executes out-of-process via spicelib.SimRunner: solver crashes
+  are subprocess failures, never Python faults.
+- Waveforms come back as a SimResult: {trace_name: ndarray} parsed from
+  the .raw file with spicelib.RawRead, plus the classified .log contents.
+
+All analysis methods share one execution path (_execute) so timeout,
+workdir hygiene, diagnostics, and error translation behave identically
+for transient, DC, AC and OP runs.
 """
+from __future__ import annotations
 
-from typing import Optional
-from PySpice.Spice.Netlist import Circuit
+import os
+import re
+import shutil
+import tempfile
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import numpy as np
+
+from common.diagnostics import get_diagnostics
+
+_DEFAULT_TIMEOUT_S = 300.0
+
+
+# ---------------------------------------------------------------------------
+# Analysis directives (structured; the engine renders the dot-card)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class TranDirective:
+    """.tran - transient analysis."""
+    step_time: float
+    end_time: float
+    start_time: float = 0.0
+    max_step: float | None = None
+
+
+@dataclass
+class DCDirective:
+    """.dc - sweep one independent source. The source element must exist in
+    the netlist text under the given name (e.g. 'V1')."""
+    source_name: str
+    start: float
+    stop: float
+    step: float
+
+
+@dataclass
+class ACDirective:
+    """.ac - small-signal frequency sweep."""
+    start_freq: float
+    stop_freq: float
+    n_points: int = 1
+    variation: str = "lin"          # lin | oct | dec
+
+
+@dataclass
+class OPDirective:
+    """`.op` - single operating point."""
+    pass
+
+
+def _fmt(x: float) -> str:
+    return f"{x:.6g}"
+
+
+def render_directive(d) -> str:
+    """Render an analysis directive object as its SPICE dot-card line."""
+    if isinstance(d, TranDirective):
+        card = (f".tran 0 {_fmt(d.end_time)} {_fmt(d.start_time)}")
+        if d.max_step is not None:
+            card += f" {_fmt(d.max_step)}"
+        return card
+    if isinstance(d, DCDirective):
+        return (f".dc {d.source_name} {_fmt(d.start)} {_fmt(d.stop)} "
+                f"{_fmt(d.step)}")
+    if isinstance(d, ACDirective):
+        return (f".ac {d.variation} {d.n_points} "
+                f"{_fmt(d.start_freq)} {_fmt(d.stop_freq)}")
+    if isinstance(d, OPDirective):
+        return ".op"
+    raise TypeError(f"unsupported directive type: {type(d)!r}")
+
+
+# ---------------------------------------------------------------------------
+# Result container
+# ---------------------------------------------------------------------------
+
+@dataclass
+class SimResult:
+    """One completed LTspice run.
+
+    traces      : trace name -> 1-D ndarray, names exactly as LTspice writes
+                  them ("V(drain)", "I(Rload)", ...). The sweep variable is
+                  included under its raw-file name ("time"/"frequency"/the
+                  swept source's trace). No sign rewriting happens here -
+                  callers own polarity interpretation.
+    sweep_var   : name of the independent-variable trace.
+    log_text    : full .log contents.
+    warnings    : deduplicated warning records from the diagnostics layer.
+    netlist_path/raw_path/log_path : artifact paths (temp dir unless kept).
+    """
+
+    traces: dict
+    sweep_var: str
+    log_text: str = ""
+    warnings: list[str] = field(default_factory=list)
+    netlist_path: Path | None = None
+    raw_path: Path | None = None
+    log_path: Path | None = None
+
+    def get(self, name: str):
+        try:
+            return self.traces[name]
+        except KeyError:
+            raise KeyError(
+                f"trace {name!r} not found; available: {sorted(self.traces)}")
+
+
+class LTSpiceError(RuntimeError):
+    """Solver failure: carries exit status plus the log tail."""
+
+    def __init__(self, message: str, *, log_tail: str = "",
+                 returncode: int | None = None):
+        super().__init__(message)
+        self.log_tail = log_tail
+        self.returncode = returncode
+
+
+# ---------------------------------------------------------------------------
+# Engine
+# ---------------------------------------------------------------------------
+
+def _inline_includes(netlist_text: str, _depth: int = 0) -> str:
+    """Replace every .include/.lib directive with the referenced file's
+    contents, in place.
+
+    LTspice 26's -b (batch) mode silently ignores external file loading,
+    so a netlist relying on .include simulates without its subcircuits.
+    Inlining makes the netlist self-contained. Nested includes are
+    followed up to a small depth limit; comment lines in the included
+    file are preserved (harmless).
+    """
+    if _depth > 4:
+        raise LTSpiceError(".include nesting too deep (limit 4)")
+    out = []
+    for line in netlist_text.splitlines():
+        s = line.strip()
+        low = s.lower()
+        m = re.match(r"\.(include|lib)\s+(.+)$", low)
+        if not m:
+            out.append(line)
+            continue
+        raw_path = s[len(m.group(1)) + 1:].strip().strip('"')
+        f = Path(raw_path)
+        if not f.is_absolute():
+            # resolve relative to the repo root first, then CWD
+            cand = Path(__file__).resolve().parent.parent / f
+            f = cand if cand.exists() else f
+        if not f.exists():
+            raise LTSpiceError(f".include target not found: {raw_path!r}")
+        body = _inline_includes(
+            f.read_text(encoding="utf-8", errors="replace"), _depth + 1)
+        out.append(f"* ---- inlined from {f.name} ----")
+        out.append(body)
+    return "\n".join(out)
 
 
 class SpiceEngine:
-    """Robust circuit simulator execution wrapper."""
+    """Out-of-process LTspice execution via spicelib.
 
-    def __init__(
-        self,
-        temperature: float = 25.0,
-        reltol: float = 1e-3,
-        abstol: float = 1e-12,
-        vntol: float = 1e-6,
-        gmin: Optional[float] = None,
-        itl1: Optional[int] = None,
-        itl4: Optional[int] = None,
-    ):
-        """Solver options (None leaves ngspice defaults untouched).
+    Resolution order for the executable: explicit argument > LTSPICE_EXE
+    environment variable > standard install locations. Paths are stored as
+    native Windows strings (MSYS-style paths are rejected by the exe).
+    """
 
-        Args:
-            temperature: Analysis and nominal temperature [degC]. NOTE: vendor
-                macromodels are not always temperature-parameterized — if a
-                model ignores .TEMP the option is harmless but has no effect.
-            reltol: Relative error tolerance.
-            abstol: Absolute current tolerance [A].
-            vntol: Absolute voltage tolerance [V].
-            gmin: Minimum conductance [S] (convergence aid).
-            itl1: DC operating-point iteration limit.
-            itl4: Transient time-step iteration limit.
+    _KNOWN_LOCATIONS = (
+        r"C:\Program Files\ADI\LTspice\LTspice.exe",
+        r"C:\Program Files\LTC\LTspiceXVII\XVIIx64.exe",
+    )
+
+    def __init__(self, ltspice_exe: str | None = None,
+                 timeout_s: float = _DEFAULT_TIMEOUT_S,
+                 temperature: float = 25.0,
+                 keep_files: bool = True):
+        self.ltspice_exe = self._resolve_exe(ltspice_exe)
+        self.timeout_s = float(timeout_s)
+        self.temperature = float(temperature)
+        self.keep_files = bool(keep_files)
+
+    @classmethod
+    def _resolve_exe(cls, explicit: str | None) -> str:
+        if explicit:
+            cand = Path(explicit)
+            if not cand.exists():
+                raise FileNotFoundError(f"LTspice not found at {cand}")
+            return str(cand)
+
+        env = os.environ.get("LTSPICE_EXE")
+        if env and Path(env).exists():
+            return str(Path(env))
+
+        local = Path(os.environ.get("LOCALAPPDATA", "")) / \
+            "Programs/ADI/LTspice/LTspice.exe"
+        if local.exists():
+            return str(local)
+
+        for loc in cls._KNOWN_LOCATIONS:
+            if Path(loc).exists():
+                return loc
+
+        raise FileNotFoundError(
+            "LTspice executable not found. Install LTspice or set the "
+            "LTSPICE_EXE environment variable.")
+
+    # -- public analysis API -------------------------------------------------
+
+    def run_transient(self, netlist_text: str, d: TranDirective, *,
+                      timeout_s: float | None = None) -> SimResult:
+        card = render_directive(d)
+        if self._has_directive(netlist_text, "tran"):
+            import logging
+            logging.getLogger(__name__).warning(
+                "netlist already contains a .%s card; the supplied "
+                "%s directive object is ignored", "tran", "tran")
+        if not self._has_directive(netlist_text, "tran"):
+            netlist_text = self._append_card(netlist_text, card, "tran")
+        return self._execute(netlist_text, "tran", timeout_s)
+
+    def run_dc_sweep(self, netlist_text: str, d: DCDirective, *,
+                     timeout_s: float | None = None) -> SimResult:
+        card = render_directive(d)
+        if self._has_directive(netlist_text, "dc"):
+            import logging
+            logging.getLogger(__name__).warning(
+                "netlist already contains a .%s card; the supplied "
+                "%s directive object is ignored", "dc", "dc")
+        if not self._has_directive(netlist_text, "dc"):
+            netlist_text = self._append_card(netlist_text, card, "dc")
+        return self._execute(netlist_text, "dc", timeout_s)
+
+    def run_ac_sweep(self, netlist_text: str, d: ACDirective, *,
+                     timeout_s: float | None = None) -> SimResult:
+        card = render_directive(d)
+        if self._has_directive(netlist_text, "ac"):
+            import logging
+            logging.getLogger(__name__).warning(
+                "netlist already contains a .%s card; the supplied "
+                "%s directive object is ignored", "ac", "ac")
+        if not self._has_directive(netlist_text, "ac"):
+            netlist_text = self._append_card(netlist_text, card, "ac")
+        return self._execute(netlist_text, "ac", timeout_s)
+
+    def run_op(self, netlist_text: str, *,
+               timeout_s: float | None = None) -> SimResult:
+        if self._has_directive(netlist_text, "op"):
+            import logging
+            logging.getLogger(__name__).warning(
+                "netlist already contains a .%s card; the supplied "
+                "%s directive object is ignored", "op", "op")
+        if not self._has_directive(netlist_text, "op"):
+            netlist_text = self._append_card(netlist_text, ".op", "op")
+        return self._execute(netlist_text, "op", timeout_s)
+
+    # -- internals -------------------------------------------------------------
+
+    @staticmethod
+    def _has_directive(netlist_text: str, kind: str) -> bool:
+        """True when a line starts with the dot-card kind followed by a
+        word boundary (space/tab/end), so '.acplot' cannot match '.ac'.
+        Comment lines ('*') are ignored."""
+        prefix = f".{kind.lower()}"
+        for ln in netlist_text.splitlines():
+            s = ln.strip()
+            if s.startswith("*"):
+                continue
+            low = s.lower()
+            if low.startswith(prefix):
+                rest = low[len(prefix):]
+                if rest == "" or not (rest[0].isalnum() or rest[0] == "_"):
+                    return True
+        return False
+
+    def _append_card(self, netlist_text: str, card_line: str,
+                     kind: str) -> str:
+        """Insert the analysis card before .end (or append if absent)."""
+        lines = netlist_text.rstrip().splitlines()
+        out, inserted = [], False
+        for ln in lines:
+            if ln.strip().lower() == ".end" and not inserted:
+                out.append(card_line)
+                inserted = True
+            out.append(ln)
+        if not inserted:
+            out.append(card_line)
+        return "\n".join(out) + "\n"
+
+    @staticmethod
+    def _has_temp_directive(netlist_text: str) -> bool:
+        """True when the deck already declares an active `.temp` card.
+
+        LTspice aborts when a netlist sets the temperature twice, so the
+        engine must not inject a card into a deck that already carries one
+        (unified DPT decks have explicit `.temp` cards for sandbox parity).
+        Matching is case-insensitive and tolerates leading whitespace and
+        trailing inline comments; lines commented out with '*' or ';' and
+        longer dot-cards such as `.temperature` are not directives.
         """
-        self.temperature = temperature
-        self.reltol = reltol
-        self.abstol = abstol
-        self.vntol = vntol
-        self.gmin = gmin
-        self.itl1 = itl1
-        self.itl4 = itl4
-
-    def _options(self) -> dict:
-        opts: dict = {
-            "RELTOL": self.reltol,
-            "ABSTOL": self.abstol,
-            "VNTOL": self.vntol,
-        }
-        if self.gmin is not None:
-            opts["GMIN"] = self.gmin
-        if self.itl1 is not None:
-            opts["ITL1"] = self.itl1
-        if self.itl4 is not None:
-            opts["ITL4"] = self.itl4
-        return opts
-
-    def _make_simulator(self, circuit: Circuit):
-        simulator = circuit.simulator(
-            temperature=self.temperature,
-            nominal_temperature=self.temperature,
-        )
-        # .OPTIONS surface; ignore failures from backends that reject keys.
-        try:
-            for key, value in self._options().items():
-                simulator.options(**{key: value})
-        except Exception as exc:  # pragma: no cover - backend-dependent
-            print(f"[engine] WARNING: solver options rejected ({exc}); "
-                  f"continuing with ngspice defaults.")
-        return simulator
-
-    def create_circuit(self, title: str) -> Circuit:
-        return Circuit(title)
-
-    def run_dc_sweep(
-        self,
-        circuit: Circuit,
-        sweep_source: str,
-        start: float,
-        stop: float,
-        step: float
-    ):
-        """Execute DC operating point sweep.
-
-        If the native .dc sweep fails (some behavioral models - e.g. Wolfspeed
-        SiC under ngspice-34 - fail source-stepping mid-sweep), falls back to
-        a sequence of individual operating points and assembles an equivalent
-        result object. Warns when the fallback is used.
-        """
-        try:
-            simulator = self._make_simulator(circuit)
-            return simulator.dc(**{sweep_source: slice(start, stop, step)})
-        except Exception as dc_exc:
-            print(f"[engine] .dc failed for {circuit.title!r}; "
-                  f"falling back to per-point OP sweep.")
-            return self._op_points_sweep(
-                circuit, sweep_source, start, stop, step)
-
-    def _op_points_sweep(
-        self,
-        circuit: Circuit,
-        sweep_source: str,
-        start: float,
-        stop: float,
-        step: float
-    ):
-        """Emulate a DC sweep via successive operating points."""
-        import numpy as np
-        simulator = self._make_simulator(circuit)
-
-        n = max(2, int(round((stop - start) / step)) + 1)
-        values = np.linspace(start, stop, n)
-
-        # Discover node names once from a probe op at the first value.
-        probe = Circuit(f"{circuit.title}_probe")
-        probe.raw_spice = ""
-        # We cannot easily clone; instead operate on the same circuit by
-        # temporarily converting the swept source to PWL. Simplest robust
-        # approach: use ngspice's own .dc on a modified stepped-source is not
-        # possible here, so drive the source parametrically via element reuse.
-
-        # Fallback strategy: coarser steps, then edge shrink. The last sweep
-        # point frequently hits model clamp boundaries (E100 limit, exp
-        # overflow) that the interior tolerates.
-        for factor in (4, 8):
-            coarse = step * factor
-            if coarse >= (stop - start):
+        prefix = ".temp"
+        for ln in netlist_text.splitlines():
+            s = ln.strip()
+            if not s or s.startswith("*") or s.startswith(";"):
                 continue
-            try:
-                sim2 = self._make_simulator(circuit)
-                result = sim2.dc(**{sweep_source: slice(start, stop, coarse)})
-                print(f"[engine] fallback succeeded with step x{factor}.")
-                return result
-            except Exception:
-                continue
+            low = s.lower()
+            if low.startswith(prefix):
+                rest = low[len(prefix):]
+                if rest == "" or not (rest[0].isalnum() or rest[0] == "_"):
+                    return True
+        return False
 
-        for shrink in (0.995, 0.99):
-            new_stop = stop * shrink
-            if new_stop <= start:
-                continue
-            try:
-                sim3 = self._make_simulator(circuit)
-                result = sim3.dc(**{sweep_source: slice(start, new_stop, step)})
-                print(f"[engine] fallback succeeded with stop shrunk to "
-                      f"{new_stop:.4g} ({shrink:.1%}).")
-                return result
-            except Exception:
-                continue
+    def _temperature_cards(self) -> list[str]:
+        """LTspice default temp is 27 C; emit a card when we differ."""
+        return [f".temp {self.temperature:g}"] \
+            if abs(self.temperature - 27.0) > 1e-9 else []
 
-        raise RuntimeError(
-            f"DC sweep of {sweep_source!r} [{start}, {stop}] failed for "
-            f"circuit {circuit.title!r} including coarse-step and edge-shrink "
-            f"fallbacks."
-        )
+    def _prepare_workdir(self, netlist_text: str, tag: str) -> tuple[Path, Path]:
+        workdir = Path(tempfile.mkdtemp(prefix=f"piecespice_{tag}_"))
+        netlist_path = workdir / f"{tag}.net"
+        # F-T32 fix: LTspice 26 -b ignores .include/.lib file loads; inline
+        # everything so the written netlist is self-contained.
+        netlist_text = _inline_includes(netlist_text)
+        body = netlist_text.rstrip()
+        cards = ""
+        if not self._has_temp_directive(netlist_text):
+            cards = "\n".join(self._temperature_cards())
+        if cards:
+            # temperature card must precede .end
+            lines_ = body.splitlines()
+            out, inserted = [], False
+            for ln in lines_:
+                if ln.strip().lower() == ".end" and not inserted:
+                    out.append(cards)
+                    inserted = True
+                out.append(ln)
+            if not inserted:
+                out.append(cards)
+            body = "\n".join(out)
+        netlist_path.write_text(body + "\n", encoding="ascii", errors="replace")
+        return workdir, netlist_path
 
-    def run_transient(
-        self,
-        circuit: Circuit,
-        step_time: float,
-        end_time: float,
-        start_time: float = 0.0
-    ):
-        """Execute time-domain transient analysis."""
+    def _execute(self, netlist_text: str, tag: str,
+                 timeout_s: float | None) -> SimResult:
+        """Shared path: write netlist -> run LTspice -> parse raw + log."""
+        from spicelib import RawRead
+
+        timeout = self.timeout_s if timeout_s is None else float(timeout_s)
+        workdir, netlist_path = self._prepare_workdir(netlist_text, tag)
+        raw_path = netlist_path.with_suffix(".raw")
+        log_path = netlist_path.with_suffix(".log")
+
+        cmd = [self.ltspice_exe, "-b", "-ascii", "-Run",
+               str(netlist_path)]
         try:
-            simulator = self._make_simulator(circuit)
-            return simulator.transient(
-                step_time=step_time, end_time=end_time, start_time=start_time
-            )
-        except Exception as exc:
-            raise RuntimeError(
-                f"Transient [{start_time}, {end_time}], step={step_time} failed "
-                f"for circuit {circuit.title!r} (options={self._options()}): {exc}"
-            ) from exc
+            completed = subprocess_run(cmd, timeout=timeout, cwd=str(workdir))
+            rc = completed.returncode
+        except TimeoutExpired as exc:
+            raise LTSpiceError(
+                f"LTspice timed out after {timeout:g}s ({tag})",
+                log_tail=self._log_tail(log_path), returncode=None) from exc
 
-    def run_ac_sweep(self, circuit: Circuit, start_frequency, stop_frequency,
-                     number_of_points: int, variation: str = 'lin'):
-        """Execute small-signal AC analysis."""
-        try:
-            simulator = self._make_simulator(circuit)
-            return simulator.ac(
-                start_frequency=start_frequency,
-                stop_frequency=stop_frequency,
-                number_of_points=number_of_points,
-                variation=variation,
-            )
-        except Exception as exc:
-            raise RuntimeError(
-                f"AC sweep [{start_frequency}, {stop_frequency}] failed for "
-                f"circuit {circuit.title!r}: {exc}"
-            ) from exc
+        log_text = (log_path.read_text(encoding="utf-8", errors="ignore")
+                    if log_path.exists() else "")
+
+        diag = get_diagnostics()
+        diag.parse_log_text(log_text)
+
+        if not raw_path.exists():
+            tail = "\n".join(log_text.splitlines()[-12:])
+            raise LTSpiceError(
+                f"LTspice produced no raw output for '{tag}' "
+                f"(rc={rc}). Solver likely failed.",
+                log_tail=tail, returncode=rc)
+
+        raw = RawRead(str(raw_path))
+        traces = {}
+        sweep_var = None
+        for name in raw.get_trace_names():
+            wave = np.asarray(raw.get_trace(name).get_wave())
+            traces[name] = wave
+            if name.lower() in ("time", "frequency") or sweep_var is None:
+                if name.lower() in ("time", "frequency"):
+                    sweep_var = name
+        if sweep_var is None:
+            first = next(iter(traces))
+            sweep_var = first
+
+        warning_records = [
+            r.rule_name for r in diag.records.values()
+            if r.severity in ("error", "warning")]
+
+        result = SimResult(
+            traces=traces, sweep_var=sweep_var, log_text=log_text,
+            warnings=warning_records,
+            netlist_path=Path(netlist_path).resolve(),
+            raw_path=raw_path, log_path=log_path)
+
+        if not self.keep_files:
+            shutil.rmtree(workdir, ignore_errors=True)
+        return result
+
+    @staticmethod
+    def _log_tail(log_path: Path, n: int = 12) -> str:
+        if not log_path.exists():
+            return ""
+        lines = log_path.read_text(encoding="utf-8",
+                                   errors="ignore").splitlines()
+        return "\n".join(lines[-n:])
+
+
+# ---------------------------------------------------------------------------
+# subprocess helper (kept separate so tests can monkeypatch it)
+# ---------------------------------------------------------------------------
+
+class TimeoutExpired(TimeoutError):
+    pass
+
+
+def subprocess_run(cmd: list[str], timeout: float, cwd: str):
+    """Thin wrapper around subprocess.run with LTspice-appropriate flags.
+
+    LTspice returns 0 even on some solver errors (it writes diagnostics to
+    the log instead); callers must therefore check for .raw existence, not
+    just return code.
+    """
+    import subprocess as _sp
+
+    try:
+        return _sp.run(cmd, capture_output=True, text=True,
+                       timeout=timeout, cwd=cwd)
+    except _sp.TimeoutExpired as exc:
+        raise TimeoutExpired(str(exc)) from exc

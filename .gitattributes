@@ -1,0 +1,66 @@
+# PieceSpice .gitattributes
+# Normalize line endings: LF in repo, native on checkout for text sources.
+
+* text=auto
+
+# --- Python / config / docs: always LF in repository ---
+*.py          text diff=python
+*.ipynb       text
+*.yaml        text
+*.yml         text
+*.toml        text
+*.json        text
+*.md          text
+*.txt         text
+*.cfg         text
+*.ini         text
+
+# --- SPICE sources: LF (vendor files may be CRLF; keep as-is) ---
+*.lib         text
+*.spi         text
+*.net         text
+*.cir         text
+*.sp          text
+# raw simulation output is binary
+*.raw         binary
+
+# --- Windows scripts ---
+*.bat         text eol=crlf
+*.ps1         text eol=crlf
+
+# --- Binaries: never touch ---
+*.png         binary
+*.jpg         binary
+*.jpeg        binary
+*.gif         binary
+*.ico         binary
+*.pdf         binary
+*.zip         binary
+*.7z          binary
+*.dll         binary
+*.exe         binary
+*.cm          binary
+*.parquet     binary
+*.npz         binary
+
+# --- Jupyter: strip outputs from diffs where possible ---
+*.ipynb       text eol=lf
+
+# --- Language statistics ---
+*.py            linguist-language=Python
+*.lib           linguist-language=SPICE
+*.spi           linguist-language=SPICE
+*.net           linguist-language=SPICE
+*.cir           linguist-language=SPICE
+
+# --- Export hygiene (git archive) ---
+.github export-ignore
+docs/plans export-ignore
+
+# --- git-crypt: encryption at rest ---
+# File-level encryption only; directory names stay visible. Paths are
+# anchored so .opencode/plans/piecespice_plan.md stays plaintext.
+# -text is REQUIRED: line-ending conversion would corrupt the ciphertext.
+# docs/** includes the architecture plan and the development log.
+docs/**              -text filter=git-crypt diff=git-crypt
+/AGENTS.md           -text filter=git-crypt diff=git-crypt

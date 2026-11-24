@@ -1,6 +1,6 @@
 """Power MOSFET device data model."""
 
-from typing import Optional, Dict
+from typing import Optional
 from models.base import SemiconductorDevice
 
 

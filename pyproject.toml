@@ -2,6 +2,10 @@
 name = "piecespice"
 version = "0.1.0"
 requires-python = ">=3.10"
+license = { text = "MIT" }
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+]
 dependencies = [
     "jinja2>=3.1.6",
     "matplotlib>=3.10.9",
@@ -12,13 +16,14 @@ dependencies = [
     "polars>=1.43.2",
     "pwlf>=2.6.0",
     "pydantic>=2.13.4",
-    "pyspice>=1.5",
     "pyyaml>=6.0.3",
+    "questionary>=2.1.1",
     "rdp>=0.8",
     "rich>=15.0.0",
     "scipy>=1.15.3",
     "seaborn>=0.13.2",
     "shapely>=2.1.2",
+    "spicelib>=1.6.3",
     "tabulate>=0.10.0",
     "typer>=0.27.1",
 ]

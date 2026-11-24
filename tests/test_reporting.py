@@ -1,6 +1,5 @@
 """Unit tests for HTML reporting."""
 
-from pathlib import Path
 from reporting.html_report import generate_html_report
 from common.types import CurveData
 

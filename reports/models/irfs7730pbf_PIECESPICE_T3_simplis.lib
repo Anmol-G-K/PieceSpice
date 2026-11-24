@@ -1,0 +1,38 @@
+* PieceSpice Tier 3 SIMPLIS Level-2 charge-table model for irfs7730pbf
+* Generated from fitted PWLModelSpec (K=10 Vgs curves, 101 Vds breakpoints)
+.SUBCKT irfs7730pbf_PIECESPICE_T3_simplis d g s
+* Pins: 1=Drain(d) 2=Gate(g) 3=Source(s)
+
+* --- parasitics ---
+RG g gi 2.628776e+00
+RD d di 1.000000e-04
+RS s ss 1.000000e-04
+
+* --- channel: tanh-knee behavioral source (Curves 1+2) ---
+G_CH di ss VALUE = {((0.000000e+00 + 7.952064e-08*((V(gi,ss)-0.000000e+00)+abs((V(gi,ss))-0.000000e+00))/2 + 5.423108e-01*((V(gi,ss)-3.000000e+00)+abs((V(gi,ss))-3.000000e+00))/2 + 9.579041e+00*((V(gi,ss)-4.373599e+00)+abs((V(gi,ss))-4.373599e+00))/2 + 4.639099e+01*((V(gi,ss)-4.398879e+00)+abs((V(gi,ss))-4.398879e+00))/2 + 2.152810e+00*((V(gi,ss)-4.424159e+00)+abs((V(gi,ss))-4.424159e+00))/2 + 9.854872e-10*((V(gi,ss)-4.449439e+00)+abs((V(gi,ss))-4.449439e+00))/2 + 1.167585e-09*((V(gi,ss)-4.474720e+00)+abs((V(gi,ss))-4.474720e+00))/2 + 1.598281e+02*((V(gi,ss)-4.500000e+00)+abs((V(gi,ss))-4.500000e+00))/2 + 9.957340e+01*((V(gi,ss)-6.000000e+00)+abs((V(gi,ss))-6.000000e+00))/2 + 4.389064e+01*((V(gi,ss)-8.000000e+00)+abs((V(gi,ss))-8.000000e+00))/2)*tanh(V(di,ss)/(8.024546e+00 + 0.000000e+00*((V(gi,ss)-0.000000e+00)+abs((V(gi,ss))-0.000000e+00))/2 + -4.878639e+00*((V(gi,ss)-3.000000e+00)+abs((V(gi,ss))-3.000000e+00))/2 + 4.878639e+00*((V(gi,ss)-4.373599e+00)+abs((V(gi,ss))-4.373599e+00))/2 + -6.033257e-11*((V(gi,ss)-4.398879e+00)+abs((V(gi,ss))-4.398879e+00))/2 + -2.840699e-10*((V(gi,ss)-4.424159e+00)+abs((V(gi,ss))-4.424159e+00))/2 + 3.589476e-10*((V(gi,ss)-4.449439e+00)+abs((V(gi,ss))-4.449439e+00))/2 + -4.085997e-10*((V(gi,ss)-4.474720e+00)+abs((V(gi,ss))-4.474720e+00))/2 + 4.180815e-02*((V(gi,ss)-4.500000e+00)+abs((V(gi,ss))-4.500000e+00))/2 + 5.481977e-01*((V(gi,ss)-6.000000e+00)+abs((V(gi,ss))-6.000000e+00))/2 + -1.179886e-03*((V(gi,ss)-8.000000e+00)+abs((V(gi,ss))-8.000000e+00))/2)))}
+
+* --- SIMPLIS Level-2 three-capacitor charge model (AC Curve 4) ---
+* CGS=Ciss-Crss, CDS=Coss-Crss, CDG=Crss (single AC sweep at Vgs=0)
+* CGS linearity test: LINEAR (chord deviation 0 vs rel_tol 0.005)
+* CGS X axis is Vgs; the LINEAR chord from the Vds AC sweep is axis-independent
+* PWL CGS emitted only with a declared Vgs-axis table (cgs_axis='vgs')
+* CDG X axis is drain-to-gate V(di,gi); with Vgs=0 in the AC sweep v_DG=v_DS
+* Q= chains: constant (C=0) below the first breakpoint; above the last breakpoint a physical end segment clamps the slope to zero so Q stays constant (no table() end-clamp)
+* C-V provenance: cdg_axis=vdg_at_vgs_bias
+* C-V gate drive: vgs_bias_v=0 V; temperature_c=25 C
+* C-V measured error: max_cap_error_pct=20.04; budget_pct=10
+* CGS is nearly linear: C=1.301857e-08 F
+CGS gi ss 1.301857e-08
+* CDS: drain-source charge, measured breakpoints; 11 (V,Q) points
+CDS di ss Q={0.000000e+00 + 2.550479e-09*((V(di,ss)-(0.000000e+00))+abs((V(di,ss))-(0.000000e+00)))/2 + -7.057275e-10*((V(di,ss)-(6.460916e-01))+abs((V(di,ss))-(6.460916e-01)))/2 + -3.980030e-10*((V(di,ss)-(1.437352e+00))+abs((V(di,ss))-(1.437352e+00)))/2 + -3.011110e-10*((V(di,ss)-(2.449490e+00))+abs((V(di,ss))-(2.449490e+00)))/2 + -2.566936e-10*((V(di,ss)-(4.174344e+00))+abs((V(di,ss))-(4.174344e+00)))/2 + -2.091909e-10*((V(di,ss)-(7.113787e+00))+abs((V(di,ss))-(7.113787e+00)))/2 + -1.238029e-10*((V(di,ss)-(1.212309e+01))+abs((V(di,ss))-(1.212309e+01)))/2 + -7.324464e-11*((V(di,ss)-(1.582595e+01))+abs((V(di,ss))-(1.582595e+01)))/2 + -6.428150e-11*((V(di,ss)-(2.065980e+01))+abs((V(di,ss))-(2.065980e+01)))/2 + -6.435536e-11*((V(di,ss)-(2.697009e+01))+abs((V(di,ss))-(2.697009e+01)))/2 + -3.540686e-10*((V(di,ss)-(3.800000e+01))+abs((V(di,ss))-(3.800000e+01)))/2}
+* CDG: drain-gate charge on the Vdg axis, measured breakpoints; 11 (V,Q) points
+CDG di gi Q={0.000000e+00 + 3.040678e-09*((V(di,gi))-(0.000000e+00)) + -9.294408e-10*((V(di,gi)-(1.101049e+00))+abs((V(di,gi))-(1.101049e+00)))/2 + -4.447805e-10*((V(di,gi)-(2.449490e+00))+abs((V(di,gi))-(2.449490e+00)))/2 + -3.216102e-10*((V(di,gi)-(4.174344e+00))+abs((V(di,gi))-(4.174344e+00)))/2 + -2.702222e-10*((V(di,gi)-(7.113787e+00))+abs((V(di,gi))-(7.113787e+00)))/2 + -2.211391e-10*((V(di,gi)-(1.212309e+01))+abs((V(di,gi))-(1.212309e+01)))/2 + -1.327564e-10*((V(di,gi)-(2.065980e+01))+abs((V(di,gi))-(2.065980e+01)))/2 + -7.990622e-11*((V(di,gi)-(2.697009e+01))+abs((V(di,gi))-(2.697009e+01)))/2 + -7.125265e-11*((V(di,gi)-(3.520778e+01))+abs((V(di,gi))-(3.520778e+01)))/2 + -8.241979e-11*((V(di,gi)-(4.596158e+01))+abs((V(di,gi))-(4.596158e+01)))/2 + -4.871502e-10*((V(di,gi)-(7.000000e+01))+abs((V(di,gi))-(7.000000e+01)))/2}
+* RGS: documented Level-2 gate-source bleed (10 MOhm)
+RGS gi ss 1e7
+
+* --- body diode (Curve 6) ---
+* body-diode provenance: measured Curve 6 forward (Vsd,Isd) sweep (config/outputs/irfs7730pbf/curve6_body_diode.yaml); bounded least-squares fit of I=IS*(exp((V-I*RS)/(N*Vt))-1) on log10(current), Vt=0.026 V; IS=1.241716e-09 N=1.205 RS=1.141802e-03; RMS log10 error=1.380106e-01 dec (all 50 samples)
+.MODEL D_BD_irfs7730pbf_PIECESPICE_T2 D(IS=1.241716e-09 N=1.205 RS=1.141802e-03)
+D_BODY ss di D_BD_irfs7730pbf_PIECESPICE_T2
+
+.ENDS irfs7730pbf_PIECESPICE_T3_simplis

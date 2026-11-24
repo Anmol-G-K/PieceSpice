@@ -1,5 +1,4 @@
-"""CLI entrypoint for PieceSpice."""
+"""CLI entrypoint for PieceSpice.
 
-from cli.main import app
-
-__all__ = ["app"]
+Run as a module: ``uv run python -m cli.main <command>``.
+"""

@@ -1,0 +1,333 @@
+{
+  "schema": "piecespice.tier3/2.0",
+  "vendor": "csd16412q5a",
+  "variant": "v1",
+  "emission": {
+    "compact": false,
+    "rel_tol": 0.005,
+    "table_points": 41,
+    "vgs_points": 30,
+    "max_rel_error_pct": 0.0,
+    "estimated_literal_count": 8032,
+    "source": "default"
+  },
+  "methods": [
+    "TPWL (Rewienski & White 2003)",
+    "POD-DEIM anchors (Chaturantabut & Sorensen 2010)"
+  ],
+  "algorithm": {
+    "weight_exponent": 25.0,
+    "cells": 32,
+    "pod_energy": [
+      0.9897304267933209,
+      0.010269573206679107
+    ],
+    "deim_seed_count": 2,
+    "edge_smoothing_window": 21,
+    "anchors_scaled": [
+      [
+        0.6025153949415337,
+        -0.5961021727668055
+      ],
+      [
+        0.6025153949415337,
+        0.1526228176159269
+      ],
+      [
+        -0.3974846050584663,
+        0.39756902559801366
+      ],
+      [
+        -0.17009493564013128,
+        -0.34919390505369086
+      ],
+      [
+        0.05251539494153375,
+        0.1303537526167485
+      ],
+      [
+        0.17974551464673394,
+        -0.5909484485223049
+      ],
+      [
+        0.4025153949415337,
+        -0.21852826570371411
+      ],
+      [
+        0.10251539494153375,
+        -0.17399013570535715
+      ],
+      [
+        -0.09158958648089058,
+        0.3962023258424272
+      ],
+      [
+        -0.1999721214616645,
+        -0.029728208840480993
+      ],
+      [
+        0.6025153949415337,
+        -0.3521426556987849
+      ],
+      [
+        -0.058589403375421824,
+        -0.5753544588591951
+      ],
+      [
+        0.4025153949415337,
+        0.019008427620856198
+      ],
+      [
+        0.6025153949415337,
+        -0.09975991904142896
+      ],
+      [
+        0.4025153949415337,
+        -0.47091100236107
+      ],
+      [
+        0.20251539494153376,
+        -0.3744117206979633
+      ],
+      [
+        0.20251539494153376,
+        -0.0032606373783223143
+      ],
+      [
+        -0.21484123919848092,
+        0.24253645552981054
+      ],
+      [
+        0.05679181362744683,
+        0.3119508713560182
+      ],
+      [
+        0.05251539494153375,
+        -0.4486419373618915
+      ],
+      [
+        -0.05884365294817573,
+        -0.09480484310274805
+      ],
+      [
+        -0.2445503995263923,
+        0.39648074861973587
+      ],
+      [
+        0.20251539494153376,
+        0.1526228176159269
+      ],
+      [
+        -0.08139347289446479,
+        0.07226737064265878
+      ],
+      [
+        -0.03566657756212836,
+        -0.2966745415593169
+      ],
+      [
+        0.05251539494153375,
+        -0.010683659044715108
+      ],
+      [
+        0.32860630299207083,
+        -0.5877628293498827
+      ],
+      [
+        0.4025153949415337,
+        0.1526228176159269
+      ],
+      [
+        0.6025153949415337,
+        -0.22595128737010692
+      ],
+      [
+        0.4025153949415337,
+        -0.3447196340323921
+      ],
+      [
+        0.6025153949415337,
+        0.02643144928724899
+      ],
+      [
+        0.10251539494153375,
+        -0.3001815040340351
+      ]
+    ],
+    "v_block_vth": 1.882369687837783,
+    "v_width_v": 0.04983388704318937
+  },
+  "function_fit": {
+    "static_curve_rmse_rel": 0.015419499040885855,
+    "emitted_static_curve_rmse_rel": 0.021530790760273463,
+    "static_samples": 505,
+    "heldout_id_rmse_rel": 0.44604670412876857,
+    "heldout_qg_rmse_rel": 0.25869441318274866,
+    "cell_selection_error_rel": 0.021530790760273463
+  },
+  "generalization": {
+    "status": "not_measured",
+    "n_trajectories": 1,
+    "trajectory_sources": [
+      "csd16412q5a:primary"
+    ],
+    "cv_status": "not_measured",
+    "holdout_id_rmse_rel": "not_measured",
+    "holdout_qg_rmse_rel": "not_measured",
+    "selection_error_source": "emitted_static_rmse_rel",
+    "reason": "no config['tier3']['training_conditions']; single configured DPT trajectory only",
+    "physical_elements": {
+      "include_gate_charge": false,
+      "include_body_diode": false,
+      "include_parasitics": false
+    }
+  },
+  "dpt_run": {
+    "completed": true,
+    "trace_points": 64665,
+    "golden_trace_points": 10189,
+    "iterations": 380226,
+    "t_last_s": 1.4e-05,
+    "error": null,
+    "waveform": {
+      "vds_rel_rmse_pct": 2.92477198740564,
+      "id_rel_rmse_pct": 4.896231482102123,
+      "compare_points": 10189,
+      "current_definition": "I(Lload)-I(Dclamp)"
+    },
+    "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+    "golden_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+    "current_definitions": {
+      "golden": "I(Lload)-I(Dclamp)",
+      "tier3": "I(Lload)-I(Dclamp)"
+    }
+  },
+  "dpt_comparison": {
+    "td_on_ns": {
+      "golden": 7.388513716454634,
+      "tier3": 7.0525221480112155,
+      "tier3_rel_err_pct": -4.5474852093073395,
+      "tier2": 5.408314818582241,
+      "tier2_rel_err_pct": -26.8010451609825
+    },
+    "tr_ns": {
+      "golden": 1.095746039040917,
+      "tier3": 0.10639257966922784,
+      "tier3_rel_err_pct": -90.29039796827821,
+      "tier2": 1.4861257630541513,
+      "tier2_rel_err_pct": 35.626843274279615
+    },
+    "td_off_ns": {
+      "golden": 12.44075693519395,
+      "tier3": 11.886169445274165,
+      "tier3_rel_err_pct": -4.457827548667066,
+      "tier2": 15.01376605189435,
+      "tier2_rel_err_pct": 20.682094587199558
+    },
+    "tf_ns": {
+      "golden": 1.6618198938018818,
+      "tier3": 0.6236767169908992,
+      "tier3_rel_err_pct": -62.47025809974733,
+      "tier2": 2.2460204524818494,
+      "tier2_rel_err_pct": 35.15426436155148
+    },
+    "dv_dt_max_v_per_ns": {
+      "golden": 600.4276841381004,
+      "tier3": 1390.311636992,
+      "tier3_rel_err_pct": 131.5535531956291,
+      "tier2": 158.23055831928798,
+      "tier2_rel_err_pct": -73.64702486254873
+    },
+    "di_dt_max_a_per_ns": {
+      "golden": 277.8112856371706,
+      "tier3": 2782.5668947891245,
+      "tier3_rel_err_pct": 901.6032604317,
+      "tier2": 267.31460529548053,
+      "tier2_rel_err_pct": -3.7783491471973676
+    },
+    "e_on_uj": {
+      "golden": 0.3785407247197336,
+      "tier3": 0.3357012013974892,
+      "tier3_rel_err_pct": -11.317018361488632,
+      "tier2": 0.26463292641952585,
+      "tier2_rel_err_pct": -30.09129292087226,
+      "golden_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+      "tier3_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+      "tier2_energy_current_definition": "I(Lload)-I(Dclamp) signed"
+    },
+    "e_off_uj": {
+      "golden": 0.36999258630018145,
+      "tier3": 0.09766145281294013,
+      "tier3_rel_err_pct": -73.60448386560219,
+      "tier2": 0.22955729269092046,
+      "tier2_rel_err_pct": -37.95624528955383,
+      "golden_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+      "tier3_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+      "tier2_energy_current_definition": "I(Lload)-I(Dclamp) signed"
+    },
+    "i_peak_a": {
+      "golden": 13.432002067564142,
+      "tier3": 13.348011016850144,
+      "tier3_rel_err_pct": -0.6253055225238597,
+      "tier2": 13.444267272949219,
+      "tier2_rel_err_pct": 0.09131330775101199
+    }
+  },
+  "energy_current_definition": {
+    "golden": "I(Lload)-I(Dclamp) signed",
+    "tier3": "I(Lload)-I(Dclamp) signed",
+    "tier2": "I(Lload)-I(Dclamp) signed",
+    "rule": "switching energy integrates the signed device current I(Lload)-I(Dclamp); timing/G3 remain on its absolute magnitude"
+  },
+  "runtime": {
+    "method": "default/trap",
+    "max_step_s": 2e-09,
+    "end_time_s": 1.4e-05,
+    "guard": {
+      "golden": {
+        "t_last_s": 1.4e-05,
+        "iterations": 24435,
+        "trace_points": 10189,
+        "end_time_s": 1.4e-05
+      },
+      "tier3": {
+        "t_last_s": 1.4e-05,
+        "iterations": 380226,
+        "trace_points": 64665,
+        "end_time_s": 1.4e-05
+      }
+    },
+    "golden": {
+      "wall_clock_s": 0.9659055000010994,
+      "solver_elapsed_s": 0.444,
+      "iterations": 24435.0,
+      "trace_points": 10189.0,
+      "t_last_s": 1.4e-05
+    },
+    "tier3": {
+      "wall_clock_s": 5.3677488999965135,
+      "solver_elapsed_s": 4.45,
+      "iterations": 380226.0,
+      "trace_points": 64665.0,
+      "t_last_s": 1.4e-05
+    },
+    "tier3_bench_completed": true,
+    "solver_speedup": 0.0997752808988764,
+    "bench_wall_s": {
+      "golden": 2.8865256999997655,
+      "tier3": 16.031500799996138
+    },
+    "scope": "forced 2ns fidelity control; not the adaptive speed claim"
+  },
+  "current_definitions": {
+    "golden": "I(Lload)-I(Dclamp)",
+    "tier3": "I(Lload)-I(Dclamp)"
+  },
+  "build_seconds": {
+    "capture": 1.130149700002221,
+    "training_captures": 5.00003807246685e-07,
+    "fit": 38.634978699992644
+  },
+  "spice_log_tail": "Total elapsed time: 4.426 seconds.\nTotal iterations: 380226\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_h5t_j1ng\\tran.net\n",
+  "emitted_lib": "reports\\models\\csd16412q5a_PIECESPICE_T3.lib"
+}

@@ -13,7 +13,8 @@ subcircuit: EPC2216
 
 pins:
   # Order in which testbenches connect nodes to the X-instance.
-  pin_order: [drain, gate, source]
+  # EPC2216 subckt header is (gatein drainin sourcein) = GATE FIRST.
+  pin_order: [gate, drain, source]
   # Semantic validation: which .subckt header token each role binds to.
   pin_order_semantic:
     drain: drainin
@@ -38,7 +39,7 @@ conditions:
 
   # --- threshold voltage (JEDEC constant-current method; GaN has no true Vth,
   #     datasheet quotes Vth @ Id=11 mA!) ---
-  Id_th_target: 1.1e-2                        # 11 mA per EPC2216 datasheet
+  Id_th_target: 1.0e-3                        # 1 mA per datasheet VGS(th) condition (VDS=VGS)
   Vgs_th_max: 3.0                             # well below the 6 V abs max
   Vgs_th_points: 3001
 
@@ -51,7 +52,11 @@ conditions:
   Vds_cap_min: 0.1
   Vds_cap_max: 15.0                           # stay within user's Vds limit
   Cap_points: 25
+  Cap_ref_Vds: 7.5                           # datasheet capacitance quote point
   F_meas: 1.0e+06                             # [Hz]
+  # Bias-aware C-V (opt-in): both negative drives pass the validity guard;
+  # positive gate drives turn this low-threshold GaN channel on and fail it.
+  Cap_bias_Vgs: [-3.5, -2.0, 0.0]
 
   # --- gate charge (quasi-static reconstruction) ---
   Id_load: 25.0                               # datasheet plateau current [A]
@@ -63,3 +68,16 @@ conditions:
 
   # --- environment ---
   temperature: 25.0                           # [degC]
+
+dpt:
+  vbus: 11.0
+  vgs_on: 5.0
+  i_load_target: 10.0
+  l_load: 5.5e-6
+  t1_on: 1.0e-6
+  t1_width: 5.0e-6
+  t2_on: 10.0e-6
+  t2_width: 2.0e-6
+  edge_time: 20.0e-9
+  t_end: 14.0e-6
+  max_step: 2.0e-9

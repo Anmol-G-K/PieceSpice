@@ -1,0 +1,29 @@
+* PieceSpice UROM: basis=ann method=trap/default tuning=off c1_variant=C0
+* Artifact identity (emitted_lib_sha256) in the validation record
+* PieceSpice unified ROM (T2 ANN candidate) for irfs7730pbf
+* Channel: guarded one-hidden-layer ANN; charge: log-scale Q nets
+* Parasitics, D_BODY and semantic pins from the closed Tier-2 builder
+* Guard width: 5.000000e-02 V (static Curve-1 Vds grid, eps_from_grid)
+.SUBCKT irfs7730pbf_PIECSPICE_UROM_ann_trap-default d g s
+* Pins: 1=Drain(d) 2=Gate(g) 3=Source(s)
+
+* --- parasitics ---
+RG g gi 2.587836e+00
+RD d di 1.000000e-04
+RS s ss 1.000000e-04
+
+* --- channel: tanh-knee behavioral source (Curves 1+2) ---
+G_CH di ss VALUE = {(((0.5*(1+tanh(5.100638e+00*((V(gi,ss))-(4.372485e+00)))))*((4.178518e+02*ln(1+exp(min(max(1.002054e-01+(-1.265832e+00)*tanh((-5.456202e-01)*((V(gi,ss))-(6.300000e+00))/(2.481935e+00)+(7.072651e-01))+(3.332334e+00)*tanh((6.040636e-01)*((V(gi,ss))-(6.300000e+00))/(2.481935e+00)+(-2.495652e+00))+(8.862212e-01)*tanh((8.165232e-01)*((V(gi,ss))-(6.300000e+00))/(2.481935e+00)+(-1.919820e-01))+(-2.891551e+00)*tanh((-1.027334e+00)*((V(gi,ss))-(6.300000e+00))/(2.481935e+00)+(-1.060816e+00))+(-2.447719e+00)*tanh((-5.342875e-01)*((V(gi,ss))-(6.300000e+00))/(2.481935e+00)+(1.175821e+00))+(-4.262660e+00)*tanh((-3.061195e+00)*((V(gi,ss))-(6.300000e+00))/(2.481935e+00)+(-2.714353e+00)),-40),40))))*tanh((V(di,ss))/(5.000000e-02+(1.000000e+00*ln(1+exp(min(max(1.425668e+00+(-1.759327e+00)*tanh((-5.606279e-02)*((V(gi,ss))-(6.300000e+00))/(2.481935e+00)+(1.480532e+00))+(2.598434e+00)*tanh((-4.922016e-01)*((V(gi,ss))-(6.300000e+00))/(2.481935e+00)+(-2.796258e+00))+(-3.460781e+00)*tanh((-2.691323e+00)*((V(gi,ss))-(6.300000e+00))/(2.481935e+00)+(-1.604455e+00))+(1.812843e+00)*tanh((2.467968e+00)*((V(gi,ss))-(6.300000e+00))/(2.481935e+00)+(-1.785156e+00))+(1.537835e+00)*tanh((-3.172222e-01)*((V(gi,ss))-(6.300000e+00))/(2.481935e+00)+(7.368740e-01))+(1.137778e+00)*tanh((2.126587e-01)*((V(gi,ss))-(6.300000e+00))/(2.481935e+00)+(1.087913e+00)),-40),40))))))+(2.089259e+01*ln(1+exp(min(max(-5.207971e+00+(-1.131680e+00)*tanh((4.257363e+00)*((V(gi,ss))-(6.300000e+00))/(2.481935e+00)+(1.037519e+00))+(7.199035e+00)*tanh((-3.333794e+00)*((V(gi,ss))-(6.300000e+00))/(2.481935e+00)+(3.380094e+00))+(-5.658425e+00)*tanh((4.451569e-01)*((V(gi,ss))-(6.300000e+00))/(2.481935e+00)+(3.401657e+00))+(-2.858119e+00)*tanh((8.954562e+00)*((V(gi,ss))-(6.300000e+00))/(2.481935e+00)+(2.030833e+00))+(-5.515676e+00)*tanh((-3.535254e+00)*((V(gi,ss))-(6.300000e+00))/(2.481935e+00)+(-1.955518e+00))+(1.661559e+00)*tanh((2.854160e+00)*((V(gi,ss))-(6.300000e+00))/(2.481935e+00)+(4.135044e-01)),-40),40))))*(V(di,ss)))))}
+
+* --- charge-conserving capacitances (C-inf Q) ---
+C_ISS gi ss 1.260579e-08
+C_QOSS di ss Q = {(9.796054e-01)*(1.326748e-10*(V(di,ss))+(1.505623e-09)*(V(di,ss))/(1+sqrt((V(di,ss))*(V(di,ss))+1.0e-4)/(1.134438e+00))+(1.109265e-09)*(V(di,ss))/(1+sqrt((V(di,ss))*(V(di,ss))+1.0e-4)/(6.286110e+00))+(4.829841e-10)*(V(di,ss))/(1+sqrt((V(di,ss))*(V(di,ss))+1.0e-4)/(5.370469e+01)))}
+C_RSS di gi Q = {(9.801785e-01)*(2.880213e-10*(V(di,gi))+(1.724724e-09)*(V(di,gi))/(1+sqrt((V(di,gi))*(V(di,gi))+1.0e-4)/(1.161302e+00))+(1.378668e-09)*(V(di,gi))/(1+sqrt((V(di,gi))*(V(di,gi))+1.0e-4)/(6.589862e+00))+(7.130529e-10)*(V(di,gi))/(1+sqrt((V(di,gi))*(V(di,gi))+1.0e-4)/(5.874753e+01))+(4.302922e-09)*(V(di,gi)-sqrt(V(di,gi)*V(di,gi)+1.0e-2)+1.0e-1))}
+RGS gi ss 1e7
+
+* --- body diode (Curve 6) ---
+* body-diode provenance: measured Curve 6 forward (Vsd,Isd) sweep (config/outputs/irfs7730pbf/curve6_body_diode.yaml); bounded least-squares fit of I=IS*(exp((V-I*RS)/(N*Vt))-1) on log10(current), Vt=0.026 V; IS=1.241716e-09 N=1.205 RS=1.141802e-03; RMS log10 error=1.380106e-01 dec (all 50 samples)
+.MODEL D_BD_irfs7730pbf_PIECSPICE_UROM_ann_trap-default D(IS=1.241716e-09 N=1.205 RS=1.141802e-03)
+D_BODY ss di D_BD_irfs7730pbf_PIECSPICE_UROM_ann_trap-default
+
+.ENDS irfs7730pbf_PIECSPICE_UROM_ann_trap-default

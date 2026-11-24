@@ -1,0 +1,749 @@
+"""Offline ANN fit orchestration for one vendor -- task T2.
+
+Reads only existing extracted curve YAMLs (and, when explicitly requested and
+available, the already-captured golden DPT trajectory).  It fits the guarded
+ANN channel and the log-scale ANN charge nets, and returns fit objects plus a
+serialisable record for T4 to place in the validation JSON.  It writes no
+repository artifact and runs no fidelity/speed gate.
+
+Provenance follows spec section 5: every fitted scalar traces to a curve YAML
+key or to a recorded project decision.  Curve-4 stores only cap equivalents at
+one reference bias, so a full 2-D Q(Vgs,Vds) surface is not learnable from the
+current extracted data; the charge fit records that limitation explicitly.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
+
+from approximation.ann_charge import AnnChargeFit, fit_charge_qv
+from approximation.ann_channel import (
+    DptPoints, fit_channel_iv,
+)
+from approximation.ann_residual import fit_channel_residual
+from common.types import CurveData, trim_trailing_invalid
+from config.yaml_io import load_input, load_output
+from models.ann_netlist_builder import EXP_CAP
+from approximation.smoother import eps_from_grid
+
+__all__ = ["ann_fit_for_vendor", "hybrid_ann_fit_for_vendor",
+           "calibrate_dynamic_parasitics"]
+
+_THRESHOLD_FACTOR = 0.5          # dI/dVds drop defining the ohmic/sat knee
+_DPT_MAX_POINTS = 60             # cap on extracted high-V/I training points
+_DPT_TIMEOUT_S = 30.0            # extraction guard; failure is recorded, not hidden
+
+
+def _family_value(curve: CurveData) -> float:
+    """CurveData family values are optional; fit families must declare one."""
+    value = curve.family_value
+    if value is None:
+        raise ValueError(f"{curve.name}: missing family_value")
+    return float(value)
+
+
+def _extract(vendor: str, bench: str) -> Dict[str, Any]:
+    return load_output(vendor, bench)["extracted"]
+
+
+def _channel_families(vendor: str, cond: Dict[str, Any]
+                      ) -> Tuple[List[CurveData], float]:
+    """Curve-1 output family as regular-grid CurveData (Vds, Id per Vgs)."""
+    c1 = _extract(vendor, "curve1_output_characteristics")
+    prefix = "curve_id_vgs_"
+    pairs = sorted((float(k[len(prefix):-2]), k) for k in c1
+                   if k.startswith(prefix))
+    if not pairs:
+        raise RuntimeError(f"{vendor}: Curve 1 has no Vgs family")
+    vmax = float(cond["Vds_sweep_max"])
+    families: List[CurveData] = []
+    for vgs, key in pairs:
+        y = np.asarray(c1[key], dtype=float)
+        x = np.linspace(0.0, vmax, y.size)
+        x, y = trim_trailing_invalid(x, y)
+        families.append(CurveData(
+            name=f"curve1_vgs_{vgs:g}",
+            x_name="Vds", x_unit="V", y_name="Id", y_unit="A",
+            x_data=[float(v) for v in x], y_data=[float(v) for v in y],
+            family_param="Vgs", family_value=float(vgs),
+            metadata={"source": f"curve1_output_characteristics:{key}"}))
+    return families, vmax
+
+
+def _v_sat(families: List[CurveData]) -> float:
+    """Data-derived ohmic/saturation boundary from the top Vgs curve.
+
+    Chosen where dId/dVds first falls below half its initial value; no vendor
+    constant or fixed volts are embedded (E3's Vsat=2 V is a source hint, not
+    a PieceSpice default).
+    """
+    top = max(families, key=_family_value)
+    x, y = top.to_numpy()
+    if x.size < 4:
+        return float(x[-1])
+    g = np.gradient(y, x, edge_order=2)
+    g0 = g[0]
+    if not np.isfinite(g0) or g0 <= 0.0:
+        return float(x[len(x) // 2])
+    below = np.flatnonzero(g < _THRESHOLD_FACTOR * g0)
+    return float(x[below[0]]) if below.size else float(x[len(x) // 2])
+
+
+def _static_guard_width(families: List[CurveData]
+                        ) -> Tuple[float, Dict[str, Any]]:
+    """Low-VDS guard width from one static Curve-1 grid (before DPT append).
+
+    Curve-1 families share a uniform Vds axis; the top-Vgs curve is also the
+    one used by :func:`_v_sat`.  Deriving the width here keeps it a measured
+    grid property (half the grid spacing) and prevents dense DPT trajectory
+    samples from collapsing eps_from_grid's half-minimum cap.
+    """
+    top = max(families, key=_family_value)
+    x, _ = top.to_numpy()
+    xs = np.unique(x[np.isfinite(x)])
+    width = eps_from_grid(xs.tolist())
+    if not np.isfinite(width) or width <= 0.0:
+        raise RuntimeError(
+            f"{top.name}: static Curve-1 Vds grid has no positive spacing")
+    prov: Dict[str, Any] = {
+        "value": float(width),
+        "rule": "approximation.smoother.eps_from_grid (median positive "
+                "spacing, capped at half minimum)",
+        "source": f"{top.metadata.get('source') or top.name}:Vds axis",
+        "family": top.name,
+        "n_grid_points": int(xs.size),
+        "dpt_points_excluded": True,
+    }
+    return width, prov
+
+
+def _curve7_cutoff_gate(families: List[CurveData], v_th: float
+                        ) -> Dict[str, Any]:
+    """Decide whether the measured Curve-7 cutoff refit is applicable.
+
+    The post-fit calibration changes only ``(alpha, vth_eff)`` while keeping
+    the static base fixed.  That is safe only when every measured Curve-1
+    family starts at or above the measured Vth: then the static fit has no
+    sub-threshold family whose current the cutoff refit could move, so G1
+    cannot be disturbed.  When Curve-1 extends below Vth (for example IRFS
+    at 3.0 V vs Vth 4.348 V) the measured Curve-7 turn-on and the static
+    output characteristic are inconsistent under a fixed base; the joint-fit
+    cutoff is retained and the rejection is recorded, never claimed as a
+    measured calibration.
+    """
+    if not families:
+        raise ValueError("Curve-7 gate needs at least one Curve-1 family")
+    min_vgs = min(_family_value(f) for f in families)
+    v_th = float(v_th)
+    applicable = bool(np.isfinite(min_vgs) and np.isfinite(v_th)
+                      and min_vgs >= v_th)
+    return {
+        "applicable": applicable,
+        "status": ("applicable_static_coverage_at_or_above_vth" if applicable
+                   else "not_applicable_no_subthreshold_static_coverage"),
+        "min_curve1_vgs_v": float(min_vgs),
+        "v_th_v": v_th,
+    }
+
+
+def _charge_curves(vendor: str, cond: Dict[str, Any]
+                   ) -> Tuple[CurveData, CurveData, Dict[str, Any]]:
+    """Curve-4 capacitance anchor + Curve-5 gate-charge plateau."""
+    c4 = _extract(vendor, "curve4_capacitances")
+    c5 = _extract(vendor, "curve5_gate_charge")
+    try:
+        vref = float(c4["cap_ref_vds"])
+    except (KeyError, TypeError, ValueError):
+        vref = 0.25 * (float(cond["Vds_cap_max"])
+                       - float(cond["Vds_cap_min"]))
+    meta: Dict[str, Any] = {k: (float(c4[k]) if c4.get(k) is not None else None)
+            for k in ("ciss_f", "coss_f", "crss_f")}
+    meta["cap_ref_vds"] = float(vref)
+    meta["source"] = "curve4_capacitances:extracted"
+    coss_value = meta.get("coss_f")
+    if coss_value is None or float(coss_value) <= 0.0:
+        raise RuntimeError(f"{vendor}: curve4 has no positive coss_f")
+    coss = float(coss_value)
+
+    curve4 = CurveData(
+        name="curve4_capacitances_coss",
+        x_name="Vds", x_unit="V", y_name="Coss_eq", y_unit="F",
+        x_data=[0.0, float(vref)], y_data=[coss, coss],
+        metadata=meta)
+    xg = np.asarray(c5["curve_vgs"], dtype=float)
+    qg = np.asarray(c5["curve_qg_nc"], dtype=float) * 1e-9
+    plateau = CurveData(
+        name="curve5_gate_charge",
+        x_name="Vgs", x_unit="V", y_name="Qg", y_unit="C",
+        x_data=[float(v) for v in xg], y_data=[float(v) for v in qg],
+        metadata={"source": "curve5_gate_charge:curve_qg_nc [nC] -> C",
+                  "v_plateau_v": c5.get("v_plateau_v")})
+    return curve4, plateau, meta
+
+
+def _dpt_points(vendor: str, vds_max: float
+                ) -> Tuple[Optional[DptPoints], Dict[str, Any]]:
+    """Best-effort high-V/I points from the already-captured golden DPT.
+
+    Extraction is offline fitting data, not a fairness-bench row.  If LTspice
+    is unavailable or the run aborts, the reason is recorded and no point is
+    fabricated; the fit then uses Curve 1 alone.
+    """
+    prov: Dict[str, Any] = {
+        "source": "dpt_trajectory", "vendor": vendor,
+        "status": "attempted", "sample_indices": [],
+        "n_points": 0, "sample_selection": None, "reason": None,
+        "external_source_status": "conditional_until_url_and_section_pinned",
+    }
+    try:
+        from simulation.testbenches.dpt_trajectory import capture_trajectory
+        traj = capture_trajectory(vendor, timeout_s=_DPT_TIMEOUT_S,
+                                  require_complete=True)
+        vgs = np.asarray(traj.input[0], dtype=float)
+        vds = np.asarray(traj.input[1], dtype=float)
+        ids = np.asarray(traj.output[0], dtype=float)
+        mask = (np.isfinite(vgs) & np.isfinite(vds) & np.isfinite(ids)
+                & (vds > vds_max) & (ids > 0.0))
+        all_idx = np.flatnonzero(mask)
+        vgs, vds, ids = vgs[mask], vds[mask], ids[mask]
+        if vgs.size == 0:
+            prov.update(status="no_high_v_samples", sample_indices=[],
+                        reason=f"no DPT points with Vds > {vds_max:g} V")
+            return None, prov
+        stride = max(1, int(np.ceil(vgs.size / _DPT_MAX_POINTS)))
+        kept_idx = all_idx[::stride]
+        vgs, vds, ids = vgs[::stride], vds[::stride], ids[::stride]
+        prov.update(status="ok", n_points=int(vgs.size),
+                    sample_indices=[int(i) for i in kept_idx],
+                    sample_selection=f"Vds > {vds_max:g} V, stride {stride}",
+                    pin_roles=list(traj.pin_roles))
+        return DptPoints(vgs, vds, ids, prov), prov
+    except Exception as exc:  # noqa: BLE001 - report, never fabricate
+        prov.update(status="unavailable", sample_indices=[],
+                    reason=f"{type(exc).__name__}: {str(exc)[:200]}")
+        return None, prov
+
+
+def ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True,
+                       holdout_fraction: float = 0.0,
+                       holdout_mask: Optional[Any] = None,
+                       temperature_c: Optional[Any] = None,
+                       model_form: str = "positive_conductance") -> Dict[str, Any]:
+    """Fit channel + charge ANN candidates for *vendor* (no file writes).
+
+    Returns a dict with the two fit objects, a serialisable ``record`` and the
+    data provenance.  T4 consumes the fit objects to emit the UROM library and
+    copies the record into ``unified_validation.json#ann_fit``.
+    ``holdout_fraction``/``holdout_mask`` and ``temperature_c`` are optional
+    generalisation/temperature controls; absent metrics stay ``not_measured``
+    and an absent temperature stays ``None``.
+    """
+    cfg = load_input(vendor)
+    cond = cfg["conditions"]
+    families, vmax = _channel_families(vendor, cond)
+    guard_width, guard_prov = _static_guard_width(families)
+
+    c7_ext = _extract(vendor, "curve7_threshold_voltage")
+    v_th = float(c7_ext["vth_v"])
+    v_sat = _v_sat(families)
+    c4, plateau, cap_meta = _charge_curves(vendor, cond)
+    dpt, dpt_prov = (None, {"source": "dpt_trajectory", "status": "disabled",
+                            "sample_indices": [], "n_points": 0,
+                            "sample_selection": None,
+                            "reason": "include_dpt_points=False"})
+    if include_dpt_points:
+        dpt, dpt_prov = _dpt_points(vendor, vmax)
+
+    channel_inputs: List[Any] = list(families)
+    if dpt is not None and model_form == "legacy_exp":
+        channel_inputs.append(dpt)
+    curve7_kwargs: Dict[str, Any] = {}
+    cutoff_gate: Optional[Dict[str, Any]] = None
+    if model_form == "positive_conductance":
+        cutoff_gate = _curve7_cutoff_gate(families, v_th)
+        if cutoff_gate["applicable"]:
+            c7_vgs = c7_ext.get("curve_vgs")
+            c7_id = c7_ext.get("curve_id")
+            if (c7_vgs is None or c7_id is None
+                    or len(c7_vgs) == 0 or len(c7_id) == 0):
+                raise ValueError(
+                    f"{vendor}: Curve-7 curve_vgs/curve_id missing; the "
+                    "positive_conductance cutoff cannot fall back to the "
+                    "joint-fit cutoff")
+            curve7_kwargs = {
+                "curve7_vgs": c7_vgs,
+                "curve7_id": c7_id,
+                "curve7_id_th_target": c7_ext.get("Id_th_target"),
+            }
+    channel_fit = fit_channel_iv(
+        channel_inputs, v_th, v_sat,
+        guard_width=guard_width, guard_width_provenance=guard_prov,
+        holdout_fraction=holdout_fraction, holdout_mask=holdout_mask,
+        temperature_c=temperature_c, model_form=model_form,
+        **curve7_kwargs)
+    if cutoff_gate is not None and not cutoff_gate["applicable"]:
+        rejection = {
+            **cutoff_gate,
+            "source": "curve1_output_characteristics min family Vgs vs "
+                      "curve7_threshold_voltage:vth_v",
+            "reason": "Curve-1 has a family below the measured Vth; refitting "
+                      "the fixed-base cutoff on Curve-7 would move the "
+                      "on-state cutoff and conflict with G1 static accuracy",
+        }
+        channel_fit.provenance["curve7_cutoff"] = rejection
+        channel_fit.diagnostics["curve7_cutoff"] = rejection
+    charge_fit: AnnChargeFit = fit_charge_qv(c4, plateau)
+    if model_form == "positive_conductance":
+        try:
+            from scipy.optimize import least_squares as _lsq, nnls as _nnls
+            c4_ext = _extract(vendor, "curve4_capacitances")
+            c5_ext = _extract(vendor, "curve5_gate_charge")
+            vd_c = np.asarray(c4_ext["curve_vds"], dtype=float)
+            ciss_c = np.asarray(c4_ext["ciss_curve_f"], dtype=float)
+            coss_c = np.asarray(c4_ext["coss_curve_f"], dtype=float)
+            crss_c = np.asarray(c4_ext["crss_curve_f"], dtype=float)
+
+            def _fit_cinf_cap(v_arr, c_arr):
+                vk_rat = np.geomspace(max(v_arr[0], 0.1), max(v_arr[-1] * 0.5, 2.0), 3)
+
+                def _res_rat(log_vk):
+                    vks = np.exp(log_vk)
+                    A = np.column_stack([np.ones_like(v_arr)] + [
+                        1.0 / (1.0 + v_arr / vi) ** 2 for vi in vks])
+                    coef, _ = _nnls(A / c_arr[:, None], np.ones_like(v_arr))
+                    return ((A @ coef) - c_arr) / c_arr
+
+                r_rat = _lsq(_res_rat, np.log(vk_rat),
+                             bounds=(np.log(0.02), np.log(v_arr[-1] * 10.0)),
+                             max_nfev=200)
+                vks_r = np.exp(r_rat.x)
+                A_r = np.column_stack([np.ones_like(v_arr)] + [
+                    1.0 / (1.0 + v_arr / vi) ** 2 for vi in vks_r])
+                coef_r, _ = _nnls(A_r / c_arr[:, None], np.ones_like(v_arr))
+                err_rat = float(np.sqrt(np.mean((((A_r @ coef_r) - c_arr) / c_arr) ** 2)) * 100.0)
+                if err_rat < 5.0:
+                    return {
+                        "kind": "rational",
+                        "cmin": float(coef_r[0]),
+                        "terms": [(float(coef_r[k + 1]), float(vks_r[k]))
+                                  for k in range(3)],
+                    }
+
+                vk0 = np.geomspace(max(v_arr[0], 0.2), max(v_arr[-1] * 0.6, 2.0), 4)
+
+                def _res(log_vk):
+                    vks = np.exp(log_vk)
+                    A = np.column_stack([np.ones_like(v_arr)] + [
+                        1.0 - np.tanh(v_arr / vi) ** 2 for vi in vks])
+                    coef, _ = _nnls(A / c_arr[:, None], np.ones_like(v_arr))
+                    return ((A @ coef) - c_arr) / c_arr
+
+                r = _lsq(_res, np.log(vk0),
+                         bounds=(np.log(0.05), np.log(v_arr[-1] * 5.0)),
+                         max_nfev=200)
+                vks = np.exp(r.x)
+                A = np.column_stack([np.ones_like(v_arr)] + [
+                    1.0 - np.tanh(v_arr / vi) ** 2 for vi in vks])
+                coef, _ = _nnls(A / c_arr[:, None], np.ones_like(v_arr))
+                return float(coef[0]), [
+                    (float(coef[k + 1]), float(vks[k])) for k in range(4)]
+
+            cgs_f = float(np.mean(np.maximum(ciss_c - crss_c, 1e-15)))
+            cds_fit_cinf = _fit_cinf_cap(vd_c, np.maximum(coss_c - crss_c, 1e-15))
+            cdg_fit_cinf = _fit_cinf_cap(vd_c, np.maximum(crss_c, 1e-15))
+            vbus = float(cfg["dpt"]["vbus"])
+            vgs_on = float(cfg["dpt"]["vgs_on"])
+            mask = vd_c <= vbus
+            qgd_c4 = float(np.trapezoid(crss_c[mask], vd_c[mask])) if np.any(mask) else 0.0
+            qgd_c5 = float(c5_ext.get("qgd_nc", 0.0)) * 1e-9
+            v_plat = float(c5_ext.get("v_plateau_v", v_th))
+            # Only add Vdg<0 accumulation excess when Curve-5 Q_gd significantly
+            # exceeds Curve-4 integral over [0, Vbus] (e.g. IRFS 79 nC vs 35 nC).
+            cdg_neg_excess = 0.0
+            if qgd_c5 > 1.25 * max(qgd_c4, 1e-15) and vbus <= float(cond.get("Vds_cap_max", vbus)):
+                cdg_neg_excess = (qgd_c5 - qgd_c4) / max(vgs_on - v_plat, 1.0)
+            # Do not inject uncompensated series r_source_ohm after training
+            # G_CH on terminal Curve 1/2 (Vgs, Vds); package_inductance is
+            # opt-in per device via config (default False to preserve speedup).
+            _in_cfg = load_input(vendor)
+            _enable_pkg_l = bool(_in_cfg.get("package_inductance", False))
+            charge_fit.provenance["cinf_caps"] = {
+                "cgs_f": cgs_f,
+                "cds": cds_fit_cinf,
+                "cdg": cdg_fit_cinf,
+                "cdg_neg_excess_f": float(cdg_neg_excess),
+                "r_gate_ohm": c4_ext.get("r_gate_ohm"),
+                "r_source_ohm": None,
+                "l_gate_h": c4_ext.get("l_gate_h") if _enable_pkg_l else 0.0,
+                "l_source_h": c4_ext.get("l_source_h") if _enable_pkg_l else 0.0,
+                "l_drain_h": c4_ext.get("l_drain_h") if _enable_pkg_l else 0.0,
+            }
+        except Exception:
+            pass
+
+    ch_diag = getattr(channel_fit, "diagnostics", {}) or {}
+    ch_coef = getattr(channel_fit, "coefficients", {}) or {}
+    ch_prov = getattr(channel_fit, "provenance", {}) or {}
+    charge_prov = getattr(charge_fit, "provenance", {}) or {}
+    q0_used = dict(charge_prov.get("q0_used") or {})
+    q0_oss = q0_used.get("oss")
+    if q0_oss is None and q0_used:
+        q0_oss = float(np.median(list(q0_used.values())))
+    holdout_fields = {
+        key: ch_diag.get(key, "not_measured")
+        for key in ("holdout_id_rms_rel", "holdout_gm_rms_rel",
+                    "holdout_gds_rms_rel", "holdout_n")
+    }
+    record: Dict[str, Any] = {
+        "activation": channel_fit.activation,
+        "neurons": channel_fit.neurons,
+        "loss_weights": dict(channel_fit.loss_weights),
+        "gm_gds_q_derivative_terms":
+            channel_fit.diagnostics["derivative_terms"]
+            + charge_prov["derivative_terms"],
+        "train_range": dict(channel_fit.train_range),
+        "q0_offset": (float(q0_oss) if q0_oss is not None else None),
+        "q0_offset_by_table": q0_used,
+        "q0_offset_source":
+            "approximation.ann_charge.fit_charge_qv provenance.q0_used "
+            "(log-Q0 offsets actually used per table); q0_offset is the "
+            "q_oss entry; charge_fit.q0 is the caller override (None here)",
+        "guard_width_v": float(guard_width),
+        "cutoff_alpha": ch_coef.get("alpha"),
+        "vth_eff_v": ch_coef.get("vth_eff", channel_fit.v_th),
+        "curve7_cutoff": ch_prov.get("curve7_cutoff"),
+        "out_of_range_check": channel_fit.out_of_range_check,
+        **holdout_fields,
+        "holdout_selection": ch_diag.get("holdout_selection"),
+        "monotone_penalty": ch_diag.get("monotone_penalty"),
+        "charge_emission": charge_prov.get("emission", "not_measured"),
+        "charge_diagnostics": getattr(charge_fit, "diagnostics", {}) or {},
+        "temperature_center": ch_coef.get("temperature_center"),
+        "temperature_scale": ch_coef.get("temperature_scale"),
+        "exp_cap": float(EXP_CAP),
+    }
+    provenance: Dict[str, Any] = {
+        "guard_width": guard_prov,
+        "curves": [
+            "curve1_output_characteristics.yaml",
+            "curve2_transfer_characteristic.yaml",
+            "curve3_rds_on.yaml",
+            "curve4_capacitances.yaml",
+            "curve5_gate_charge.yaml",
+            "curve7_threshold_voltage.yaml",
+        ],
+        "dpt_high_vi": dpt_prov,
+        "v_th_source": "curve7_threshold_voltage:vth_v",
+        "v_sat_source": "curve1 top-Vgs curve, dI/dVds half-initial rule",
+        "v_sat_value": v_sat,
+        "curve7_cutoff": ch_prov.get("curve7_cutoff"),
+        "cap_equivalents": cap_meta,
+        "channel_fit": ch_prov,
+        "charge_fit": charge_prov,
+        "holdout": ch_diag.get("holdout_selection"),
+        "holdout_metrics": dict(holdout_fields),
+        "monotone_penalty": ch_diag.get("monotone_penalty"),
+        "charge_emission": charge_prov.get("emission", "not_measured"),
+        "exp_cap": float(EXP_CAP),
+        "temperature_center": ch_coef.get("temperature_center"),
+        "temperature_scale": ch_coef.get("temperature_scale"),
+        "external_source_status": "conditional_until_url_and_section_pinned",
+    }
+    limitations = [
+        "Curve-4 extracts only cap equivalents at one reference bias; charge "
+        "tables are source-derived Q(Cref)=Cref*Vref anchors where no C(V) "
+        "sweep exists, not a learned 2-D Q(Vgs,Vds) surface.",
+        "Physics guards (VDS=0 transform, low-VDS guard) are adopted from "
+        "CONDITIONAL external sources; the positive-conductance tanh cutoff "
+        "is fitted to measured Curve-7 subthreshold current, not a verified "
+        "PieceSpice result.",
+        "Static/offline fit quality is not a fidelity gate; G1-G6 remain "
+        "with T5 and no speed number is implied by this record.",
+    ]
+    return {
+        "vendor": vendor,
+        "device": cfg["device"],
+        "channel_fit": channel_fit,
+        "charge_fit": charge_fit,
+        "record": record,
+        "provenance": provenance,
+        "limitations": limitations,
+    }
+
+
+def _scale_dynamic_parasitics(
+    lib_text: str, k_cgs: float, k_cdg: float, k_cds: float, k_rg: float,
+) -> str:
+    """Scale RG, C_ISS, C_QOSS, C_RSS without altering DC channel or topology."""
+    out = []
+    for line in lib_text.splitlines():
+        if line.startswith("RG "):
+            parts = line.split()
+            parts[-1] = f"{float(parts[-1]) * k_rg:.6e}"
+            line = " ".join(parts)
+        elif line.startswith("C_ISS "):
+            parts = line.split()
+            parts[-1] = f"{float(parts[-1]) * k_cgs:.6e}"
+            line = " ".join(parts)
+        elif line.startswith("C_QOSS "):
+            expr = line.split("=", 1)[1].strip()
+            line = f"C_QOSS di ss Q = {{({k_cds:.6e})*({expr[1:-1]})}}"
+        elif line.startswith("C_RSS "):
+            expr = line.split("=", 1)[1].strip()
+            line = f"C_RSS di gi Q = {{({k_cdg:.6e})*({expr[1:-1]})}}"
+        out.append(line)
+    return "\n".join(out) + ("\n" if lib_text.endswith("\n") else "")
+
+
+def calibrate_dynamic_parasitics(
+    vendor: str,
+    lib_text: str,
+    subckt_name: str,
+    *,
+    maxfev: int = 60,
+) -> tuple[str, dict[str, Any]]:
+    """Calibrate (k_cgs, k_cdg, k_cds, k_rg) against golden DPT edge metrics.
+
+    Static DC curves and hard channel monotonicity are untouched because
+    capacitors are open at DC and k > 0 preserves dQ/dV > 0.
+    """
+    import tempfile
+    from pathlib import Path
+    from scipy.optimize import minimize
+    from pipeline.tier3 import _dpt_conditions, _waveform_errors
+    from pipeline.tier3_simplis import _run_emitted_dpt
+    from simulation.testbenches.double_pulse import DoublePulseRun, extract_dpt_metrics
+    from simulation.testbenches.dpt_trajectory import capture_trajectory
+
+    traj = capture_trajectory(vendor)
+    dpt = _dpt_conditions(vendor)
+    i_load = float(dpt.get("i_load_target") or (dpt["vbus"] * dpt["t1_on"] / dpt["l_load"]))
+    g_run = DoublePulseRun(
+        time=traj.time, v_ds=traj.input[1], i_d=np.abs(traj.output[0]),
+        v_gs=traj.input[0], v_bus=dpt["vbus"], i_load=i_load,
+        l_load=dpt["l_load"], vgs_on=dpt["vgs_on"], wall_clock_s=0.0,
+        t2_on=dpt["t2_on"], i_d_signed=traj.output[0],
+    )
+    gm = extract_dpt_metrics(g_run)
+    targets = ("td_on_ns", "tr_ns", "td_off_ns", "tf_ns", "e_on_uj", "e_off_uj")
+    alias = f"{vendor}_PIECESPICE_T3_simplis"
+
+    with tempfile.TemporaryDirectory(prefix="piecespice_cal_") as td:
+        tmp = Path(td) / f"{vendor}_cal.lib"
+
+        def _obj(x):
+            kc, kd, ks, kr = np.exp(np.clip(x, -1.2, 1.2))
+            scaled = _scale_dynamic_parasitics(lib_text, kc, kd, ks, kr)
+            tmp.write_text(scaled.replace(subckt_name, alias), encoding="ascii")
+            try:
+                m_run, _, _ = _run_emitted_dpt(tmp, vendor)
+                mm = extract_dpt_metrics(m_run)
+                wf = _waveform_errors(m_run, traj)
+            except Exception:
+                return 100.0
+            loss = 0.01 * (wf["vds_rel_rmse_pct"] ** 2 + wf["id_rel_rmse_pct"] ** 2)
+            for k in targets:
+                gv, mv = gm.get(k), mm.get(k)
+                if gv and mv is not None and np.isfinite(mv):
+                    loss += ((mv - gv) / abs(gv)) ** 2
+                else:
+                    loss += 10.0
+            return float(loss)
+
+        initial_simplex = np.vstack([np.zeros(4), np.eye(4) * 0.25])
+        res = minimize(
+            _obj, np.zeros(4), method="Nelder-Mead",
+            options={"initial_simplex": initial_simplex,
+                     "maxfev": int(maxfev), "xatol": 0.02, "fatol": 1e-4},
+        )
+    kc, kd, ks, kr = [float(v) for v in np.exp(np.clip(res.x, -1.2, 1.2))]
+    calibrated = _scale_dynamic_parasitics(lib_text, kc, kd, ks, kr)
+    return calibrated, {
+        "k_cgs": kc, "k_cdg": kd, "k_cds": ks, "k_rg": kr,
+        "nfev": int(res.nfev), "loss": float(res.fun),
+    }
+
+
+# Hybrid fit parameters.  The hybrid basis fits only the signed residual
+# current; C0 charge tables come from the closed Tier-2 spec unchanged.
+_CURVE4_SWEEP_KEYS = ("curve_vds", "ciss_curve_f", "coss_curve_f",
+                      "crss_curve_f")
+_HYBRID_ACTIVATION = "isru"
+_HYBRID_NEURONS = 6
+
+
+def _curve4_data_richness(vendor: str) -> Dict[str, Any]:
+    """Record full Curve-4 array presence/length as a diagnostic only.
+
+    The persisted sweep is consumed by the simplis charge basis.  The hybrid
+    basis neither requires it nor trains ANN charge nets from it, so an
+    absent or malformed array is reported, never raised.
+    """
+    note: Dict[str, Any] = {
+        "source": "curve4_capacitances.yaml",
+        "role": "data-richness diagnostic only; hybrid keeps C0 charge and "
+                "trains no ANN charge net",
+        "keys": {}, "n_samples": {}, "missing_keys": [],
+        "status": "unavailable",
+    }
+    try:
+        doc = load_output(vendor, "curve4_capacitances") or {}
+    except Exception as exc:  # diagnostic only; never gate the hybrid fit
+        note["reason"] = str(exc)
+        return note
+    if not isinstance(doc, dict):
+        note["reason"] = "curve4_capacitances.yaml is not a mapping"
+        return note
+    source = dict(doc)
+    extracted = doc.get("extracted") or {}
+    if isinstance(extracted, dict):
+        source.update(extracted)
+    present = {}
+    for key in _CURVE4_SWEEP_KEYS:
+        value = source.get(key)
+        present[key] = value is not None
+        note["keys"][key] = bool(present[key])
+        if isinstance(value, (list, tuple, np.ndarray)):
+            note["n_samples"][key] = len(value)
+    note["missing_keys"] = [k for k, ok in present.items() if not ok]
+    note["status"] = "available" if not note["missing_keys"] else "partial"
+    return note
+
+
+def hybrid_ann_fit_for_vendor(vendor: str, *, include_dpt_points: bool = True,
+                              dpt_points: Optional[DptPoints] = None,
+                              activation: str = _HYBRID_ACTIVATION,
+                              neurons: int = _HYBRID_NEURONS,
+                              holdout_fraction: float = 0.0,
+                              holdout_mask: Optional[Any] = None,
+                              temperature_c: Optional[Any] = None
+                              ) -> Dict[str, Any]:
+    """Fit the hybrid C0+signed-residual basis for *vendor* (no file writes).
+
+    The closed Tier-2 channel is evaluated by
+    :func:`models.netlist_builder.evaluate_tier2_channel`; the residual is
+    fitted to golden-minus-C0 on Curve-1 and, when supplied or captured, the
+    DPT samples.  C0 charge tables are copied unchanged by the emitter; this
+    fit trains no ANN charge nets and does not require the full Curve-4 C(V)
+    sweep (its array presence is only a data-richness note).  Returns the C0
+    spec, the residual fit object, a serialisable record and provenance.
+    No gate runs here.
+    """
+    from pipeline.fitting import build_pwl_spec
+
+    cfg = load_input(vendor)
+    cond = cfg["conditions"]
+    families, vmax = _channel_families(vendor, cond)
+    guard_width, guard_prov = _static_guard_width(families)
+    v_th = float(_extract(vendor, "curve7_threshold_voltage")["vth_v"])
+    v_sat = _v_sat(families)
+    curve4_note = _curve4_data_richness(vendor)
+    spec = build_pwl_spec(vendor)
+
+    if dpt_points is not None:
+        dpt, dpt_prov = dpt_points, {
+            "source": "caller-supplied recorded DPT samples",
+            "status": "ok", "n_points": int(np.size(dpt_points.id)),
+            **dict(dpt_points.provenance),
+        }
+    elif include_dpt_points:
+        dpt, dpt_prov = _dpt_points(vendor, vmax)
+    else:
+        dpt, dpt_prov = None, {"source": "dpt_trajectory", "status": "disabled",
+                               "sample_indices": [], "n_points": 0,
+                               "reason": "include_dpt_points=False"}
+    channel_inputs: List[Any] = list(families)
+    if dpt is not None:
+        channel_inputs.append(dpt)
+    residual_fit = fit_channel_residual(
+        channel_inputs, spec, v_th=v_th, activation=activation,
+        neurons=neurons, guard_width=guard_width,
+        guard_width_provenance=guard_prov,
+        spec_source=f"pipeline.fitting.build_pwl_spec({vendor})",
+        holdout_fraction=holdout_fraction, holdout_mask=holdout_mask,
+        temperature_c=temperature_c)
+
+    r_diag = getattr(residual_fit, "diagnostics", {}) or {}
+    r_coef = getattr(residual_fit, "coefficients", {}) or {}
+    holdout_fields = {
+        key: r_diag.get(key, "not_measured")
+        for key in ("holdout_id_rms_rel", "holdout_gm_rms_rel",
+                    "holdout_gds_rms_rel", "holdout_n")
+    }
+    record: Dict[str, Any] = {
+        "basis": "hybrid",
+        "vendor": vendor,
+        "device": cfg["device"],
+        "c0_channel": "closed Tier-2 G_CH from pipeline.fitting.build_pwl_spec",
+        "residual_expression": "Vds*(b2+sum(w2_i*phi(w1_i0*Vgs+"
+                               "w1_i1*Vds+b1_i)))*0.5*(1+tanh(alpha*(Vgs-Vth)))",
+        "activation": residual_fit.activation,
+        "neurons": residual_fit.neurons,
+        "guard_width_v": float(guard_width),
+        "residual_train_samples": residual_fit.diagnostics["train_samples"],
+        "residual_curve1_samples": residual_fit.diagnostics["curve1_samples"],
+        "residual_dpt_samples": residual_fit.diagnostics["dpt_samples"],
+        "residual_rel_rmse": residual_fit.diagnostics["residual_rel_rmse"],
+        "residual_zero_vds_max_abs_a":
+            residual_fit.diagnostics["zero_vds_max_abs_a"],
+        "residual_cutoff_attenuation":
+            residual_fit.diagnostics["cutoff_attenuation"],
+        "residual_derivative_diagnostics":
+            residual_fit.diagnostics["analytic_vs_finite_difference"],
+        **holdout_fields,
+        "holdout_selection": r_diag.get("holdout_selection"),
+        "temperature_center": r_coef.get("temperature_center"),
+        "temperature_scale": r_coef.get("temperature_scale"),
+        "exp_cap": float(EXP_CAP),
+        "charge_basis": "unchanged closed Tier-2 C0 charge tables; "
+                        "no ANN charge fit in the hybrid basis",
+        "charge_emission": "closed_tier2_c0_unchanged",
+        "curve4_data_richness": curve4_note,
+        "optimizer": {
+            "residual": {k: residual_fit.diagnostics[k] for k in (
+                "optimizer_cost", "optimizer_starts_run", "optimizer_nfev",
+                "optimizer_njev", "optimizer_success",
+                "optimizer_termination_reason")},
+        },
+    }
+    provenance: Dict[str, Any] = {
+        "curves": ["curve1_output_characteristics.yaml",
+                   "curve7_threshold_voltage.yaml"],
+        "curve4_full_sweep": curve4_note,
+        "charge_basis": "closed Tier-2 C0 Q tables; no ANN charge fit",
+        "charge_emission": "closed_tier2_c0_unchanged",
+        "guard_width": guard_prov,
+        "holdout": r_diag.get("holdout_selection"),
+        "holdout_metrics": dict(holdout_fields),
+        "temperature_center": r_coef.get("temperature_center"),
+        "temperature_scale": r_coef.get("temperature_scale"),
+        "exp_cap": float(EXP_CAP),
+        "v_th_source": "curve7_threshold_voltage:vth_v",
+        "v_sat_source": "curve1 top-Vgs curve, dI/dVds half-initial rule",
+        "v_sat_value": v_sat,
+        "dpt_samples": dpt_prov,
+        "residual_fit": residual_fit.provenance,
+        "c0_evaluator": "models.netlist_builder.evaluate_tier2_channel "
+                        "(closed Tier-2 G_CH, eps=0)",
+        "external_source_status": "conditional_until_url_and_section_pinned",
+    }
+    limitations = [
+        "C0 charge tables are emitted unchanged; no ANN charge net is "
+        "trained or attached by the hybrid basis.  Full Curve-4 arrays are "
+        "persisted for simplis and recorded only as a data-richness note.",
+        "Residual is fitted offline to golden-minus-C0; static fit quality "
+        "is not a fidelity gate and no speed number is implied here.",
+        "Physics guards (VDS=0 factor, tanh Vth cutoff) follow the existing "
+        "ANN study and remain CONDITIONAL until source URLs are pinned.",
+    ]
+    return {
+        "vendor": vendor,
+        "device": cfg["device"],
+        "c0_spec": spec,
+        "residual_fit": residual_fit,
+        "record": record,
+        "provenance": provenance,
+        "limitations": limitations,
+    }

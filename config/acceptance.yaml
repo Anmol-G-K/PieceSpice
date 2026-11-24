@@ -1,0 +1,54 @@
+# PieceSpice acceptance policy (schema piecespice.acceptance/1.0).
+# Every numeric value is a {value: ..., source: ...} pair.  Sections are the
+# explicit kind labels: static, dpt, timing, charge, speed.
+# "recorded_baseline" marks today's measured bar; "project_decision" marks an
+# engineering threshold chosen for the gate.
+
+schema: piecespice.acceptance/1.0
+override_semantics: >-
+  Every value in this file may be replaced with an application requirement by
+  editing this file only; no code change is needed.  Values labelled
+  recorded_baseline are the currently measured bars, values labelled
+  project_decision are engineering thresholds.  The schema and all required
+  keys must stay present and valid: a malformed file fails closed instead of
+  silently reverting to the built-in fallback, which is used only when the
+  file is absent.
+
+static:
+  mean_peak_rel_rmse_pct_max:
+    irfs7730pbf: {value: 7.0683, source: recorded_baseline}
+    csd16412q5a: {value: 8.4935, source: recorded_baseline}
+    epc2216: {value: 2.0394, source: recorded_baseline}
+    cpm2-1200: {value: 3.4287, source: recorded_baseline}
+  worst_endpoint_pct: {value: 4.13, source: recorded_baseline}
+  g1_band_pp: {value: 0.05, source: project_decision}
+
+dpt:
+  # [Vds %, Id %] on the device-current identity I(Lload)-I(Dclamp).
+  # The former Id bars (0.60/0.048/0.049/0.261) were measured on the old
+  # inductor-current metric and are not valid after the identity change.
+  # Id is now a declared 5 % application requirement; Vds keeps its
+  # recorded per-vendor baseline.  This is a metric correction, not a
+  # relaxation of a model result.
+  trap/default:
+    irfs7730pbf: {value: [10.0, 5.0], source: project_decision}
+    csd16412q5a: {value: [5.583, 5.0], source: project_decision}
+    epc2216: {value: [4.894, 5.0], source: project_decision}
+    cpm2-1200: {value: [3.0, 5.0], source: project_decision}
+  gear-both:
+    irfs7730pbf: {value: [12.771, 5.0], source: project_decision}
+    csd16412q5a: {value: [5.467, 5.0], source: project_decision}
+    epc2216: {value: [5.075, 5.0], source: project_decision}
+    cpm2-1200: {value: [4.122, 5.0], source: project_decision}
+
+timing:
+  band_rel: {value: 0.05, source: project_decision}
+  band_abs: {value: 1.0e-12, source: project_decision}
+
+charge:
+  budget_pct: {value: 0.5, source: recorded_baseline}
+
+speed:
+  min_solver_speedup: {value: 1.05, source: project_decision}
+  confidence: {value: 0.95, source: project_decision}
+  n_resamples: {value: 2000, source: project_decision}

@@ -1,0 +1,333 @@
+{
+  "schema": "piecespice.tier3/2.0",
+  "vendor": "epc2216",
+  "variant": "v1",
+  "emission": {
+    "compact": false,
+    "rel_tol": 0.005,
+    "table_points": 25,
+    "vgs_points": 24,
+    "max_rel_error_pct": 0.0,
+    "estimated_literal_count": 3994,
+    "source": "default"
+  },
+  "methods": [
+    "TPWL (Rewienski & White 2003)",
+    "POD-DEIM anchors (Chaturantabut & Sorensen 2010)"
+  ],
+  "algorithm": {
+    "weight_exponent": 25.0,
+    "cells": 32,
+    "pod_energy": [
+      0.9505885849453672,
+      0.04941141505463283
+    ],
+    "deim_seed_count": 2,
+    "edge_smoothing_window": 21,
+    "anchors_scaled": [
+      [
+        0.7231186832023392,
+        -0.5167616138883286
+      ],
+      [
+        0.7231186832023392,
+        0.755902057849889
+      ],
+      [
+        -0.4768813167976608,
+        0.4165250787196975
+      ],
+      [
+        -0.057952645914482126,
+        -0.3340568486491861
+      ],
+      [
+        0.22311868320233916,
+        0.2850164993067483
+      ],
+      [
+        0.7231186832023392,
+        0.04321040167648704
+      ],
+      [
+        0.023118683202339164,
+        0.755902057849889
+      ],
+      [
+        0.32311868320233916,
+        -0.13496251236686338
+      ],
+      [
+        0.3136095012260208,
+        -0.5167078210274672
+      ],
+      [
+        -0.08382790436022187,
+        0.08364017604176653
+      ],
+      [
+        0.7231186832023392,
+        0.3995562297631879
+      ],
+      [
+        0.42311868320233914,
+        0.5777291438065384
+      ],
+      [
+        -0.13617279876940155,
+        0.4155604246685867
+      ],
+      [
+        0.7231186832023392,
+        -0.2367756061059208
+      ],
+      [
+        0.5231186832023391,
+        0.22138331571983746
+      ],
+      [
+        0.5231186832023391,
+        -0.37676860999712475
+      ],
+      [
+        0.0813374007774124,
+        -0.5167155990420842
+      ],
+      [
+        0.023118683202339164,
+        -0.12223587564948124
+      ],
+      [
+        0.22311868320233916,
+        0.6668156008282136
+      ],
+      [
+        0.5231186832023391,
+        -0.04587605534518817
+      ],
+      [
+        0.22311868320233916,
+        0.06866367511125138
+      ],
+      [
+        0.22311868320233916,
+        -0.325862063127596
+      ],
+      [
+        0.023118683202339164,
+        0.5522758703717741
+      ],
+      [
+        0.023118683202339164,
+        0.25956322587198405
+      ],
+      [
+        0.5231186832023391,
+        0.755902057849889
+      ],
+      [
+        0.22311868320233916,
+        0.47591605006748094
+      ],
+      [
+        0.5231186832023391,
+        0.41228286648057005
+      ],
+      [
+        0.7231186832023392,
+        0.5777291438065384
+      ],
+      [
+        0.7231186832023392,
+        0.22138331571983746
+      ],
+      [
+        0.5231186832023391,
+        -0.21132233267115647
+      ],
+      [
+        0.42311868320233914,
+        0.08139031182863359
+      ],
+      [
+        -0.2641135727333298,
+        0.4832534570236979
+      ]
+    ],
+    "v_block_vth": 1.3038702077826494,
+    "v_width_v": 0.049586776859504134
+  },
+  "function_fit": {
+    "static_curve_rmse_rel": 0.023667218667341623,
+    "emitted_static_curve_rmse_rel": 0.0722255003110832,
+    "static_samples": 606,
+    "heldout_id_rmse_rel": 0.42970155392024056,
+    "heldout_qg_rmse_rel": 0.36780117361424997,
+    "cell_selection_error_rel": 0.0722255003110832
+  },
+  "generalization": {
+    "status": "not_measured",
+    "n_trajectories": 1,
+    "trajectory_sources": [
+      "epc2216:primary"
+    ],
+    "cv_status": "not_measured",
+    "holdout_id_rmse_rel": "not_measured",
+    "holdout_qg_rmse_rel": "not_measured",
+    "selection_error_source": "emitted_static_rmse_rel",
+    "reason": "no config['tier3']['training_conditions']; single configured DPT trajectory only",
+    "physical_elements": {
+      "include_gate_charge": false,
+      "include_body_diode": false,
+      "include_parasitics": false
+    }
+  },
+  "dpt_run": {
+    "completed": true,
+    "trace_points": 9440,
+    "golden_trace_points": 7418,
+    "iterations": 33785,
+    "t_last_s": 1.4e-05,
+    "error": null,
+    "waveform": {
+      "vds_rel_rmse_pct": 2.846138329471166,
+      "id_rel_rmse_pct": 1.469416634788466,
+      "compare_points": 7418,
+      "current_definition": "I(Lload)-I(Dclamp)"
+    },
+    "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+    "golden_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+    "current_definitions": {
+      "golden": "I(Lload)-I(Dclamp)",
+      "tier3": "I(Lload)-I(Dclamp)"
+    }
+  },
+  "dpt_comparison": {
+    "td_on_ns": {
+      "golden": 8.279633410423578,
+      "tier3": 8.774472480550974,
+      "tier3_rel_err_pct": 5.976581879874324,
+      "tier2": 8.51059303501782,
+      "tier2_rel_err_pct": 2.7894909490011575
+    },
+    "tr_ns": {
+      "golden": 0.8455906106561757,
+      "tier3": 1.4854702963487973,
+      "tier3_rel_err_pct": 75.6725154736613,
+      "tier2": 0.8378172211750414,
+      "tier2_rel_err_pct": -0.9192852171220465
+    },
+    "td_off_ns": {
+      "golden": 6.954277428144817,
+      "tier3": 4.655406033082091,
+      "tier3_rel_err_pct": -33.05694112459348,
+      "tier2": 7.049488582885772,
+      "tier2_rel_err_pct": 1.3691020486991767
+    },
+    "tf_ns": {
+      "golden": 1.2274909896712498,
+      "tier3": 2.255151191498487,
+      "tier3_rel_err_pct": 83.7203865832423,
+      "tier2": 1.3428684081228792,
+      "tier2_rel_err_pct": 9.3994513542238
+    },
+    "dv_dt_max_v_per_ns": {
+      "golden": 3556.2034081685165,
+      "tier3": 724.364034048,
+      "tier3_rel_err_pct": -79.63097295323004,
+      "tier2": 175.83101776359916,
+      "tier2_rel_err_pct": -95.05565352758734
+    },
+    "di_dt_max_a_per_ns": {
+      "golden": 2787.3551863569787,
+      "tier3": 1932.1958990072128,
+      "tier3_rel_err_pct": -30.679953941120907,
+      "tier2": 182.43627222972805,
+      "tier2_rel_err_pct": -93.45486096918388
+    },
+    "e_on_uj": {
+      "golden": 0.3976268163342146,
+      "tier3": 0.6155681651818202,
+      "tier3_rel_err_pct": 54.810525823394386,
+      "tier2": 0.5416445060041672,
+      "tier2_rel_err_pct": 36.219310105308,
+      "golden_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+      "tier3_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+      "tier2_energy_current_definition": "I(Lload)-I(Dclamp) signed"
+    },
+    "e_off_uj": {
+      "golden": 0.23088046945936386,
+      "tier3": 0.36704200670107273,
+      "tier3_rel_err_pct": 58.97490487634079,
+      "tier2": 0.388272753596838,
+      "tier2_rel_err_pct": 68.17046262337749,
+      "golden_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+      "tier3_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+      "tier2_energy_current_definition": "I(Lload)-I(Dclamp) signed"
+    },
+    "i_peak_a": {
+      "golden": 13.239258766176981,
+      "tier3": 13.06142425537287,
+      "tier3_rel_err_pct": -1.3432361580425776,
+      "tier2": 13.227507591252,
+      "tier2_rel_err_pct": -0.08876006680225021
+    }
+  },
+  "energy_current_definition": {
+    "golden": "I(Lload)-I(Dclamp) signed",
+    "tier3": "I(Lload)-I(Dclamp) signed",
+    "tier2": "I(Lload)-I(Dclamp) signed",
+    "rule": "switching energy integrates the signed device current I(Lload)-I(Dclamp); timing/G3 remain on its absolute magnitude"
+  },
+  "runtime": {
+    "method": "default/trap",
+    "max_step_s": 2e-09,
+    "end_time_s": 1.4e-05,
+    "guard": {
+      "golden": {
+        "t_last_s": 1.4e-05,
+        "iterations": 23036,
+        "trace_points": 7418,
+        "end_time_s": 1.4e-05
+      },
+      "tier3": {
+        "t_last_s": 1.4e-05,
+        "iterations": 33785,
+        "trace_points": 9440,
+        "end_time_s": 1.4e-05
+      }
+    },
+    "golden": {
+      "wall_clock_s": 0.871211299992865,
+      "solver_elapsed_s": 0.378,
+      "iterations": 23036.0,
+      "trace_points": 7418.0,
+      "t_last_s": 1.4e-05
+    },
+    "tier3": {
+      "wall_clock_s": 1.4529388999944786,
+      "solver_elapsed_s": 0.92,
+      "iterations": 33785.0,
+      "trace_points": 9440.0,
+      "t_last_s": 1.4e-05
+    },
+    "tier3_bench_completed": true,
+    "solver_speedup": 0.41086956521739126,
+    "bench_wall_s": {
+      "golden": 2.600347400002647,
+      "tier3": 4.320562100001553
+    },
+    "scope": "forced 2ns fidelity control; not the adaptive speed claim"
+  },
+  "current_definitions": {
+    "golden": "I(Lload)-I(Dclamp)",
+    "tier3": "I(Lload)-I(Dclamp)"
+  },
+  "build_seconds": {
+    "capture": 0.9280575000011595,
+    "training_captures": 1.9999424694105983e-07,
+    "fit": 29.676546300004702
+  },
+  "spice_log_tail": "Total elapsed time: 0.907 seconds.\nTotal iterations: 33785\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_svsae65_\\tran.net\n",
+  "emitted_lib": "reports\\models\\epc2216_PIECESPICE_T3.lib"
+}

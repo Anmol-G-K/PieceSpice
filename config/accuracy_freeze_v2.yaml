@@ -1,0 +1,37 @@
+schema: piecespice.accuracy_freeze/2.0
+frozen_at: "2026-11-24T00:00:00+05:30"
+source_commit: "d76c4ed"
+refresh_note: "2026-11-24: UROM ANN speed fields and EPC n=200 max-step corrected; accuracy values unchanged."
+policy: "Accuracy is frozen for speed contract v2; any new accuracy change requires a new freeze."
+replication: "Independent second-system replication explicitly deferred by decision 2026-11-24."
+records:
+  unified_ann_trap-default:
+    cpm2-1200: "89e3458ce379254784318d2f0a1aad6c84c59dd5aca696a7dc8981a3c1a8cd47"
+    csd16412q5a: "d5ab818861c384f9853db1064f2a85daeff27e49a2a9f408dcf62367a505314d"
+    epc2216: "8932ce86259bbd3c72f9c86cd534f8e3007c4854bd529e03c91069e3cdef4095"
+    irfs7730pbf: "e11f3a04e8a26a3a6cb40ad105cef7dc133bdef41756d9c20259882b8318f201"
+  tier4_validation_ann:
+    cpm2-1200: "d6c273abfba2b3a7f673f9852c7892ffe3586f9147860d4b152c5edba5ac019a"
+    csd16412q5a: "99ca4bcf894f360a5537631090b8db4ce16f50a046eac7f00409124e88890b71"
+    epc2216: "a8d1e58d2d9be75f09789cc14250a5d56056b8620fb141fdb852063e7941b886"
+    irfs7730pbf: "72be4fb83b037ac321be6a51ce5040aee1fa0e2eccae63c0d445b20c2135c410"
+  unified_validation:
+    cpm2-1200: "5b7fd28e86239ed94c6c26d02283ab2279908bc718e0f009e20e2e8c6d0dd838"
+    csd16412q5a: "177195105c0e1bcf70a1383f3ab1f7f9e161d8dd6a4f8bdd49523a06fb355cb9"
+    epc2216: "08e4452f75c720c0eccd7646c0de3273142d168ad36dfc8196fa561c750efcc6"
+    irfs7730pbf: "3055af45180533521f85e860a29c67c3e56d6b09205fab3d6416777283cc0ede"
+  tier3_validation:
+    cpm2-1200: "5042e4a25dd5460f467a52a6a85a962508a5f5d7a2c9d8b56bcd2a17b5606624"
+    csd16412q5a: "82da22113b21805285a2d7a4f91d5d5546492e677a3f33d1e8755b658ba3bc0d"
+    epc2216: "eeb2359eaa7f4939bf500444dac3d7ec21c9f9bb73087f4ed4741c50f01d41bf"
+    irfs7730pbf: "b788a0d13159aa5338587d578f096ab7414f74b693b071823359ca7353883a8f"
+  tier3_validation_simplis:
+    cpm2-1200: "328aeb3ee2f8428e037880fd64b13562f4316d70702d1a2ca7e15ac779d413b5"
+    csd16412q5a: "ade7eb686f95d8d3aa2924a21d6c4f27d971b739933fa8488da59b2c132cbcab"
+    epc2216: "1d5fc23da1b345088e9c95717afd5bbb1b04581c807f362ce04de892ee0a2c3b"
+    irfs7730pbf: "8b1635776181af0d65232b4c530d968d705b6aa0d688fd037ccc926f043e5d3d"
+  tier4_validation:
+    cpm2-1200: "385109484caaa8858973e4c53fe3a237a80c02d9600f2d246c06293d47eafbe4"
+    csd16412q5a: "c98781961b1b3edadaca919a18f5619b1c127360817149e707994ac91de9ee4a"
+    epc2216: "afd82341d0ef0931740c1a4f8fb6840038585f929a77bfdf17270a0ff86de8ad"
+    irfs7730pbf: "1f39ad32a62dadec8d8345badf15bc32f8cff8a11dafe24714486a08fe8c9625"

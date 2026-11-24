@@ -1,0 +1,27 @@
+* PieceSpice UROM: basis=tier2 method=trap/default tuning=off c1_variant=C0
+* Artifact identity (emitted_lib_sha256) in the validation record
+* PieceSpice Tier 2 CPWL Model for irfs7730pbf
+* Generated from fitted PWLModelSpec (K=5 Vgs curves, 101 Vds breakpoints)
+.SUBCKT irfs7730pbf_PIECSPICE_UROM d g s
+* Pins: 1=Drain(d) 2=Gate(g) 3=Source(s)
+
+* --- parasitics ---
+RG g gi 1.500000e+00
+RD d di 1.000000e-04
+RS s ss 1.000000e-04
+
+* --- channel: tanh-knee behavioral source (Curves 1+2) ---
+G_CH di ss VALUE = {((0.000000e+00 + 7.952064e-08*((V(gi,ss)-0.000000e+00)+abs((V(gi,ss))-0.000000e+00))/2 + 4.585767e+00*((V(gi,ss)-3.000000e+00)+abs((V(gi,ss))-3.000000e+00))/2 + 2.139075e+02*((V(gi,ss)-4.500000e+00)+abs((V(gi,ss))-4.500000e+00))/2 + 9.957340e+01*((V(gi,ss)-6.000000e+00)+abs((V(gi,ss))-6.000000e+00))/2 + 4.389064e+01*((V(gi,ss)-8.000000e+00)+abs((V(gi,ss))-8.000000e+00))/2)*tanh(V(di,ss)/(8.024546e+00 + 0.000000e+00*((V(gi,ss)-0.000000e+00)+abs((V(gi,ss))-0.000000e+00))/2 + -4.467528e+00*((V(gi,ss)-3.000000e+00)+abs((V(gi,ss))-3.000000e+00))/2 + 4.509336e+00*((V(gi,ss)-4.500000e+00)+abs((V(gi,ss))-4.500000e+00))/2 + 5.481977e-01*((V(gi,ss)-6.000000e+00)+abs((V(gi,ss))-6.000000e+00))/2 + -1.179886e-03*((V(gi,ss)-8.000000e+00)+abs((V(gi,ss))-8.000000e+00))/2)))}
+
+* --- charge-conserving capacitances (Curve 4, plan 2.3) ---
+* Output charge Qoss(Vds) as chained delta ramps:
+C_QOSS di ss Q = {0.000000e+00 + 6.687825e-09*((V(di,ss)-1.000000e-01)+abs((V(di,ss))-1.000000e-01))/2 + -1.737745e-10*((V(di,ss)-1.305438e-01)+abs((V(di,ss))-1.305438e-01))/2 + -2.070950e-10*((V(di,ss)-1.704169e-01)+abs((V(di,ss))-1.704169e-01))/2 + -2.419887e-10*((V(di,ss)-2.224687e-01)+abs((V(di,ss))-2.224687e-01))/2 + -2.765938e-10*((V(di,ss)-2.904191e-01)+abs((V(di,ss))-2.904191e-01))/2 + -3.086582e-10*((V(di,ss)-3.791242e-01)+abs((V(di,ss))-3.791242e-01))/2 + -3.358462e-10*((V(di,ss)-4.949232e-01)+abs((V(di,ss))-4.949232e-01))/2 + -3.561343e-10*((V(di,ss)-6.460916e-01)+abs((V(di,ss))-6.460916e-01))/2 + -3.681727e-10*((V(di,ss)-8.434327e-01)+abs((V(di,ss))-8.434327e-01))/2 + -3.714953e-10*((V(di,ss)-1.101049e+00)+abs((V(di,ss))-1.101049e+00))/2 + -3.665271e-10*((V(di,ss)-1.437352e+00)+abs((V(di,ss))-1.437352e+00))/2 + -3.544022e-10*((V(di,ss)-1.876374e+00)+abs((V(di,ss))-1.876374e+00))/2 + -3.366695e-10*((V(di,ss)-2.449490e+00)+abs((V(di,ss))-2.449490e+00))/2 + -3.150117e-10*((V(di,ss)-3.197657e+00)+abs((V(di,ss))-3.197657e+00))/2 + -2.910208e-10*((V(di,ss)-4.174344e+00)+abs((V(di,ss))-4.174344e+00))/2 + -2.660420e-10*((V(di,ss)-5.449348e+00)+abs((V(di,ss))-5.449348e+00))/2 + -2.411243e-10*((V(di,ss)-7.113787e+00)+abs((V(di,ss))-7.113787e+00))/2 + -2.170293e-10*((V(di,ss)-9.286608e+00)+abs((V(di,ss))-9.286608e+00))/2 + -1.942572e-10*((V(di,ss)-1.212309e+01)+abs((V(di,ss))-1.212309e+01))/2 + -1.731079e-10*((V(di,ss)-1.582595e+01)+abs((V(di,ss))-1.582595e+01))/2 + -1.537215e-10*((V(di,ss)-2.065980e+01)+abs((V(di,ss))-2.065980e+01))/2 + -1.361270e-10*((V(di,ss)-2.697009e+01)+abs((V(di,ss))-2.697009e+01))/2 + -1.202850e-10*((V(di,ss)-3.520778e+01)+abs((V(di,ss))-3.520778e+01))/2 + -1.061056e-10*((V(di,ss)-4.596158e+01)+abs((V(di,ss))-4.596158e+01))/2}
+C_ISS gi ss 6.891557e-09
+C_RSS gi di 2.730837e-10
+
+* --- body diode (Curve 6) ---
+* body-diode provenance: measured Curve 6 forward (Vsd,Isd) sweep (config/outputs/irfs7730pbf/curve6_body_diode.yaml); bounded least-squares fit of I=IS*(exp((V-I*RS)/(N*Vt))-1) on log10(current), Vt=0.026 V; IS=1.241716e-09 N=1.205 RS=1.141802e-03; RMS log10 error=1.380106e-01 dec (all 50 samples)
+.MODEL D_BD_irfs7730pbf_PIECSPICE_UROM D(IS=1.241716e-09 N=1.205 RS=1.141802e-03)
+D_BODY ss di D_BD_irfs7730pbf_PIECSPICE_UROM
+
+.ENDS irfs7730pbf_PIECSPICE_UROM

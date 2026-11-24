@@ -109,12 +109,26 @@ KEYS = {
     "vth_v": "Gate threshold voltage @ Id=250uA [V]",
     "rds_on_10v_mohm": "On-resistance @ Vgs=10V, Id=10A [mOhm]",
     "rds_on_45v_mohm": "On-resistance @ Vgs=4.5V, Id=10A [mOhm]",
+    "rds_on_mohm_at_Id_load": "On-resistance interpolated at Id_load [mOhm]",
+    "cap_ref_vds": "Vds at which capacitances are reported [V]",
+    "Isd_ref": "Body-diode report reference current [A]",
     "gfs_s": "Transconductance @ Vds=15V, Id=10A [S]",
     "body_diode_vsd_10a_v": "Body-diode forward voltage @ Isd=10A [V]",
-    # capacitances
+    "body_diode_vsd_at_Isd_ref_v": "Body-diode forward voltage at per-vendor Isd_ref [V]",
+    "Id_th_target": "Threshold extraction target current [A]",
+    # capacitances (Curve-4 scalar equivalents + full AC sweep arrays;
+    # the shared Vds axis key `curve_vds` is declared in the curves section below)
     "ciss_f": "Input capacitance [F]",
     "coss_f": "Output capacitance [F]",
     "crss_f": "Reverse-transfer capacitance [F]",
+    "ciss_curve_f": "Full Curve-4 Ciss vs Vds AC sweep [F]",
+    "coss_curve_f": "Full Curve-4 Coss vs Vds AC sweep [F]",
+    "crss_curve_f": "Full Curve-4 Crss vs Vds AC sweep [F]",
+    "r_gate_ohm": "Internal series gate resistance [Ohm]",
+    "l_gate_h": "Extracted gate package inductance [H]",
+    "l_source_h": "Extracted common-source package inductance [H]",
+    "l_drain_h": "Extracted drain package inductance [H]",
+    "cv_sweeps": "Optional multi-bias Curve-4 C(V) sweeps, one dict per Vgs bias",
     # gate charge
     "v_plateau_v": "Miller plateau voltage [V]",
     "qgs_nc": "Gate-source charge [nC]",
@@ -123,8 +137,10 @@ KEYS = {
     "qg_total_nc": "Total gate charge at Vgs_max [nC]",
     # curves (full sampled data, kept as lists for portability)
     "curve_vgs": "Swept gate-source voltage [V]",
-    "curve_vds": "Swept drain-source voltage [V]",
+    "curve_vds": "Swept drain-source voltage [V] (Curve-4 C(V) axis)",
     "curve_id": "Drain current [A]",
     "curve_isd": "Source (body-diode) current [A]",
+    "curve_vsd": "Swept source-drain voltage (body diode) [V]",
+    "curve_rds_mohm": "On-resistance vs Id [mOhm]",
     "curve_qg_nc": "Gate charge [nC]",
 }

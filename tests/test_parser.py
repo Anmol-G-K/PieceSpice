@@ -1,7 +1,11 @@
 """Extended tests for parser/preprocessor, parser/netlist, and quasi-static
-gate-charge reconstruction. Covers implementation errors found in the M1/M2
-audit (forward-referenced params, $ comments, PSpice PARAMS: headers) plus
-regression coverage for reconstruct_gate_charge."""
+gate-charge reconstruction.
+
+The preprocessor is a text-hygiene pass-through: LTspice resolves .PARAM
+hierarchies and TABLE/POLY/fractional powers natively. These tests lock in
+that native constructs survive unchanged; dollar comments and continuation
+joining remain the only transformations.
+"""
 
 import numpy as np
 import pytest
@@ -13,16 +17,16 @@ from parser.preprocessor import normalize_pspice_netlist
 # ---------- preprocessor ----------
 
 def test_normalize_forward_referenced_params():
-    """A param defined in terms of a LATER param must still resolve."""
-    raw = """.PARAM a {b*2}
-.PARAM b 3
-R1 1 0 {a}"""
+    """LTspice resolves forward .PARAM references; normalization must not fold them."""
+    raw = (
+        "M1 d g s s NMOS W={pWidth} PS={perim}\n"
+        ".param perim={2*pWidth}\n"
+        ".param pWidth=0.6178256\n"
+    )
     out = normalize_pspice_netlist(raw)
-    assert ".PARAM b=3" in out
-    assert ".PARAM a=6" in out
-    assert "R1 1 0 6" in out
-    assert "{" not in out.split("R1")[1]
-
+    assert out == raw.rstrip("\n")
+    assert "{pWidth}" in out and "{2*pWidth}" in out
+    assert ".param pWidth=0.6178256" in out
 
 def test_normalize_strips_dollar_comments():
     raw = "R1 1 0 1k $ trailing comment"
@@ -33,12 +37,16 @@ def test_normalize_strips_dollar_comments():
 
 
 def test_normalize_safe_functions():
-    raw = ".PARAM x {min(2,5)}\nR1 1 0 {x}"
+    """LTspice-native TABLE/POLY and fractional powers pass through untouched."""
+    raw = (
+        "G1 d 0 VALUE={TABLE(V(g),0,0,10,1)}\n"
+        "R1 a 0 {pow(V(x),1.5)+sqrt(abs(V(y)))}\n"
+        "E1 out 0 POLY(2) V(a) V(b) 0 1 2\n"
+    )
     out = normalize_pspice_netlist(raw)
-    assert ".PARAM x=2" in out
-
-
-# ---------- netlist parser ----------
+    assert out == raw.rstrip("\n")
+    assert "TABLE(" in out and "POLY(2)" in out
+    assert "pow(V(x),1.5)" in out and "sqrt(abs(V(y)))" in out
 
 def test_parse_subckt_with_params_header(tmp_path):
     """PSpice .SUBCKT ... PARAMS: k=v tokens must go to parameters, not nodes."""

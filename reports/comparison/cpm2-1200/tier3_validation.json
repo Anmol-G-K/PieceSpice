@@ -1,0 +1,301 @@
+{
+  "schema": "piecespice.tier3/2.0",
+  "vendor": "cpm2-1200",
+  "variant": "v1",
+  "emission": {
+    "compact": false,
+    "rel_tol": 0.005,
+    "table_points": 31,
+    "vgs_points": 26,
+    "max_rel_error_pct": 0.0,
+    "estimated_literal_count": 5536,
+    "source": "default"
+  },
+  "methods": [
+    "TPWL (Rewienski & White 2003)",
+    "POD-DEIM anchors (Chaturantabut & Sorensen 2010)"
+  ],
+  "algorithm": {
+    "weight_exponent": 25.0,
+    "cells": 24,
+    "pod_energy": [
+      0.9741060168633547,
+      0.025893983136645256
+    ],
+    "deim_seed_count": 2,
+    "edge_smoothing_window": 21,
+    "anchors_scaled": [
+      [
+        0.6145434257087921,
+        -0.504483296255052
+      ],
+      [
+        0.6145434257087921,
+        0.45650550810435186
+      ],
+      [
+        -0.49656768540231905,
+        -0.02799996399360067
+      ],
+      [
+        -0.0888246552780786,
+        0.49541224019979263
+      ],
+      [
+        -0.02514835099069796,
+        -0.47481954559333306
+      ],
+      [
+        0.28121009237545874,
+        0.004840770055432152
+      ],
+      [
+        -0.49656768540231905,
+        0.45650550810435186
+      ],
+      [
+        0.6145434257087921,
+        -0.13930755059847846
+      ],
+      [
+        0.28121009237545874,
+        0.36040662766841147
+      ],
+      [
+        -0.4053647640647675,
+        -0.35454056895795816
+      ],
+      [
+        0.28121009237545874,
+        -0.3315053114703592
+      ],
+      [
+        0.026033442222192664,
+        0.15867798766104046
+      ],
+      [
+        0.6145434257087921,
+        0.15859897875293671
+      ],
+      [
+        0.058987870153236505,
+        -0.15852732668566655
+      ],
+      [
+        -0.49656768540231905,
+        0.21416600522583465
+      ],
+      [
+        0.5034323145976809,
+        -0.32189542342676514
+      ],
+      [
+        0.39232120348656985,
+        -0.504483296255052
+      ],
+      [
+        0.39232120348656985,
+        0.1778187548401248
+      ],
+      [
+        -0.29089709023325167,
+        0.4737851897971188
+      ],
+      [
+        -0.2251483456925073,
+        -0.4652927361589511
+      ],
+      [
+        0.058987870153236505,
+        0.36040662766841147
+      ],
+      [
+        0.39232120348656985,
+        -0.15852732668566655
+      ],
+      [
+        0.1700989812643476,
+        -0.504483296255052
+      ],
+      [
+        0.5034323145976809,
+        0.004840770055432152
+      ]
+    ],
+    "v_block_vth": 2.4672094145234116,
+    "v_width_v": 0.0990049751243781
+  },
+  "function_fit": {
+    "static_curve_rmse_rel": 0.006058122188922697,
+    "emitted_static_curve_rmse_rel": 0.009749351034205083,
+    "static_samples": 606,
+    "heldout_id_rmse_rel": 0.29557970128190425,
+    "heldout_qg_rmse_rel": 0.31788472015824637,
+    "cell_selection_error_rel": 0.009749351034205083
+  },
+  "generalization": {
+    "status": "not_measured",
+    "n_trajectories": 1,
+    "trajectory_sources": [
+      "cpm2-1200:primary"
+    ],
+    "cv_status": "not_measured",
+    "holdout_id_rmse_rel": "not_measured",
+    "holdout_qg_rmse_rel": "not_measured",
+    "selection_error_source": "emitted_static_rmse_rel",
+    "reason": "no config['tier3']['training_conditions']; single configured DPT trajectory only",
+    "physical_elements": {
+      "include_gate_charge": false,
+      "include_body_diode": false,
+      "include_parasitics": false
+    }
+  },
+  "dpt_run": {
+    "completed": true,
+    "trace_points": 32250,
+    "golden_trace_points": 7154,
+    "iterations": 205154,
+    "t_last_s": 1.4e-05,
+    "error": null,
+    "waveform": {
+      "vds_rel_rmse_pct": 4.378542572791495,
+      "id_rel_rmse_pct": 5.193155509047496,
+      "compare_points": 7154,
+      "current_definition": "I(Lload)-I(Dclamp)"
+    },
+    "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+    "golden_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+    "current_definitions": {
+      "golden": "I(Lload)-I(Dclamp)",
+      "tier3": "I(Lload)-I(Dclamp)"
+    }
+  },
+  "dpt_comparison": {
+    "td_on_ns": {
+      "golden": 10.252879764066485,
+      "tier3": 8.594062028724652,
+      "tier3_rel_err_pct": -16.179042118054788,
+      "tier2": 11.780657210018502,
+      "tier2_rel_err_pct": 14.900959351015269
+    },
+    "tr_ns": {
+      "golden": 4.703011959080317,
+      "tier3": 0.8504772016439165,
+      "tier3_rel_err_pct": -81.91632917280039,
+      "tier2": 4.123180135595054,
+      "tier2_rel_err_pct": -12.328946397122296
+    },
+    "td_off_ns": {
+      "golden": 14.034458010213152,
+      "tier3": 7.761089699661011,
+      "tier3_rel_err_pct": -44.699754746402654,
+      "tier2": 18.242309580736105,
+      "tier2_rel_err_pct": 29.982287648449386
+    },
+    "tf_ns": {
+      "golden": 4.139181554911007,
+      "tier3": 2.4290478132153552,
+      "tier3_rel_err_pct": -41.3157460963903,
+      "tier2": 8.788832112198792,
+      "tier2_rel_err_pct": 112.33260719794045
+    },
+    "dv_dt_max_v_per_ns": {
+      "golden": 373.7322739993671,
+      "tier3": 1438.4411443200001,
+      "tier3_rel_err_pct": 284.8854499310477,
+      "tier2": 374.9478906231432,
+      "tier2_rel_err_pct": 0.3252640214257114
+    },
+    "di_dt_max_a_per_ns": {
+      "golden": 986.2625878706833,
+      "tier3": 2810.4327359121344,
+      "tier3_rel_err_pct": 184.95785711387364,
+      "tier2": 726.5448769511014,
+      "tier2_rel_err_pct": -26.33352558574751
+    },
+    "e_on_uj": {
+      "golden": 2.7601594486405885,
+      "tier3": 1.8114412020839261,
+      "tier3_rel_err_pct": -34.37186380750277,
+      "tier2": 3.213875373912566,
+      "tier2_rel_err_pct": 16.438033154042536,
+      "golden_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+      "tier3_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+      "tier2_energy_current_definition": "I(Lload)-I(Dclamp) signed"
+    },
+    "e_off_uj": {
+      "golden": 1.4200473072736473,
+      "tier3": 0.6980167350066546,
+      "tier3_rel_err_pct": -50.84552948121293,
+      "tier2": 3.314410474663301,
+      "tier2_rel_err_pct": 133.4014125928415,
+      "golden_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+      "tier3_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+      "tier2_energy_current_definition": "I(Lload)-I(Dclamp) signed"
+    },
+    "i_peak_a": {
+      "golden": 26.82243537902832,
+      "tier3": 26.665210723876953,
+      "tier3_rel_err_pct": -0.5861684553606812,
+      "tier2": 26.73192024230957,
+      "tier2_rel_err_pct": -0.3374605453967135
+    }
+  },
+  "energy_current_definition": {
+    "golden": "I(Lload)-I(Dclamp) signed",
+    "tier3": "I(Lload)-I(Dclamp) signed",
+    "tier2": "I(Lload)-I(Dclamp) signed",
+    "rule": "switching energy integrates the signed device current I(Lload)-I(Dclamp); timing/G3 remain on its absolute magnitude"
+  },
+  "runtime": {
+    "method": "default/trap",
+    "max_step_s": 2e-09,
+    "end_time_s": 1.4e-05,
+    "guard": {
+      "golden": {
+        "t_last_s": 1.4e-05,
+        "iterations": 21310,
+        "trace_points": 7154,
+        "end_time_s": 1.4e-05
+      },
+      "tier3": {
+        "t_last_s": 1.4e-05,
+        "iterations": 205154,
+        "trace_points": 32250,
+        "end_time_s": 1.4e-05
+      }
+    },
+    "golden": {
+      "wall_clock_s": 0.9439719000001787,
+      "solver_elapsed_s": 0.408,
+      "iterations": 21310.0,
+      "trace_points": 7154.0,
+      "t_last_s": 1.4e-05
+    },
+    "tier3": {
+      "wall_clock_s": 3.019058200006839,
+      "solver_elapsed_s": 2.321,
+      "iterations": 205154.0,
+      "trace_points": 32250.0,
+      "t_last_s": 1.4e-05
+    },
+    "tier3_bench_completed": true,
+    "solver_speedup": 0.1757862990090478,
+    "bench_wall_s": {
+      "golden": 2.811828300000343,
+      "tier3": 9.068143199998303
+    },
+    "scope": "forced 2ns fidelity control; not the adaptive speed claim"
+  },
+  "current_definitions": {
+    "golden": "I(Lload)-I(Dclamp)",
+    "tier3": "I(Lload)-I(Dclamp)"
+  },
+  "build_seconds": {
+    "capture": 0.899738799998886,
+    "training_captures": 2.9999500839039683e-07,
+    "fit": 27.823634899999888
+  },
+  "spice_log_tail": "Total elapsed time: 2.266 seconds.\nTotal iterations: 205154\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_revr_2_t\\tran.net\n",
+  "emitted_lib": "reports\\models\\cpm2-1200_PIECESPICE_T3.lib"
+}

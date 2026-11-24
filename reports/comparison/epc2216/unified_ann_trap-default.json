@@ -1,0 +1,1748 @@
+{
+  "schema": "piecespice.unified/1.0",
+  "vendor": "epc2216",
+  "variant": "urom",
+  "emitted_lib": "reports/models/epc2216_PIECSPICE_UROM_ann_trap-default.lib",
+  "record_path": "reports/comparison/epc2216/unified_ann_trap-default.json",
+  "emit": "ann",
+  "channel_basis": "ann",
+  "timing_bar_column": "dpt_comparison.<metric>.golden",
+  "timing_bar_source": "reports/comparison/<vendor>/tier3_validation.json#dpt_comparison.<metric>.golden (device-current golden DPT; independent of dpt_metrics.json#tier2_metrics)",
+  "timing_regression_source": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics (diagnostic only; never scored in G4_timing_energy or in the verdict)",
+  "tuning_mode": "off",
+  "emitted_lib_sha256": "65bfd8404b4fa2dedb6ce46ccce6e09aaf061b8c25778f395b97791b37dd2764",
+  "environment": {
+    "python_version": "3.13.0",
+    "python_implementation": "CPython",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "system": "Windows",
+    "machine": "AMD64",
+    "processor": "Intel64 Family 6 Model 154 Stepping 3, GenuineIntel",
+    "cpu_count": 16,
+    "ltspice_exe": null,
+    "ltspice_version": null
+  },
+  "input_hashes": {
+    "config/inputs/epc2216.yaml": "2fc50ca12763b50b97329c39724d80bc1cd4e57cdd72590762fe66aaea600b9a",
+    "vendor_library:EPC2216_V0_PSPICE.net": "7db90752523496df18c1d4f375e6442a9499ff784a2586627ec1c6f1635f3cc1",
+    "emitted_lib": "65bfd8404b4fa2dedb6ce46ccce6e09aaf061b8c25778f395b97791b37dd2764",
+    "config/outputs/epc2216/curve1_output_characteristics.yaml": "024c9b0de8247ae2e5d529291e92ff4272528fbf73029885b22a820cc912f9d7",
+    "config/outputs/epc2216/curve2_transfer_characteristic.yaml": "416196bc5486b50d5a18e9ca7fa24c78607552abf5c9d6e53d1bddecda573d95",
+    "config/outputs/epc2216/curve3_rds_on.yaml": "0f337fb02cd7868bfd654e523d61c09af10eef0440bc926aba218ecc9c4ec54c",
+    "config/outputs/epc2216/curve4_capacitances.yaml": "beb26b0d9e4b05c732542bc509b97fdc296aef0e59269271556fc981d145e647",
+    "config/outputs/epc2216/curve5_gate_charge.yaml": "8e2f13f5c0f26f9aea6369572b1edf1d5705a3213a91dc33a4d0f29c482b10c0",
+    "config/outputs/epc2216/curve6_body_diode.yaml": "98947e2aadfcab156cba2e34d4ed5d51cac1a1dd8934fa41e6984241cdffb046",
+    "config/outputs/epc2216/curve7_threshold_voltage.yaml": "115fab714cdba887afa7b166053a8b63429fde3f14e7446da65bcea0a6deadc4"
+  },
+  "record_inputs": [
+    "config/inputs/epc2216.yaml",
+    "vendor_library:EPC2216_V0_PSPICE.net",
+    "emitted_lib",
+    "config/outputs/epc2216/curve1_output_characteristics.yaml",
+    "config/outputs/epc2216/curve2_transfer_characteristic.yaml",
+    "config/outputs/epc2216/curve3_rds_on.yaml",
+    "config/outputs/epc2216/curve4_capacitances.yaml",
+    "config/outputs/epc2216/curve5_gate_charge.yaml",
+    "config/outputs/epc2216/curve6_body_diode.yaml",
+    "config/outputs/epc2216/curve7_threshold_voltage.yaml"
+  ],
+  "acceptance_policy": {
+    "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\acceptance.yaml",
+    "schema": "piecespice.acceptance/1.0",
+    "sha256": "3c34aaac3afb4093527f4c2d56f9fe5a50e12bd66ff705c246ecde5780757089",
+    "sources": {
+      "static.mean_peak_rel_rmse_pct_max.irfs7730pbf": "recorded_baseline",
+      "static.mean_peak_rel_rmse_pct_max.csd16412q5a": "recorded_baseline",
+      "static.mean_peak_rel_rmse_pct_max.epc2216": "recorded_baseline",
+      "static.mean_peak_rel_rmse_pct_max.cpm2-1200": "recorded_baseline",
+      "static.worst_endpoint_pct": "recorded_baseline",
+      "static.g1_band_pp": "project_decision",
+      "dpt.trap/default.irfs7730pbf": "project_decision",
+      "dpt.trap/default.csd16412q5a": "project_decision",
+      "dpt.trap/default.epc2216": "project_decision",
+      "dpt.trap/default.cpm2-1200": "project_decision",
+      "dpt.gear-both.irfs7730pbf": "project_decision",
+      "dpt.gear-both.csd16412q5a": "project_decision",
+      "dpt.gear-both.epc2216": "project_decision",
+      "dpt.gear-both.cpm2-1200": "project_decision",
+      "timing.band_rel": "project_decision",
+      "timing.band_abs": "project_decision",
+      "charge.budget_pct": "recorded_baseline",
+      "speed.min_solver_speedup": "project_decision",
+      "speed.confidence": "project_decision",
+      "speed.n_resamples": "project_decision"
+    },
+    "override_semantics": "Every value in this file may be replaced with an application requirement by editing this file only; no code change is needed.  Values labelled recorded_baseline are the currently measured bars, values labelled project_decision are engineering thresholds.  The schema and all required keys must stay present and valid: a malformed file fails closed instead of silently reverting to the built-in fallback, which is used only when the file is absent.",
+    "values": {
+      "static_bars_pct": {
+        "irfs7730pbf": 7.0683,
+        "csd16412q5a": 8.4935,
+        "epc2216": 2.0394,
+        "cpm2-1200": 3.4287
+      },
+      "worst_endpoint_pct": 4.13,
+      "g1_band_pp": 0.05,
+      "dpt_bars_pct": {
+        "trap/default": {
+          "irfs7730pbf": [
+            10.0,
+            5.0
+          ],
+          "csd16412q5a": [
+            5.583,
+            5.0
+          ],
+          "epc2216": [
+            4.894,
+            5.0
+          ],
+          "cpm2-1200": [
+            3.0,
+            5.0
+          ]
+        },
+        "gear-both": {
+          "irfs7730pbf": [
+            12.771,
+            5.0
+          ],
+          "csd16412q5a": [
+            5.467,
+            5.0
+          ],
+          "epc2216": [
+            5.075,
+            5.0
+          ],
+          "cpm2-1200": [
+            4.122,
+            5.0
+          ]
+        }
+      },
+      "timing_band_rel": 0.05,
+      "timing_band_abs": 1e-12,
+      "charge_budget_pct": 0.5,
+      "speed_min_solver_speedup": 1.05,
+      "speed_confidence": 0.95,
+      "speed_n_resamples": 2000
+    }
+  },
+  "artifact_manifest": {
+    "schema": "piecespice.artifact_manifest/1.0",
+    "lib": {
+      "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\epc2216_PIECSPICE_UROM_ann_trap-default.lib",
+      "sha256": "65bfd8404b4fa2dedb6ce46ccce6e09aaf061b8c25778f395b97791b37dd2764",
+      "bytes": 3594
+    },
+    "inputs": {
+      "config/inputs/epc2216.yaml": {
+        "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\inputs\\epc2216.yaml",
+        "sha256": "2fc50ca12763b50b97329c39724d80bc1cd4e57cdd72590762fe66aaea600b9a",
+        "bytes": 3493
+      },
+      "vendor_library:EPC2216_V0_PSPICE.net": {
+        "path": "SpiceModels\\EPC2216_V0_PSPICE.net",
+        "sha256": "7db90752523496df18c1d4f375e6442a9499ff784a2586627ec1c6f1635f3cc1",
+        "bytes": 3584
+      },
+      "emitted_lib": {
+        "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\models\\epc2216_PIECSPICE_UROM_ann_trap-default.lib",
+        "sha256": "65bfd8404b4fa2dedb6ce46ccce6e09aaf061b8c25778f395b97791b37dd2764",
+        "bytes": 3594
+      },
+      "config/outputs/epc2216/curve1_output_characteristics.yaml": {
+        "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\epc2216\\curve1_output_characteristics.yaml",
+        "sha256": "024c9b0de8247ae2e5d529291e92ff4272528fbf73029885b22a820cc912f9d7",
+        "bytes": 14500
+      },
+      "config/outputs/epc2216/curve2_transfer_characteristic.yaml": {
+        "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\epc2216\\curve2_transfer_characteristic.yaml",
+        "sha256": "416196bc5486b50d5a18e9ca7fa24c78607552abf5c9d6e53d1bddecda573d95",
+        "bytes": 4663
+      },
+      "config/outputs/epc2216/curve3_rds_on.yaml": {
+        "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\epc2216\\curve3_rds_on.yaml",
+        "sha256": "0f337fb02cd7868bfd654e523d61c09af10eef0440bc926aba218ecc9c4ec54c",
+        "bytes": 2630
+      },
+      "config/outputs/epc2216/curve4_capacitances.yaml": {
+        "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\epc2216\\curve4_capacitances.yaml",
+        "sha256": "beb26b0d9e4b05c732542bc509b97fdc296aef0e59269271556fc981d145e647",
+        "bytes": 12080
+      },
+      "config/outputs/epc2216/curve5_gate_charge.yaml": {
+        "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\epc2216\\curve5_gate_charge.yaml",
+        "sha256": "8e2f13f5c0f26f9aea6369572b1edf1d5705a3213a91dc33a4d0f29c482b10c0",
+        "bytes": 29134
+      },
+      "config/outputs/epc2216/curve6_body_diode.yaml": {
+        "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\epc2216\\curve6_body_diode.yaml",
+        "sha256": "98947e2aadfcab156cba2e34d4ed5d51cac1a1dd8934fa41e6984241cdffb046",
+        "bytes": 2216
+      },
+      "config/outputs/epc2216/curve7_threshold_voltage.yaml": {
+        "path": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\config\\outputs\\epc2216\\curve7_threshold_voltage.yaml",
+        "sha256": "115fab714cdba887afa7b166053a8b63429fde3f14e7446da65bcea0a6deadc4",
+        "bytes": 110645
+      }
+    },
+    "extra": null
+  },
+  "artifact_manifest_verified": {
+    "ok": true,
+    "mismatches": []
+  },
+  "current_definition": "abs(I(Lload) - I(Dclamp))",
+  "current_definition_by_arm": {
+    "golden": "abs(I(Lload) - I(Dclamp))",
+    "urom": "abs(I(Lload) - I(Dclamp))"
+  },
+  "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+  "energy_definition": {
+    "urom": "I(Lload)-I(Dclamp) signed",
+    "golden_arm": "I(Lload)-I(Dclamp) signed",
+    "g4_bar": "I(Lload)-I(Dclamp) signed",
+    "tier2_regression_bar": "I(Lload)-I(Dclamp) signed",
+    "rule": "switching energy integrates the signed device current I(Lload)-I(Dclamp); timing, slew and i_peak stay on its absolute magnitude. A recorded bar without an energy_current_definition is legacy abs and its energy rows are reported as definition_mismatch, never scored as signed"
+  },
+  "c1_variant": null,
+  "method": "trap/default",
+  "equal_sandbox": {
+    "deck_diff_only_dut": true,
+    "effective_options_dumped": true,
+    "effective_options": {
+      "golden": [],
+      "rom": [],
+      "declared": []
+    },
+    "tolerance_overrides": [],
+    "libraries_inlined_both_arms": true,
+    "temperature_both_arms": 25.0,
+    "expected_temperature": 25.0,
+    "speed_deck_effective_options": {
+      "golden": [],
+      "rom": [],
+      "declared": []
+    },
+    "clock_spread": {
+      "median": {
+        "solver": {
+          "golden": 0.342,
+          "urom": 0.314
+        },
+        "wall": {
+          "golden": 0.9577849999986938,
+          "urom": 0.9090863000019453
+        }
+      },
+      "min": {
+        "solver": {
+          "golden": 0.338,
+          "urom": 0.31
+        },
+        "wall": {
+          "golden": 0.9337929999965127,
+          "urom": 0.898463500001526
+        }
+      },
+      "max": {
+        "solver": {
+          "golden": 0.351,
+          "urom": 0.315
+        },
+        "wall": {
+          "golden": 1.0228045000039856,
+          "urom": 0.9507482999979402
+        }
+      },
+      "missing": [],
+      "complete": true
+    }
+  },
+  "data_provenance": {
+    "curves": [
+      "curve1_output_characteristics.yaml",
+      "curve2_transfer_characteristic.yaml",
+      "curve3_rds_on.yaml",
+      "curve4_capacitances.yaml",
+      "curve5_gate_charge.yaml",
+      "curve6_body_diode.yaml",
+      "curve7_threshold_voltage.yaml"
+    ],
+    "dpt_high_vi": {
+      "source": "not_used (fallback: Curve 1 only)",
+      "vendor": "epc2216",
+      "conditions": {
+        "config": "config/inputs/epc2216.yaml#dpt"
+      },
+      "status": "no_high_v_samples",
+      "reason": "no DPT points with Vds > 15 V",
+      "n_points": 0,
+      "sample_indices": [],
+      "sample_selection": null,
+      "external_source_status": "conditional_until_url_and_section_pinned",
+      "dpt_informed": false
+    },
+    "external_source_status": "conditional_until_url_and_section_pinned",
+    "guard_width": {
+      "value": 0.07499999999999929,
+      "rule": "approximation.smoother.eps_from_grid (median positive spacing, capped at half minimum)",
+      "source": "curve1_output_characteristics:curve_id_vgs_6_v:Vds axis",
+      "family": "curve1_vgs_6",
+      "n_grid_points": 101,
+      "dpt_points_excluded": true
+    }
+  },
+  "ann_fit": {
+    "activation": "tanh",
+    "neurons": 6,
+    "loss_weights": {
+      "id": 1.0
+    },
+    "gm_gds_q_derivative_terms": [
+      "gm",
+      "gds",
+      "dq",
+      "d2q"
+    ],
+    "train_range": {
+      "vgs": [
+        2.5,
+        6.0
+      ],
+      "vds": [
+        0.0,
+        15.0
+      ]
+    },
+    "q0_offset": 4.734603212749592e-10,
+    "q0_offset_by_table": {
+      "oss": 4.734603212749592e-10,
+      "iss": 1.5843339294910635e-12,
+      "rss": 1.534673560436741e-10
+    },
+    "q0_offset_source": "approximation.ann_charge.fit_charge_qv provenance.q0_used (log-Q0 offsets actually used per table); q0_offset is the q_oss entry; charge_fit.q0 is the caller override (None here)",
+    "guard_width_v": 0.07499999999999929,
+    "out_of_range_check": "pass",
+    "status": "measured"
+  },
+  "c1": {
+    "status": "measured",
+    "monotone_q": true,
+    "monotone_q_by_table": {
+      "q_oss": true,
+      "q_iss": true,
+      "q_rss": true
+    },
+    "all_charge_monotone": true,
+    "q_zero_anchored_by_table": {
+      "q_oss": true,
+      "q_iss": true,
+      "q_rss": true
+    },
+    "all_charge_zero_anchored": true,
+    "applicable_tables": [
+      "q_iss",
+      "q_oss",
+      "q_rss"
+    ],
+    "not_applicable_tables": [],
+    "q_zero": 0.0,
+    "q_zero_anchored": true,
+    "charge_fit_error_pct": 0.048658451538663765,
+    "charge_fit_basis": "numeric mirror of the emitted delta-slope ramp chain against the source charge tables and the channel saturation-width ramp",
+    "q_max": 9.46295319917681e-10,
+    "v_max": 15.000000000000004,
+    "eps_by_table": {
+      "q_oss": 0.011608477080555554,
+      "transfer_vds": 0.07499999999999929,
+      "transfer_vgs": 0.25
+    },
+    "emitted_eps_by_table": {
+      "q_oss": 0.011608477080555554,
+      "transfer_vds": 0.07499999999999929,
+      "transfer_vgs": 0.25
+    },
+    "emitted_eps_by_element": {
+      "q_oss": 0.011608477080555554,
+      "q_iss": 0.011608477080555554,
+      "q_rss": 0.011608477080555554
+    },
+    "artifact_q_residuals": {
+      "status": "not_measured",
+      "mirror_match_all": false,
+      "elements": {
+        "q_oss": {
+          "element": "C_QOSS",
+          "eps": 0.011608477080555554,
+          "expression_found": true,
+          "emission_kind": "q_ramp",
+          "status": "measured",
+          "expression_matches_mirror": false,
+          "q_zero_residual_c": 0.0,
+          "q_vmax_residual_c": -3.1451565301258086e-10,
+          "q_vmax_residual_pct": -33.23652208698875
+        },
+        "q_iss": {
+          "element": "C_ISS",
+          "eps": 0.011608477080555554,
+          "expression_found": false,
+          "emission_kind": "linear_capacitor",
+          "status": "not_applicable",
+          "reason": "no emitted Q= ramp for this element"
+        },
+        "q_rss": {
+          "element": "C_RSS",
+          "eps": 0.011608477080555554,
+          "expression_found": true,
+          "emission_kind": "q_ramp",
+          "status": "not_measured",
+          "expression_matches_mirror": false,
+          "q_zero_residual_c": null,
+          "q_vmax_residual_c": null,
+          "q_vmax_residual_pct": null
+        }
+      },
+      "applicable_elements": [
+        "q_oss",
+        "q_rss"
+      ]
+    },
+    "eps_rule": "median_positive_grid_spacing_cap_half_min_segment",
+    "c0_bit_identical_at_eps0": null,
+    "c0_ab_note": "not measured here; run_unified A/Bs the tier2 C0 fallback against canonical build_tier2_subcircuit",
+    "breakpoint_crossings": {
+      "q_oss": 1,
+      "q_iss": 22,
+      "q_rss": 18
+    },
+    "per_table": {
+      "q_oss": {
+        "status": "measured",
+        "applicable": true,
+        "charge_fit_error_pct": 0.04031570539361954,
+        "breakpoint_crossings": 1,
+        "eps": 0.011608477080555554,
+        "q_max": 9.46295319917681e-10,
+        "monotone_q": true,
+        "q_zero_anchored": true,
+        "q_zero_residual_c": 3.815056333316218e-13,
+        "q_vmax_residual_c": -2.3102076956758907e-14
+      },
+      "q_iss": {
+        "status": "measured",
+        "applicable": true,
+        "charge_fit_error_pct": 0.03866656949551259,
+        "breakpoint_crossings": 22,
+        "eps": 0.011608477080555554,
+        "q_max": 2.9236086343944126e-09,
+        "monotone_q": true,
+        "q_zero_anchored": true,
+        "q_zero_residual_c": 6.996210153178848e-29,
+        "q_vmax_residual_c": -9.108190826141865e-13
+      },
+      "q_rss": {
+        "status": "measured",
+        "applicable": true,
+        "charge_fit_error_pct": 0.048658451538663765,
+        "breakpoint_crossings": 18,
+        "eps": 0.011608477080555554,
+        "q_max": 1.4708334456868322e-10,
+        "monotone_q": true,
+        "q_zero_anchored": true,
+        "q_zero_residual_c": -1.100861556211744e-30,
+        "q_vmax_residual_c": -7.156847793839857e-14
+      }
+    },
+    "c_ds_scaling_excluded": true
+  },
+  "tuning": {
+    "mode": "off",
+    "status": "not_run",
+    "theta": {
+      "A_GD": null,
+      "O_GD": null,
+      "A_GS": null,
+      "A_RGI": null
+    },
+    "bounds": {
+      "A_GD": [
+        0.5,
+        2.0
+      ],
+      "O_GD": [
+        0.0,
+        1.470833445686832e-10
+      ],
+      "A_GS": [
+        0.5,
+        2.0
+      ],
+      "A_RGI": [
+        0.5,
+        2.0
+      ]
+    },
+    "weights": {},
+    "conditions": [
+      {
+        "name": "recorded_golden_fit",
+        "emp": {
+          "td_on_ns": 8.279633410423578,
+          "tr_ns": 0.8455906106561757,
+          "td_off_ns": 6.954277428144817,
+          "e_on_uj": 0.3976268163342146,
+          "dv_dt_max_v_per_ns": 3556.2034081685165,
+          "di_dt_max_a_per_ns": 2787.3551863569787
+        },
+        "held_out": false,
+        "completed": true,
+        "condition": {
+          "vbus": 11.0,
+          "vgs_on": 5.0,
+          "i_load_target": 10.0,
+          "l_load": 5.5e-06,
+          "temperature": 25.0
+        },
+        "emp_source": "reports/comparison/epc2216/dpt_metrics.json",
+        "energy_definition": {
+          "golden": "I(Lload)-I(Dclamp) signed",
+          "candidate": "I(Lload)-I(Dclamp) signed",
+          "comparable": true,
+          "excluded_metrics": [],
+          "rule": "energy metrics are compared only when the recorded golden and the live candidate integrate the same current definition; otherwise they are excluded and listed here"
+        },
+        "split": "fit metrics of the recorded golden DPT"
+      },
+      {
+        "name": "recorded_golden_heldout",
+        "emp": {
+          "tf_ns": 1.2274909896712498,
+          "e_off_uj": 0.23088046945936386,
+          "i_peak_a": 13.239258766176981
+        },
+        "held_out": true,
+        "completed": true,
+        "condition": {
+          "vbus": 11.0,
+          "vgs_on": 5.0,
+          "i_load_target": 10.0,
+          "l_load": 5.5e-06,
+          "temperature": 25.0
+        },
+        "emp_source": "reports/comparison/epc2216/dpt_metrics.json",
+        "energy_definition": {
+          "golden": "I(Lload)-I(Dclamp) signed",
+          "candidate": "I(Lload)-I(Dclamp) signed",
+          "comparable": true,
+          "excluded_metrics": [],
+          "rule": "energy metrics are compared only when the recorded golden and the live candidate integrate the same current definition; otherwise they are excluded and listed here"
+        },
+        "split": "held-out metrics of the recorded golden DPT"
+      }
+    ],
+    "golden_completion_flags": [
+      true,
+      true
+    ],
+    "held_out_scores": {},
+    "verdict": "not_run",
+    "reason": "tuning mode off; feasibility check not run",
+    "max_evals": 80,
+    "emp_split": "disjoint recorded golden-metric arms; no proxy condition"
+  },
+  "gates": {
+    "G0": {
+      "pass": true,
+      "status": "measured",
+      "detail": {
+        "deck_diff_only_dut": true,
+        "effective_options_dumped": true,
+        "effective_options": {
+          "golden": [],
+          "rom": [],
+          "declared": []
+        },
+        "tolerance_overrides": [],
+        "libraries_inlined_both_arms": true,
+        "temperature_both_arms": 25.0,
+        "expected_temperature": 25.0,
+        "speed_deck_effective_options": {
+          "golden": [],
+          "rom": [],
+          "declared": []
+        },
+        "clock_spread": {
+          "median": {
+            "solver": {
+              "golden": 0.342,
+              "urom": 0.314
+            },
+            "wall": {
+              "golden": 0.9577849999986938,
+              "urom": 0.9090863000019453
+            }
+          },
+          "min": {
+            "solver": {
+              "golden": 0.338,
+              "urom": 0.31
+            },
+            "wall": {
+              "golden": 0.9337929999965127,
+              "urom": 0.898463500001526
+            }
+          },
+          "max": {
+            "solver": {
+              "golden": 0.351,
+              "urom": 0.315
+            },
+            "wall": {
+              "golden": 1.0228045000039856,
+              "urom": 0.9507482999979402
+            }
+          },
+          "missing": [],
+          "complete": true
+        }
+      }
+    },
+    "G1_static": {
+      "pass": true,
+      "status": "measured",
+      "detail": {
+        "rel_rmse_pct": 1.0953997200690093,
+        "bar_pct": 2.0394,
+        "estimator": "mean(per_curve_peak_rel_rmse_pct)",
+        "band_pp": 0.05,
+        "worst_endpoint_pct": 0.9715705336640758,
+        "endpoint_bar_pct": 4.13,
+        "span_normalised_pct": 0.9403054508909483,
+        "peak_normalised_pct": 0.9403053983776257
+      }
+    },
+    "G2_derivative": {
+      "pass": true,
+      "status": "measured",
+      "detail": {
+        "pass": true,
+        "status": "measured",
+        "reason": "finite gm/gds; monotone Q; Vds=0 and gate-cutoff anchors near zero; ANN out-of-range pass",
+        "emit": "ann",
+        "gm_min": 7.207892060989707e-10,
+        "gm_max": 17.390064239501953,
+        "gds_min": 0.04593795931173853,
+        "gds_max": 50.21102884520169,
+        "gm_nonnegative_fraction": 1.0,
+        "gm_negative_fraction": 0.0,
+        "gds_nonnegative_fraction": 1.0,
+        "gds_negative_fraction": 0.0,
+        "derivative_sign_gate": {
+          "max_negative_fraction": 0.01,
+          "gm_negative_fraction": 0.0,
+          "gds_negative_fraction": 0.0,
+          "status": "measured",
+          "pass": true
+        },
+        "ann_channel_probe": {
+          "status": "measured",
+          "reason": null,
+          "expression_sha256": "62bc7be0d7689607d9100a4cb0355547275340d1915e127b233bebc1ff09648b",
+          "vgs_on": 6.0,
+          "vds_high": 15.0,
+          "cutoff_vgs": 0.6851934081732174,
+          "cutoff_i": 1.3627357790101027e-06,
+          "cutoff_ok": true,
+          "vds_guard": 0.0,
+          "guard_i": 0.0,
+          "guard_ok": true,
+          "vgs_zero_i": 1.4292638644704839e-09,
+          "zero_ok": true,
+          "i_high": 62.11230122806294,
+          "tolerance_frac": 0.01
+        },
+        "hybrid_residual_probe": {
+          "status": "not_applicable",
+          "label": "emitted G_ANN residual: Vds=0 / Vgs below Vth / on-state"
+        },
+        "charge_derivative_non_negative": true,
+        "vds_zero_anchor": true,
+        "vth_zero_anchor": true,
+        "cutoff_probe_vgs": 0.6851934081732174,
+        "out_of_range_check": "pass",
+        "activation": "tanh",
+        "neurons": 6
+      }
+    },
+    "G3_dpt_waveform": {
+      "pass": true,
+      "status": "measured",
+      "detail": {
+        "golden": {
+          "status": "measured",
+          "pass": true,
+          "vds_rel_rmse_pct": 0.0,
+          "id_rel_rmse_pct": 0.0,
+          "bars_vds_id_pct": [
+            4.894,
+            5.0
+          ],
+          "compare_points": 7000,
+          "compare_grid_step_s": 2.0002857551078724e-09,
+          "role": "control: golden self-comparison, not a fidelity measure"
+        },
+        "urom": {
+          "status": "measured",
+          "pass": true,
+          "vds_rel_rmse_pct": 0.10868452809630114,
+          "id_rel_rmse_pct": 0.02769048576657707,
+          "bars_vds_id_pct": [
+            4.894,
+            5.0
+          ],
+          "compare_points": 7000,
+          "compare_grid_step_s": 2.0002857551078724e-09,
+          "role": "fidelity measurement"
+        },
+        "reference": {
+          "completed": true,
+          "t_last": 1.4e-05,
+          "iterations": 23036,
+          "points": 7418,
+          "min_points": 3501,
+          "t_end": 1.4e-05,
+          "max_step": 2e-09,
+          "reasons": []
+        },
+        "window_equal": true,
+        "window_s": [
+          0.0,
+          1.4e-05
+        ],
+        "endpoints": {
+          "reference": {
+            "t_start": 0.0,
+            "t_end": 1.4e-05
+          },
+          "golden": {
+            "t_start": 0.0,
+            "t_end": 1.4e-05
+          },
+          "urom": {
+            "t_start": 0.0,
+            "t_end": 1.4e-05
+          }
+        },
+        "compare_grid_step_s": 2.0002857551078724e-09,
+        "compare_points": 7000,
+        "min_compare_points": 3501,
+        "common_grid_guard": true,
+        "compare_status": "measured",
+        "reason": "common grid over the equal overlapping window"
+      }
+    },
+    "G4_timing_energy": {
+      "pass": false,
+      "status": "measured",
+      "detail": {
+        "pass": false,
+        "status": "measured",
+        "rows": {
+          "td_on_ns": {
+            "status": "measured",
+            "value": 8.382794537672636,
+            "bar": 8.279633410423578,
+            "band": [
+              7.8656517399023995,
+              8.693615080944758
+            ],
+            "pass": true
+          },
+          "tr_ns": {
+            "status": "measured",
+            "value": 0.8442732222479343,
+            "bar": 0.8455906106561757,
+            "band": [
+              0.8033110801233669,
+              0.8878701411889844
+            ],
+            "pass": true
+          },
+          "td_off_ns": {
+            "status": "measured",
+            "value": 7.012454971516049,
+            "bar": 6.954277428144817,
+            "band": [
+              6.606563556737576,
+              7.301991299552058
+            ],
+            "pass": true
+          },
+          "tf_ns": {
+            "status": "measured",
+            "value": 1.1522930335820374,
+            "bar": 1.2274909896712498,
+            "band": [
+              1.1661164401876873,
+              1.2888655391548123
+            ],
+            "pass": false
+          },
+          "e_on_uj": {
+            "status": "measured",
+            "value": 0.41555568987021163,
+            "bar": 0.3976268163342146,
+            "band": [
+              0.37774547551750387,
+              0.4175081571509253
+            ],
+            "pass": true,
+            "actual_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "actual_energy_definition_kind": "signed",
+            "bar_energy_definition_kind": "signed",
+            "energy_definition_comparison": "comparable"
+          },
+          "e_off_uj": {
+            "status": "measured",
+            "value": 0.23556649777890784,
+            "bar": 0.23088046945936386,
+            "band": [
+              0.21933644598639568,
+              0.24242449293233204
+            ],
+            "pass": true,
+            "actual_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "actual_energy_definition_kind": "signed",
+            "bar_energy_definition_kind": "signed",
+            "energy_definition_comparison": "comparable"
+          }
+        },
+        "bar_source": "reports/comparison/<vendor>/tier3_validation.json#dpt_comparison.<metric>.golden",
+        "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+        "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+        "energy_definition_comparison": "comparable",
+        "band_rel": 0.05,
+        "band_abs": 1e-12,
+        "tier2_regression": {
+          "label": "Tier-2 self-comparison (diagnostic only; never scored)",
+          "bar_source": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics",
+          "status": "measured",
+          "rows": {
+            "td_on_ns": {
+              "status": "measured",
+              "value": 8.382794537672636,
+              "bar": 8.51059303501782,
+              "band": [
+                8.08506338326693,
+                8.93612268676871
+              ],
+              "pass": true
+            },
+            "tr_ns": {
+              "status": "measured",
+              "value": 0.8442732222479343,
+              "bar": 0.8378172211750414,
+              "band": [
+                0.7959263601162894,
+                0.8797080822337935
+              ],
+              "pass": true
+            },
+            "td_off_ns": {
+              "status": "measured",
+              "value": 7.012454971516049,
+              "bar": 7.049488582885772,
+              "band": [
+                6.697014153741483,
+                7.401963012030061
+              ],
+              "pass": true
+            },
+            "tf_ns": {
+              "status": "measured",
+              "value": 1.1522930335820374,
+              "bar": 1.3428684081228792,
+              "band": [
+                1.2757249877167354,
+                1.410011828529023
+              ],
+              "pass": false
+            },
+            "e_on_uj": {
+              "status": "measured",
+              "value": 0.41555568987021163,
+              "bar": 0.5416445060041672,
+              "band": [
+                0.5145622807039589,
+                0.5687267313043756
+              ],
+              "pass": false,
+              "actual_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+              "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+              "actual_energy_definition_kind": "signed",
+              "bar_energy_definition_kind": "signed",
+              "energy_definition_comparison": "comparable"
+            },
+            "e_off_uj": {
+              "status": "measured",
+              "value": 0.23556649777890784,
+              "bar": 0.388272753596838,
+              "band": [
+                0.3688591159169961,
+                0.4076863912766799
+              ],
+              "pass": false,
+              "actual_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+              "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+              "actual_energy_definition_kind": "signed",
+              "bar_energy_definition_kind": "signed",
+              "energy_definition_comparison": "comparable"
+            }
+          },
+          "all_within_band": false,
+          "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+          "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+          "energy_definition_comparison": "comparable",
+          "used_for_verdict": false,
+          "diagnostic_only": true
+        }
+      }
+    },
+    "G4_tier2_regression": {
+      "pass": false,
+      "status": "measured",
+      "detail": {
+        "label": "Tier-2 self-comparison (diagnostic only; never scored)",
+        "bar_source": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics",
+        "status": "measured",
+        "rows": {
+          "td_on_ns": {
+            "status": "measured",
+            "value": 8.382794537672636,
+            "bar": 8.51059303501782,
+            "band": [
+              8.08506338326693,
+              8.93612268676871
+            ],
+            "pass": true
+          },
+          "tr_ns": {
+            "status": "measured",
+            "value": 0.8442732222479343,
+            "bar": 0.8378172211750414,
+            "band": [
+              0.7959263601162894,
+              0.8797080822337935
+            ],
+            "pass": true
+          },
+          "td_off_ns": {
+            "status": "measured",
+            "value": 7.012454971516049,
+            "bar": 7.049488582885772,
+            "band": [
+              6.697014153741483,
+              7.401963012030061
+            ],
+            "pass": true
+          },
+          "tf_ns": {
+            "status": "measured",
+            "value": 1.1522930335820374,
+            "bar": 1.3428684081228792,
+            "band": [
+              1.2757249877167354,
+              1.410011828529023
+            ],
+            "pass": false
+          },
+          "e_on_uj": {
+            "status": "measured",
+            "value": 0.41555568987021163,
+            "bar": 0.5416445060041672,
+            "band": [
+              0.5145622807039589,
+              0.5687267313043756
+            ],
+            "pass": false,
+            "actual_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "actual_energy_definition_kind": "signed",
+            "bar_energy_definition_kind": "signed",
+            "energy_definition_comparison": "comparable"
+          },
+          "e_off_uj": {
+            "status": "measured",
+            "value": 0.23556649777890784,
+            "bar": 0.388272753596838,
+            "band": [
+              0.3688591159169961,
+              0.4076863912766799
+            ],
+            "pass": false,
+            "actual_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+            "actual_energy_definition_kind": "signed",
+            "bar_energy_definition_kind": "signed",
+            "energy_definition_comparison": "comparable"
+          }
+        },
+        "all_within_band": false,
+        "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+        "bar_energy_current_definition": "I(Lload)-I(Dclamp) signed",
+        "energy_definition_comparison": "comparable",
+        "used_for_verdict": false,
+        "diagnostic_only": true,
+        "scored": false,
+        "note": "Tier-2 self-comparison diagnostic; never part of G4_timing_energy, timing_all_pass or any verdict"
+      },
+      "diagnostic_only": true,
+      "scored": false
+    },
+    "G5_speed": {
+      "pass": true,
+      "status": "measured",
+      "detail": {
+        "scoped_row_valid": true,
+        "method_label": "trap/default",
+        "n_pulses": 20,
+        "max_step": 1e-07,
+        "clock_spread": {
+          "median": {
+            "solver": {
+              "golden": 0.342,
+              "urom": 0.314
+            },
+            "wall": {
+              "golden": 0.9577849999986938,
+              "urom": 0.9090863000019453
+            }
+          },
+          "min": {
+            "solver": {
+              "golden": 0.338,
+              "urom": 0.31
+            },
+            "wall": {
+              "golden": 0.9337929999965127,
+              "urom": 0.898463500001526
+            }
+          },
+          "max": {
+            "solver": {
+              "golden": 0.351,
+              "urom": 0.315
+            },
+            "wall": {
+              "golden": 1.0228045000039856,
+              "urom": 0.9507482999979402
+            }
+          },
+          "missing": [],
+          "complete": true
+        },
+        "clock_spread_complete": true,
+        "completion": {
+          "golden": true,
+          "urom": true
+        },
+        "solver_speedup": 1.089171974522293,
+        "wall_speedup": 1.0535688415903355,
+        "solver_speedup_ci95": {
+          "point": 1.089171974522293,
+          "low": 1.073015873015873,
+          "high": 1.1322580645161289,
+          "n": 3,
+          "confidence": 0.95,
+          "n_resamples": 2000
+        },
+        "wall_speedup_ci95": {
+          "point": 1.0535688415903355,
+          "low": 1.0393221316112748,
+          "high": 1.0757889338389577,
+          "n": 3,
+          "confidence": 0.95,
+          "n_resamples": 2000
+        },
+        "recorded_solver_speedup": 1.089171974522293,
+        "recorded_solver_speedup_ci95": {
+          "point": 1.089171974522293,
+          "low": 1.073015873015873,
+          "high": 1.1322580645161289,
+          "n": 3,
+          "confidence": 0.95,
+          "n_resamples": 2000
+        },
+        "effect_min": 1.05,
+        "solver_effect_ok": true,
+        "solver_ci_low_above_one": true,
+        "global_claim": false,
+        "min_default_gear": null
+      }
+    },
+    "G6_charge": {
+      "pass": true,
+      "status": "measured",
+      "detail": {
+        "monotone_q": true,
+        "monotone_q_by_table": {
+          "q_oss": true,
+          "q_iss": true,
+          "q_rss": true
+        },
+        "all_charge_monotone": true,
+        "applicable_tables": [
+          "q_iss",
+          "q_oss",
+          "q_rss"
+        ],
+        "not_applicable_tables": [],
+        "q_zero_anchored": true,
+        "q_zero_anchored_by_table": {
+          "q_oss": true,
+          "q_iss": true,
+          "q_rss": true
+        },
+        "all_charge_zero_anchored": true,
+        "charge_fit_error_pct": 0.048658451538663765,
+        "budget_pct": 0.5,
+        "breakpoint_crossings": {
+          "q_oss": 1,
+          "q_iss": 22,
+          "q_rss": 18
+        },
+        "c_ds_scaling_excluded": true,
+        "tuning_verdict": "not_run",
+        "tuning_status": "not_run",
+        "emitted_eps_by_element": {
+          "q_oss": 0.011608477080555554,
+          "q_iss": 0.011608477080555554,
+          "q_rss": 0.011608477080555554
+        },
+        "q_residual_diagnostics": {
+          "status": "not_measured",
+          "mirror_match_all": false,
+          "elements": {
+            "q_oss": {
+              "element": "C_QOSS",
+              "eps": 0.011608477080555554,
+              "expression_found": true,
+              "emission_kind": "q_ramp",
+              "status": "measured",
+              "expression_matches_mirror": false,
+              "q_zero_residual_c": 0.0,
+              "q_vmax_residual_c": -3.1451565301258086e-10,
+              "q_vmax_residual_pct": -33.23652208698875
+            },
+            "q_iss": {
+              "element": "C_ISS",
+              "eps": 0.011608477080555554,
+              "expression_found": false,
+              "emission_kind": "linear_capacitor",
+              "status": "not_applicable",
+              "reason": "no emitted Q= ramp for this element"
+            },
+            "q_rss": {
+              "element": "C_RSS",
+              "eps": 0.011608477080555554,
+              "expression_found": true,
+              "emission_kind": "q_ramp",
+              "status": "not_measured",
+              "expression_matches_mirror": false,
+              "q_zero_residual_c": null,
+              "q_vmax_residual_c": null,
+              "q_vmax_residual_pct": null
+            }
+          },
+          "applicable_elements": [
+            "q_oss",
+            "q_rss"
+          ]
+        }
+      }
+    },
+    "fidelity_all_pass": true,
+    "timing_all_pass": false,
+    "speed_all_pass": true,
+    "all_pass": false
+  },
+  "runtime": {
+    "iterations": {
+      "golden": 16514.0,
+      "urom": 13717.0
+    },
+    "points": {
+      "golden": 4047.0,
+      "urom": 3410.0
+    },
+    "t_last": {
+      "golden": 0.000176,
+      "urom": 0.000176
+    },
+    "repeats": 3,
+    "solver_time_s": {
+      "golden": 0.342,
+      "urom": 0.314
+    },
+    "wall_time_s": {
+      "golden": 0.9577849999986938,
+      "urom": 0.9090863000019453
+    },
+    "median": {
+      "solver": {
+        "golden": 0.342,
+        "urom": 0.314
+      },
+      "wall": {
+        "golden": 0.9577849999986938,
+        "urom": 0.9090863000019453
+      }
+    },
+    "min": {
+      "solver": {
+        "golden": 0.338,
+        "urom": 0.31
+      },
+      "wall": {
+        "golden": 0.9337929999965127,
+        "urom": 0.898463500001526
+      }
+    },
+    "max": {
+      "solver": {
+        "golden": 0.351,
+        "urom": 0.315
+      },
+      "wall": {
+        "golden": 1.0228045000039856,
+        "urom": 0.9507482999979402
+      }
+    },
+    "completion": {
+      "golden": true,
+      "urom": true
+    }
+  },
+  "speed_adaptive_20": {
+    "n_pulses": 20,
+    "max_step": 1e-07,
+    "method_label": "trap/default",
+    "solver_speedup": 1.089171974522293,
+    "wall_speedup": 1.0535688415903355,
+    "net_solver_speedup": 1.1171548117154813,
+    "solver_speedup_ci95": {
+      "point": 1.089171974522293,
+      "low": 1.073015873015873,
+      "high": 1.1322580645161289,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "wall_speedup_ci95": {
+      "point": 1.0535688415903355,
+      "low": 1.0393221316112748,
+      "high": 1.0757889338389577,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "net_solver_speedup_ci95": {
+      "point": 1.1171548117154813,
+      "low": 1.0958333333333334,
+      "high": 1.174468085106383,
+      "n": 3,
+      "confidence": 0.95,
+      "n_resamples": 2000
+    },
+    "ltspice_internal_floor_s": 0.075,
+    "effect_min_solver_speedup": 1.05,
+    "t_last": {
+      "golden": 0.000176,
+      "urom": 0.000176
+    },
+    "iterations": {
+      "golden": 16514.0,
+      "urom": 13717.0
+    },
+    "points": {
+      "golden": 4047.0,
+      "urom": 3410.0
+    },
+    "global_claim": false,
+    "min_default_gear": null,
+    "completion_basis": "iterations > 0; trace points >= 50 percent of median; t_last >= 0.999 x scheduled end; 3 interleaved repeats; aborts are failures"
+  },
+  "fidelity_scope": {
+    "waveform_gate_retired": false,
+    "energy_only_claim": false
+  },
+  "spice_log_tail": "LTspice 26.1.1 for Windows\nCircuit: C:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_dztpzcij\\tran.net\nStart Time: Tue Nov 24 03:45:02 2026\nsolver = Normal\nMaximum thread count: 16\ntnom = 27\ntemp = 25\nmethod = modified trap\nAsciiRawFile = true\nCompress1stOrder = true\nCompress2ndOrder = true\nDirect Newton iteration succeeded in finding operating point.\nTotal elapsed time: 0.315 seconds.\nTotal iterations: 13717\n\nFiles loaded:\nC:\\Users\\GNKRISHNAN\\AppData\\Local\\Temp\\piecespice_tran_dztpzcij\\tran.net\n\n",
+  "dpt_run": {
+    "completed": true,
+    "iterations": 22083,
+    "trace_points": 7194,
+    "golden_trace_points": 7418,
+    "t_last": 1.4e-05,
+    "waveform": {
+      "vds_rel_rmse_pct": 0.10868452809630114,
+      "id_rel_rmse_pct": 0.02769048576657707,
+      "compare_points": 7000,
+      "compare_grid_step_s": 2.0002857551078724e-09,
+      "current_definition": "abs(I(Lload) - I(Dclamp))",
+      "status": "measured",
+      "role": "fidelity measurement"
+    },
+    "metrics": {
+      "td_on_ns": 8.382794537672636,
+      "tr_ns": 0.8442732222479343,
+      "td_off_ns": 7.012454971516049,
+      "tf_ns": 1.1522930335820374,
+      "dv_dt_max_v_per_ns": 642.388197376,
+      "di_dt_max_a_per_ns": 421.21476819473594,
+      "e_on_uj": 0.41555568987021163,
+      "e_off_uj": 0.23556649777890784,
+      "e_oss_uj": null,
+      "i_peak_a": 13.233706474305976,
+      "wall_clock_s": 1.1134104000011575,
+      "energy_current_definition": "I(Lload)-I(Dclamp) signed"
+    },
+    "current_definition": "abs(I(Lload) - I(Dclamp))",
+    "signed_current_definition": "I(Lload)-I(Dclamp)",
+    "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+    "error": null
+  },
+  "dpt_waveform": {
+    "vds_rel_rmse_pct": 0.10868452809630114,
+    "id_rel_rmse_pct": 0.02769048576657707,
+    "compare_points": 7000,
+    "compare_grid_step_s": 2.0002857551078724e-09,
+    "current_definition": "abs(I(Lload) - I(Dclamp))",
+    "status": "measured",
+    "role": "fidelity measurement"
+  },
+  "dpt_comparison": {
+    "golden": {
+      "completed": true,
+      "iterations": 23036,
+      "trace_points": 7418,
+      "golden_trace_points": 7418,
+      "t_last": 1.4e-05,
+      "waveform": {
+        "vds_rel_rmse_pct": 0.0,
+        "id_rel_rmse_pct": 0.0,
+        "compare_points": 7000,
+        "compare_grid_step_s": 2.0002857551078724e-09,
+        "current_definition": "abs(I(Lload) - I(Dclamp))",
+        "status": "measured",
+        "role": "control: golden self-comparison, not a fidelity measure"
+      },
+      "metrics": {
+        "td_on_ns": 8.279633475267339,
+        "tr_ns": 0.8455905640608933,
+        "td_off_ns": 6.954277439093564,
+        "tf_ns": 1.2274909471485018,
+        "dv_dt_max_v_per_ns": 3556.2035609600002,
+        "di_dt_max_a_per_ns": 2787.3551863569787,
+        "e_on_uj": 0.3976268163342146,
+        "e_off_uj": 0.23088046945936386,
+        "e_oss_uj": null,
+        "i_peak_a": 13.239258766176981,
+        "wall_clock_s": 1.039885400001367,
+        "energy_current_definition": "I(Lload)-I(Dclamp) signed"
+      },
+      "current_definition": "abs(I(Lload) - I(Dclamp))",
+      "signed_current_definition": "I(Lload)-I(Dclamp)",
+      "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+      "error": null
+    },
+    "urom": {
+      "completed": true,
+      "iterations": 22083,
+      "trace_points": 7194,
+      "golden_trace_points": 7418,
+      "t_last": 1.4e-05,
+      "waveform": {
+        "vds_rel_rmse_pct": 0.10868452809630114,
+        "id_rel_rmse_pct": 0.02769048576657707,
+        "compare_points": 7000,
+        "compare_grid_step_s": 2.0002857551078724e-09,
+        "current_definition": "abs(I(Lload) - I(Dclamp))",
+        "status": "measured",
+        "role": "fidelity measurement"
+      },
+      "metrics": {
+        "td_on_ns": 8.382794537672636,
+        "tr_ns": 0.8442732222479343,
+        "td_off_ns": 7.012454971516049,
+        "tf_ns": 1.1522930335820374,
+        "dv_dt_max_v_per_ns": 642.388197376,
+        "di_dt_max_a_per_ns": 421.21476819473594,
+        "e_on_uj": 0.41555568987021163,
+        "e_off_uj": 0.23556649777890784,
+        "e_oss_uj": null,
+        "i_peak_a": 13.233706474305976,
+        "wall_clock_s": 1.1134104000011575,
+        "energy_current_definition": "I(Lload)-I(Dclamp) signed"
+      },
+      "current_definition": "abs(I(Lload) - I(Dclamp))",
+      "signed_current_definition": "I(Lload)-I(Dclamp)",
+      "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+      "error": null
+    }
+  },
+  "dpt_compare": {
+    "status": "measured",
+    "reason": "common grid over the equal overlapping window",
+    "reference": {
+      "completed": true,
+      "t_last": 1.4e-05,
+      "iterations": 23036,
+      "points": 7418,
+      "min_points": 3501,
+      "t_end": 1.4e-05,
+      "max_step": 2e-09,
+      "reasons": []
+    },
+    "window_equal": true,
+    "window_s": [
+      0.0,
+      1.4e-05
+    ],
+    "compare_grid_step_s": 2.0002857551078724e-09,
+    "compare_points": 7000,
+    "min_compare_points": 3501,
+    "endpoints": {
+      "reference": {
+        "t_start": 0.0,
+        "t_end": 1.4e-05
+      },
+      "golden": {
+        "t_start": 0.0,
+        "t_end": 1.4e-05
+      },
+      "urom": {
+        "t_start": 0.0,
+        "t_end": 1.4e-05
+      }
+    },
+    "arms": {
+      "golden": {
+        "vds_rel_rmse_pct": 0.0,
+        "id_rel_rmse_pct": 0.0,
+        "compare_points": 7000,
+        "compare_grid_step_s": 2.0002857551078724e-09,
+        "current_definition": "abs(I(Lload) - I(Dclamp))",
+        "status": "measured",
+        "role": "control: golden self-comparison, not a fidelity measure"
+      },
+      "urom": {
+        "vds_rel_rmse_pct": 0.10868452809630114,
+        "id_rel_rmse_pct": 0.02769048576657707,
+        "compare_points": 7000,
+        "compare_grid_step_s": 2.0002857551078724e-09,
+        "current_definition": "abs(I(Lload) - I(Dclamp))",
+        "status": "measured",
+        "role": "fidelity measurement"
+      }
+    },
+    "guard_ok": true,
+    "current_definition": "abs(I(Lload) - I(Dclamp))",
+    "reference_current_definition": "abs(I(Lload) - I(Dclamp))",
+    "current_definition_by_arm": {
+      "golden": "abs(I(Lload) - I(Dclamp))",
+      "urom": "abs(I(Lload) - I(Dclamp))"
+    },
+    "current_identity_match": true
+  },
+  "static": {
+    "full_sweep_rel_rmse_pct": 1.0953997200690093,
+    "span_normalised_rmse_pct": 0.9403054508909483,
+    "peak_normalised_rmse_pct": 0.9403053983776257,
+    "worst_endpoint_rel_error_pct": 0.9715705336640758,
+    "per_curve_peak_rel_rmse_pct": [
+      2.2232217785203607,
+      1.2228771779756422,
+      1.0247862150679279,
+      0.8558245816873234,
+      0.7144347750435981,
+      0.5312537921192031
+    ],
+    "per_curve_span_rel_rmse_pct": [
+      2.2232218190010764,
+      1.2228772054141217,
+      1.0247862515876,
+      0.8558246501942965,
+      0.7144350032765595,
+      0.5312617290842215
+    ],
+    "gated_estimator": "mean(per_curve_peak_rel_rmse_pct)",
+    "provenance": {
+      "gated_estimator": "mean(per_curve_peak_rel_rmse_pct)",
+      "per_curve_peak_definition": "compute_curve_error(...).peak_rmse_pct (RMSE / max|golden| * 100)",
+      "kind": "measured",
+      "source": "docs/fidelity_speed_research.md:89-100; notebooks/05_comprehensive_validation_report.ipynb:2245; reports/comparison/<vendor>/full_sweep_comparison.json (rel_rmse_pct == peak_rmse_pct per row)",
+      "diagnostics_not_gated": [
+        "span_normalised_rmse_pct",
+        "peak_normalised_rmse_pct"
+      ]
+    },
+    "n_curves": 6
+  },
+  "equal_sandbox_detail": {
+    "dpt_decks": {
+      "deck_diff_only_dut": true,
+      "effective_options_dumped": true,
+      "effective_options": {
+        "golden": [],
+        "rom": [],
+        "declared": []
+      },
+      "tolerance_overrides": [],
+      "libraries_inlined_both_arms": true,
+      "temperature_both_arms": 25.0,
+      "expected_temperature": 25.0,
+      "speed_deck_effective_options": {
+        "golden": [],
+        "rom": [],
+        "declared": []
+      },
+      "clock_spread": {
+        "median": {
+          "solver": {
+            "golden": 0.342,
+            "urom": 0.314
+          },
+          "wall": {
+            "golden": 0.9577849999986938,
+            "urom": 0.9090863000019453
+          }
+        },
+        "min": {
+          "solver": {
+            "golden": 0.338,
+            "urom": 0.31
+          },
+          "wall": {
+            "golden": 0.9337929999965127,
+            "urom": 0.898463500001526
+          }
+        },
+        "max": {
+          "solver": {
+            "golden": 0.351,
+            "urom": 0.315
+          },
+          "wall": {
+            "golden": 1.0228045000039856,
+            "urom": 0.9507482999979402
+          }
+        },
+        "missing": [],
+        "complete": true
+      }
+    },
+    "speed_decks": {
+      "deck_diff_only_dut": true,
+      "effective_options_dumped": true,
+      "effective_options": {
+        "golden": [],
+        "rom": [],
+        "declared": []
+      },
+      "tolerance_overrides": [],
+      "libraries_inlined_both_arms": true,
+      "temperature_both_arms": 25.0,
+      "expected_temperature": 25.0
+    },
+    "timing_energy_bars_source": "reports/comparison/<vendor>/tier3_validation.json#dpt_comparison.<metric>.golden (device-current golden DPT; independent of dpt_metrics.json#tier2_metrics)",
+    "timing_regression_source": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics (diagnostic only; never scored in G4_timing_energy or in the verdict)"
+  },
+  "urom_provenance": {
+    "static_bars_pct": {
+      "source": "local://unified_rom_spec.md sections 1.4 and 6; README measured table",
+      "kind": "measured"
+    },
+    "static_score_estimator": {
+      "source": "docs/fidelity_speed_research.md:89-100; notebooks/05_comprehensive_validation_report.ipynb:2245; reports/comparison/<vendor>/full_sweep_comparison.json (rel_rmse_pct == peak_rmse_pct per row)",
+      "kind": "measured",
+      "rationale": "G1 gates the arithmetic mean of per-curve peak-normalised rel RMSE; median and span values stay in the record as diagnostics"
+    },
+    "dpt_bars_pct": {
+      "source": "local://unified_rom_spec.md section 1.4; reports/comparison/<vendor>/tier3_validation_simplis.json#dpt_run.waveform (vds_rel_rmse_pct, id_rel_rmse_pct) on the algorithm.channel_candidate_selected=tier2 control row; pairs keyed by method label (trap/default, gear-both), EPC 100 ns cap on both arms",
+      "kind": "measured",
+      "waveform_columns": "vds_rel_rmse_pct, id_rel_rmse_pct",
+      "channel_candidate": "algorithm.channel_candidate_selected=tier2",
+      "keyed_by": "method label (trap/default, gear-both)",
+      "relaxed_trap_default": {
+        "irfs7730pbf": {
+          "bars_vds_id_pct": [
+            10.0,
+            0.6
+          ],
+          "source": "docs/plans/phase_vi_research_framework.md section 3.3 (user-accepted relaxation); canonical C0 IRFS measured (9.999276, 0.575138) percent Vds/Id"
+        },
+        "cpm2-1200": {
+          "bars_vds_id_pct": [
+            3.0,
+            0.261
+          ],
+          "source": "docs/plans/phase_vi_research_framework.md section 3.3 (user-accepted relaxation)"
+        },
+        "kind": "project_decision",
+        "scope": "trap/default only; TI/EPC and all gear-both bars unchanged"
+      }
+    },
+    "timing_energy_bars": {
+      "source": "reports/comparison/<vendor>/tier3_validation.json#dpt_comparison.<metric>.golden (device-current golden DPT); independent of this pipeline's own recorded Tier-2 table",
+      "kind": "measured",
+      "golden_column": "dpt_comparison.<metric>.golden",
+      "energy_current_definition": "the recorded tier3_validation.json rows carry no energy_current_definition and are legacy abs; a signed measured energy is reported as definition_mismatch instead of being scored against them",
+      "tier2_regression": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics",
+      "tier2_regression_role": "diagnostic only: reported as G4_tier2_regression and never scored in G4_timing_energy or in the verdict"
+    },
+    "speed_n_pulses": {
+      "source": "local://unified_rom_spec.md section 4.6 (speed_adaptive_20)",
+      "kind": "project_decision",
+      "rationale": "20 pulses is the pinned adaptive row; a 2-pulse default row must never be compared to it"
+    },
+    "speed_repeats": {
+      "source": "local://unified_rom_spec.md section 1.3 item 7 (at least 3 interleaved repeats)",
+      "kind": "project_decision"
+    },
+    "dpt_t_last_fraction": {
+      "source": "local://unified_rom_spec.md section 1.3 item 5 (DPT completion guard)",
+      "kind": "project_decision"
+    },
+    "dpt_trace_point_fraction": {
+      "source": "local://unified_rom_spec.md section 1.3 item 5 (at least 50 percent of golden points)",
+      "kind": "project_decision"
+    },
+    "g1_band_pp": {
+      "source": "local://unified_rom_spec.md section 6 G1 (proposed band)",
+      "kind": "project_decision"
+    },
+    "endpoint_bar_pct": {
+      "source": "local://unified_rom_spec.md section 1.4 (worst endpoint <= 4.13 percent)",
+      "kind": "measured"
+    },
+    "charge_budget_pct": {
+      "source": "local://unified_rom_spec.md section 1.4 (charge-fit error <= 0.5 percent Q(Vmax))",
+      "kind": "measured"
+    },
+    "tuning_max_evals": {
+      "source": "pipeline/unified_rom.py:TUNING_MAX_EVALS",
+      "kind": "project_decision",
+      "rationale": "bounded derivative-free search over four named fields; not an emitter default"
+    },
+    "tuning_bounds": {
+      "source": "pipeline/fitting.py:_tuning_bounds(c_rss_lin, Vds_cap_max); config/inputs/<vendor>.yaml#conditions.Vds_cap_max; curve4 c_eq_energy -> metadata c_rss_lin",
+      "kind": "source_derived",
+      "rationale": "O_GD is capped at one full Q_RSS at the top of the measured curve-4 sweep; Qoss is frozen and never used for this gate-side bound"
+    },
+    "timing_band": {
+      "source": "local://unified_rom_spec.md section 6 G4 (no worse than the recorded golden DPT); reports/comparison/<vendor>/tier3_validation.json#dpt_comparison.<metric>.golden; absolute floor TIMING_BAND_ABS",
+      "kind": "project_decision",
+      "rationale": "band = max(5 percent of |bar|, 1e-12) around each independent golden timing/energy bar: a much smaller delay is not an improvement when the device never turns on; a near-zero bar is not auto-passed; missing bars stay not_measured"
+    },
+    "zero_current_anchor": {
+      "source": "local://unified_rom_spec.md section 2.3 (VDS=0 and Vth cutoff guards); models/netlist_builder.py:_channel_expression",
+      "kind": "project_decision",
+      "rationale": "1 percent of the swept peak current is a structural G2 anchor tolerance, not a measured device current"
+    },
+    "tuning_golden_emp": {
+      "source": "reports/comparison/<vendor>/dpt_metrics.json#golden_metrics; reports/comparison/<vendor>/tier3_validation_simplis.json#runtime.golden,dpt_run",
+      "kind": "measured",
+      "rationale": "golden metrics are cached once; completion uses recorded iterations, trace points and t_last. Non-completing conditions are never scored"
+    },
+    "tuning_candidate_libs": {
+      "source": "pipeline/tuning.py:make_dpt_simulator; spec section 5 (no permanent candidate artifacts)",
+      "kind": "project_decision",
+      "rationale": "candidate netlists live in a TemporaryDirectory owned by the tuning run and are removed when tuning returns"
+    },
+    "adaptive_max_step": {
+      "source": "config/inputs/<vendor>.yaml#dpt.max_step; local://unified_rom_spec.md section 3.3 (EPC 100 ns cap on both arms)",
+      "kind": "source_derived"
+    },
+    "temperature": {
+      "source": "config/inputs/<vendor>.yaml#conditions.temperature",
+      "kind": "source_derived"
+    },
+    "eps_rule": {
+      "source": "approximation/smoother.py:eps_from_grid; local://unified_c1_study.md P7",
+      "kind": "source_derived",
+      "rationale": "per-table widths: q_oss for the Qoss Vds chain, transfer_vgs for the channel Vgs amp/sat ramps; transfer_vds is the Vds-grid diagnostic (the tanh knee is fitted, not a Vds ramp)"
+    },
+    "tier2_fallbacks": {
+      "source": "models/netlist_builder.py _META_DEFAULTS; AGENTS.md Traps (2026-11-18 gate-cap fix)",
+      "kind": "disclosed_fallback",
+      "rationale": "inherited from the closed Tier-2 emitter; gate-cap equivalents are evaluated at Cap_ref_Vds so the 4.5 nF / 7.5 pF / 1.5 Ohm fallbacks are not selected"
+    },
+    "external_sources": {
+      "status": "conditional_until_url_and_section_pinned",
+      "source": "local://unified_rom_spec.md section 2.3 (Yang/Tung figures CONDITIONAL)"
+    },
+    "dpt_window_equality": {
+      "source": "docs/deep_spice_fidelity_speed_research.md section 2.1 item 4 (both arms reach the same t_last, relative difference <= 1e-9)",
+      "kind": "source_derived"
+    },
+    "ann_gate_probe": {
+      "source": "models/ann_netlist_builder.py:emit_ann_channel (emitted Vth tanh cutoff and low-VDS guard); local://unified_rom_spec.md section 2.3 (ZERO_CURRENT_FRAC)",
+      "kind": "source_derived",
+      "rationale": "the probe evaluates the emitted G_CH expression; 3 cutoff widths only chooses where to sample, the 1 percent band is unchanged"
+    },
+    "tier2_regression_gate": {
+      "source": "reports/comparison/<vendor>/dpt_metrics.json#tier2_metrics",
+      "kind": "measured",
+      "rationale": "self-consistency diagnostic only: it says whether the emitted model still matches this pipeline's own recorded Tier-2 row; it is never scored in G4_timing_energy or in any verdict"
+    },
+    "speed_effect_min": {
+      "source": "local://unified_rom_spec.md section 1.3 / 4.4 (equal-sandbox speed claim); project decision: a real speed effect needs a 1.05 solver ratio",
+      "kind": "project_decision",
+      "rationale": "a point ratio above 1.0 without a paired confidence interval is not evidence of a speed improvement; G5 also requires the 95 percent paired-bootstrap CI low above 1.0"
+    },
+    "speed_speedup_ci": {
+      "source": "common/provenance.py:bootstrap_ci (deterministic percentile bootstrap); SPEED_REPEATS interleaved paired repeats",
+      "kind": "project_decision",
+      "rationale": "the paired per-repeat solver and wall ratios are resampled 2000 times with seed 0; fewer than two finite samples collapse to the point estimate and a missing repeat list returns None"
+    },
+    "derivative_sign_gate": {
+      "source": "local://unified_rom_spec.md section 6 G2 (gm/gds physics gate); DERIVATIVE_NEGATIVE_FRACTION_MAX",
+      "kind": "project_decision",
+      "rationale": "at most 1 percent of finite small-signal derivative samples may be negative; the measured gm/gds minima and sign fractions stay as diagnostics and a missing fraction fails closed"
+    },
+    "charge_monotonicity": {
+      "source": "local://unified_rom_spec.md sections 1.4 and 6 G6 (charge tables and the 0.5 percent budget)",
+      "kind": "measured",
+      "rationale": "every emitted charge table (q_oss, q_iss, q_rss) must be non-decreasing and zero-anchored where applicable; an empty source table is not_applicable, never a pass"
+    },
+    "record_inputs": {
+      "source": "config/inputs/<vendor>.yaml, the vendor library, config/outputs/<vendor>/curve*.yaml, and the emitted lib",
+      "kind": "source_derived",
+      "rationale": "common/provenance.py:file_hashes hashes the exact inputs used for this record; artifact_manifest re-hashes and verifies the same lib and inputs; a missing file stays null and fails verification"
+    },
+    "acceptance_policy": {
+      "source": "config/acceptance.yaml (schema piecespice.acceptance/1.0); common/acceptance.py:load_acceptance",
+      "kind": "source_derived",
+      "rationale": "all scored bars come from the validated policy; the file path, schema, source labels and SHA-256 are copied into the record; a malformed file fails closed, an absent file uses the documented legacy-constant fallback"
+    },
+    "hybrid_basis": {
+      "source": "docs/plans/phase_vi_research_framework.md sections 2.2, 3.2 and 3.3 (C0 base plus ANN residual; independent data-driven ROM; golden timing bars)",
+      "kind": "project_decision",
+      "rationale": "hybrid is an explicit non-default basis with keyed artifacts; canonical C0 remains the default and ANN keeps its own record"
+    },
+    "gate_charge_tables": {
+      "source": "curve4 c_eq_charge*3 / c_eq_energy*0.15 on the curve-4 Vds grid",
+      "kind": "source_derived",
+      "rationale": "closed Tier-2 linear gate-side scalar, tabulated so apply_scalars can add O_GD*V without a hidden fallback"
+    }
+  },
+  "verdict": "reject",
+  "fidelity_verdict": "accept",
+  "timing_verdict": "reject",
+  "speed_verdict": "accept",
+  "overall_verdict": "reject"
+}
