@@ -1,14 +1,16 @@
 """PieceSpice terminal branding.
 
-The mark is a deliberately designed 26x18 bitmap rendered at two terminal
-pixels per cell with ``▀``/``▄``.  It keeps the previous logo's essence:
-chamfered die, ice-white P spine, cyan P loop and amber switching bolt.  A
-fixed three-colour palette is used instead of converting every source pixel
-to a terminal cell, which is what made the old render soft.
+The mark is a deliberately designed 20x20 bitmap rendered at two terminal
+pixels per cell with ``▀``/``▄``.  A 20x20 bitmap is physically square in a
+normal terminal cell (one cell is approximately twice as tall as it is wide):
+20 columns x 10 rows.  That is the same proportion as the original die mark
+and small enough for a short terminal; an earlier 26x18 version was 1.44:1
+and read as a wide banner rather than a logo.
 
-The landing composition uses a low-contrast circuit strip, a hero panel and a
-three-step workbench strip; it is terminal-native and does not depend on an
-image protocol.
+The mark uses a solid ice-white P, a separate gold zigzag bolt and a cyan die
+rim.  The P loop is deliberately not cyan: it disappeared into the rim at
+small sizes.  The bolt is drawn as a connected 2-3 px zigzag instead of the
+old 1 px outline, which broke into disconnected dots.
 """
 
 from importlib.metadata import PackageNotFoundError, version
@@ -23,34 +25,35 @@ from rich.text import Text
 
 _CYAN = "#38bdf8"
 _ICE = "#e2e8f0"
-_LOOP = "#7dd3fc"
 _GOLD = "#fbbf24"
-_DIE = "#0b1220"
+_DIE = "#0f1f35"
 _DIM = "#64748b"
 
-# 26x18 bitmap.  C=cyan die, D=die fill, W=ice P spine, B=cyan loop,
-# G=gold bolt, .=transparent.  Two rows collapse into one terminal cell.
+# 20x20 bitmap.  C=cyan die, D=die fill, W=ice P, G=gold bolt,
+# .=transparent.  Two rows collapse into one terminal cell.
 _MARK = [
-    "..CCCCCCCCCCCCCCCCCCCCCC..",
-    ".CCCCCCCCCCCCCCCCCCCCCCCC.",
-    "CCDDDDDDDDDDDDDDDDDDDDDDCC",
-    "CCDDDDDDDDDDDDDDDDDDDDDDCC",
-    "CCDDDDWWBBBBBBDDDDDDDDDDCC",
-    "CCDDDDWWBBBBBBDDDDDDDDDDCC",
-    "CCDDDDWWDDDDBBDDDDDDDDDDCC",
-    "CCDDDDWWDDDDBBDDDDDDDDDDCC",
-    "CCDDDDWWDDDDBGGGGDDDDDDDCC",
-    "CCDDDDWWBBBGGGGDDDDDDDDDCC",
-    "CCDDDDWWDDDDGGGGDDDDDDDDCC",
-    "CCDDDDWWDDDDDDGGGGDDDDDDCC",
-    "CCDDDDWWDDDDGGGGDDDDDDDDCC",
-    "CCDDDDWWDDDDDGGDDDDDDDDDCC",
-    "CCDDDDDDDDDDDDDDDDDDDDDDCC",
-    "CCDDDDDDDDDDDDDDDDDDDDDDCC",
-    ".CCCCCCCCCCCCCCCCCCCCCCCC.",
-    "..CCCCCCCCCCCCCCCCCCCCCC..",
+    "..CCCCCCCCCCCCCCCC..",
+    ".CCCCCCCCCCCCCCCCCC.",
+    "CCDDDDDDDDDDDDDDDDCC",
+    "CCWWWWWWWWDDDDGGGDCC",
+    "CCWWWWWWWWDDDGGGDDCC",
+    "CCWWWDDDWWDDGGGDDDCC",
+    "CCWWWDDDWWDGGGDDDDCC",
+    "CCWWWDDDWWDDGGGDDDCC",
+    "CCWWWDDDWWDDDGGGDDCC",
+    "CCWWWWWWWWDDDDGGGDCC",
+    "CCWWWWWWWWDDDGGGDDCC",
+    "CCWWWDDDDDDDGGGDDDCC",
+    "CCWWWDDDDDDGGGDDDDCC",
+    "CCWWWDDDDDDDGGGDDDCC",
+    "CCWWWDDDDDDDDGGGDDCC",
+    "CCWWWDDDDDDDDDGGDDCC",
+    "CCWWWDDDDDDDDGGDDDCC",
+    "CCDDDDDDDDDDDDDDDDCC",
+    ".CCCCCCCCCCCCCCCCCC.",
+    "..CCCCCCCCCCCCCCCC..",
 ]
-_PALETTE = {"C": _CYAN, "D": _DIE, "W": _ICE, "B": _LOOP, "G": _GOLD}
+_PALETTE = {"C": _CYAN, "D": _DIE, "W": _ICE, "G": _GOLD}
 
 
 def _mark_markup() -> str:
@@ -92,10 +95,8 @@ def _circuit() -> Text:
 
 def _wordmark() -> Text:
     return Text.assemble(
-        ("PIECE", "bold #e2e8f0"),
-        ("SPICE", "bold #38bdf8"),
-        ("  /  ", "#475569"),
-        ("BEHAVIORAL ROM STUDIO", "bold #fbbf24"),
+        ("BEHAVIORAL", "bold #e2e8f0"),
+        (" ROM STUDIO", "bold #fbbf24"),
     )
 
 
@@ -140,8 +141,8 @@ def banner(console: Console, *, vendor_count: int | None = None) -> None:
                  style="#94a3b8"),
             Text(""),
             Text.assemble(
-                ("● ", "#4ade80"), (f"{vend} configured vendors", "#cbd5e1"),
-                ("   │   ", "#334155"), ("LTspice backend", "#cbd5e1"),
+                ("● ", "#4ade80"), (f"{vend} vendors", "#cbd5e1"),
+                ("   │   ", "#334155"), ("LTspice", "#cbd5e1"),
                 ("   │   ", "#334155"), (f"v{_version()}", _DIM),
             ),
         ),
