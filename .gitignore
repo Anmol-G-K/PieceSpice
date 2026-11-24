@@ -241,6 +241,4 @@ data/
 .ruff_cache/
 reports/pytest_report.html
 reports/models_check/
-# Local cross-session orchestrator state; intentionally not part of the repo.
-docs/SESSION_HANDOFF.md
 simulation/reports/

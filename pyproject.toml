@@ -2,6 +2,10 @@
 name = "piecespice"
 version = "0.1.0"
 requires-python = ">=3.10"
+license = { text = "MIT" }
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+]
 dependencies = [
     "jinja2>=3.1.6",
     "matplotlib>=3.10.9",

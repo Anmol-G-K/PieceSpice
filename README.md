@@ -10,7 +10,7 @@
 [![LTspice](https://img.shields.io/badge/LTspice-26-orange)](https://www.analog.com/en/resources/design-tools-and-calculators/ltspice-simulator.html)
 [![spicelib](https://img.shields.io/badge/spicelib-powered-yellow)](https://pypi.org/project/spicelib/)
 [![Tests](https://img.shields.io/badge/tests-837%20passed%20%C2%B7%200%20skipped%20%C2%B7%202%20warnings-brightgreen?logo=pytest&logoColor=white)](#testing)
-[![License](https://img.shields.io/badge/license-TBD-lightgrey)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![uv](https://img.shields.io/badge/managed%20with-uv-dead00?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
 
 [![Infineon](https://img.shields.io/badge/supported-Infineon%20%2F%20IR-0A8276?labelColor=1a1a1a)](#validated-devices) [![TI](https://img.shields.io/badge/supported-Texas%20Instruments-CC0000?labelColor=1a1a1a)](#validated-devices) [![EPC](https://img.shields.io/badge/supported-EPC%20GaN-006FBA?labelColor=1a1a1a)](#validated-devices) [![Wolfspeed](https://img.shields.io/badge/supported-Wolfspeed%20SiC-58238C?labelColor=1a1a1a)](#validated-devices)
@@ -913,93 +913,27 @@ full-live run has zero skips. Current GitHub run **45327158278** on HEAD
 
 ---
 
-## 🗺️ Roadmap
+## 🚧 Future Work
 
-- [x] **M1** — Environment, Parser & SPICE Dialect Normalization
-- [x] **M2** — Automated Datasheet Curves Simulation (7 curves × 4 vendors)
-- [x] **M3** — Piecewise Approximation & Charge Integration Engines
-      + Tier-2 synthesis + golden validation
-      **Method closed.** Final mean full-sweep rel-RMSE: IRFS 7.07 %,
-      TI 8.49 %, EPC 2.04 %, CPM2 3.43 %; worst endpoint error ≤4.13 %.
-      The remaining TI/IRFS deviations are limits of this model form —
-      further parameter ablations were measured and did not improve them.
-- [x] **Tier-3 — TPWL terminal model** *(`v1` default and `simplis` variants
-      alongside Tier-2)*
-      Static Curve-1 fit rel-RMSE beats Tier-2 on 3 of 4 devices
-      (IRFS 2.16 vs 7.07 %, TI 1.54 vs 8.49 %, CPM2 0.61 vs 3.43 %;
-      EPC 2.37 vs 2.04 % is the exception); the emitted netlist is
-      1.70 / 2.15 / 7.22 / 0.97 % (IRFS / TI / EPC / CPM2), with 32 / 32 /
-      32 / 24 fitted cells. All four DPTs completed on the common golden
-      grid with device current `I(Lload)-I(Dclamp)`.
-      **No significant speedup** — matched-condition solver speed
-      0.5827–0.0946×, slower than golden on all four devices; the
-      2026-11-20 speed audit closed this line of work. The Qg-emission
-      experiment was measured, closed and reverted to the four-line emitter.
-      The V2 physical-element path (RG/RD/RS, gate charge, body diode), the
-      measured 2-D Qoss surface with optional temperature slice, and compact
-      Vds-axis emission are implemented **opt-ins**; the shipped records keep
-      `compact=false`, `source=default` and
-      `physical_elements={include_gate_charge:false, include_body_diode:false,
-      include_parasitics:false}`. Multi-trajectory fitting and CV are
-      implemented via `config['tier3']['training_conditions']`, but the
-      records report `generalization.status="not_measured"` and
-      `cv_status="not_measured"` because no extra training conditions were
-      configured.
-      The `simplis` variant (Level-2 PWL charge tables fitted on voltage
-      axes) holds Tier-2 static parity. The ANN residual channel candidate
-      was rejected on all four vendors, so the final channel selection is
-      `tier2` everywhere. The variant reaches 5.14545× solver / 2.92373×
-      wall on TI in the 20-pulse adaptive bench; IRFS (1.07054×), EPC
-      (1.14729×) and CPM2 (1.10037×, Tj port driven) sit at the measured
-      golden ceiling. Its Id values changed because the old
-      inductor-current-only metric hid clamp current — a metric correction,
-      not a new model improvement or regression; TI Vds remains higher than
-      `v1` on the like-for-like metric.
-- [x] **Tier-4 — ideal-switch + loss-LUT fast tier** *(hardened dual-tier addition)*
-      DPT completion **4/4**; guarded inductive-bench speed **3/4**
-      (`method=LTspice default/trap (both arms)`; solver/wall:
-      IRFS 1.2212× / 1.0994×, TI 6.4730× / 3.2734×,
-      EPC 1.2440× / 1.1019× at the golden 100 ns cap; CPM2 1.3618× / 1.1586×
-      with the Tj port driven. The historical CPM2 N/A was a 3-pin harness bug,
-      not a vendor defect. Waveform gate retired by design; energy rows are
-      DPT-source self-consistency; the recorded efficiency stays N/A without
-      converter output power, while the measured buck bench reports 99.87 %
-      for completed Tier-4 arms. The LUT supports a real
-      measured grid, an optional temperature axis, Ron/Vt parameters and a
-      caller-configured thermal network; the current records are a 25 °C
-      slice with `thermal.status="not_configured"`.
-- [x] **Tier-3 `urom` — `--tier 3 --variant urom`** *(final equal-sandbox
-      result, regenerated records)*: canonical top-level C0/tier2 basis,
-      ASCII `<vendor>_PIECSPICE_UROM.lib` with hash-matched
-      `unified_validation.json`. **Overall `reject` 4/4**: independent G4
-      timing/energy rejects every vendor; G1/G3 fidelity accepts TI / EPC /
-      CPM2 and rejects IRFS (G1 7.1596 %, G3 10.0001 / 9.0085 %); G5 speed
-      accepts TI (5.0000× / 2.9640×), EPC (1.0554× / 1.0339×) and CPM2
-      (1.1286× / 1.0761×) and rejects IRFS (0.9851× / 1.0171×).
-      The keyed `--basis ann` records and libs are separate, non-default,
-      pass fidelity 4/4, reject G4 4/4 and accept G5 3/4;
-      tuning is `not_run`. G4's former Tier-2 self-comparison is retained
-      only as `G4_tier2_regression`, explicitly diagnostic and never scored.
-      Per-vendor scope with `global_claim=false`: no global or portable
-      fidelity/speed claim is made. The official-source fixed-topology
-      tuning probe has been measured and closed without an accepted
-      candidate; its tuning-on artifacts are temporary diagnostics, not
-      final models. See
-      [`phase_v_improvement_closure.md`](docs/plans/phase_v_improvement_closure.md).
-- [x] **M4** — Switching Dynamics & Double Pulse Testbench
-      *(metrics, resistive-load subset and inductive DPT)*
-- [x] **M5** — Switched-Mode Converter Benchmark & Speedup Evaluation
-      *(buck bench, `config/converter.yaml` + `simulation/testbenches/buck_converter.py`,
-      and executed notebook 04 are complete for measured arms. EPC2216
-      golden vs Tier-2: Vout 5.3077 / 5.3053 V, efficiency 97.55 / 96.91 %,
-      I_L 1.0761 / 1.0815 A, I_C 0.0146 / 0.0204 A; Tier-4 measures 99.87 %
-      on the same bench when it completes. Tier-3 `v1` timed out at the
-      180 s guard, so no every-tier claim is made. No portable speedup claim:
-      the recorded Tier-4 DPT efficiency remains N/A without converter
-      output power, and matched-condition/adaptive numbers stay in Measured
-      Results.)*
-- [x] **M6** — Automated HTML Reporting & CLI Polish
-      *(the report renders only metrics it is given)*
+The following work is open. Each item needs a new measurement or a new
+record. Do not treat an open item as a current result.
+
+- **Broader validation.** Add vendor models and converter operating points.
+  Use the same golden-vs-ROM bench for each result. Do not generalize from
+  one device or one condition.
+- **Timing and energy.** Measure delay, rise time, fall time and switching
+  energy against the independent golden DPT. Remove the G4 gap, or keep the
+  reject verdict.
+- **Converter and thermal scope.** Measure converter output power for
+  Tier-4. Configure a temperature slice and a thermal network before you
+  claim efficiency or thermal results.
+- **Charge and capacitance data.** Measure multi-bias Cgd, Qoss and gate
+  charge. Mark a missing axis as N/A. Do not synthesize it.
+- **Speed portability.** Test the scoped speed method on more devices and
+  workloads. Report raw and net solver speed with 95 % confidence intervals.
+  Keep the measured LTspice floor.
+- **Release checks.** Add a signed release manifest and reproducible artifact
+  checks for the tracked library set.
 
 Backend: **LTspice 26 + spicelib**, out-of-process; no PySpice/ngspice
 dependency remains. Known limitations and vendor-model quirks are tracked in
@@ -1016,6 +950,13 @@ HOST-01/HOST-02).
 - Plotting follows house rules: legends EAST outside the axes, 300 dpi.
 - See [`piecespice_plan.md`](piecespice_plan.md) for the architecture and
   algorithm formulations.
+
+---
+
+## 📜 License
+
+PieceSpice is licensed under the MIT License. The full text is in
+[`LICENSE`](LICENSE).
 
 ---
 
