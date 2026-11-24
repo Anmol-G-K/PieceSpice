@@ -11,6 +11,7 @@
 [![spicelib](https://img.shields.io/badge/spicelib-powered-yellow)](https://pypi.org/project/spicelib/)
 [![Tests](https://img.shields.io/badge/tests-837%20passed%20%C2%B7%200%20skipped%20%C2%B7%202%20warnings-brightgreen?logo=pytest&logoColor=white)](#testing)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Release: beta](https://img.shields.io/badge/release-v0.1.0--beta.1-blueviolet)](https://github.com/Anmol-G-K/PieceSpice/releases/tag/v0.1.0-beta.1)
 [![uv](https://img.shields.io/badge/managed%20with-uv-dead00?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
 
 [![Infineon](https://img.shields.io/badge/supported-Infineon%20%2F%20IR-0A8276?labelColor=1a1a1a)](#validated-devices) [![TI](https://img.shields.io/badge/supported-Texas%20Instruments-CC0000?labelColor=1a1a1a)](#validated-devices) [![EPC](https://img.shields.io/badge/supported-EPC%20GaN-006FBA?labelColor=1a1a1a)](#validated-devices) [![Wolfspeed](https://img.shields.io/badge/supported-Wolfspeed%20SiC-58238C?labelColor=1a1a1a)](#validated-devices)

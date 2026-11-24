@@ -1,6 +1,6 @@
 [project]
 name = "piecespice"
-version = "0.1.0"
+version = "0.1.0b1"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 classifiers = [
