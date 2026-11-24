@@ -73,7 +73,7 @@ jobs:
             fi
           done < <({
             git ls-tree -r --name-only HEAD -- docs
-            printf '%s\n' piecespice_plan.md development-log.md AGENTS.md
+            printf '%s\n' AGENTS.md
           })
           rm -f "$tmp"
           exit "$status"

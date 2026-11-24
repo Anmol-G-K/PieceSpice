@@ -120,6 +120,11 @@ solver, no special runtime. Drop the generated `.lib` into any SPICE flow
 that supports behavioral sources and charge-defined capacitors (validated on
 LTspice 26) and simulate against the golden model.
 
+> **Documentation status.** `AGENTS.md` is a work-in-progress maintainer
+> guide. It is encrypted with git-crypt. All files under `docs/` are also
+> work in progress and encrypted with git-crypt. `README.md` is the public
+> documentation file.
+
 ---
 
 ## ✨ How It Works
@@ -839,7 +844,7 @@ PieceSpice/
 │   ├── converter.yaml    # Buck bench operating point + model selection
 │   └── outputs/          # Extracted curve data (YAML)
 ├── data/                 # Captured golden switching waveforms (CSV)
-├── docs/                 # Reports, plans, reference notes
+├── docs/                 # WIP encrypted docs: plan, log, reports, plans
 ├── figures/
 │   ├── <vendor>/
 │   │   ├── 01_*, 02_*    # extraction / analysis figures
@@ -921,6 +926,10 @@ record. Do not treat an open item as a current result.
 - **Broader validation.** Add vendor models and converter operating points.
   Use the same golden-vs-ROM bench for each result. Do not generalize from
   one device or one condition.
+- **Methodology improvement.** The overall methodology improvement is on
+  track. Compare each candidate with the frozen accuracy point and the
+  independent golden bench. Keep a candidate only when it passes the
+  declared gates.
 - **Timing and energy.** Measure delay, rise time, fall time and switching
   energy against the independent golden DPT. Remove the G4 gap, or keep the
   reject verdict.
@@ -945,11 +954,12 @@ HOST-01/HOST-02).
 ## 🤝 Contributing Notes
 
 - Every code change must be recorded in
-  [`development-log.md`](development-log.md) (newest first, IST timestamps).
+  [`docs/development-log.md`](docs/development-log.md) (newest first, IST
+  timestamps).
 - Vendor libraries under `SpiceModels/` are **read-only inputs** — never edit.
 - Plotting follows house rules: legends EAST outside the axes, 300 dpi.
-- See [`piecespice_plan.md`](piecespice_plan.md) for the architecture and
-  algorithm formulations.
+- See [`docs/piecespice_plan.md`](docs/piecespice_plan.md) for the
+  architecture and algorithm formulations.
 
 ---
 

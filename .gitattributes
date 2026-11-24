@@ -61,7 +61,6 @@ docs/plans export-ignore
 # File-level encryption only; directory names stay visible. Paths are
 # anchored so .opencode/plans/piecespice_plan.md stays plaintext.
 # -text is REQUIRED: line-ending conversion would corrupt the ciphertext.
+# docs/** includes the architecture plan and the development log.
 docs/**              -text filter=git-crypt diff=git-crypt
-/piecespice_plan.md  -text filter=git-crypt diff=git-crypt
-/development-log.md  -text filter=git-crypt diff=git-crypt
 /AGENTS.md           -text filter=git-crypt diff=git-crypt

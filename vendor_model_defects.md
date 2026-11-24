@@ -331,10 +331,10 @@ The vendor "golden" model is accurate only inside its calibrated envelope:
 PySpice with the project-local `.spiceinit` set to `ngbehavior=ltpsa`. This mode is the
 only one that both (a) maps PSpice `LEVEL=7` to BSIM3v3.2 and (b) tolerates LTspice
 syntax — `all` breaks TI models entirely ("Device type MOS7 not available"). Full
-investigation in `development-log.md` (2026-08-23 00:55 entry).
+investigation in `docs/development-log.md` (2026-08-23 00:55 entry).
 
 Cross-references: `gate_charge_error_analysis.md` (VM-02 deep dive),
-`development-log.md` (chronological record), `piecespice_plan.md` §2 (algorithms these
+`docs/development-log.md` (chronological record), `docs/piecespice_plan.md` §2 (algorithms these
 findings motivate).
 
 
