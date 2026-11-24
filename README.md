@@ -53,9 +53,10 @@ is not a fifth tier.
   even though fidelity passes on three. Fidelity accepts TI / EPC / CPM2 and
   rejects IRFS on G3 device-current Id (**9.0127 % > 5 %**); speed accepts
   TI (5.3021× solver / 3.0086× wall) and CPM2 (1.1023× / 1.0583×) but rejects
-  IRFS (1.0073× / 0.9860×) and EPC (0.9863× / 1.0169×). ANN is a basis
-  selected by `--basis ann`, not a variant; its explicit keyed records reject
-  on all four. A fixed-topology tuning API exists; the final run reports
+  IRFS (1.0073× / 0.9860×) and EPC (0.9863× / 1.0169×). ANN is a separate
+  basis selected by `--basis ann`, not a variant: its keyed records pass
+  G1/G2/G3/G6 on all four, reject G4, and accept G5 on TI / EPC / CPM2
+  (IRFS rejects). A fixed-topology tuning API exists; the final run reports
   `tuning.verdict="not_run"` (tuning off). No global or portable speed claim
   is made.
 - **Tier-4 — ideal-switch fast tier (dual-tier addition).** Standard-SPICE
@@ -77,7 +78,8 @@ is not a fifth tier.
 | **PieceSpice Tier-2 (CPWL)** | **●●●●○ (2.04–8.49 % static rel-RMSE; ≤ 4.13 % endpoint)** | **●●○○○ (~1× at matched conditions; not significant)** | **●●●●● (C⁰ PWL + tanh knee)** |
 | **PieceSpice Tier-3 `v1` (TPWL)** | **●●●●○ (emitted static rel-RMSE 0.97–7.22 %; fit 0.61–2.37 %)** | **●●○○○ (forced solver 0.0946–0.5827× at matched conditions; slower than golden)** | **●●●○○ (anchored on captured trajectory)** |
 | **PieceSpice Tier-3 `simplis` (PWL charge)** | **●●●○○ (static 2.0394–8.4935 %; DPT Vds 2.942–8.704 %, Id 1.764–8.517 %)** | **●●○○○ (20-pulse adaptive solver 1.0705–5.3592×, CPM2 1.1004×; ≥5× TI-only)** | **●●●○○ (guarded 20-pulse runs; four completed 2-pulse DPTs)** |
-| **PieceSpice Tier-3 `urom` (canonical C0)** | **●●●○○ (static 2.0394–8.4935 %; fidelity accept 3/4, IRFS G3 Id 9.0127 %)** | **●●○○○ (solver/wall: IRFS 1.0073/0.9860×, TI 5.3021/3.0086×, EPC 0.9863/1.0169×, CPM2 1.1023/1.0583×; speed accept 2/4)** | **●●○○○ (one declared trap/default method; overall reject 4/4 on G4 timing/energy; keyed ANN rejects 4/4)** |
+| **PieceSpice Tier-3 `urom` canonical C0** | **●●●○○ (static 2.0394–8.4935 %; fidelity accept 3/4, IRFS G3 Id 9.0127 %)** | **●●○○○ (solver/wall: IRFS 1.0073/0.9860×, TI 5.3021/3.0086×, EPC 0.9863/1.0169×, CPM2 1.1023/1.0583×; speed accept 2/4)** | **●●○○○ (one declared trap/default method; overall reject 4/4 on G4 timing/energy)** |
+| **PieceSpice Tier-3 `urom` ANN** | **●●●●○ (G1 1.00–2.07 %, worst endpoint 1.29–4.02 %; G2 0.0/0.0 negative; G3 Vds 0.11–1.48 %, Id 0.03–1.24 %; fidelity 4/4)** | **●●○○○ (G5 accept 3/4; n=20 net: IRFS 0.950×, TI 7.178×, EPC 1.117×, CPM2 1.178×; n=200 net: IRFS 0.975×, EPC 1.157×, CPM2 1.392×; TI outlier)** | **●●○○○ (G4 rejects 4/4; no 1.5× lower-CI speed claim)** |
 | **PieceSpice Tier-4 (ideal switch + LUT)** | **●●○○○ (DPT waveform gate retired by design)** | **●●●○○ (guarded inductive-bench solver 1.2212–6.4730×; EPC golden 100 ns cap; CPM2 1.3618×)** | **●●●●○ (DPT 4/4 complete, speed 4/4 measured)** |
 | PLECS / Ideal | ●○○○○ | ●●●●● | ●●●●● |
 
@@ -385,7 +387,7 @@ All four selectable configurations plus the Tier-3 `urom` variant are exercised 
 
 ## 📊 Measured Results
 
-> **AES-STD100 — vendor-model fidelity caveat.** "Manufacturer datasheets
+> **Vendor-model caveat.** "Manufacturer datasheets
 > were checked against extracted currents at the rated gate drive:
 > IRFS7730PBF 246 A continuous / 984 A pulsed vs 1671 A extracted at Vgs=10 V;
 > CSD16412Q5A 52 A / 91 A vs 305 A; EPC2216 3.4 A / 28 A vs 61.7 A at
@@ -457,7 +459,7 @@ methodology applies to its row (capacitors open at DC).
 
 Tier-2 worst endpoint error ≤ 4.13 %; the measured endpoint worst errors at
 the configured `Vds_sweep_max` are 3.9601 / 4.1248 / 0.5572 / 1.4568 %
-(IRFS / TI / EPC / CPM2). *AES-STD100 caveat above applies.*
+(IRFS / TI / EPC / CPM2).
 `simplis` reproduces the recorded Tier-2 static values at the quoted
 precision; its REGRESSED flags are against the lower T3-`v1` emitted bar, not
 against T2.
@@ -484,8 +486,7 @@ Against `v1` on the same device-current metric, `simplis` Vds is lower on IRFS
 TI and CPM2 and higher on EPC (+0.294 pp). TI Vds is the only sizable
 like-for-like REGRESSION; the rest are within the corrected metric's measured
 spread. IRFS carries the catalogued VM-02 vendor tail. These are
-golden-vs-ROM figures, not datasheet ratings. *AES-STD100 caveat above
-applies.*
+golden-vs-ROM figures, not datasheet ratings.
 
 **Solver speed vs golden at matched 2-pulse, forced 2 ns-step conditions**
 (vendor golden at default settings as the sole reference):
@@ -501,7 +502,7 @@ Neither tier shows a significant speedup at matched conditions; Tier-3 `v1` is
 slower on every device. The 20-pulse adaptive TI case (4.86× solver / 3.39×
 wall) is the measured Tier-2 exception; `simplis` measures 5.14545× solver /
 2.92373× wall there (table below; `method=trap/default`). The guard reports N/A
-unless both benches complete. *AES-STD100 caveat above applies.*
+unless both benches complete.
 
 **Tier-3 `simplis` — 20-pulse adaptive solver and wall speed vs golden
 (`method=trap/default`; source: `tier3_validation_simplis.json#speed_adaptive_20`).**
@@ -560,8 +561,7 @@ benchmark rows), TI 5.299× / 3.069× (earlier docs), EPC error/stall and CPM2
 [the deep report](docs/deep_spice_fidelity_speed_research.md). Full
 four-vendor tables, REGRESSED flags and the D2 methodology note are in
 [§15 of the candidates doc](docs/plans/tier3_method_candidates.md#15-characterization-results-2026-11-20);
-quote the per-vendor JSON for every measured number. *AES-STD100 caveat above
-applies.*
+quote the per-vendor JSON for every measured number.
 
 **Tier-4 — hardened fast converter tier (dual-tier addition; measured
 2026-11-21 regeneration).** The emitted ASCII subcircuit is a standard-SPICE
@@ -597,8 +597,7 @@ adaptive golden completes and Tier-4 measures 1.3618× solver / 1.1586× wall
 (12,492 → 5,320 iterations); VM-10 is a 3-pin harness bug, not a contract
 exclusion. The bench discards per-run time vectors, so speed `t_last` is
 N/A and `end_time_s` is schedule metadata, not a measured trace endpoint.
-*AES-STD100 caveat above applies: golden-vs-model figures, not datasheet
-ratings.*
+*Golden-vs-model figures, not datasheet ratings.*
 
 | Device (Vbus / Id) | Solver speedup | Wall speedup | Golden → Tier-4 iterations | Golden → Tier-4 points | Case |
 |---|---:|---:|---|---|---|
@@ -675,7 +674,7 @@ second-pulse turn-on failure, fixed 2026-11-19); values are never imputed.
 | EPC2216 | 0.846 / 1.485 / 0.838 | 1.227 / 2.255 / 1.343 | 0.398 / 0.616 / 0.542 | 0.231 / 0.367 / 0.388 |
 | CPM2-1200 | 4.703 / 0.850 / 4.123 | 4.139 / 2.429 / 8.789 | 2.760 / 1.811 / 3.214 | 1.420 / 0.698 / 3.314 |
 
-*AES-STD100 caveat above applies.*
+
 
 **Fidelity scope — edge timing.** The small full-waveform rel-RMSE above does
 not imply accurate switching edges. `tr`/`tf` deviate measurably on several
@@ -800,8 +799,8 @@ current evidence.
 | `PIECESPICE_LIVE=0 uv run pytest -q --deselect tests/test_netlist_builder.py::test_tier2_simulates_and_matches` (GitHub CI, run 44934384493) | 806 | 15 | 1 | 1 |
 | Live engine module (`tests/test_engine_ltspice.py`) | 19 | — | — | — |
 
-*AES-STD100 caveat above applies to the fidelity figures these tests
-protect, not to the test process itself.*
+*Golden-vs-model figures, not datasheet ratings; this applies to the fidelity
+figures these tests protect, not to the test process itself.*
 
 ---
 
