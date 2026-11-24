@@ -9,7 +9,7 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![LTspice](https://img.shields.io/badge/LTspice-26-orange)](https://www.analog.com/en/resources/design-tools-and-calculators/ltspice-simulator.html)
 [![spicelib](https://img.shields.io/badge/spicelib-powered-yellow)](https://pypi.org/project/spicelib/)
-[![Tests](https://img.shields.io/badge/tests-830%20passed%20%C2%B7%200%20skipped%20%C2%B7%202%20warnings-brightgreen?logo=pytest&logoColor=white)](#testing)
+[![Tests](https://img.shields.io/badge/tests-837%20passed%20%C2%B7%200%20skipped%20%C2%B7%202%20warnings-brightgreen?logo=pytest&logoColor=white)](#testing)
 [![License](https://img.shields.io/badge/license-TBD-lightgrey)]()
 [![uv](https://img.shields.io/badge/managed%20with-uv-dead00?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
 
@@ -773,8 +773,8 @@ previously timed out because a probe forced `max_step=None`; the measured
 `net_solver_speedup`, `net_solver_speedup_ci95` and the 0.075 s floor.
 
 
-**Test suite (measured).** Full live suite: **830 passed, 0 skipped,
-2 warnings** (`.venv\Scripts\python.exe -m pytest -q`, 396.77 s). Local LTspice-free
+**Test suite (measured).** Full live suite: **837 passed, 0 skipped,
+2 warnings** (`.venv\Scripts\python.exe -m pytest -q`, 888.23 s). Local LTspice-free
 CI (`PIECESPICE_LIVE=0`): **819 passed, 10 skipped, 1 deselected, 1 warning**
 (737.00 s). Previous GitHub Actions CI (run **44934384493**, commit `4402640`,
 both jobs success): **806 passed,
@@ -794,7 +794,7 @@ current evidence.
 
 | Command | Passed | Skipped | Deselected | Warnings |
 |---|---|---|---|---|
-| `uv run pytest` (full live suite, 396.77 s) | 830 | 0 | — | 2 |
+| `uv run pytest` (full live suite, 888.23 s) | 837 | 0 | — | 2 |
 | `PIECESPICE_LIVE=0 .venv\Scripts\python.exe -m pytest -q --deselect tests/test_netlist_builder.py::test_tier2_simulates_and_matches` (local CI) | 819 | 10 | 1 | 1 |
 | `PIECESPICE_LIVE=0 uv run pytest -q --deselect tests/test_netlist_builder.py::test_tier2_simulates_and_matches` (GitHub CI, run 44934384493) | 806 | 15 | 1 | 1 |
 | Live engine module (`tests/test_engine_ltspice.py`) | 19 | — | — | — |
@@ -857,7 +857,7 @@ writes fixed `figures/converter/` plots.
 ## 🧪 Testing
 
 ```bash
-uv run pytest                # full live suite: 830 passed, 0 skipped, 2 warnings (396.77 s)
+uv run pytest                # full live suite: 837 passed, 0 skipped, 2 warnings (888.23 s)
 PIECESPICE_LIVE=0 uv run pytest -q \
   --deselect tests/test_netlist_builder.py::test_tier2_simulates_and_matches
                              # local CI: 819 passed, 10 skipped, 1 deselected, 1 warning (GitHub run 44934384493: 806/15/1/1)
