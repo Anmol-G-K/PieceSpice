@@ -15,6 +15,35 @@ from simulation.testbenches.static_sweep import StaticSweepTestbench
 app = typer.Typer(help="PieceSpice: SPICE to Piecewise-Linear Modeling Pipeline")
 console = Console()
 
+
+@app.callback(invoke_without_command=True)
+def _root(ctx: typer.Context) -> None:
+    """Launch the interactive workbench when no command is supplied."""
+    if ctx.invoked_subcommand is None:
+        from cli.ui import run_wizard
+        run_wizard()
+
+
+@app.command()
+def ui() -> None:
+    """Open the interactive model workbench."""
+    from cli.ui import run_wizard
+    run_wizard()
+
+
+@app.command("models")
+def models() -> None:
+    """Show configured vendors and files dropped into SpiceModels/."""
+    from cli.ui import _print_catalog
+    _print_catalog(console)
+
+
+@app.command()
+def doctor() -> None:
+    """Check SpiceModels, configured vendors, figures and LTspice."""
+    from cli.ui import _doctor
+    _doctor(console)
+
 # Tier-4 disclosure (audit D1 / PLECS M5): the LUT is filled from the recorded
 # golden DPT crossing, so a zero error there is by construction.  There is no
 # independent converter-energy gate and no converter bench has been built.

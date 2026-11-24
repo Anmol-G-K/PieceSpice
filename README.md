@@ -310,9 +310,20 @@ uv run python -c "from pipeline.fitting import fit_pwl_model; fit_pwl_model('csd
 Or via the CLI (no console script is installed, so run the module):
 
 ```bash
+uv run python -m cli.main            # interactive workbench
+uv run python -m cli.main models     # model catalog / SpiceModels status
+uv run python -m cli.main doctor     # environment check
 uv run python -m cli.main curves csd16412q5a     # all 7 curves
 uv run python -m cli.main parse SpiceModels/EPC2216_V0_PSPICE.net
 ```
+
+The workbench guides the same pipeline without hiding any measurement: choose
+a configured vendor, choose Tier-2 / Tier-3 `v1` / `simplis` / UROM C0 / ANN /
+Tier-4 / Tier-4 ANN, choose build, speed summary and plot gallery, then see the
+recorded result. Model discovery reads `SpiceModels/**` read-only; a new file
+is shown as `needs config` until a matching `config/inputs/<vendor>.yaml`
+declares its subcircuit, pins and conditions. Use `models` for a non-interactive
+catalog.
 
 ### Select the Solver Tier
 
