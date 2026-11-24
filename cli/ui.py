@@ -316,7 +316,7 @@ def _doctor(console: Console) -> None:
 def run_wizard() -> None:
     """Launch the interactive workbench."""
     console = Console()
-    banner(console)
+    banner(console, vendor_count=len(_configured_models()))
     if not sys.stdin.isatty():
         console.print(
             "[yellow]Interactive mode needs a terminal.[/yellow] "
