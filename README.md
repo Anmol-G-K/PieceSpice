@@ -120,11 +120,6 @@ solver, no special runtime. Drop the generated `.lib` into any SPICE flow
 that supports behavioral sources and charge-defined capacitors (validated on
 LTspice 26) and simulate against the golden model.
 
-> **Documentation status.** `AGENTS.md` is a work-in-progress maintainer
-> guide. It is encrypted with git-crypt. All files under `docs/` are also
-> work in progress and encrypted with git-crypt. `README.md` is the public
-> documentation file.
-
 ---
 
 ## ✨ How It Works
@@ -844,7 +839,7 @@ PieceSpice/
 │   ├── converter.yaml    # Buck bench operating point + model selection
 │   └── outputs/          # Extracted curve data (YAML)
 ├── data/                 # Captured golden switching waveforms (CSV)
-├── docs/                 # WIP encrypted docs: plan, log, reports, plans
+├── docs/                 # Architecture, log, reports, and plans
 ├── figures/
 │   ├── <vendor>/
 │   │   ├── 01_*, 02_*    # extraction / analysis figures
@@ -946,7 +941,7 @@ record. Do not treat an open item as a current result.
 
 Backend: **LTspice 26 + spicelib**, out-of-process; no PySpice/ngspice
 dependency remains. Known limitations and vendor-model quirks are tracked in
-[`vendor_model_defects.md`](vendor_model_defects.md) (VM-01…VM-12,
+[`docs/vendor_model_defects.md`](docs/vendor_model_defects.md) (VM-01…VM-12,
 HOST-01/HOST-02).
 
 ---

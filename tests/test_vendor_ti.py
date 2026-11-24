@@ -91,6 +91,6 @@ def test_ti_rds_on_plausible():
     rx, ry = curve.to_numpy()
     rds_50a = float(np.interp(50.0, rx, ry))
     # The PSpice vendor model is a 9-11 mOhm part at Vgs=10 V, ID~52 A
-    # (vendor_model_defects.md device reference; recorded curve3 gives
+    # (docs/vendor_model_defects.md device reference; recorded curve3 gives
     # 10.44 mOhm). The old <10 mOhm bar came from the retired ngspice model.
     assert 8.0 < rds_50a < 12.0, f"Rds(on) {rds_50a:.2f} mOhm implausible"

@@ -133,7 +133,7 @@ VENDOR_SPEED_SCOPE_NOTES = {
     "cpm2-1200": {
         "kind": "harness_bug_retired",
         "defect": "VM-10 (retracted: 3-pin harness bug, not a vendor defect)",
-        "reference": "vendor_model_defects.md VM-10",
+        "reference": "docs/vendor_model_defects.md VM-10",
         "note": (
             "The CPM2-1200-0025B vendor .SUBCKT has a 4th port 'Tj' (volts "
             "= degC) that must be driven by a fixed V source at "
