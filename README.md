@@ -12,12 +12,17 @@
 [![Tests](https://img.shields.io/badge/tests-837%20passed%20%C2%B7%200%20skipped%20%C2%B7%202%20warnings-brightgreen?logo=pytest&logoColor=white)](#testing)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![uv](https://img.shields.io/badge/managed%20with-uv-dead00?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
+[![dev: development branch · may break](https://img.shields.io/badge/dev-development%20branch%20%C2%B7%20may%20break-orange?logo=git&logoColor=white)](https://github.com/Anmol-G-K/PieceSpice/tree/dev)
 
 [![Infineon](https://img.shields.io/badge/supported-Infineon%20%2F%20IR-0A8276?labelColor=1a1a1a)](#validated-devices) [![TI](https://img.shields.io/badge/supported-Texas%20Instruments-CC0000?labelColor=1a1a1a)](#validated-devices) [![EPC](https://img.shields.io/badge/supported-EPC%20GaN-006FBA?labelColor=1a1a1a)](#validated-devices) [![Wolfspeed](https://img.shields.io/badge/supported-Wolfspeed%20SiC-58238C?labelColor=1a1a1a)](#validated-devices)
 
 *Vendor `.lib` in → validated Tier-2 CPWL, Tier-3 TPWL / unified one-ROM (urom) or Tier-4 ideal-switch + LUT out*
 
 </div>
+
+> [!WARNING]
+> **Development branch.** This is the `dev` branch. It is under active
+> development. Features, tests and generated artifacts can fail or break.
 
 ---
 
