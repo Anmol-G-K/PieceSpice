@@ -27,7 +27,7 @@ from typing import Any, Mapping
 
 import numpy as np
 
-from config.yaml_io import CONFIG_ROOT, OUTPUT_DIR, load_input, load_output
+from config.yaml_io import CONFIG_ROOT, OUTPUT_DIR, load_input
 from parser.netlist import resolve_pin_connections
 from simulation.testbenches.double_pulse import (
     LEGACY_ABS_ENERGY_DEFINITION,

@@ -7,7 +7,7 @@ import pytest
 
 from common.types import CurveData
 from config.yaml_io import load_output, save_output
-from pipeline.curves import _curve4_extracted, run_all_curves
+from pipeline.curves import _curve4_extracted
 
 CAP_REF = 1.5
 VDS = [0.1 * (10.0 ** (i / 2.0)) for i in range(8)]

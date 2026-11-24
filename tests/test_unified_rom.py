@@ -8,7 +8,6 @@ guard fails if a live bench runner is reached, so this module is safe with
 ``PIECESPICE_LIVE=0``.
 """
 from __future__ import annotations
-import copy
 import dataclasses
 import hashlib
 import inspect

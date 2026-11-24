@@ -1,13 +1,11 @@
 """Tests for config/yaml_io.py — input loading, output writing, key conventions."""
 
-from pathlib import Path
 
 import pytest
 import yaml
 
 from config.yaml_io import (
     KEYS,
-    INPUT_DIR,
     OUTPUT_DIR,
     load_input,
     load_output,

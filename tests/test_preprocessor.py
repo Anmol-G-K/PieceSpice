@@ -4,7 +4,7 @@ import sys
 sys.path.insert(0, ".")
 
 from parser.preprocessor import (
-    join_continuations, normalize_pspice_netlist, _strip_comment,
+    normalize_pspice_netlist,
 )
 
 

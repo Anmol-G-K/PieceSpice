@@ -1,7 +1,7 @@
 """Base class for semiconductor devices."""
 
-from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from abc import ABC
+from typing import Dict, Optional
 from pydantic import BaseModel, Field
 
 

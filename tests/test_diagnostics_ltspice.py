@@ -6,7 +6,6 @@ sys.path.insert(0, ".")
 from common.diagnostics import (
     SimulatorLogDiagnostics as LTSpiceLogDiagnostics,
     get_diagnostics as get_ltspice_diagnostics,
-    LTSPICE_DIAGNOSTICS,
 )
 
 

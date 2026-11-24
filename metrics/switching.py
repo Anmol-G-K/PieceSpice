@@ -1,6 +1,5 @@
 """Switching timing dynamics extraction (tr, tf, td_on, td_off)."""
 
-from typing import Tuple
 import numpy as np
 from pydantic import BaseModel
 
@@ -85,7 +84,6 @@ def extract_switching_times(
 
     # --- turn-on event: gate rising edge ---
     t_gs_10_on = _crossing_time(t, v_gs, gs_lo, rising=True)
-    t_gs_90_on = _crossing_time(t, v_gs, gs_hi, rising=True)
     t_ds_90_on = _crossing_time(t, v_ds, ds_off_level, rising=False)
     t_ds_10_on = _crossing_time(t, v_ds, ds_on_level, rising=False)
 
@@ -112,7 +110,6 @@ def extract_switching_times(
         return float(t[i] + frac * (t[i + 1] - t[i]))
 
     t_gs_90_off = last_crossing(gs_hi, falling=True)
-    t_gs_10_off = last_crossing(gs_lo, falling=True)
     t_ds_10_off = last_crossing(ds_on_level, falling=False, sig=v_ds)
     t_ds_90_off = last_crossing(ds_off_level, falling=False, sig=v_ds)
 

@@ -21,7 +21,7 @@ Pure numerical module - no plotting code (§4.2).
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, List, Optional, Tuple
 
 import numpy as np

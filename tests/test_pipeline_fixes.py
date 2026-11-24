@@ -32,7 +32,6 @@ def test_cap_reference_is_not_sweep_minimum():
 def test_equivalent_caps_nonzero_at_reference():
     v = np.linspace(0.1, 25.0, 50)
     c = np.full_like(v, 1e-9)
-    at_min = integrate_charge(v, c, v_ref=float(v[0]))
     at_ref = integrate_charge(v, c, v_ref=6.325)
     expected_q = 1e-9 * (6.325 - 0.1) / 6.325   # Q(Vref)/Vref, curve starts at 0.1 V
     expected_e = 1e-9 * (1.0 - (0.1 / 6.325) ** 2)

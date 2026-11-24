@@ -20,7 +20,6 @@ import math
 import time
 from pathlib import Path
 
-import numpy as np
 
 from config.yaml_io import load_input
 from parser.netlist import resolve_pin_connections

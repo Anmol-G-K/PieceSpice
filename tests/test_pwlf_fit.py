@@ -8,7 +8,6 @@ import pytest
 
 from approximation.pwlf_fit import (
     fit_adaptive, fit_piecewise_linear, fit_piecewise_linear_tuple,
-    PWLFitResult,
 )
 
 

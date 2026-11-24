@@ -1,6 +1,6 @@
 # Vendor Model Defect Catalog
 
-> **AES-STD100 — vendor-model fidelity caveat (cross-verified 2026-11-18).**
+> **Vendor-model fidelity caveat (cross-verified 2026-11-18).**
 > Manufacturer datasheets were checked against extracted currents at the
 > rated gate drive: IRFS7730PBF 246 A continuous / 984 A pulsed vs **1671 A**
 > extracted at Vgs=10 V; CSD16412Q5A 52 A / 91 A vs **305 A** at Vgs=10 V;

@@ -238,7 +238,6 @@ class StaticSweepTestbench:
         roles = self._core_roles(pin_roles)
         has_tj = self._has_tj(lib_path, subcircuit_name, roles)
         conn_map = {"drain": "drn"}
-        others = ["src"] * (len(roles) - 1)
         xargs = [conn_map.get(r, "src") for r in roles]
         lines = [f".include {Path(lib_path).resolve()}"]
         temp = float(getattr(self.engine, "temperature", 25.0))

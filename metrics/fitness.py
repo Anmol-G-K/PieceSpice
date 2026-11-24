@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 
 from approximation.charge_model import integrate_charge  # noqa: F401
-from metrics.loss import SwitchingLossMetrics, compute_switching_energy
+from metrics.loss import compute_switching_energy
 from metrics.static import compute_curve_error
 from metrics.switching import extract_switching_times
 from simulation.testbenches.simple_switching import (

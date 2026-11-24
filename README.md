@@ -51,9 +51,11 @@ is not a fifth tier.
   validation the overall verdict is **`reject` on all four vendors**: the
   independent G4 timing/energy gate rejects every row, so no row is accepted
   even though fidelity passes on three. Fidelity accepts TI / EPC / CPM2 and
-  rejects IRFS on G3 device-current Id (**9.0127 % > 5 %**); speed accepts
-  TI (5.3021× solver / 3.0086× wall) and CPM2 (1.1023× / 1.0583×) but rejects
-  IRFS (1.0073× / 0.9860×) and EPC (0.9863× / 1.0169×). ANN is a separate
+  rejects IRFS on G1 static (**7.1596 % > 7.0683 %**) and G3 (**Vds/Id
+  10.0001 / 9.0085 % versus 10.0 / 5.0**); speed accepts TI (5.0000× solver /
+  2.9640× wall),
+  EPC (1.0554× / 1.0339×) and CPM2 (1.1286× / 1.0761×) but rejects IRFS
+  (0.9851× / 1.0171×). ANN is a separate
   basis selected by `--basis ann`, not a variant: its keyed records pass
   G1/G2/G3/G6 on all four, reject G4, and accept G5 on TI / EPC / CPM2
   (IRFS rejects). A fixed-topology tuning API exists; the final run reports
@@ -78,7 +80,7 @@ is not a fifth tier.
 | **PieceSpice Tier-2 (CPWL)** | **●●●●○ (2.04–8.49 % static rel-RMSE; ≤ 4.13 % endpoint)** | **●●○○○ (~1× at matched conditions; not significant)** | **●●●●● (C⁰ PWL + tanh knee)** |
 | **PieceSpice Tier-3 `v1` (TPWL)** | **●●●●○ (emitted static rel-RMSE 0.97–7.22 %; fit 0.61–2.37 %)** | **●●○○○ (forced solver 0.0946–0.5827× at matched conditions; slower than golden)** | **●●●○○ (anchored on captured trajectory)** |
 | **PieceSpice Tier-3 `simplis` (PWL charge)** | **●●●○○ (static 2.0394–8.4935 %; DPT Vds 2.942–8.704 %, Id 1.764–8.517 %)** | **●●○○○ (20-pulse adaptive solver 1.0705–5.3592×, CPM2 1.1004×; ≥5× TI-only)** | **●●●○○ (guarded 20-pulse runs; four completed 2-pulse DPTs)** |
-| **PieceSpice Tier-3 `urom` canonical C0** | **●●●○○ (static 2.0394–8.4935 %; fidelity accept 3/4, IRFS G3 Id 9.0127 %)** | **●●○○○ (solver/wall: IRFS 1.0073/0.9860×, TI 5.3021/3.0086×, EPC 0.9863/1.0169×, CPM2 1.1023/1.0583×; speed accept 2/4)** | **●●○○○ (one declared trap/default method; overall reject 4/4 on G4 timing/energy)** |
+| **PieceSpice Tier-3 `urom` canonical C0** | **●●●○○ (static 2.0394–8.4935 %; fidelity accept 3/4, IRFS G1 7.1596 % and G3 10.0001 / 9.0085 %)** | **●●○○○ (solver/wall: IRFS 0.9851/1.0171×, TI 5.0000/2.9640×, EPC 1.0554/1.0339×, CPM2 1.1286/1.0761×; speed accept 3/4)** | **●●○○○ (one declared trap/default method; overall reject 4/4 on G4 timing/energy)** |
 | **PieceSpice Tier-3 `urom` ANN** | **●●●●○ (G1 1.00–2.07 %, worst endpoint 1.29–4.02 %; G2 0.0/0.0 negative; G3 Vds 0.11–1.48 %, Id 0.03–1.24 %; fidelity 4/4)** | **●●○○○ (G5 accept 3/4; n=20 net: IRFS 0.950×, TI 7.178×, EPC 1.117×, CPM2 1.178×; n=200 net: IRFS 0.975×, EPC 1.157×, CPM2 1.392×; TI outlier)** | **●●○○○ (G4 rejects 4/4; no 1.5× lower-CI speed claim)** |
 | **PieceSpice Tier-4 (ideal switch + LUT)** | **●●○○○ (DPT waveform gate retired by design)** | **●●●○○ (guarded inductive-bench solver 1.2212–6.4730×; EPC golden 100 ns cap; CPM2 1.3618×)** | **●●●●○ (DPT 4/4 complete, speed 4/4 measured)** |
 | PLECS / Ideal | ●○○○○ | ●●●●● | ●●●●● |
@@ -104,12 +106,14 @@ for the tables and conditions of validity.
 
 The canonical `--tier 3 --variant urom` record (`channel_basis=tier2`, C0)
 now returns **overall `reject` on all four vendors**: its fidelity verdict is
-`accept` for TI / EPC / CPM2 and `reject` for IRFS (G3 device-current Id
-9.0127 % > 5 %), its timing/energy verdict is `reject` on all four under the
-independent G4 golden gate, and its speed verdict is `accept` only for TI and
-CPM2. There is no global claim. The keyed `--basis ann` records and libs are
-separate, non-default artifacts and reject on all four. TI's speed gain is
-driven by its stiff golden; EPC is slower than golden on both clocks.
+`accept` for TI / EPC / CPM2 and `reject` for IRFS (G1 static
+7.1596 % > 7.0683 % and G3 Vds/Id 10.0001 / 9.0085 % versus 10.0 / 5.0), its
+timing/energy verdict is `reject` on all four under the independent G4 golden
+gate, and its speed verdict is `accept` for TI / EPC / CPM2 and `reject` for
+IRFS. There is no global claim. The keyed `--basis ann` records and libs are
+separate, non-default artifacts: fidelity passes 4/4, G4 rejects 4/4, G5
+accepts 3/4, and the overall verdict rejects on all four. TI's speed gain is
+driven by its stiff golden.
 
 Everything is emitted as a **standard SPICE subcircuit** — no proprietary
 solver, no special runtime. Drop the generated `.lib` into any SPICE flow
@@ -267,7 +271,7 @@ Id bars (0.60 / 0.048 / 0.049 / 0.261 %) were measured on the old
 inductor-current metric and are retired; the Id change is a metric
 correction, not a relaxed model result. Under this policy the canonical C0
 basis has fidelity `accept` for TI / EPC / CPM2 and `reject` for IRFS
-(9.0127 % Id), but **overall `reject` 4/4 because G4 timing/energy rejects
+(G1 7.1596 % and G3 10.0001 / 9.0085 %), but **overall `reject` 4/4 because G4 timing/energy rejects
 every row** (see [Measured Results](#-measured-results)). Hybrid timing and
 energy are scored against those same independent golden metrics. The hybrid
 residual emitter and its fail-closed probe are implemented, but the hybrid
@@ -716,30 +720,32 @@ be read as an overall acceptance.
 (`window_equal=true`, `common_grid_guard=true`). The G3 bars are the recorded
 per-vendor Vds baselines plus a declared Id 5 % application requirement:
 IRFS 10.0 / 5.0, TI 5.583 / 5.0, EPC 4.894 / 5.0 and CPM2 3.0 / 5.0
-(Vds / Id, %). IRFS fails on Id 9.0127 %; TI, EPC and CPM2 pass. The former
+(Vds / Id, %). IRFS fails both rows (Vds 10.0001 % > 10.0 %, Id 9.0085 % >
+5 %); TI, EPC and CPM2 pass. The former
 Id bars (0.60 / 0.048 / 0.049 / 0.261 %) came from the old inductor-current
 metric and are retired.
 
 | Device (Vbus / Id) | Fidelity | G4 timing/energy | G5 speed | Overall | Static rel-RMSE | Solver / wall speedup | Iterations golden → urom | G3 Vds / Id vs bar |
 |---|---|---|---|---|---|---|---|---|
-| IRFS7730PBF (38 V / 100 A) | **reject** (G3 Id 9.0127 %) | reject | **reject** | **reject** | 7.0683 % | 1.0073× / 0.9860× | 12,718 → 9,274 | 9.999 / 9.013 vs 10.0 / 5.0 |
-| CSD16412Q5A / TI (12.5 V / 10 A) | **accept** | reject | **accept** | **reject** | 8.4935 % | **5.3021× / 3.0086×** | 131,558 → 10,195 | 1.984 / 1.259 vs 5.583 / 5.0 |
-| EPC2216 (11 V / 10 A; 100 ns cap both arms) | **accept** | reject | **reject** | **reject** | 2.0394 % | 0.9863× / 1.0169× | 16,514 → 12,206 | 0.704 / 0.662 vs 4.894 / 5.0 |
-| CPM2-1200 (20 V / 20 A) | **accept** | reject | **accept** | **reject** | 3.4287 % | 1.1023× / 1.0583× | 12,492 → 9,214 | 2.893 / 3.209 vs 3.0 / 5.0 |
+| IRFS7730PBF (38 V / 100 A) | **reject** (G1 7.1596 %; G3 10.0001 / 9.0085 %) | reject | **reject** | **reject** | 7.1596 % | 0.9851× / 1.0171× | 12,718 → 9,574 | 10.000 / 9.008 vs 10.0 / 5.0 |
+| CSD16412Q5A / TI (12.5 V / 10 A) | **accept** | reject | **accept** | **reject** | 8.4935 % | **5.0000× / 2.9640×** | 131,558 → 10,133 | 1.984 / 1.259 vs 5.583 / 5.0 |
+| EPC2216 (11 V / 10 A; 100 ns cap both arms) | **accept** | reject | **accept** | **reject** | 2.0394 % | 1.0554× / 1.0339× | 16,514 → 12,067 | 0.712 / 0.648 vs 4.894 / 5.0 |
+| CPM2-1200 (20 V / 20 A) | **accept** | reject | **accept** | **reject** | 3.4287 % | 1.1286× / 1.0761× | 12,492 → 9,176 | 2.893 / 3.209 vs 3.0 / 5.0 |
 
-Static rel-RMSE returns to the recorded Tier-2 bars
-(7.068256 / 8.493510 / 2.039414 / 3.428701 %, IRFS / TI / EPC / CPM2; estimator
-`mean(per_curve_peak_rel_rmse_pct)`) and the worst endpoint at the configured
-`Vds_sweep_max` is 3.9605 / 4.1273 / 0.5589 / 1.4597 % — all under the 4.13 %
-bar. G0, G1, G2 and G6 pass on every C0 row. G3 passes for TI / EPC / CPM2 and
-fails for IRFS on Id; G4 fails 4/4; G5 passes only TI / CPM2 for the C0
-basis. The keyed ANN rows pass G1/G2/G3/G6 on all four; G4 rejects 4/4
-and G5 accepts TI / EPC / CPM2, rejects IRFS. `fidelity_scope` reports
-`waveform_gate_retired=false` and `energy_only_claim=false` — these rows
-still use the waveform gate, unlike Tier-4. Speed is scoped to this bench alone: TI's 5.3021× solver / 3.0086×
-wall is golden-stiffness driven, EPC is slower than golden on solver
-(0.9863×), and IRFS is at unity on solver (1.0073×) with wall below 1×
-(0.9860×). CPM2's 1.1023× / 1.0583× is a small, bench-scoped gain.
+G1 static is 7.1596 / 8.4935 / 2.0394 / 3.4287 % (IRFS / TI / EPC / CPM2;
+estimator `mean(per_curve_peak_rel_rmse_pct)`); the IRFS value is 0.0913 pp
+above its 7.0683 % bar, so G1 fails for IRFS, while TI / EPC / CPM2 pass. The
+worst endpoint at the configured `Vds_sweep_max` is 3.9605 / 4.1273 / 0.5589
+/ 1.4597 % — all under the 4.13 % bar. G0, G2 and G6 pass on every C0 row.
+G3 passes for TI / EPC / CPM2 and fails for IRFS on both Vds and Id; G4 fails
+4/4; G5 passes TI / EPC / CPM2 and rejects IRFS. The keyed ANN rows pass
+G1/G2/G3/G6 on all four; G4 rejects 4/4 and G5 accepts TI / EPC / CPM2,
+rejects IRFS. `fidelity_scope` reports `waveform_gate_retired=false` and
+`energy_only_claim=false` — these rows still use the waveform gate, unlike
+Tier-4. Speed is scoped to this bench alone: TI's 5.0000× solver / 2.9640×
+wall is golden-stiffness driven, EPC's 1.0554× / 1.0339× is a small gain, and
+IRFS is below unity on solver (0.9851×) and rejected. CPM2's 1.1286× /
+1.0761× is a small, bench-scoped gain.
 
 **ANN basis — fitted charge net + `positive_conductance` channel (`fidelity_all_pass` 4/4, G4 reject 4/4).**
 ANN is a separate basis chosen by `--basis ann`, not a variant: the keyed
@@ -776,13 +782,15 @@ previously timed out because a probe forced `max_step=None`; the measured
 **Test suite (measured).** Full live suite: **837 passed, 0 skipped,
 2 warnings** (`.venv\Scripts\python.exe -m pytest -q`, 888.23 s). Local LTspice-free
 CI (`PIECESPICE_LIVE=0`): **819 passed, 10 skipped, 1 deselected, 1 warning**
-(737.00 s). Previous GitHub Actions CI (run **44934384493**, commit `4402640`,
-both jobs success): **806 passed,
-15 skipped, 1 deselected, 1 warning**. The runner has no `SpiceModels/`, so
-vendor-gated tests skip more than locally (`test_vendor_ti` 5 skipped; buck
-19 passed / 4 skipped, versus 3 passed / 2 skipped and 21 passed / 2 skipped
-locally); the 15 CI skips comprise the `PIECESPICE_LIVE` gate and those
-vendor-dependent skips. The live engine module alone reports **19 passed**.
+(737.00 s). Current GitHub Actions CI (run **45327158278**, HEAD `f932d7d`,
+both jobs success): **812 passed, 24 skipped, 1 deselected, 1 warning**. The
+runner has no `SpiceModels/`, so vendor-gated tests skip more than locally
+(`test_vendor_ti` 5 skipped; buck 19 passed / 4 skipped, versus 3 passed /
+2 skipped and 21 passed / 2 skipped locally); its 24 skips comprise the
+`PIECESPICE_LIVE` gate and those vendor-dependent skips. The earlier run
+**44934384493** on commit `4402640` (**806 passed, 15 skipped, 1
+deselected, 1 warning**) is historical. The live engine module alone reports
+**19 passed**.
 T6.2a closed the four former skips on the LTspice backend —
 `test_vendor_ti`, `test_netlist_builder.py::test_fit_pwl_model_generates_lib`,
 `test_parser.py::test_normalize_forward_referenced_params` and
@@ -796,7 +804,7 @@ current evidence.
 |---|---|---|---|---|
 | `uv run pytest` (full live suite, 888.23 s) | 837 | 0 | — | 2 |
 | `PIECESPICE_LIVE=0 .venv\Scripts\python.exe -m pytest -q --deselect tests/test_netlist_builder.py::test_tier2_simulates_and_matches` (local CI) | 819 | 10 | 1 | 1 |
-| `PIECESPICE_LIVE=0 uv run pytest -q --deselect tests/test_netlist_builder.py::test_tier2_simulates_and_matches` (GitHub CI, run 44934384493) | 806 | 15 | 1 | 1 |
+| `PIECESPICE_LIVE=0 uv run pytest -q --deselect tests/test_netlist_builder.py::test_tier2_simulates_and_matches` (GitHub CI, run 45327158278) | 812 | 24 | 1 | 1 |
 | Live engine module (`tests/test_engine_ltspice.py`) | 19 | — | — | — |
 
 *Golden-vs-model figures, not datasheet ratings; this applies to the fidelity
@@ -860,7 +868,7 @@ writes fixed `figures/converter/` plots.
 uv run pytest                # full live suite: 837 passed, 0 skipped, 2 warnings (888.23 s)
 PIECESPICE_LIVE=0 uv run pytest -q \
   --deselect tests/test_netlist_builder.py::test_tier2_simulates_and_matches
-                             # local CI: 819 passed, 10 skipped, 1 deselected, 1 warning (GitHub run 44934384493: 806/15/1/1)
+                             # local CI: 819 passed, 10 skipped, 1 deselected, 1 warning (GitHub run 45327158278: 812/24/1/1)
 uv run pytest tests/test_engine_ltspice.py -q   # live engine module: 19 passed
 uv run pytest tests/test_pwlf_fit.py -v    # single module
 ```
@@ -872,10 +880,11 @@ DC sweep, timeout, temperature). The four formerly skipped tests were
 rewritten on the LTspice backend under T6.2a with their PySpice imports
 removed, and T6.3 purged the `pyspice` dependency from `pyproject.toml` and
 `uv.lock`. The LTspice-free CI command deselects the one Tier-2 live match
-test and gates the live class (`PIECESPICE_LIVE=0`); its 15 skips include
+test and gates the live class (`PIECESPICE_LIVE=0`); its 24 skips include
 vendor-dependent tests on the runner without `SpiceModels/`, while the
-full-live run has zero skips. GitHub run **44934384493** on commit
-`4402640`: both jobs success. Tier-3 has its own test module,
+full-live run has zero skips. Current GitHub run **45327158278** on HEAD
+`f932d7d`: both jobs success (the earlier 806/15 run `44934384493` on
+`4402640` is historical). Tier-3 has its own test module,
 `tests/test_tier3.py`.
 
 ---
@@ -952,12 +961,12 @@ full-live run has zero skips. GitHub run **44934384493** on commit
       result, regenerated records)*: canonical top-level C0/tier2 basis,
       ASCII `<vendor>_PIECSPICE_UROM.lib` with hash-matched
       `unified_validation.json`. **Overall `reject` 4/4**: independent G4
-      timing/energy rejects every vendor; G3 fidelity accepts TI / EPC /
-      CPM2 and rejects IRFS on device-current Id 9.0127 % > 5 %; G5 speed
-      accepts TI (5.3021× / 3.0086×) and CPM2 (1.1023× / 1.0583×) and
-      rejects IRFS (1.0073× / 0.9860×) and EPC (0.9863× / 1.0169×).
-      Static rel-RMSE returns to the Tier-2 bars; the keyed `--basis ann`
-      records and libs are separate, non-default and reject on all four;
+      timing/energy rejects every vendor; G1/G3 fidelity accepts TI / EPC /
+      CPM2 and rejects IRFS (G1 7.1596 %, G3 10.0001 / 9.0085 %); G5 speed
+      accepts TI (5.0000× / 2.9640×), EPC (1.0554× / 1.0339×) and CPM2
+      (1.1286× / 1.0761×) and rejects IRFS (0.9851× / 1.0171×).
+      The keyed `--basis ann` records and libs are separate, non-default,
+      pass fidelity 4/4, reject G4 4/4 and accept G5 3/4;
       tuning is `not_run`. G4's former Tier-2 self-comparison is retained
       only as `G4_tier2_regression`, explicitly diagnostic and never scored.
       Per-vendor scope with `global_claim=false`: no global or portable

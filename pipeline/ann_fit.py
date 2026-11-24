@@ -20,7 +20,7 @@ import numpy as np
 
 from approximation.ann_charge import AnnChargeFit, fit_charge_qv
 from approximation.ann_channel import (
-    AnnChannelFit, DptPoints, fit_channel_iv, fit_channel_iv_monotone,
+    DptPoints, fit_channel_iv,
 )
 from approximation.ann_residual import fit_channel_residual
 from common.types import CurveData, trim_trailing_invalid
