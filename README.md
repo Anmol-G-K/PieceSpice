@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⚡ PieceSpice
+<img src="assets/banner.svg" alt="PieceSpice — High-Fidelity Piecewise SPICE Modeling Framework" width="100%">
 
 **High-Fidelity Piecewise SPICE Modeling Framework**
 
@@ -733,32 +733,46 @@ Static rel-RMSE returns to the recorded Tier-2 bars
 `mean(per_curve_peak_rel_rmse_pct)`) and the worst endpoint at the configured
 `Vds_sweep_max` is 3.9605 / 4.1273 / 0.5589 / 1.4597 % — all under the 4.13 %
 bar. G0, G1, G2 and G6 pass on every C0 row. G3 passes for TI / EPC / CPM2 and
-fails for IRFS on Id; G4 fails 4/4; G5 passes only TI / CPM2. The keyed ANN
-rows fail G1, G3 and G4 on all four (EPC also fails G2); no ANN row is
-accepted. `fidelity_scope` reports `waveform_gate_retired=false` and
-`energy_only_claim=false` — these rows still use the waveform gate, unlike
-Tier-4. Speed is scoped to this bench alone: TI's 5.3021× solver / 3.0086×
+fails for IRFS on Id; G4 fails 4/4; G5 passes only TI / CPM2 for the C0
+basis. The keyed ANN rows pass G1/G2/G3/G6 on all four; G4 rejects 4/4
+and G5 accepts TI / EPC / CPM2, rejects IRFS. `fidelity_scope` reports
+`waveform_gate_retired=false` and `energy_only_claim=false` — these rows
+still use the waveform gate, unlike Tier-4. Speed is scoped to this bench alone: TI's 5.3021× solver / 3.0086×
 wall is golden-stiffness driven, EPC is slower than golden on solver
 (0.9863×), and IRFS is at unity on solver (1.0073×) with wall below 1×
 (0.9860×). CPM2's 1.1023× / 1.0583× is a small, bench-scoped gain.
 
-**ANN basis — fitted charge net + `positive_conductance` channel (`fidelity_all_pass` 4/4, `verdict=reject` 4/4).**
+**ANN basis — fitted charge net + `positive_conductance` channel (`fidelity_all_pass` 4/4, G4 reject 4/4).**
 ANN is a separate basis chosen by `--basis ann`, not a variant: the keyed
 non-default records `reports/comparison/<vendor>/unified_ann_trap-default.json`
 and libs `reports/models/<vendor>_PIECSPICE_UROM_ann_trap-default.lib` carry
 `channel_basis="ann"` using the `positive_conductance` (`tanh`, 6 neurons,
-`hard_guarantee=true` for `gds > 0`) channel and fitted rational/log charge net.
-All four vendors pass **G0, G1_static (1.00–2.07 %, worst endpoint 1.29–4.02 %),
+`hard_guarantee=true` for `gds > 0`) channel, fitted rational/log charge net
+and measured Curve-5/Curve-7 gate-charge improvements. All four vendors pass
+**G0, G1_static (1.00–2.07 %, worst endpoint 1.29–4.02 %),
 G2_derivative (`gm/gds` negative fraction `0.0`), G3_dpt_waveform
-(0.11–1.48 % Vds, 0.03–1.24 % Id), and G6_charge (`monotone_q=true`,
-`q_zero_anchored=true`, 0.5 % budget)** (`fidelity_all_pass=true` 4/4), while
-overall `verdict` remains `reject` 4/4 on G4/G5. The fit path carries hold-out
-fields (`holdout_id_rms_rel`, `holdout_gm_rms_rel`, `holdout_gds_rms_rel`,
-`holdout_n`) and reports them as `not_measured` when no hold-out is reserved.
-Each canonical record's `artifact_manifest` and every record's
-`emitted_lib_sha256` match the on-disk lib and inputs; the canonical and keyed
-paths never clobber each other. A fixed-topology tuning API exists, but the
-final run reports `tuning.verdict="not_run"` (`tuning.mode="off"`).
+(0.11–1.48 % Vds, 0.03–1.24 % Id), and G6_charge** (`fidelity_all_pass=true`
+4/4). G4 still rejects 4/4; G5 accepts TI / EPC / CPM2 and rejects IRFS.
+The frozen accuracy snapshot is `docs/accuracy_freeze_v2.md` and
+`config/accuracy_freeze_v2.yaml`; further accuracy work is deferred and
+requires a new freeze.
+
+| Vendor | G1 static | G3 Vds / Id | G4 5 %/7 % | G5 n=20 solver / net | n=200 net (95 % CI low) |
+|---|---:|---:|---:|---:|---:|
+| IRFS7730PBF | 2.0665 % | 0.4175 / 0.5584 % | 5/5 | 0.9620× / 0.9502× reject | 0.9745× (0.9615×) |
+| CSD16412Q5A / TI | 2.0592 % | 1.4772 / 1.2421 % | 2/2 | 5.6333× / 7.1778× accept | 16.9272× (15.9535×; golden-stiffness outlier) |
+| EPC2216 | 1.0954 % | 0.1087 / 0.0277 % | 5/6 | 1.0892× / 1.1172× accept | 1.1567× (1.1192×) |
+| CPM2-1200 | 1.3121 % | 0.9927 / 0.6406 % | 3/4 | 1.1327× / 1.1781× accept | 1.3915× (1.3720×) |
+
+**Speed contract v2.** `docs/benchmark_contract_v2.md` and
+`config/speed_contract_v2.yaml` make `dpt-200` primary and require the
+**lower 95 % CI of net solver speedup ≥1.5×**. The measured UROM n=200 rows
+are above; no non-TI row meets 1.5×, and no 3× claim exists. EPC n=200
+previously timed out because a probe forced `max_step=None`; the measured
+100 ns adaptive cap is now used, and EPC completes at **1.1474× solver /
+1.1567× net** (CI low 1.1192×). The UROM speed row now exposes
+`net_solver_speedup`, `net_solver_speedup_ci95` and the 0.075 s floor.
+
 
 **Test suite (measured).** Full live suite: **830 passed, 0 skipped,
 2 warnings** (`.venv\Scripts\python.exe -m pytest -q`, 396.77 s). Local LTspice-free
