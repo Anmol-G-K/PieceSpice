@@ -29,7 +29,6 @@ from __future__ import annotations
 import json
 import re
 import statistics
-import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -207,7 +206,8 @@ def _ltspice_arm(name: str, library: Path, subcircuit: str,
     )
 
 
-def _solver_arm(rom: SolverRom, cond: dict, repeats: int = 3) -> Arm:
+def _solver_arm(rom: SolverRom, cond: dict, repeats: int = 3,
+                *, adaptive: bool = False, label: str = "solver") -> Arm:
     conditions = DptConditions(
         vbus=cond["vbus"], vgs_on=cond["vgs_on"],
         i_load_target=cond["i_load_target"], l_load=cond["l_load"],
@@ -217,7 +217,11 @@ def _solver_arm(rom: SolverRom, cond: dict, repeats: int = 3) -> Arm:
         max_step=cond["max_step"], temperature_c=cond["temperature"],
     )
     circuit = dpt(rom, conditions)
-    results = [solve_transient(circuit) for _ in range(repeats)]
+    kwargs = dict(engine="compiled", adaptive=adaptive)
+    if not adaptive:
+        kwargs["max_step"] = cond["max_step"]
+    solve_transient(circuit, **kwargs)                  # warm the JIT
+    results = [solve_transient(circuit, **kwargs) for _ in range(repeats)]
     walls = [r.solver_time_s for r in results]
     result = results[-1]
     t = result.get("time")
@@ -235,7 +239,7 @@ def _solver_arm(rom: SolverRom, cond: dict, repeats: int = 3) -> Arm:
         current_definition="I(Lload)-I(Dclamp)", i_d_signed=signed,
     )
     return Arm(
-        name="solver",
+        name=label,
         time=t,
         v_ds=run.v_ds,
         i_d=run.i_d,
@@ -375,7 +379,10 @@ def validate_vendor(vendor: str, *, repeats: int = 3,
     from pipeline.fitting import build_pwl_spec
 
     rom = SolverRom.from_spec(build_pwl_spec(vendor))
-    arms["solver"] = _solver_arm(rom, cond, repeats)
+    arms["solver"] = _solver_arm(rom, cond, repeats, adaptive=False,
+                                 label="solver")
+    arms["solver_adaptive"] = _solver_arm(rom, cond, repeats, adaptive=True,
+                                          label="solver_adaptive")
 
     out_path = ROOT / out_dir / vendor / "solver_validation.json"
     artifacts = {"rom": str(dump_rom(rom, out_path.with_suffix(".rom.json")))}
@@ -418,6 +425,24 @@ def validate_vendor(vendor: str, *, repeats: int = 3,
     reference_solver = (arms["rom_ltspice"].elapsed_s
                         if "rom_ltspice" in arms else golden.elapsed_s)
     solver_arm = arms["solver"]
+    adaptive_arm = arms.get("solver_adaptive")
+    if adaptive_arm is not None:
+        record["speed_adaptive"] = {
+            "solver_wall_s": adaptive_arm.wall_s,
+            "solver_steps": adaptive_arm.steps,
+            "us_per_step": (adaptive_arm.wall_s / adaptive_arm.steps * 1e6
+                            if adaptive_arm.steps else None),
+            "reference_ltspice_elapsed_s": reference_solver,
+            "solver_elapsed_speedup": (
+                reference_solver / adaptive_arm.wall_s
+                if reference_solver and adaptive_arm.wall_s else None),
+            "net_solver_elapsed_speedup": (
+                max((reference_solver or 0.0) - LTSPICE_FLOOR_S, 1e-4)
+                / adaptive_arm.wall_s if reference_solver else None),
+            "relative_steps_vs_fixed": (
+                adaptive_arm.steps / solver_arm.steps
+                if solver_arm.steps else None),
+        }
     reference_wall = arms["rom_ltspice"].wall_s if "rom_ltspice" in arms \
         else golden.wall_s
     record["speed"] = {

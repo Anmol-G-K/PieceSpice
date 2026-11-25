@@ -241,6 +241,10 @@ def _initial_state(system: LinearSystem, x0: np.ndarray,
         force = getattr(device, "force_region", None)
         if force is not None and device.name in state.regions:
             force(state.regions[device.name])
+        # A charge capacitor starts at the charge implied by the operating
+        # point, not at zero: zero would integrate a spurious dQ/h current on
+        # the first step and bias every later sample.
+        device.update(x0)
     return state
 
 
@@ -301,8 +305,35 @@ def solve_transient(
     max_step: float | None = None,
     method: str = "trap",
     events: bool = True,
+    engine: str = "reference",
+    adaptive: bool | None = None,
 ) -> SolverResult:
-    """Integrate *circuit* and return traces in the SPICE result shape."""
+    """Integrate *circuit* and return traces in the SPICE result shape.
+
+    ``engine`` selects the executor, not the model.  ``"reference"`` (default)
+    is the readable Python loop; ``"compiled"`` runs the identical companion
+    models through the numba kernel.  The reference stays the default until the
+    compiled path has passed the same equivalence tests everywhere -- a fast
+    path that disagrees with the definition is not a fast path.
+
+    ``max_step`` pins a fixed step (the SPICE meaning, and what every recorded
+    comparison uses).  Without it the step is chosen by local-error control;
+    the deck's ``.tran`` max step then only seeds the first step.
+    """
+    if method not in SUPPORTED_METHODS:
+        raise ValueError(f"unknown integration method {method!r}")
+    use_adaptive = (max_step is None) if adaptive is None else adaptive
+    if engine == "compiled":
+        # A switch is the one element whose region change is a genuine
+        # discontinuity, and exact event localisation lives in this module's
+        # loop.  Switch benches are small; the compiled kernel is for the
+        # device workload, so they are routed here rather than duplicated.
+        if not LinearSystem.compile(circuit).discontinuous:
+            from engine.solver.fastloop import solve_transient_fast
+
+            return solve_transient_fast(circuit, end_time=end_time,
+                                        max_step=max_step, method=method,
+                                        adaptive=use_adaptive)
     if method not in SUPPORTED_METHODS:
         raise ValueError(f"unknown integration method {method!r}")
     t_end = _end_time(circuit, end_time)

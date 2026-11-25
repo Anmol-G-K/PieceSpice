@@ -178,11 +178,13 @@ def test_charge_capacitor_passes_exactly_the_charge_in_its_table() -> None:
     capacitance approximation of it.
     """
     table = ChargeTable(PwlTable((0.0, 2.0, 4.0), (0.0, 2e-9, 6e-9)))
+    # The source must start at zero: with a DC source the operating point
+    # already holds the capacitor at Q(1 V), so the transient delivers nothing.
     circuit = Circuit(
         title="charge cap",
         elements=(
             Element(name="V1", kind=ElementKind.VSOURCE, nodes=("in", "0"),
-                    waveform=Waveform.constant(1.0)),
+                    waveform=Waveform.pwl([(0.0, 0.0), (1e-9, 1.0)])),
             Element(name="R1", kind=ElementKind.RESISTOR, nodes=("in", "out"),
                     value=1e3),
             Element(name="C1", kind=ElementKind.PWL_CAP, nodes=("out", "0"),

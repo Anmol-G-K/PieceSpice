@@ -252,11 +252,22 @@ G1 out 0 VALUE = {V(in)*1e-3}
 
 
 def test_missing_step_size_fails_instead_of_inventing_one() -> None:
+    # A *fixed* step must never be invented...
     deck = "* no tran\nV1 in 0 DC 1\nR1 in 0 1k\n.end"
     with pytest.raises(ValueError, match="no \\.tran end time"):
-        solve_transient(parse_circuit(deck))
+        solve_transient(parse_circuit(deck), adaptive=False)
     with pytest.raises(ValueError, match="no step size"):
-        solve_transient(parse_circuit(deck), end_time=1e-3)
+        solve_transient(parse_circuit(deck), end_time=1e-3, adaptive=False)
+
+
+def test_error_control_does_not_need_a_deck_step() -> None:
+    # ...but the error control picks its own, so a deck without .tran runs.
+    deck = "* no tran\nV1 in 0 PWL(0,0 1n,1)\nR1 in out 1k\nC1 out 0 1u\n.end"
+    result = solve_transient(parse_circuit(deck), end_time=5e-3,
+                             engine="compiled")
+    assert result.steps > 1
+    # 5 ms is 5 tau: a 1 V step reaches 1 - exp(-5).
+    assert result.voltage("out")[-1] == pytest.approx(1.0 - np.exp(-5.0), abs=2e-3)
 
 
 def test_zero_resistance_is_rejected_not_silently_shorted() -> None:
