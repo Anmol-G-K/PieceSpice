@@ -165,6 +165,10 @@ class PwlDevice:
               h: float) -> None:                        # pragma: no cover - abstract
         raise NotImplementedError
 
+    def current(self, x: np.ndarray) -> float:      # pragma: no cover - abstract
+        """Terminal current from the first node to the second, in amperes."""
+        raise NotImplementedError
+
     def reset(self) -> None:
         """Clear per-device history (charge, previous region)."""
 
@@ -238,6 +242,11 @@ class DiodeDevice(PwlDevice):
 
     def region(self, x: np.ndarray) -> int:
         return self.table.region(self.voltage(x))
+
+    def current(self, x: np.ndarray) -> float:
+        region = self.region(x)
+        return (self.table.slope(region) * self.voltage(x)
+                + self.table.intercept(region))
 
     def stamp(self, region: int, *, G: np.ndarray, rhs: np.ndarray,
               h: float) -> None:
@@ -328,6 +337,10 @@ class SwitchDevice(PwlDevice):
         """
         return self.vt - 0.5 * self.vh if self._on else self.vt + 0.5 * self.vh
 
+    def current(self, x: np.ndarray) -> float:
+        g = 1.0 / (self.ron if self.region(x) else self.roff)
+        return g * self.voltage(x)
+
     def stamp(self, region: int, *, G: np.ndarray, rhs: np.ndarray,
               h: float) -> None:
         g = 1.0 / (self.ron if region else self.roff)
@@ -388,6 +401,12 @@ class ChargeCapDevice(PwlDevice):
             rhs[cnode] += b
             if a is not None:
                 G[cnode, a] -= g
+
+    def current(self, x: np.ndarray) -> float:
+        # Pointwise value is not meaningful without the previous charge; the
+        # kernel derives it from consecutive samples instead.
+        raise NotImplementedError(
+            "charge-capacitor current comes from the charge history")
 
     def update(self, x: np.ndarray) -> None:
         region = self.region(x)

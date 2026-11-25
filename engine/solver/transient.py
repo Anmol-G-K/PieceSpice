@@ -38,7 +38,7 @@ from engine.solver.companions import (
     DynamicState,
     LinearSystem,
 )
-from engine.solver.device import PwlDevice
+from engine.solver.device import ChargeCapDevice, PwlDevice
 from engine.solver.result import Event, SolverResult
 
 #: Analyses the loop can run.
@@ -442,12 +442,15 @@ def solve_transient(
             f"step budget exhausted at t={t:g} s of {t_end:g} s")
 
     matrix = trace.matrix()
-    traces: dict[str, np.ndarray] = {"time": np.asarray(trace.times)}
+    times = np.asarray(trace.times)
+    traces: dict[str, np.ndarray] = {"time": times}
     for i, name in enumerate(node_names):
         traces[f"V({name})"] = matrix[:, i]
     for stamp in branch_stamps:
         assert stamp.branch is not None
         traces[f"I({stamp.name})"] = matrix[:, stamp.branch]
+    for name, values in _device_current_traces(system, matrix, times).items():
+        traces[f"I({name})"] = values
 
     return SolverResult(
         traces=traces,
@@ -460,6 +463,31 @@ def solve_transient(
         step_time_s=h_nominal,
         events=tuple(events_out),
     )
+
+
+def _device_current_traces(system: LinearSystem, matrix: np.ndarray,
+                           times: np.ndarray) -> dict[str, np.ndarray]:
+    """Terminal current of every piecewise-linear device, sample by sample.
+
+    Needed for the bench identity ``I(Lload) - I(Dclamp)``: without the clamp
+    diode's current the device current of a solver arm is not the same quantity
+    the golden arm reports.  A charge capacitor is integrated from its own
+    charge history rather than read pointwise, because that is the only way its
+    current is defined.
+    """
+    out: dict[str, np.ndarray] = {}
+    for device in system.devices:
+        if isinstance(device, ChargeCapDevice):
+            table = device.charge.table
+            voltages = np.array([device.voltage(row) for row in matrix])
+            charges = np.array([table.at(table.region(v), v) for v in voltages])
+            current = np.zeros(len(times))
+            if len(times) > 1:
+                current[1:] = np.diff(charges) / np.diff(times)
+            out[device.name] = current
+        else:
+            out[device.name] = np.array([device.current(row) for row in matrix])
+    return out
 
 
 def branch_current_traces(circuit: Circuit) -> tuple[str, ...]:

@@ -169,6 +169,10 @@ class ChannelDevice(PwlDevice):
         self._last = (vgs, vds)
         return self.table.region(vgs, vds)
 
+    def current(self, x: np.ndarray) -> float:
+        vgs, vds = self._control(x)
+        return self.table.current(vgs, vds)
+
     def stamp(self, region: int, *, G: np.ndarray, rhs: np.ndarray,
               h: float) -> None:
         a0, a1, a2 = self.table.plane(region)

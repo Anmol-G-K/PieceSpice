@@ -60,6 +60,8 @@ class DoublePulseRun:
     t2_on: float = 0.0             # second pulse starts; used for DPT metrics
     current_definition: str = "I(Lload)-I(Dclamp)"
     i_d_signed: np.ndarray | None = None   # I(Lload)-I(Dclamp) before abs()
+    log_text: str = ""                     # LTspice .log, for its own timing
+    solver_elapsed_s: float | None = None   # LTspice "Total elapsed time"
 
 
 def _gate_pwl(t1_on: float, t1_width: float, t2_on: float,
@@ -146,7 +148,17 @@ def run_double_pulse(
         t2_on=float(t2_on),
         wall_clock_s=float(elapsed),
         current_definition=current_definition,
-        i_d_signed=i_d_signed)
+        i_d_signed=i_d_signed,
+        log_text=result.log_text,
+        solver_elapsed_s=_elapsed_s(result.log_text))
+
+
+def _elapsed_s(log: str) -> float | None:
+    """LTspice's own ``Total elapsed time`` (wall clock, from the .log)."""
+    import re
+
+    match = re.search(r"Total elapsed time:\s*([\d.]+)", log)
+    return float(match.group(1)) if match else None
 
 
 def _cross(t: np.ndarray, y: np.ndarray, level: float, *,
