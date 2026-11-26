@@ -12,6 +12,23 @@ from __future__ import annotations
 from engine.rom.artifact import dump, load, manifest, payload_sha256
 from engine.rom.spec import SCHEMA, SolverRom, circuit_with_rom
 
+
+def solver_rom(vendor: str, basis: str = "tier2",
+               vds_max: float | None = None) -> SolverRom:
+    """Build the solver ROM from a named basis.
+
+    The solver consumes tables, so which fitted basis supplies them is a
+    choice.  Making that choice explicit is the point: an implicit Tier-2
+    default is what made early measurements Tier-2 without saying so.
+    """
+    if basis == "tier2":
+        from pipeline.fitting import build_pwl_spec
+
+        return SolverRom.from_spec(build_pwl_spec(vendor))
+    if basis == "ann":
+        return SolverRom.from_ann_fit(vendor, vds_max=vds_max)
+    raise ValueError(f"unknown solver ROM basis {basis!r} (tier2 | ann)")
+
 __all__ = [
     "SCHEMA",
     "SolverRom",
@@ -20,4 +37,5 @@ __all__ = [
     "load",
     "manifest",
     "payload_sha256",
+    "solver_rom",
 ]

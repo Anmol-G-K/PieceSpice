@@ -352,9 +352,19 @@ def _metric_delta(reference: dict, other: dict) -> dict[str, Any]:
 # Entry point
 # ---------------------------------------------------------------------------
 
+#: Emitted library and solver-ROM builder per model basis.  The LTspice
+#: reference arm must be the *same* basis, or the comparison mixes the model
+#: term into the engine term.
+BASES = {
+    "tier2": ("{vendor}_PIECESPICE_T2.lib", "tier2"),
+    "ann": ("{vendor}_PIECSPICE_UROM_ann_trap-default.lib", "ann"),
+}
+
+
 def validate_vendor(vendor: str, *, repeats: int = 3,
                     out_dir: str | Path = "reports/comparison",
-                    run_rom_ltspice: bool = True) -> dict[str, Any]:
+                    run_rom_ltspice: bool = True,
+                    basis: str = "tier2") -> dict[str, Any]:
     """Run the three arms for *vendor* and write the validation record."""
     cfg = _load_config(vendor)
     cond = _conditions(cfg)
@@ -366,10 +376,13 @@ def validate_vendor(vendor: str, *, repeats: int = 3,
     golden = _ltspice_arm("golden", golden_lib, cfg["subcircuit"],
                           golden_pins, cond, repeats)
 
-    rom_lib = ROOT / "reports" / "models" / f"{vendor}_PIECESPICE_T2.lib"
+    if basis not in BASES:
+        raise ValueError(f"unknown basis {basis!r} (choose from {sorted(BASES)})")
+    lib_pattern, builder = BASES[basis]
+    rom_lib = ROOT / "reports" / "models" / lib_pattern.format(vendor=vendor)
     if not rom_lib.is_file():
         raise FileNotFoundError(
-            f"{rom_lib} is missing; run the Tier-2 fit for {vendor} first")
+            f"{rom_lib} is missing; build the {basis} model for {vendor} first")
     rom_subckt, rom_pins = _rom_subcircuit(rom_lib)
 
     arms = {"golden": golden}
@@ -377,9 +390,13 @@ def validate_vendor(vendor: str, *, repeats: int = 3,
         arms["rom_ltspice"] = _ltspice_arm(
             "rom_ltspice", rom_lib, rom_subckt, rom_pins, cond, repeats)
 
-    from pipeline.fitting import build_pwl_spec
+    from engine.rom import solver_rom
 
-    rom = SolverRom.from_spec(build_pwl_spec(vendor))
+    # The table is cut at the *fitted* span.  Extending it to the bench's
+    # blocking voltage was measured and rejected: the ANN's own extrapolation
+    # runs to hundreds of amps far outside its training range, which makes the
+    # fixed-step arm explode (IRFS Id 462 %).  Truncation is the smaller error.
+    rom = solver_rom(vendor, builder)
     # Three step policies on the same model: a forced step, error control under
     # SPICE's max-step ceiling (what LTspice actually does with this deck), and
     # error control alone.
@@ -391,7 +408,8 @@ def validate_vendor(vendor: str, *, repeats: int = 3,
     arms["solver_adaptive"] = _solver_arm(rom, cond, repeats, adaptive=True,
                                           label="solver_adaptive")
 
-    out_path = ROOT / out_dir / vendor / "solver_validation.json"
+    suffix = "" if basis == "tier2" else f"_{basis}"
+    out_path = ROOT / out_dir / vendor / f"solver_validation{suffix}.json"
     artifacts = {"rom": str(dump_rom(rom, out_path.with_suffix(".rom.json")))}
 
     record: dict[str, Any] = {
@@ -399,6 +417,7 @@ def validate_vendor(vendor: str, *, repeats: int = 3,
         "vendor": vendor,
         "device": name,
         "conditions": cond,
+        "basis": basis,
         "rom_artifact": artifacts,
         "arms": {
             key: {

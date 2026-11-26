@@ -187,3 +187,49 @@ def test_the_rom_answer_is_step_independent() -> None:
     fine = _dpt_probe(5e-9)
     assert fine[0] == pytest.approx(coarse[0], rel=0.05)     # on-state Vds
     assert fine[1] == pytest.approx(coarse[1], rel=0.02)     # peak current
+
+# ---------------------------------------------------------------------------
+# Basis selection: the solver consumes tables, so the basis is a choice
+# ---------------------------------------------------------------------------
+
+def test_ann_basis_builds_a_table_with_the_same_contract() -> None:
+    from engine.rom import solver_rom
+
+    rom = solver_rom("epc2216", "ann")
+    assert rom.basis == "ann"
+    axis = rom.channel.vds
+    assert all(b > a for a, b in zip(axis, axis[1:]))
+    assert axis[0] == 0.0
+    # Dense near zero: the second point must be a fraction of a volt.
+    assert axis[1] < 0.01
+    # Blocks at zero gate and conducts above threshold.
+    assert abs(rom.channel.current(0.0, 11.0)) < 1e-6
+    assert rom.channel.current(5.0, 11.0) > 1.0
+
+
+def test_ann_basis_records_its_basis_in_the_artifact(tmp_path: Path) -> None:
+    from engine.rom import dump, load, solver_rom
+
+    rom = solver_rom("epc2216", "ann")
+    path = dump(rom, tmp_path / "ann.json")
+    payload = json.loads(path.read_text(encoding="ascii"))
+    assert payload["basis"] == "ann"
+    assert load(path).basis == "ann"
+
+
+def test_tier2_and_ann_disagree_where_it_matters() -> None:
+    """The two bases are not interchangeable, so the choice must be explicit."""
+    from engine.rom import solver_rom
+
+    tier2 = solver_rom("epc2216", "tier2")
+    ann = solver_rom("epc2216", "ann")
+    assert tier2.basis == "tier2"
+    # Both saturate to the same current at full drive (-0.2 %) -- that is the
+    # shared Curve-1 data.  They separate near threshold, which is exactly the
+    # region a switching edge traverses: at Vgs 2 V / Vds 1 V the two bases
+    # differ by more than half.
+    assert tier2.channel.current(5.0, 11.0) == pytest.approx(
+        ann.channel.current(5.0, 11.0), rel=0.05)
+    a = tier2.channel.current(2.0, 1.0)
+    b = ann.channel.current(2.0, 1.0)
+    assert abs(a - b) / max(abs(b), 1e-9) > 0.5

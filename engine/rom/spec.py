@@ -28,6 +28,7 @@ emitted .lib                  solver ROM                  why
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+import numpy as np
 from dataclasses import dataclass
 from typing import Any
 
@@ -56,6 +57,14 @@ _DEFAULT_R_SOURCE = 1e-4
 _Q_ZERO_TOL = 1e-15
 
 
+#: Grid the ANN channel is sampled onto.  Both axes are dense where the device
+#: actually operates: Vgs from zero up to the top of the fitted range, Vds
+#: quadratically spaced so the first cell is a fraction of a volt wide instead
+#: of the whole knee.  This is a property of the emitter, not of a vendor.
+ANN_VGS_ROWS = 17
+ANN_VDS_POINTS = 151
+
+
 @dataclass(frozen=True, slots=True)
 class SolverRom:
     """A fitted device in the form the custom solver consumes."""
@@ -71,6 +80,10 @@ class SolverRom:
     r_source: float = _DEFAULT_R_SOURCE
     vth: float = 0.0
     rds_on: float = 0.0
+    #: Which model basis the tables were built from.  The solver consumes
+    #: tables, so the basis is a free choice; leaving it implicit is what made
+    #: every early measurement Tier-2 without saying so.
+    basis: str = "tier2"
 
     # -- construction ------------------------------------------------------
 
@@ -93,6 +106,84 @@ class SolverRom:
             r_source=float(meta.get("r_source", _DEFAULT_R_SOURCE)),
             vth=float(spec.v_th),
             rds_on=float(spec.rds_on),
+        )
+
+    @classmethod
+    def from_ann_fit(cls, vendor: str, *, spec: Any | None = None,
+                     vgs_rows: int = ANN_VGS_ROWS,
+                     vds_points: int = ANN_VDS_POINTS,
+                     vds_max: float | None = None) -> "SolverRom":
+        """Build the tables from the ANN basis instead of the Tier-2 spec.
+
+        The ANN surface is smooth, which is why it is not emitted as PWL for
+        SPICE.  The solver does not care: it consumes a table, so the fitted
+        network is **evaluated** on a grid and tabulated.  That is table
+        construction, not SPICE-expression evaluation, so the solver's
+        no-expressions rule still holds.
+
+        Charge and the body diode stay on the spec's tables: the ANN charge fit
+        is a separate model and mixing the two without measuring the mixture
+        would blur which one the error belongs to.
+        """
+        from engine.solver.channel import ChannelTable
+        from pipeline.ann_fit import ann_fit_for_vendor
+        from pipeline.fitting import build_pwl_spec
+
+        fit_payload = ann_fit_for_vendor(vendor)
+        channel_fit = fit_payload["channel_fit"]
+        spec = spec if spec is not None else build_pwl_spec(vendor)
+
+        train = getattr(channel_fit, "train_range", {}) or {}
+        vgs_hi = float(train.get("vgs", [2.5, 6.0])[1])
+        # The table must cover the range the device is actually used at, not
+        # only the range it was fitted on.  Capping it at the training maximum
+        # makes the solver clamp where the emitted expression keeps
+        # evaluating -- that is a table-truncation error, not a model one.
+        train_vds = float(train.get("vds", [0.0, spec.breakpoints_vds[-1]])[1])
+        vds_hi = max(train_vds, float(vds_max) if vds_max else train_vds)
+
+        # Vgs: zero, the fitted threshold, then evenly spaced to the top.  Two
+        # anchors below the fitted range are what let the device block.
+        vgs = [0.0]
+        v_th = float(channel_fit.v_th)
+        if 0.0 < v_th < vgs_hi:
+            vgs.append(v_th)
+        # Spread the rows from the threshold upward, not from the bottom of the
+        # fitted range: the gap between Vth and the lowest driven Vgs is where
+        # the device turns on, and leaving it as one cell makes the turn-on
+        # plane a secant across a volt.  The network is smooth, so evaluating
+        # it below its training range is interpolation of its own form, not
+        # invention of data.
+        vgs.extend(np.linspace(v_th, vgs_hi, vgs_rows).tolist())
+        vgs = sorted({round(v, 9) for v in vgs if 0.0 <= v <= vgs_hi})
+
+        # Vds: quadratic spacing, so the first cells resolve the knee.
+        fractions = (np.arange(vds_points) / (vds_points - 1.0)) ** 2
+        vds = (fractions * vds_hi).tolist()
+        vds[0] = 0.0
+        vds = sorted({round(v, 12) for v in vds})
+
+        rows = []
+        for value in vgs:
+            current, _, _ = channel_fit.evaluate(
+                np.full(len(vds), value), np.asarray(vds))
+            rows.append(np.maximum(np.asarray(current, dtype=float), 0.0)
+                        .tolist())
+
+        base = cls.from_spec(spec)
+        return cls(
+            device=base.device,
+            channel=ChannelTable.build(vgs, vds, rows),
+            qoss=base.qoss,
+            body_diode=base.body_diode,
+            c_iss_f=base.c_iss_f,
+            c_rss_f=base.c_rss_f,
+            r_gate=base.r_gate,
+            r_drain=base.r_drain,
+            r_source=base.r_source,
+            vth=base.vth,
+            rds_on=base.rds_on,
+            basis="ann",
         )
 
     # -- the circuit -------------------------------------------------------
@@ -149,6 +240,7 @@ class SolverRom:
         return {
             "schema": SCHEMA,
             "device": self.device,
+            "basis": self.basis,
             "channel": {
                 "vgs": list(self.channel.vgs),
                 "vds": list(self.channel.vds),
@@ -182,6 +274,7 @@ class SolverRom:
         scal = payload.get("scalars", {})
         return cls(
             device=str(payload["device"]),
+            basis=str(payload.get("basis", "tier2")),
             channel=ChannelTable.build(channel["vgs"], channel["vds"],
                                        channel["id"]),
             qoss=ChargeTable(PwlTable(tuple(qoss["v"]), tuple(qoss["q"]))),

@@ -829,6 +829,32 @@ emitter** — tightening the step from 1e-3 to 1e-5 changes neither, and the two
 executors agree to 7e-8 on shared time points; and switch decks run at the
 deck's step, because event truncation lives in the fixed-step branch.
 
+**Model basis: the solver chooses one, and the choice is recorded.**
+Because the engine consumes tables, the fitted basis that supplies them is a
+free choice; leaving it implicit is what made the first measurements Tier-2
+without saying so. Measured double-pulse waveform error (Vds / Id, capped step,
+against the same basis inside LTspice):
+
+| basis | IRFS | TI | EPC | CPM2 |
+|---|---|---|---|---|
+| C0 = Tier-2 | 10.00 / 9.01 | 1.98 / 1.26 | 0.71 / 0.65 | 2.89 / 3.21 |
+| ANN | **0.42 / 0.56** | **1.48 / 1.24** | **0.11 / 0.03** | **0.99 / 0.64** |
+| simplis | 6.16 / 6.18 | 4.04 / 4.88 | 0.47 / 0.18 | 0.59 / 1.05 |
+
+Tier-2 was frozen because fidelity and speed could not both be improved *inside
+LTspice*; the solver needs no smoothness and supplies the speed, so that closure
+does not govern this path. Each tier keeps its role: Tier-2 the cheapest
+emitter, Tier-3 `v1` the trajectory model, `simplis` the PWL charge tables, ANN
+the waveform, Tier-4 the system level.
+
+The ANN is smooth, so the engine evaluates it on a grid and tabulates it. That
+is where the current limit sits: **EPC2216 reaches 1.11 / 1.13 % total error**
+(model 0.35, engine 0.72), while TI / CPM2 / IRFS are 6.2 / 7.5 / 11.1 % because
+a planar table does not follow the network's curvature at this grid. Refining
+the grid made it worse; extending it past the fitted range made the fixed-step
+arm explode. That is the open problem, and it is named as a tabulation problem
+rather than a solver or model one.
+
 **Test suite (measured).** Full live suite: **837 passed, 0 skipped,
 2 warnings** (`.venv\Scripts\python.exe -m pytest -q`, 888.23 s). Local LTspice-free
 CI (`PIECESPICE_LIVE=0`): **819 passed, 10 skipped, 1 deselected, 1 warning**
