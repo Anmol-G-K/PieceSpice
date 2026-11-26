@@ -362,6 +362,18 @@ At the declared 2 % bar EPC2216 passes (0.64 / 0.20 %), TI and CPM2 miss on the
 current term (2.05 / 2.69 %) and IRFS on voltage (2.49 %) — the bar was not
 raised to fit the result.
 
+That residual is now well characterised, by ruling three causes out with
+measurement rather than argument: it is **flat against step size**, **flat
+against grid resolution** (and worse with more nodes), and **flat against the
+integration method** — LTspice's default *modified trap* is plain trap plus an
+output post-processing, and re-running the reference with `.options method=trap`
+changed the numbers in the fourth decimal place on all four devices. What is
+left is the **piecewise-linear contract**: the emitted model is a smooth
+tanh/rational surface, the solver reproduces it with planes, and the error sits
+where the trajectory crosses triangle boundaries. The table-model literature
+reaches <0.1 % only by leaving that contract for spline interpolation on
+Chebyshev samples (Gupta et al., *STEAM* / *A-LA-CARTE*).
+
 ```bash
 uv run python -m cli.main solver epc2216            # print the G7 gate
 uv run python -m cli.main solver epc2216 --measure  # run the comparison first
