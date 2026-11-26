@@ -852,8 +852,15 @@ is where the current limit sits: **EPC2216 reaches 1.11 / 1.13 % total error**
 (model 0.35, engine 0.72), while TI / CPM2 / IRFS are 6.2 / 7.5 / 11.1 % because
 a planar table does not follow the network's curvature at this grid. Refining
 the grid made it worse; extending it past the fitted range made the fixed-step
-arm explode. That is the open problem, and it is named as a tabulation problem
-rather than a solver or model one.
+arm explode.
+
+**The solver ROM is currently a hybrid, and that shows up in the edges.** The
+channel comes from the ANN; the charge tables and gate capacitances still come
+from the Tier-2 fit. Switching edges are charge-dominated, so IRFS's rise is
+3.0 ns in the solver against 25.8 ns in both the golden and the ANN `.lib` —
+the engine cannot reproduce an edge whose charge model it did not receive, no
+matter how exactly it places events. Sampling `AnnChargeFit` into Q(V) tables is
+the same mechanism as the channel sampling and is the next step.
 
 **Test suite (measured).** Full live suite: **837 passed, 0 skipped,
 2 warnings** (`.venv\Scripts\python.exe -m pytest -q`, 888.23 s). Local LTspice-free
