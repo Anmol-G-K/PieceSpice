@@ -355,6 +355,24 @@ uv run python -m cli.main validate csd16412q5a --tier 4             # Tier-4 ene
 uv run python -m cli.main compare csd16412q5a                       # golden vs T2 vs T3 + T4 rows
 ```
 
+The custom solver has its own gate and its own command. `G7` scores it against
+the **same ROM executed by LTspice**, so the model term cancels and only the
+engine is measured; its bar lives in `config/acceptance.yaml` under `solver:`.
+At the declared 2 % bar EPC2216 passes (0.64 / 0.20 %), TI and CPM2 miss on the
+current term (2.05 / 2.69 %) and IRFS on voltage (2.49 %) — the bar was not
+raised to fit the result.
+
+```bash
+uv run python -m cli.main solver epc2216            # print the G7 gate
+uv run python -m cli.main solver epc2216 --measure  # run the comparison first
+uv run python -m cli.main solver epc2216 --basis ann --engine compiled --no-adaptive
+```
+
+Circuits outside the solver's envelope are **routed, not approximated**:
+`engine/fallback.py` decides before the first step, and either hands the circuit
+to an external SPICE engine or raises. A fallback result says so in its
+warnings, so no fallback timing is ever read as the solver's.
+
 Tier-2 emits `reports/models/<vendor>_PIECESPICE_T2.lib`; Tier-3 emits
 `<vendor>_PIECESPICE_T3.lib` for the default `v1` variant and
 `<vendor>_PIECESPICE_T3_<variant>.lib` for `simplis`. Tier-4 emits

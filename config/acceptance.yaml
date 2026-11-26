@@ -52,3 +52,13 @@ speed:
   min_solver_speedup: {value: 1.05, source: project_decision}
   confidence: {value: 0.95, source: project_decision}
   n_resamples: {value: 2000, source: project_decision}
+
+solver:
+  # The custom solver's own bar: how far it may sit from the *same* ROM
+  # executed by LTspice, so the model term is excluded by construction.
+  # Measured (Tier-4 ANN basis, error control under the deck ceiling):
+  # EPC 0.64 %, TI 1.14 %, CPM2 1.56 %, IRFS 2.49 %. The bar is declared at
+  # 2 % and NOT raised to fit IRFS -- a gate set just under the measurement is
+  # a description, not a gate.
+  equivalence_rel_pct_max: {value: 2.0, source: project_decision}
+  min_solver_speedup: {value: 1.05, source: project_decision}

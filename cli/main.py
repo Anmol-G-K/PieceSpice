@@ -431,5 +431,37 @@ def compare(
     console.print("[bold]Unified one-ROM (recorded only; never recomputed)[/bold]")
     _unified_summary(unified)
 
+
+@app.command()
+def solver(
+    vendor: str = typer.Argument(..., help="Configured vendor id"),
+    basis: str = typer.Option("t4ann", help="tier2 | ann | t4ann"),
+    engine: str = typer.Option("compiled", help="compiled | reference"),
+    adaptive: bool = typer.Option(True, help="Step by error control"),
+    repeats: int = typer.Option(3, help="Measurement repeats"),
+    measure: bool = typer.Option(False, help="Run the comparison (needs LTspice)"),
+) -> None:
+    """Custom solver: run it against the same ROM in LTspice, then score G7."""
+    from engine.harness import summarise as solver_digest
+    from engine.harness import validate_vendor
+    from pipeline.solver_gate import g7_solver_equivalence
+
+    if measure:
+        record = validate_vendor(vendor, basis=basis, repeats=repeats)
+        console.print(solver_digest(record))
+    gate = g7_solver_equivalence(vendor, basis=basis)
+    detail = gate["detail"]
+    console.print()
+    console.print(f"G7 solver equivalence  ({basis}, {engine}, "
+                  f"adaptive={adaptive})")
+    console.print(f"  status {gate['status']}  pass {gate['pass']}")
+    if detail.get("engine_vds_pct") == detail.get("engine_vds_pct"):
+        console.print(f"  engine error {detail['engine_vds_pct']:.2f} / "
+                      f"{detail['engine_id_pct']:.2f} % "
+                      f"(bar {detail['equivalence_bar_pct']} %)")
+    console.print(f"  speed {detail.get('solver_speedup')} "
+                  f"(bar {detail.get('speed_bar')})")
+
+
 if __name__ == "__main__":
     app()

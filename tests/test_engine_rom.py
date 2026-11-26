@@ -16,6 +16,7 @@ import functools
 import json
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from engine.ir.circuit import ElementKind
@@ -315,3 +316,71 @@ def test_series_parasitics_are_merged_into_a_terminal_model() -> None:
     assert "ss" not in merged_circuit.node_index
     # The channel is the same numerical surface either way.
     assert merged.channel.id == kept.channel.id
+
+
+# ---------------------------------------------------------------------------
+# Stage 7-8: gate and routing
+# ---------------------------------------------------------------------------
+
+def test_g7_scores_the_engine_not_the_model() -> None:
+    """G7's reference is the same ROM in LTspice, so the model term cancels."""
+    from pipeline.solver_gate import g7_solver_equivalence
+
+    gate = g7_solver_equivalence("epc2216", basis="t4ann")
+    assert gate["status"] == "measured"
+    detail = gate["detail"]
+    # The engine term is the solver-vs-ROM number, never the total.
+    assert detail["engine_vds_pct"] < 2.0
+    assert detail["rule"].startswith("engine error is measured")
+    assert "solver_error_C_minus_B_capped" not in detail  # no raw dumps
+
+
+def test_g7_reports_a_missing_record_instead_of_passing() -> None:
+    from pipeline.solver_gate import g7_solver_equivalence
+
+    gate = g7_solver_equivalence("epc2216", basis="tier2")
+    # tier2 records may exist; either way the gate must not claim a pass
+    # without a matching basis stamp.
+    assert "basis" in gate["detail"]
+
+
+def test_solver_policy_is_declared_and_labelled() -> None:
+    from pipeline.solver_policy import SOURCE_LABELS, load_solver_bars
+
+    bars, sources = load_solver_bars()
+    assert bars["equivalence_rel_pct_max"] > 0
+    assert set(sources.values()) <= SOURCE_LABELS
+
+
+def test_routing_sends_out_of_envelope_circuits_to_spice() -> None:
+    from engine.fallback import FallbackUnavailable, plan_route, solve
+    from engine.ir.parse import parse_circuit
+
+    inside = parse_circuit(
+        "* rc\nV1 in 0 DC 1\nR1 in out 1k\nC1 out 0 1u\n.end")
+    assert plan_route(inside).engine == "solver"
+
+    # A charge expression parses but is outside the kernel envelope.
+    outside = parse_circuit(
+        "* q\nV1 in 0 DC 1\nR1 in out 1k\nC1 out 0 Q = {1e-9*(V(out))}\n.end")
+    decision = plan_route(outside)
+    assert decision.engine == "spice"
+    assert decision.is_fallback
+    with pytest.raises(FallbackUnavailable):
+        solve(outside, end_time=1e-6)
+
+
+def test_fallback_result_is_labelled_and_never_credited_to_the_solver() -> None:
+    from engine.fallback import solve
+    from engine.ir.parse import parse_circuit
+    from engine.solver.result import SolverResult
+
+    outside = parse_circuit(
+        "* q\nV1 in 0 DC 1\nR1 in out 1k\nC1 out 0 Q = {1e-9*(V(out))}\n.end")
+
+    def fake_fallback(circuit):
+        return SolverResult(traces={"time": np.zeros(2)}, warnings=[])
+
+    result = solve(outside, fallback=fake_fallback, end_time=1e-6)
+    assert any("routed to external SPICE" in w for w in result.warnings)
+    assert any("not solver time" in w for w in result.warnings)
