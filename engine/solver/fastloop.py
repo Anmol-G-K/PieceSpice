@@ -92,7 +92,7 @@ def switch_positions(P):
 
 
 @nb.njit(cache=True)
-def run_transient(P, S, t_end, h_init, h_min, adaptive, method_default,
+def run_transient(P, S, t_end, h_init, h_max, h_min, adaptive, method_default,
                   reltol, abstol,
                   G, rhs, x, work, trial, dev_i, snap, x_full,
                   times, rows, devrows, ev_t, ev_dev, ev_from, ev_to):
@@ -120,6 +120,8 @@ def run_transient(P, S, t_end, h_init, h_min, adaptive, method_default,
 
     while t < t_end - 1e-18:
         hh = h
+        if h_max > 0.0 and hh > h_max:
+            hh = h_max
         hh = min(hh, t_end - t)
         if hh <= 0.0:
             break
@@ -221,6 +223,11 @@ def solve_transient_fast(circuit: Circuit, *, end_time: float | None = None,
                          max_step: float | None = None, method: str = "trap",
                          adaptive: bool = True, reltol: float = 1e-3,
                          abstol: float = 1e-6) -> SolverResult:
+    """Compiled integration.
+
+    ``max_step`` is a **ceiling** when ``adaptive`` is on (SPICE's ``.tran``
+    meaning) and the exact step when it is off.
+    """
     """Run the compiled loop and wrap the result for the existing consumers."""
     from engine.solver.transient import _end_time, _step_size, solve_op
 
@@ -241,6 +248,9 @@ def solve_transient_fast(circuit: Circuit, *, end_time: float | None = None,
         deck_step = _step_size(circuit, t_end, None)
     except ValueError:
         deck_step = 0.0
+    # ``max_step`` is a ceiling (SPICE's ``.tran`` semantics), not a fixed step:
+    # the error control may take smaller steps and never larger ones.
+    ceiling = max_step if max_step is not None else 0.0
     h = max_step if max_step is not None else deck_step
     if h <= 0.0:
         # Only the *initial* guess: with the error control active the step is
@@ -260,7 +270,7 @@ def solve_transient_fast(circuit: Circuit, *, end_time: float | None = None,
     snap = tuple(np.zeros_like(a) for a in plan.S)
 
     samples, n_events, status = run_transient(
-        plan.P, plan.S, t_end, h, h_min, adaptive,
+        plan.P, plan.S, t_end, h, ceiling, h_min, adaptive,
         0 if method == "be" else 1, reltol, abstol,
         plan.G, plan.rhs, plan.x, plan.work, plan.S[4].copy(), plan.dev_i,
         snap, np.zeros(n), times, rows, devrows, ev_t, ev_dev, ev_from, ev_to)
