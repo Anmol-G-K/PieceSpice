@@ -414,6 +414,11 @@ def validate_vendor(vendor: str, *, repeats: int = 3,
         },
         "comparison": {},
         "speed": {},
+        "statistics": {
+            "method": "median of repeats per arm; a paired bootstrap CI needs "
+                      "interleaved runs, which scripts/compare_kernels.py does",
+            "repeats": repeats,
+        },
     }
 
     if "rom_ltspice" in arms:
