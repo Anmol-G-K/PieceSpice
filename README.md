@@ -865,6 +865,17 @@ accumulation charge for `Vgs > Vds` whose coefficient is zero for TI and EPC
 and several nanofarads for IRFS and CPM2. Omitting it was a 0.9 pp engine error
 on exactly the two devices that carry it.
 
+**Why the classical architectural optimisations do not apply here.** The
+surveyed techniques — FE assembly reuse with a fixed sparsity pattern
+(Zeng & Courtecuisse), matrix-factor reuse (Caulk et al., the single largest
+win in their 170× result), supernodal blocking, map-based indirect-access
+removal, prefetching — are all remedies for **cache misses and bandwidth** on a
+large working set. After the series merge this solver's entire working set is
+**~1.5 KB, 23 cache lines**, against L1's 512, and it is touched every step, so
+it is permanently hot. There is nothing to miss. What does transfer is
+algorithmic: fewer solves per step (divided-difference LTE turns three solves
+into one) and factor reuse while the matrix is bitwise unchanged.
+
 The remaining lever is documented in the literature rather than guessed:
 Gupta et al. (*STEAM*, *A-LA-CARTE*) reach <0.1 % with spline interpolation on
 Chebyshev samples; Burenkov et al. (*Table models in SPICE3*) and Elber
