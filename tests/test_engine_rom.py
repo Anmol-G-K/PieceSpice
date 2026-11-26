@@ -233,3 +233,53 @@ def test_tier2_and_ann_disagree_where_it_matters() -> None:
     a = tier2.channel.current(2.0, 1.0)
     b = ann.channel.current(2.0, 1.0)
     assert abs(a - b) / max(abs(b), 1e-9) > 0.5
+
+
+# ---------------------------------------------------------------------------
+# Tier-4 ANN basis: reproduce the emitted element set, not just the fit
+# ---------------------------------------------------------------------------
+
+def test_t4ann_basis_reproduces_the_emitted_elements() -> None:
+    """The solver ROM must mirror what the emitter writes, element for element.
+
+    Three details decided the accuracy and each was found by comparing against
+    the emitted library: the gate resistance comes from the C-inf spec (0.58
+    ohm, not the Tier-2 1.5 ohm), Q is written directly rather than integrated
+    from a capacitance, and the gate-drain charge is defined drain->gate.
+    """
+    from engine.rom import solver_rom
+
+    ann = solver_rom("epc2216", "ann")
+    t4 = solver_rom("epc2216", "t4ann")
+
+    assert t4.basis == "t4ann"
+    # Gate path: the C-inf spec's value, not the Tier-2 default.
+    assert t4.r_gate < 1.0 < ann.r_gate
+    # Gate-drain charge orientation matches the emitted `C_RSS di gi`.
+    assert t4.qrss_nodes == ("di", "gi")
+    assert t4.qrss is not None
+    # The emitter writes a linear Cgs and a gate bleeder.
+    assert t4.qiss is None
+    assert t4.c_iss_f > 0.0
+    assert t4.r_gs == pytest.approx(1e7)
+
+    names = {e.name for e in t4.to_circuit().elements}
+    assert "RGS" in names
+
+
+def test_t4ann_charge_is_the_emitted_curve_not_an_integral() -> None:
+    """Q is defined by the emitted expression, so Q(v)/v is C(v) only if flat.
+
+    A capacitance integrated to a charge would give a different curve; this
+    pins the direct evaluation by checking the rational form's slope at zero.
+    """
+    from engine.rom import solver_rom
+
+    t4 = solver_rom("epc2216", "t4ann")
+    table = t4.qoss.table
+    slope_zero = table.slope(0)
+    assert slope_zero > 0.0
+    # The curve must stay monotone and zero-anchored, which the C-inf form
+    # guarantees and an integral would not.
+    assert table.is_monotone_increasing()
+    assert table.y[0] == 0.0

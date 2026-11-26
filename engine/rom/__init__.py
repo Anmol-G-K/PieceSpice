@@ -27,7 +27,10 @@ def solver_rom(vendor: str, basis: str = "tier2",
         return SolverRom.from_spec(build_pwl_spec(vendor))
     if basis == "ann":
         return SolverRom.from_ann_fit(vendor, vds_max=vds_max)
-    raise ValueError(f"unknown solver ROM basis {basis!r} (tier2 | ann)")
+    if basis == "t4ann":
+        return SolverRom.from_t4_ann(vendor)
+    raise ValueError(f"unknown solver ROM basis {basis!r} "
+                     "(tier2 | ann | t4ann)")
 
 __all__ = [
     "SCHEMA",

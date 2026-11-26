@@ -358,6 +358,7 @@ def _metric_delta(reference: dict, other: dict) -> dict[str, Any]:
 BASES = {
     "tier2": ("{vendor}_PIECESPICE_T2.lib", "tier2"),
     "ann": ("{vendor}_PIECSPICE_UROM_ann_trap-default.lib", "ann"),
+    "t4ann": ("{vendor}_PIECESPICE_T4_ann.lib", "t4ann"),
 }
 
 

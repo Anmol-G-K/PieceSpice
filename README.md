@@ -847,12 +847,17 @@ does not govern this path. Each tier keeps its role: Tier-2 the cheapest
 emitter, Tier-3 `v1` the trajectory model, `simplis` the PWL charge tables, ANN
 the waveform, Tier-4 the system level.
 
-The ANN is smooth, so the engine evaluates it on a grid and tabulates it. That
-is where the current limit sits: **EPC2216 reaches 1.11 / 1.13 % total error**
-(model 0.35, engine 0.72), while TI / CPM2 / IRFS are 6.2 / 7.5 / 11.1 % because
-a planar table does not follow the network's curvature at this grid. Refining
-the grid made it worse; extending it past the fitted range made the fixed-step
-arm explode.
+**The solver reconstructs the Tier-4 ANN** — the basis currently in use — from its
+emitted element set: the ANN channel tabulated, the C-inf charge curves
+evaluated exactly as written, the C-inf gate resistance, the linear Cgs and the
+`RGS` bleeder. Reconstructing the *fit's* tables instead of the *emitted* model
+was a 3x gate-resistance error and a sign-flipped gate-drain charge, and it cost
+several percent before it was found by diffing the library element by element.
+
+With that, total error against the vendor golden is **0.44 / 0.32 % (EPC2216)**,
+2.48 / 3.72 % (CPM2), 4.25 / 4.60 % (TI) and 5.30 / 4.99 % (IRFS). EPC is
+comfortably inside the 1-2 % bar; TI's remaining error is its own model term
+(4.16 %) rather than the engine (1.15 %); IRFS is the one open case.
 
 **The solver ROM is currently a hybrid, and that shows up in the edges.** The
 channel comes from the ANN; the charge tables and gate capacitances still come

@@ -28,7 +28,10 @@ emitted .lib                  solver ROM                  why
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+import math
+
 import numpy as np
+from pathlib import Path
 from dataclasses import dataclass
 from typing import Any
 
@@ -44,6 +47,8 @@ from engine.solver.device import ChargeTable, PwlTable
 
 #: Version of the solver ROM artifact.  Bumped when the payload shape changes.
 SCHEMA = "piecespice.solver_rom/1.0"
+
+ROOT = Path(__file__).resolve().parent.parent.parent
 
 #: Parasitic defaults taken from ``models.netlist_builder`` so the solver ROM
 #: reproduces the emitted subcircuit rather than inventing its own.
@@ -84,6 +89,18 @@ class SolverRom:
     #: tables, so the basis is a free choice; leaving it implicit is what made
     #: every early measurement Tier-2 without saying so.
     basis: str = "tier2"
+    #: Gate charge tables.  ``None`` means the linear equivalents above are
+    #: used; a table means the basis supplied a nonlinear gate charge and the
+    #: solver should carry it, because switching edges are charge-dominated.
+    qiss: ChargeTable | None = None
+    qrss: ChargeTable | None = None
+    #: Node pair the rss charge is defined across.  The Tier-2 spec uses
+    #: gate->drain (Vgd); the Tier-4 ANN emits drain->gate (Vdg).  Carrying the
+    #: wrong orientation flips the sign of the whole gate-drain charge and no
+    #: amount of grid or step refinement recovers it.
+    qrss_nodes: tuple[str, str] = ("gi", "di")
+    #: Gate-source bleeder resistance, emitted by the Tier-4 ANN as `RGS`.
+    r_gs: float | None = None
 
     # -- construction ------------------------------------------------------
 
@@ -170,11 +187,22 @@ class SolverRom:
             rows.append(np.maximum(np.asarray(current, dtype=float), 0.0)
                         .tolist())
 
+        # Charge comes from the same basis as the channel.  Keeping the
+        # Tier-2 charge while taking only the ANN channel makes the ROM a
+        # hybrid, and edges are charge-dominated: that hybrid is why the
+        # solver's IRFS rise was 3 ns against 25.8.
+        charge = fit_payload["charge_fit"]
+        qoss = _resampled_charge(charge, "oss", "Qoss")
+        qiss = _resampled_charge(charge, "iss", "Qiss")
+        qrss = _resampled_charge(charge, "rss", "Qrss")
+
         base = cls.from_spec(spec)
         return cls(
             device=base.device,
             channel=ChannelTable.build(vgs, vds, rows),
-            qoss=base.qoss,
+            qoss=qoss,
+            qiss=qiss,
+            qrss=qrss,
             body_diode=base.body_diode,
             c_iss_f=base.c_iss_f,
             c_rss_f=base.c_rss_f,
@@ -184,6 +212,80 @@ class SolverRom:
             vth=base.vth,
             rds_on=base.rds_on,
             basis="ann",
+        )
+
+    @classmethod
+    def from_t4_ann(cls, vendor: str, *, spec: Any | None = None,
+                    calibration: Mapping[str, float] | None = None,
+                    **kwargs: Any) -> "SolverRom":
+        """ANN channel and charge, with the Tier-4 ANN's dynamic calibration.
+
+        Tier-4 ANN is the same channel fit as the plain ANN basis; what it adds
+        is a small set of factors (``k_cgs``, ``k_cdg``, ``k_cds``, ``k_rg``)
+        that the Tier-4 pipeline fits against the golden double pulse's edges.
+        Switching edges are charge- and gate-resistance-dominated, so carrying
+        those factors is what makes the solver reproduce the emitted waveform
+        instead of merely the static curves.
+
+        The factors are read from the recorded calibration, never re-fitted
+        here: this builder reproduces an existing model, it does not tune one.
+        """
+        import json
+
+        base = cls.from_ann_fit(vendor, spec=spec, **kwargs)
+        factors = dict(calibration or {})
+        if not factors:
+            record = (ROOT / "reports" / "comparison" / vendor
+                      / "tier4_validation_ann.json")
+            if not record.is_file():
+                raise FileNotFoundError(
+                    f"{record} is missing; run the Tier-4 ANN build for {vendor}")
+            factors = json.loads(record.read_text(encoding="utf-8")).get(
+                "dynamic_calibration", {}) or {}
+
+        # The Tier-4 ANN does not emit the fit's charge tables -- it emits a
+        # C-inf parameterisation of them (a constant Cgs, a rational/tanh Qoss
+        # in V(di,ss), a rational/tanh Qgd in V(di,gi)) plus a gate bleeder.
+        # Reproducing the *tables* therefore reproduces a different model; the
+        # charge is rebuilt from the emitted parameterisation instead.
+        cinf = (getattr(base, "_charge_provenance", {}) or {}).get("cinf_caps", {})
+        if not cinf:
+            from pipeline.ann_fit import ann_fit_for_vendor
+
+            charge_fit = ann_fit_for_vendor(vendor)["charge_fit"]
+            cinf = (getattr(charge_fit, "provenance", {}) or {}).get(
+                "cinf_caps", {}) or {}
+        if not cinf:
+            raise ValueError(f"{vendor}: the ANN charge fit carries no C-inf spec")
+
+        k_cds = float(factors.get("k_cds", 1.0))
+        k_cdg = float(factors.get("k_cdg", 1.0))
+        k_cgs = float(factors.get("k_cgs", 1.0))
+        vds_top = max(base.channel.vds[-1], 1e-9)
+        qoss = _cinf_charge(cinf["cds"], vds_top, k_cds, "Qoss")
+        # Gate-drain charge is a function of V(di,gi), evaluated on the same span.
+        qrss = _cinf_charge(cinf["cdg"], vds_top, k_cdg, "Qrss")
+
+        return cls(
+            device=base.device,
+            channel=base.channel,
+            qoss=qoss,
+            body_diode=base.body_diode,
+            c_iss_f=float(cinf["cgs_f"]) * k_cgs,
+            c_rss_f=0.0,
+            # The Tier-4 ANN takes its gate/source parasitics from the C-inf
+            # spec, not from the Tier-2 metadata: Tier-2's 1.5 ohm against the
+            # emitted 0.58 ohm is a 3x error in the gate path.
+            r_gate=float(cinf.get("r_gate_ohm") or base.r_gate)
+            * float(factors.get("k_rg", 1.0)),
+            r_drain=base.r_drain,
+            r_source=float(cinf.get("r_source_ohm") or base.r_source),
+            vth=base.vth,
+            rds_on=base.rds_on,
+            basis="t4ann",
+            qrss=qrss,
+            qrss_nodes=("di", "gi"),
+            r_gs=1e7,
         )
 
     # -- the circuit -------------------------------------------------------
@@ -210,14 +312,25 @@ class SolverRom:
                     nodes=("ss", "di"), data=self.body_diode),
         )
         extra = []
-        if self.c_iss_f > 0.0:
+        if self.qiss is not None:
+            extra.append(Element(name=f"C_ISS_{name}",
+                                 kind=ElementKind.PWL_CAP,
+                                 nodes=("gi", "ss"), data=self.qiss))
+        elif self.c_iss_f > 0.0:
             extra.append(Element(name=f"C_ISS_{name}",
                                  kind=ElementKind.CAPACITOR,
                                  nodes=("gi", "ss"), value=self.c_iss_f))
-        if self.c_rss_f > 0.0:
+        if self.qrss is not None:
+            extra.append(Element(name=f"C_RSS_{name}",
+                                 kind=ElementKind.PWL_CAP,
+                                 nodes=self.qrss_nodes, data=self.qrss))
+        elif self.c_rss_f > 0.0:
             extra.append(Element(name=f"C_RSS_{name}",
                                  kind=ElementKind.CAPACITOR,
-                                 nodes=("gi", "di"), value=self.c_rss_f))
+                                 nodes=self.qrss_nodes, value=self.c_rss_f))
+        if self.r_gs is not None and self.r_gs > 0.0:
+            extra.append(Element(name="RGS", kind=ElementKind.RESISTOR,
+                                 nodes=("gi", "ss"), value=self.r_gs))
         all_elements = elements + tuple(extra)
         nodes: list[str] = []
         for element in all_elements:
@@ -250,6 +363,12 @@ class SolverRom:
                 "v": list(self.qoss.table.x),
                 "q": list(self.qoss.table.y),
             },
+            "qiss": (None if self.qiss is None else
+                     {"v": list(self.qiss.table.x),
+                      "q": list(self.qiss.table.y)}),
+            "qrss": (None if self.qrss is None else
+                     {"v": list(self.qrss.table.x),
+                      "q": list(self.qrss.table.y)}),
             "body_diode": {
                 "vsd": list(self.body_diode.x),
                 "isd": list(self.body_diode.y),
@@ -278,6 +397,12 @@ class SolverRom:
             channel=ChannelTable.build(channel["vgs"], channel["vds"],
                                        channel["id"]),
             qoss=ChargeTable(PwlTable(tuple(qoss["v"]), tuple(qoss["q"]))),
+            qiss=(None if payload.get("qiss") is None else
+                  ChargeTable(PwlTable(tuple(payload["qiss"]["v"]),
+                                       tuple(payload["qiss"]["q"])))),
+            qrss=(None if payload.get("qrss") is None else
+                  ChargeTable(PwlTable(tuple(payload["qrss"]["v"]),
+                                       tuple(payload["qrss"]["q"])))),
             body_diode=PwlTable(tuple(body["vsd"]), tuple(body["isd"])),
             c_iss_f=float(caps.get("c_iss_f", 0.0)),
             c_rss_f=float(caps.get("c_rss_f", 0.0)),
@@ -308,6 +433,59 @@ def _channel_grid_with_anchors(spec: Any) -> tuple[list[float], list[list[float]
         vgs.insert(0, value)
         rows.insert(0, [0.0] * width)
     return vgs, rows
+
+
+#: Points the fitted charge curve is resampled onto.  The fit stores a short
+#: monotone table (7-31 points) and the emitted expression interpolates it
+#: smoothly; tabulating the raw points linearly is coarser than the .lib and
+#: costs waveform accuracy.  Resampling the fit's own curve keeps the solver
+#: table on the same curve as the emitter.
+CHARGE_RESAMPLE_POINTS = 201
+
+
+def _cinf_charge_at(cap_spec: Any, v: float) -> float:
+    """Q(v) exactly as the emitted ``Q = {...}`` expression defines it.
+
+    The expression is ``cmin*v + sum(dc*v/(1 + sqrt(v^2+1e-4)/vk))`` for the
+    rational form and ``cmin*v + sum(dc*vk*tanh(v/vk))`` for the tanh form.
+    Q is written **directly** -- it is not the integral of a C(v) -- so
+    integrating a capacitance here would tabulate a different model.
+    """
+    if isinstance(cap_spec, dict) and cap_spec.get("kind") == "rational":
+        value = float(cap_spec["cmin"]) * v
+        for dc, vk in cap_spec["terms"]:
+            if dc > 0.0:
+                value += float(dc) * v / (1.0 + math.sqrt(v * v + 1.0e-4)
+                                          / float(vk))
+        return value
+    cmin, terms = cap_spec
+    value = float(cmin) * v
+    for dc, vk in terms:
+        if dc > 0.0:
+            value += float(dc) * float(vk) * math.tanh(v / float(vk))
+    return value
+
+
+def _cinf_charge(cap_spec: Any, v_max: float, scale: float,
+                 label: str, points: int = CHARGE_RESAMPLE_POINTS) -> ChargeTable:
+    """Tabulate the emitted Q(v) curve itself."""
+    grid = np.linspace(0.0, v_max, points)
+    charge = np.array([_cinf_charge_at(cap_spec, float(v)) for v in grid]) * scale
+    charge = np.maximum.accumulate(np.maximum(charge, 0.0))
+    charge -= charge[0]
+    return ChargeTable(PwlTable(tuple(grid.tolist()), tuple(charge.tolist())))
+
+
+def _resampled_charge(charge_fit: Any, name: str, label: str,
+                      points: int = CHARGE_RESAMPLE_POINTS) -> ChargeTable:
+    """Sample the fitted charge curve, not its control points."""
+    table = charge_fit.tables[name]
+    top = float(max(table["v"]))
+    grid = np.linspace(0.0, top, points)
+    values = np.asarray(charge_fit.evaluate(name, grid), dtype=float)
+    values = np.maximum.accumulate(np.maximum(values, 0.0))   # monotone by
+    values -= values[0]                                      # construction
+    return ChargeTable(PwlTable(tuple(grid.tolist()), tuple(values.tolist())))
 
 
 def _charge_table(voltages: Sequence[float], charges: Sequence[float],

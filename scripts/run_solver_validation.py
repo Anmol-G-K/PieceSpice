@@ -19,7 +19,7 @@ from pipeline.registry import VENDORS
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("vendors", nargs="*", default=None)
-    parser.add_argument("--basis", default="tier2", choices=("tier2", "ann"))
+    parser.add_argument("--basis", default="tier2", choices=("tier2", "ann", "t4ann"))
     parser.add_argument("--repeats", type=int, default=3)
     args = parser.parse_args(argv)
     vendors = args.vendors or list(VENDORS)
