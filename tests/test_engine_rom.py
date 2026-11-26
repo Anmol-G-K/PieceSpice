@@ -144,11 +144,15 @@ def test_rom_circuit_mirrors_the_emitted_subcircuit_structure() -> None:
     rom = SolverRom.from_spec(_spec_or_skip())
     circuit = rom.to_circuit()
     kinds = [e.kind for e in circuit.elements]
-    assert kinds.count(ElementKind.RESISTOR) == 3          # RG, RD, RS
+    # RG survives; RD and RS are 1e-4 ohm and are merged into terminal
+    # connections (see the merge test).
+    assert kinds.count(ElementKind.RESISTOR) == 1
     assert ElementKind.PWL_CHANNEL in kinds
     assert ElementKind.PWL_CAP in kinds
     assert ElementKind.DIODE in kinds
-    assert set(circuit.node_index.names) == {"g", "gi", "d", "di", "s", "ss"}
+    # Series parasitics at 1e-4 ohm are merged into terminal connections, so
+    # the internal d/s nodes are gone by design; see the merge test below.
+    assert set(circuit.node_index.names) == {"g", "gi", "d", "s"}
 
 
 def _dpt_conditions(max_step: float) -> DptConditions:
@@ -283,3 +287,31 @@ def test_t4ann_charge_is_the_emitted_curve_not_an_integral() -> None:
     # guarantees and an integral would not.
     assert table.is_monotone_increasing()
     assert table.y[0] == 0.0
+
+def test_series_parasitics_are_merged_into_a_terminal_model() -> None:
+    """A 0.1 mohm source/drain resistor adds two unknowns and two 1e4 S
+    entries, and carries no physics a terminal table needs.
+
+    Merging must not change the model: the node count drops, the element count
+    drops, and the channel is unchanged.
+    """
+    from engine.rom import solver_rom
+
+    merged = solver_rom("epc2216", "t4ann")
+    kept = SolverRom(
+        device=merged.device, channel=merged.channel, qoss=merged.qoss,
+        body_diode=merged.body_diode, c_iss_f=merged.c_iss_f,
+        c_rss_f=merged.c_rss_f, r_gate=merged.r_gate, r_drain=merged.r_drain,
+        r_source=merged.r_source, vth=merged.vth, rds_on=merged.rds_on,
+        basis=merged.basis, qrss=merged.qrss, qrss_nodes=merged.qrss_nodes,
+        r_gs=merged.r_gs, merge_below_ohm=None,
+        body_diode_params=merged.body_diode_params,
+    )
+    merged_circuit = merged.to_circuit()
+    kept_circuit = kept.to_circuit()
+    assert len(merged_circuit.node_index) == len(kept_circuit.node_index) - 2
+    assert len(merged_circuit.elements) == len(kept_circuit.elements) - 2
+    assert "di" not in merged_circuit.node_index
+    assert "ss" not in merged_circuit.node_index
+    # The channel is the same numerical surface either way.
+    assert merged.channel.id == kept.channel.id

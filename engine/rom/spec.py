@@ -102,6 +102,11 @@ class SolverRom:
     qrss_nodes: tuple[str, str] = ("gi", "di")
     #: Gate-source bleeder resistance, emitted by the Tier-4 ANN as `RGS`.
     r_gs: float | None = None
+    #: Fold series parasitics at or below this value into a direct connection.
+    #: Table-model practice is terminal-only: a 0.1 mohm source/drain resistor
+    #: carries no physics a terminal table needs, but it does add two unknowns
+    #: and two 1e4 S entries that dominate the matrix condition number.
+    merge_below_ohm: float | None = 1e-3
     #: Parametric body diode ``(IS, N, RS)`` as the emitter declares it.  The
     #: emitted `.MODEL` is a Shockley fit of Curve 6, not the sampled curve, and
     #: the two conduct differently through the clamp -- which is where a turn-off
@@ -361,6 +366,7 @@ class SolverRom:
                 name=f"D_BD_{name}", family="D",
                 params={"IS": repr(float(isat)), "N": repr(float(n)),
                         "RS": repr(float(rs))})
+        all_elements = _merge_series(all_elements, self.merge_below_ohm)
         nodes: list[str] = []
         for element in all_elements:
             nodes.extend(element.nodes)
@@ -526,6 +532,46 @@ def _resampled_charge(charge_fit: Any, name: str, label: str,
     values = np.maximum.accumulate(np.maximum(values, 0.0))   # monotone by
     values -= values[0]                                      # construction
     return ChargeTable(PwlTable(tuple(grid.tolist()), tuple(values.tolist())))
+
+
+def _merge_series(elements: tuple[Element, ...],
+                  threshold: float | None) -> tuple[Element, ...]:
+    """Collapse resistors below *threshold* into a direct connection.
+
+    Union-find over the element list, then rename.  The dropped resistor is
+    kept nowhere: it is below the resolution any measurement in this project
+    resolves, and keeping two 1e4 S conductances in a 9-node matrix costs
+    conditioning -- and therefore step size -- for no physical content.
+    """
+    if not threshold:
+        return elements
+    parent: dict[str, str] = {}
+
+    def find(node: str) -> str:
+        parent.setdefault(node, node)
+        while parent[node] != node:
+            parent[node] = parent[parent[node]]
+            node = parent[node]
+        return node
+
+    keep: list[Element] = []
+    for element in elements:
+        if (element.kind is ElementKind.RESISTOR and element.value is not None
+                and element.value <= threshold):
+            a, b = element.nodes
+            ra, rb = find(a), find(b)
+            if ra != rb:
+                parent[rb] = ra
+            continue
+        keep.append(element)
+    if not parent:
+        return elements
+    return tuple(
+        Element(name=e.name, kind=e.kind,
+                nodes=tuple(find(n) for n in e.nodes),
+                value=e.value, waveform=e.waveform, model=e.model,
+                expression=e.expression, data=e.data)
+        for e in keep)
 
 
 def _charge_table(voltages: Sequence[float], charges: Sequence[float],
