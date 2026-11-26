@@ -192,17 +192,11 @@ class SolverRom:
         vds = sorted({round(v, 12) for v in vds})
 
         rows = []
-        gm_rows = []
-        gds_rows = []
         for value in vgs:
-            current, gm, gds = channel_fit.evaluate(
+            current, _, _ = channel_fit.evaluate(
                 np.full(len(vds), value), np.asarray(vds))
             rows.append(np.maximum(np.asarray(current, dtype=float), 0.0)
                         .tolist())
-            # The fit already knows its own derivatives; carrying them costs
-            # one array and removes the secant error from every cell.
-            gm_rows.append(np.asarray(gm, dtype=float).tolist())
-            gds_rows.append(np.asarray(gds, dtype=float).tolist())
 
         # Charge comes from the same basis as the channel.  Keeping the
         # Tier-2 charge while taking only the ANN channel makes the ROM a
@@ -216,7 +210,7 @@ class SolverRom:
         base = cls.from_spec(spec)
         return cls(
             device=base.device,
-            channel=ChannelTable.build(vgs, vds, rows, gm_rows, gds_rows),
+            channel=ChannelTable.build(vgs, vds, rows),
             qoss=qoss,
             qiss=qiss,
             qrss=qrss,

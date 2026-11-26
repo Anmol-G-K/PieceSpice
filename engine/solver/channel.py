@@ -34,12 +34,6 @@ class ChannelTable:
     vgs: tuple[float, ...]
     vds: tuple[float, ...]
     id: tuple[tuple[float, ...], ...]
-    #: Per-node transconductance and output conductance, when the basis can
-    #: supply them.  With them the triangle's plane uses the *true local slope*
-    #: instead of the chord through three corners, which is the difference
-    #: between a secant and a tangent over the same cell.
-    gm: tuple[tuple[float, ...], ...] = ()
-    gds: tuple[tuple[float, ...], ...] = ()
 
     def __post_init__(self) -> None:
         if len(self.vgs) < 2 or len(self.vds) < 2:
@@ -55,16 +49,10 @@ class ChannelTable:
 
     @classmethod
     def build(cls, vgs: Sequence[float], vds: Sequence[float],
-              id_rows: Sequence[Sequence[float]],
-              gm_rows: Sequence[Sequence[float]] = (),
-              gds_rows: Sequence[Sequence[float]] = ()) -> ChannelTable:
-        return cls(
-            vgs=tuple(float(v) for v in vgs),
-            vds=tuple(float(v) for v in vds),
-            id=tuple(tuple(float(i) for i in row) for row in id_rows),
-            gm=tuple(tuple(float(i) for i in row) for row in gm_rows),
-            gds=tuple(tuple(float(i) for i in row) for row in gds_rows),
-        )
+              id_rows: Sequence[Sequence[float]]) -> ChannelTable:
+        return cls(vgs=tuple(float(v) for v in vgs),
+                   vds=tuple(float(v) for v in vds),
+                   id=tuple(tuple(float(i) for i in row) for row in id_rows))
 
     @property
     def n_cells(self) -> int:
@@ -114,21 +102,6 @@ class ChannelTable:
         i10 = self.id[i + 1][j]
         i01 = self.id[i][j + 1]
         i11 = self.id[i + 1][j + 1]
-        if self.gm and self.gds:
-            # Corner-value plane replaced by a tangent-matched plane: the slope
-            # is the mean of the three corner gradients and the value is pinned
-            # at the centroid.  Same storage, same runtime shape -- only the
-            # numbers change.
-            if triangle == 0:
-                corners = ((i, j), (i + 1, j), (i + 1, j + 1))
-            else:
-                corners = ((i, j), (i, j + 1), (i + 1, j + 1))
-            a1 = sum(self.gm[a][b] for a, b in corners) / 3.0
-            a2 = sum(self.gds[a][b] for a, b in corners) / 3.0
-            vg_mean = sum(self.vgs[a] for a, _ in corners) / 3.0
-            vd_mean = sum(self.vds[b] for _, b in corners) / 3.0
-            i_mean = sum(self.id[a][b] for a, b in corners) / 3.0
-            return (i_mean - a1 * vg_mean - a2 * vd_mean, a1, a2)
         if triangle == 0:
             # corners (0,0), (1,0), (1,1)
             d_i_du = i10 - i00
