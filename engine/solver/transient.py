@@ -324,16 +324,11 @@ def solve_transient(
         raise ValueError(f"unknown integration method {method!r}")
     use_adaptive = (max_step is None) if adaptive is None else adaptive
     if engine == "compiled":
-        # A switch is the one element whose region change is a genuine
-        # discontinuity, and exact event localisation lives in this module's
-        # loop.  Switch benches are small; the compiled kernel is for the
-        # device workload, so they are routed here rather than duplicated.
-        if not LinearSystem.compile(circuit).discontinuous:
-            from engine.solver.fastloop import solve_transient_fast
+        from engine.solver.fastloop import solve_transient_fast
 
-            return solve_transient_fast(circuit, end_time=end_time,
-                                        max_step=max_step, method=method,
-                                        adaptive=use_adaptive)
+        return solve_transient_fast(circuit, end_time=end_time,
+                                    max_step=max_step, method=method,
+                                    adaptive=use_adaptive)
     if method not in SUPPORTED_METHODS:
         raise ValueError(f"unknown integration method {method!r}")
     t_end = _end_time(circuit, end_time)

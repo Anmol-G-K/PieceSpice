@@ -104,6 +104,7 @@ def run_transient(P, S, t_end, h_init, h_max, h_min, adaptive, method_default,
     n = G.shape[0]
     nd = dev_i.size
     switches = switch_positions(P)
+    old_on = np.zeros(switches.size, dtype=np.int64)
 
     for i in range(n):
         rows[0, i] = x[i]
@@ -192,13 +193,72 @@ def run_transient(P, S, t_end, h_init, h_max, h_min, adaptive, method_default,
                 h = hh * grow
             continue
 
-        # --- fixed step ----------------------------------------------
+        # --- fixed step, truncated at the first switch event -----------
+        for j in range(switches.size):
+            old_on[j] = S[4][switches[j]]
         if try_step(P, S, t + hh, hh, method, G, rhs, x, work, trial) == 0:
             _load_state(S, snap)
             h = hh * 0.5
             if h < h_min:
                 status = 2
                 break
+            continue
+        # A switch flipping inside the step is a real discontinuity, so the
+        # instant is found by bisecting the step fraction rather than snapped to
+        # the grid.  Table breakpoints are not treated this way: the current is
+        # continuous across them and the region iteration absorbs them.
+        earliest = hh
+        crossed = -1
+        for j in range(switches.size):
+            e = switches[j]
+            if trial[e] == old_on[j]:
+                continue
+            lo = 0.0
+            hi = hh
+            for _ in range(24):
+                mid = 0.5 * (lo + hi)
+                _load_state(S, snap)
+                if try_step(P, S, t + mid, mid, method, G, rhs, x,
+                            work, trial) == 0:
+                    break
+                if trial[e] != old_on[j]:
+                    hi = mid
+                else:
+                    lo = mid
+            if hi < earliest:
+                earliest = hi
+                crossed = e
+        if crossed >= 0 and earliest > hh * 1e-9:
+            _load_state(S, snap)
+            if try_step(P, S, t + earliest, earliest, method, G, rhs, x,
+                        work, trial) == 0:
+                _load_state(S, snap)
+                h = hh * 0.5
+                continue
+            device_currents(P, S, x, earliest, trial, dev_i)
+            if k >= capacity:
+                status = 1
+                break
+            for i in range(n):
+                rows[k, i] = x[i]
+            for e in range(nd):
+                devrows[k, e] = dev_i[e]
+            times[k] = t + earliest
+            k += 1
+            if n_events < ev_t.size:
+                ev_t[n_events] = t + earliest
+                ev_dev[n_events] = crossed
+                ev_from[n_events] = S[4][crossed]
+                ev_to[n_events] = trial[crossed]
+                n_events += 1
+            commit(P, S, x, earliest, method, trial)
+            steps += 1
+            t += earliest
+            continue
+        _load_state(S, snap)
+        if try_step(P, S, t + hh, hh, method, G, rhs, x, work, trial) == 0:
+            _load_state(S, snap)
+            h = hh * 0.5
             continue
         device_currents(P, S, x, hh, trial, dev_i)
         if k >= capacity:
@@ -233,10 +293,10 @@ def solve_transient_fast(circuit: Circuit, *, end_time: float | None = None,
 
     t_end = _end_time(circuit, end_time)
     system = LinearSystem.compile(circuit)
-    if system.discontinuous:
-        raise ValueError(
-            "the compiled loop does not localise switch events yet; circuits "
-            "with a switch use the reference loop (engine='reference')")
+    if system.discontinuous and adaptive:
+        # Event truncation lives in the fixed-step branch; a switch circuit is
+        # therefore integrated at the deck's step rather than by error control.
+        adaptive = False
     plan = Plan.build(system)
 
     started = _time.perf_counter()

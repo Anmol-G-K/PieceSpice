@@ -207,7 +207,8 @@ def _ltspice_arm(name: str, library: Path, subcircuit: str,
 
 
 def _solver_arm(rom: SolverRom, cond: dict, repeats: int = 3,
-                *, adaptive: bool = False, label: str = "solver") -> Arm:
+                *, adaptive: bool = False, label: str = "solver",
+                honour_ceiling: bool = False) -> Arm:
     conditions = DptConditions(
         vbus=cond["vbus"], vgs_on=cond["vgs_on"],
         i_load_target=cond["i_load_target"], l_load=cond["l_load"],
@@ -218,7 +219,7 @@ def _solver_arm(rom: SolverRom, cond: dict, repeats: int = 3,
     )
     circuit = dpt(rom, conditions)
     kwargs = dict(engine="compiled", adaptive=adaptive)
-    if not adaptive:
+    if not adaptive or honour_ceiling:
         kwargs["max_step"] = cond["max_step"]
     solve_transient(circuit, **kwargs)                  # warm the JIT
     results = [solve_transient(circuit, **kwargs) for _ in range(repeats)]
@@ -379,8 +380,14 @@ def validate_vendor(vendor: str, *, repeats: int = 3,
     from pipeline.fitting import build_pwl_spec
 
     rom = SolverRom.from_spec(build_pwl_spec(vendor))
+    # Three step policies on the same model: a forced step, error control under
+    # SPICE's max-step ceiling (what LTspice actually does with this deck), and
+    # error control alone.
     arms["solver"] = _solver_arm(rom, cond, repeats, adaptive=False,
                                  label="solver")
+    arms["solver_capped"] = _solver_arm(rom, cond, repeats, adaptive=True,
+                                        honour_ceiling=True,
+                                        label="solver_capped")
     arms["solver_adaptive"] = _solver_arm(rom, cond, repeats, adaptive=True,
                                           label="solver_adaptive")
 
@@ -410,23 +417,50 @@ def validate_vendor(vendor: str, *, repeats: int = 3,
     }
 
     if "rom_ltspice" in arms:
-        record["comparison"]["model_error_B_minus_A"] = _compare(
-            golden, arms["rom_ltspice"])
-        record["comparison"]["solver_error_C_minus_B"] = _compare(
-            arms["rom_ltspice"], arms["solver"])
+        reference = arms["rom_ltspice"]
+        record["comparison"]["model_error_B_minus_A"] = _compare(golden, reference)
         record["comparison"]["timing_B_minus_A"] = _metric_delta(
-            golden.metrics, arms["rom_ltspice"].metrics)
-        record["comparison"]["timing_C_minus_B"] = _metric_delta(
-            arms["rom_ltspice"].metrics, arms["solver"].metrics)
-    record["comparison"]["total_C_minus_A"] = _compare(golden, arms["solver"])
-    record["comparison"]["timing_C_minus_A"] = _metric_delta(
-        golden.metrics, arms["solver"].metrics)
+            golden.metrics, reference.metrics)
+        for key in ("solver", "solver_capped", "solver_adaptive"):
+            if key not in arms:
+                continue
+            suffix = "C_minus_B" if key == "solver" else f"C_minus_B_{key[7:]}"
+            record["comparison"][f"solver_error_{suffix}"] = _compare(
+                reference, arms[key])
+            record["comparison"][f"timing_{suffix}"] = _metric_delta(
+                reference.metrics, arms[key].metrics)
+    for key in ("solver", "solver_capped", "solver_adaptive"):
+        if key not in arms:
+            continue
+        suffix = "C_minus_A" if key == "solver" else f"C_minus_A_{key[7:]}"
+        record["comparison"][f"total_{suffix}"] = _compare(golden, arms[key])
+        record["comparison"][f"timing_{suffix}"] = _metric_delta(
+            golden.metrics, arms[key].metrics)
 
     reference_solver = (arms["rom_ltspice"].elapsed_s
                         if "rom_ltspice" in arms else golden.elapsed_s)
     solver_arm = arms["solver"]
     adaptive_arm = arms.get("solver_adaptive")
-    if adaptive_arm is not None:
+    for key, block_name in (("solver_capped", "speed_capped"),
+                            ("solver_adaptive", "speed_adaptive")):
+        arm = arms.get(key)
+        if arm is None:
+            continue
+        record[block_name] = {
+            "solver_wall_s": arm.wall_s,
+            "solver_steps": arm.steps,
+            "us_per_step": (arm.wall_s / arm.steps * 1e6 if arm.steps else None),
+            "reference_ltspice_elapsed_s": reference_solver,
+            "solver_elapsed_speedup": (
+                reference_solver / arm.wall_s
+                if reference_solver and arm.wall_s else None),
+            "net_solver_elapsed_speedup": (
+                max((reference_solver or 0.0) - LTSPICE_FLOOR_S, 1e-4) / arm.wall_s
+                if reference_solver else None),
+            "relative_steps_vs_fixed": (arm.steps / solver_arm.steps
+                                        if solver_arm.steps else None),
+        }
+    if False:
         record["speed_adaptive"] = {
             "solver_wall_s": adaptive_arm.wall_s,
             "solver_steps": adaptive_arm.steps,

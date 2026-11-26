@@ -85,7 +85,7 @@ def test_compiled_error_control_tracks_the_reference_answer() -> None:
         float(reference.voltage("out")[-1]), abs=5e-3)
 
 
-def test_switch_circuits_stay_on_the_reference_loop() -> None:
+def test_switch_events_are_localised_by_both_engines() -> None:
     deck = """
 * switch
 Vdd vdd 0 DC 10
@@ -97,13 +97,13 @@ Rl out 0 100
 .end
 """
     circuit = parse_circuit(deck)
-    result = solve_transient(circuit)            # default: reference
-    assert len(result.events) == 1
-    # Asking for the compiled engine on a switch circuit routes to the
-    # reference loop rather than silently losing the event localisation.
-    routed = solve_transient(circuit, engine="compiled")
-    assert len(routed.events) == 1
-    from engine.solver.fastloop import solve_transient_fast
-
-    with pytest.raises(ValueError, match="switch events"):
-        solve_transient_fast(circuit)
+    reference = solve_transient(circuit, engine="reference")
+    compiled = solve_transient(circuit, engine="compiled")
+    # A switch is a genuine discontinuity, so the instant must be located --
+    # not snapped to the 3 ns grid -- by both executors.
+    assert len(reference.events) == len(compiled.events) == 1
+    assert compiled.events[0].time == pytest.approx(reference.events[0].time,
+                                                    abs=1e-12)
+    assert compiled.events[0].device == "S1"
+    assert float(compiled.voltage("out")[-1]) == pytest.approx(
+        float(reference.voltage("out")[-1]), rel=1e-9)

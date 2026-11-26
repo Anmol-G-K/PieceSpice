@@ -798,6 +798,37 @@ previously timed out because a probe forced `max_step=None`; the measured
 `net_solver_speedup`, `net_solver_speedup_ci95` and the 0.075 s floor.
 
 
+**Custom solver (piecewise-linear engine) — measured, bench-scoped.** A
+`numba`-compiled modified-nodal solver executes the same fitted ROM as tables
+(no SPICE expressions): the channel as a triangulated `Id(Vgs,Vds)` plane
+surface, the capacitors as charge tables, the clamp diode as a tabulated region
+set. Between breakpoints the circuit is linear, so a step costs one dense solve
+and no Newton iteration.
+
+Three arms on the same double pulse, with the **emitted ROM inside LTspice as
+the reference** so the model cancels and only the engine is scored:
+
+| Device | forced 2 ns | error control, 2 ns ceiling | error control |
+|---|---|---|---|
+| EPC2216 | 1.99 % | **0.23 %** | 0.23 % |
+| CSD16412Q5A | 2.15 % | **0.26 %** | 0.26 % |
+| IRFS7730PBF | 0.87 % | **0.10 %** | 0.10 % |
+| CPM2-1200 | 0.67 % | **0.42 %** | 0.42 % |
+
+(relative RMSE on drain voltage; device current is 0.10–0.88 %.) Speed against
+LTspice's own reported solve time: **5.8–8.3×** at a forced step, **4.4–5.8×**
+with the deck's ceiling enforced, and **15.6–29.4×** with the error control free
+to choose the step. The ceiling buys no fidelity — capped and uncapped agree to
+the same two decimals — so it is reported as a control, not as a setting to use.
+
+*Caveats, stated where the numbers are:* one operating point per device; the
+reference is the reduced ROM rather than the vendor golden (that comparison is
+the row above); `tr`/`tf` are 6–40 % fast and turn-off energy −1 to −19 % versus
+the same ROM in LTspice, which is the **table form against the smooth `tanh`
+emitter** — tightening the step from 1e-3 to 1e-5 changes neither, and the two
+executors agree to 7e-8 on shared time points; and switch decks run at the
+deck's step, because event truncation lives in the fixed-step branch.
+
 **Test suite (measured).** Full live suite: **837 passed, 0 skipped,
 2 warnings** (`.venv\Scripts\python.exe -m pytest -q`, 888.23 s). Local LTspice-free
 CI (`PIECESPICE_LIVE=0`): **819 passed, 10 skipped, 1 deselected, 1 warning**
