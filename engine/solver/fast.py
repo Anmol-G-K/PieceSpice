@@ -120,6 +120,57 @@ def _segment(xs, off, cnt, value):
 
 
 @nb.njit(cache=True)
+def lu_factor(a, lu, piv):
+    """In-place LU with partial pivoting.  ``lu`` and ``piv`` are the cache.
+
+    Splitting factorisation from substitution is what makes factor reuse
+    possible: while the matrix is bitwise unchanged the O(n^3) work is skipped
+    and only the O(n^2) triangular solves run.
+    """
+    n = a.shape[0]
+    for i in range(n):
+        for j in range(n):
+            lu[i, j] = a[i, j]
+        piv[i] = i
+    for c in range(n):
+        best = abs(lu[c, c])
+        pivot = c
+        for r in range(c + 1, n):
+            v = abs(lu[r, c])
+            if v > best:
+                best = v
+                pivot = r
+        if best == 0.0:
+            return False
+        if pivot != c:
+            for j in range(n):
+                lu[c, j], lu[pivot, j] = lu[pivot, j], lu[c, j]
+            piv[c], piv[pivot] = piv[pivot], piv[c]
+        for r in range(c + 1, n):
+            f = lu[r, c] / lu[c, c]
+            lu[r, c] = f
+            for j in range(c + 1, n):
+                lu[r, j] -= f * lu[c, j]
+    return True
+
+
+@nb.njit(cache=True)
+def lu_solve(lu, piv, b, x, tmp):
+    """Forward/back substitution against a stored factorisation."""
+    n = lu.shape[0]
+    for i in range(n):
+        tmp[i] = b[piv[i]]
+    for i in range(1, n):
+        for j in range(i):
+            tmp[i] -= lu[i, j] * tmp[j]
+    for i in range(n - 1, -1, -1):
+        acc = tmp[i]
+        for j in range(i + 1, n):
+            acc -= lu[i, j] * x[j]
+        x[i] = acc / lu[i, i]
+
+
+@nb.njit(cache=True)
 def _solve_dense(a, b, x, work):
     """Dense LU with partial pivoting; False when the matrix is singular."""
     n = a.shape[0]
@@ -159,8 +210,61 @@ def _solve_dense(a, b, x, work):
 # ---------------------------------------------------------------------------
 
 @nb.njit(cache=True)
-def assemble_solve(P, S, t, h, method, G, rhs, x, work, trial):
-    """Stamp with the trial regions and solve.  Mutates only the scratch arrays."""
+def assemble_static(P, G_static):
+    """The part of the matrix that never changes: resistors and branch couplings.
+
+    Assembly reuse, as every FE and circuit solver does it: the pattern and the
+    values of the time-invariant contributions are computed once, and each step
+    starts from that matrix instead of from zero.
+    """
+    (r_a, r_b, r_g,
+     _c_a, _c_b, _c_idx, _c_val,
+     l_a, l_b, l_k, _l_idx, l_val,
+     v_a, v_b, v_k, _v_kind, _v_off, _v_cnt,
+     _i_a, _i_b, _i_kind, _i_off, _i_cnt,
+     _d_kind, _d_a, _d_b, _d_c, _d_c2, _d_off,
+     _d_ax, _d_axc, _d_ax2, _d_ax2c, _d_vt, _d_vh, _d_tab, _ax, _wt, _wv) = P
+    n = G_static.shape[0]
+    for i in range(n):
+        for j in range(n):
+            G_static[i, j] = 0.0
+    for e in range(r_g.size):
+        g = r_g[e]
+        a = r_a[e]
+        b = r_b[e]
+        if a >= 0:
+            G_static[a, a] += g
+            if b >= 0:
+                G_static[a, b] -= g
+        if b >= 0:
+            G_static[b, b] += g
+            if a >= 0:
+                G_static[b, a] -= g
+    for e in range(v_k.size):
+        k = v_k[e]
+        a = v_a[e]
+        b = v_b[e]
+        if a >= 0:
+            G_static[a, k] += 1.0
+            G_static[k, a] += 1.0
+        if b >= 0:
+            G_static[b, k] -= 1.0
+            G_static[k, b] -= 1.0
+    for e in range(l_val.size):
+        k = l_k[e]
+        a = l_a[e]
+        b = l_b[e]
+        if a >= 0:
+            G_static[a, k] += 1.0
+            G_static[k, a] += 1.0
+        if b >= 0:
+            G_static[b, k] -= 1.0
+            G_static[k, b] -= 1.0
+
+
+@nb.njit(cache=True)
+def assemble(P, S, t, h, method, G, G_static, rhs, trial):
+    """Fill G from the static matrix plus the step-dependent contributions."""
     (r_a, r_b, r_g,
      c_a, c_b, c_idx, c_val,
      l_a, l_b, l_k, l_idx, l_val,
@@ -177,21 +281,10 @@ def assemble_solve(P, S, t, h, method, G, rhs, x, work, trial):
     n = G.shape[0]
     for i in range(n):
         rhs[i] = 0.0
-        for j in range(n):
-            G[i, j] = 0.0
 
-    for e in range(r_g.size):
-        g = r_g[e]
-        a = r_a[e]
-        b = r_b[e]
-        if a >= 0:
-            G[a, a] += g
-            if b >= 0:
-                G[a, b] -= g
-        if b >= 0:
-            G[b, b] += g
-            if a >= 0:
-                G[b, a] -= g
+    for i in range(n):
+        for j in range(n):
+            G[i, j] = G_static[i, j]
 
     for e in range(c_val.size):
         c = c_val[e]
@@ -220,29 +313,12 @@ def assemble_solve(P, S, t, h, method, G, rhs, x, work, trial):
         idx = l_idx[e]
         r_eq = 2.0 * l_val[e] / h if method == 1 else l_val[e] / h
         v_eq = -r_eq * il[idx] - (vl[idx] if method == 1 else 0.0)
-        a = l_a[e]
-        b = l_b[e]
-        if a >= 0:
-            G[a, k] += 1.0
-            G[k, a] += 1.0
-        if b >= 0:
-            G[b, k] -= 1.0
-            G[k, b] -= 1.0
         G[k, k] -= r_eq
         rhs[k] = v_eq
 
     for e in range(v_k.size):
         k = v_k[e]
-        value = source_value(v_kind[e], v_off[e], v_cnt[e], wt, wv, t)
-        a = v_a[e]
-        b = v_b[e]
-        if a >= 0:
-            G[a, k] += 1.0
-            G[k, a] += 1.0
-        if b >= 0:
-            G[b, k] -= 1.0
-            G[k, b] -= 1.0
-        rhs[k] = value
+        rhs[k] = source_value(v_kind[e], v_off[e], v_cnt[e], wt, wv, t)
     for e in range(i_kind.size):
         value = source_value(i_kind[e], i_off[e], i_cnt[e], wt, wv, t)
         a = i_a[e]
@@ -312,7 +388,29 @@ def assemble_solve(P, S, t, h, method, G, rhs, x, work, trial):
                         G[row, b] -= sign * (a1 + a2)
                     rhs[row] -= sign * a0
 
-    return _solve_dense(G, rhs, x, work)
+@nb.njit(cache=True)
+def solve_cached(G, rhs, x, lu, piv, G_prev, cached, tmp):
+    """Solve, reusing the factorisation while the matrix is unchanged.
+
+    Bitwise equality is the right test: the matrix is rebuilt from the same
+    inputs every step, so equal bits mean the factors are still valid.
+    """
+    n = G.shape[0]
+    same = cached[0] == 1
+    if same:
+        for i in range(n):
+            for j in range(n):
+                if G[i, j] != G_prev[i, j]:
+                    same = False
+    if not same:
+        if not lu_factor(G, lu, piv):
+            return 0
+        for i in range(n):
+            for j in range(n):
+                G_prev[i, j] = G[i, j]
+        cached[0] = 1
+    lu_solve(lu, piv, rhs, x, tmp)
+    return 1
 
 
 @nb.njit(cache=True)
@@ -498,6 +596,14 @@ class Plan:
     x: np.ndarray
     work: np.ndarray
     dev_i: np.ndarray
+    #: Static part of the matrix, and the factor cache that lets a step whose
+    #: matrix is unchanged skip the O(n^3) factorisation.
+    G_static: np.ndarray
+    G_prev: np.ndarray
+    lu: np.ndarray
+    piv: np.ndarray
+    cached: np.ndarray
+    tmp: np.ndarray
     node_names: tuple[str, ...]
     branch_stamps: tuple
     device_names: tuple[str, ...]
@@ -660,6 +766,8 @@ class Plan:
         )
         branch_stamps = tuple(
             s for s in system.structure.stamps if s.branch is not None)
+        static = np.zeros((size, size))
+        assemble_static(P, static)
         return cls(
             P=P, S=S,
             G=np.zeros((size, size)),
@@ -667,6 +775,12 @@ class Plan:
             x=np.zeros(size),
             work=np.zeros((size, size + 1)),
             dev_i=np.zeros(len(d_kind)),
+            G_static=static,
+            G_prev=np.full((size, size), np.nan),
+            lu=np.zeros((size, size)),
+            piv=np.zeros(size, dtype=np.int64),
+            cached=np.zeros(1, dtype=np.int64),
+            tmp=np.zeros(size),
             node_names=system.structure.node_index.names,
             branch_stamps=branch_stamps,
             device_names=tuple(d.name for d in system.devices),
@@ -683,12 +797,15 @@ class Plan:
         for target, saved in zip(self.S, snapshot):
             target[:] = saved
 
-    def advance(self, t: float, h: float, method: int) -> tuple[bool, np.ndarray]:
+    def advance(self, t: float, h: float,
+                method: int) -> tuple[bool, np.ndarray]:
         """Solve one step, iterating the region set.  Does not mutate history."""
         trial = self.S[4].copy()
         for _ in range(MAX_REGION_ITERATIONS):
-            if not assemble_solve(self.P, self.S, t, h, method, self.G,
-                                  self.rhs, self.x, self.work, trial):
+            assemble(self.P, self.S, t, h, method, self.G, self.G_static,
+                     self.rhs, trial)
+            if not solve_cached(self.G, self.rhs, self.x, self.lu, self.piv,
+                                self.G_prev, self.cached, self.tmp):
                 return False, trial
             if not read_regions(self.P, self.S, self.x, trial):
                 return True, trial

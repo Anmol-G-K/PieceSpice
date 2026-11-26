@@ -873,8 +873,15 @@ removal, prefetching — are all remedies for **cache misses and bandwidth** on 
 large working set. After the series merge this solver's entire working set is
 **~1.5 KB, 23 cache lines**, against L1's 512, and it is touched every step, so
 it is permanently hot. There is nothing to miss. What does transfer is
-algorithmic: fewer solves per step (divided-difference LTE turns three solves
-into one) and factor reuse while the matrix is bitwise unchanged.
+algorithmic, and all three are now implemented: **divided-difference LTE**
+(SPICE2) instead of step doubling turns three solves per accepted step into
+one; **factor reuse** while the matrix is bitwise unchanged skips the O(n^3)
+work on fixed steps; and **assembly reuse** keeps the time-invariant part of
+the matrix from being re-stamped each step.
+
+Together: **12.8-15.3× against LTspice at the deck's own step limit and
+29.9-97.3× with free error control**, with engine error 0.20-3.02 % and total
+0.45-4.60 %. The former IRFS speed regression (0.57×) is gone at 7.6×/29.9×.
 
 The remaining lever is documented in the literature rather than guessed:
 Gupta et al. (*STEAM*, *A-LA-CARTE*) reach <0.1 % with spline interpolation on

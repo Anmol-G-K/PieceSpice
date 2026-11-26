@@ -26,10 +26,12 @@ from engine.solver.fast import (
     MAX_REGION_ITERATIONS,
     Plan,
     _initial_state,
-    assemble_solve,
+    assemble,
+    assemble_static,
     commit,
     device_currents,
     read_regions,
+    solve_cached,
 )
 from engine.solver.result import Event, SolverResult
 
@@ -64,14 +66,45 @@ def _load_state(S, snap):
 
 
 @nb.njit(cache=True)
-def try_step(P, S, t, h, method, G, rhs, x, work, trial):
+def try_step(P, S, t, h, method, G, G_static, rhs, x, lu, piv, G_prev,
+             cached, tmp, trial):
     """One step with the region fixed point.  0 = singular, 1 = solved."""
     for _ in range(MAX_REGION_ITERATIONS):
-        if not assemble_solve(P, S, t, h, method, G, rhs, x, work, trial):
+        assemble(P, S, t, h, method, G, G_static, rhs, trial)
+        if not solve_cached(G, rhs, x, lu, piv, G_prev, cached, tmp):
             return 0
         if not read_regions(P, S, x, trial):
             return 1
     return 1
+
+
+#: TR local truncation error is (h^3/12) times the third derivative; the third
+#: divided difference over three intervals approximates it over 6, so the
+#: estimate is LTE ~ LFACTOR * h^3 * DD3.
+LTE_FACTOR = 0.5
+
+
+@nb.njit(cache=True)
+def dd3_error(x, hx, ht, tn, h, n, abstol, reltol):
+    """Largest normalised local truncation error from the last four solutions.
+
+    The SPICE2 control: a divided-difference estimate from history instead of a
+    second (or third) solve.  Step doubling cost two extra assembles and two
+    extra solves per accepted step; this costs a handful of subtractions.
+    """
+    worst = 0.0
+    for i in range(n):
+        d1a = (x[i] - hx[0, i]) / (tn - ht[0])
+        d1b = (hx[0, i] - hx[1, i]) / (ht[0] - ht[1])
+        d1c = (hx[1, i] - hx[2, i]) / (ht[1] - ht[2])
+        d2a = (d1a - d1b) / (tn - ht[1])
+        d2b = (d1b - d1c) / (ht[0] - ht[2])
+        d3 = (d2a - d2b) / (tn - ht[2])
+        scale = abstol + reltol * max(abs(x[i]), abs(hx[0, i]))
+        err = abs(LTE_FACTOR * h * h * h * d3) / scale
+        if err > worst:
+            worst = err
+    return worst
 
 
 @nb.njit(cache=True)
@@ -94,7 +127,8 @@ def switch_positions(P):
 @nb.njit(cache=True)
 def run_transient(P, S, t_end, h_init, h_max, h_min, adaptive, method_default,
                   reltol, abstol,
-                  G, rhs, x, work, trial, dev_i, snap, x_full,
+                  G, G_static, rhs, x, lu, piv, G_prev, cached, tmp,
+                  trial, dev_i, snap,
                   times, rows, devrows, ev_t, ev_dev, ev_from, ev_to):
     """Integrate inside one compiled call.
 
@@ -114,6 +148,9 @@ def run_transient(P, S, t_end, h_init, h_max, h_min, adaptive, method_default,
     k = 1
     t = 0.0
     h = h_init
+    hx = np.zeros((4, n))
+    ht = np.zeros(4)
+    n_hist = 0
     steps = 0
     n_events = 0
     status = 0
@@ -130,27 +167,8 @@ def run_transient(P, S, t_end, h_init, h_max, h_min, adaptive, method_default,
         _save_state(S, snap)
 
         if adaptive:
-            if try_step(P, S, t + hh, hh, method, G, rhs, x, work, trial) == 0:
-                _load_state(S, snap)
-                h = hh * 0.5
-                if h < h_min:
-                    status = 2
-                    break
-                continue
-            for i in range(n):
-                x_full[i] = x[i]
-            _load_state(S, snap)
-            if try_step(P, S, t + hh * 0.5, hh * 0.5, method, G, rhs, x,
-                        work, trial) == 0:
-                _load_state(S, snap)
-                h = hh * 0.5
-                if h < h_min:
-                    status = 2
-                    break
-                continue
-            commit(P, S, x, hh * 0.5, method, trial)
-            if try_step(P, S, t + hh, hh * 0.5, method, G, rhs, x,
-                        work, trial) == 0:
+            if try_step(P, S, t + hh, hh, method, G, G_static, rhs, x, lu,
+                        piv, G_prev, cached, tmp, trial) == 0:
                 _load_state(S, snap)
                 h = hh * 0.5
                 if h < h_min:
@@ -158,17 +176,16 @@ def run_transient(P, S, t_end, h_init, h_max, h_min, adaptive, method_default,
                     break
                 continue
             err = 0.0
-            for i in range(n):
-                scale = abstol + reltol * max(abs(x_full[i]), abs(x[i]))
-                rel = abs(x_full[i] - x[i]) / scale
-                err = max(err, rel)
+            if n_hist >= 3:
+                err = dd3_error(x, hx, ht, t + hh, hh, n, abstol, reltol)
             if err > 1.0 and hh > h_min:
                 _load_state(S, snap)
                 shrink = 0.8 * err ** (-1.0 / 3.0)
-                shrink = max(shrink, 0.25)
+                if shrink < 0.25:
+                    shrink = 0.25
                 h = hh * shrink
                 continue
-            device_currents(P, S, x, hh * 0.5, trial, dev_i)
+            device_currents(P, S, x, hh, trial, dev_i)
             if k >= capacity:
                 status = 1
                 break
@@ -178,25 +195,35 @@ def run_transient(P, S, t_end, h_init, h_max, h_min, adaptive, method_default,
                 devrows[k, e] = dev_i[e]
             times[k] = t + hh
             k += 1
-            commit(P, S, x, hh * 0.5, method, trial)
+            commit(P, S, x, hh, method, trial)
             steps += 1
             t += hh
+            for slot in range(3, 0, -1):
+                ht[slot] = ht[slot - 1]
+                for i in range(n):
+                    hx[slot, i] = hx[slot - 1, i]
+            ht[0] = t
+            for i in range(n):
+                hx[0, i] = x[i]
+            n_hist += 1
             if t_end - t <= hh * 1e-9:
                 t = t_end
-            # Grow only after acceptance: without this the step shrinks at the
-            # first switching edge and never recovers, so the whole plateau
-            # afterwards is integrated at edge resolution.
             if err > 1e-12:
                 grow = 0.9 * err ** (-1.0 / 3.0)
-                grow = min(grow, 2.0)
-                grow = max(grow, 1.0)
+                if grow > 2.0:
+                    grow = 2.0
+                if grow < 1.0:
+                    grow = 1.0
                 h = hh * grow
+            else:
+                h = hh * 2.0
             continue
 
         # --- fixed step, truncated at the first switch event -----------
         for j in range(switches.size):
             old_on[j] = S[4][switches[j]]
-        if try_step(P, S, t + hh, hh, method, G, rhs, x, work, trial) == 0:
+        if try_step(P, S, t + hh, hh, method, G, G_static, rhs, x, lu, piv,
+                    G_prev, cached, tmp, trial) == 0:
             _load_state(S, snap)
             h = hh * 0.5
             if h < h_min:
@@ -218,8 +245,8 @@ def run_transient(P, S, t_end, h_init, h_max, h_min, adaptive, method_default,
             for _ in range(24):
                 mid = 0.5 * (lo + hi)
                 _load_state(S, snap)
-                if try_step(P, S, t + mid, mid, method, G, rhs, x,
-                            work, trial) == 0:
+                if try_step(P, S, t + mid, mid, method, G, G_static, rhs, x,
+                            lu, piv, G_prev, cached, tmp, trial) == 0:
                     break
                 if trial[e] != old_on[j]:
                     hi = mid
@@ -230,8 +257,8 @@ def run_transient(P, S, t_end, h_init, h_max, h_min, adaptive, method_default,
                 crossed = e
         if crossed >= 0 and earliest > hh * 1e-9:
             _load_state(S, snap)
-            if try_step(P, S, t + earliest, earliest, method, G, rhs, x,
-                        work, trial) == 0:
+            if try_step(P, S, t + earliest, earliest, method, G, G_static,
+                        rhs, x, lu, piv, G_prev, cached, tmp, trial) == 0:
                 _load_state(S, snap)
                 h = hh * 0.5
                 continue
@@ -256,7 +283,8 @@ def run_transient(P, S, t_end, h_init, h_max, h_min, adaptive, method_default,
             t += earliest
             continue
         _load_state(S, snap)
-        if try_step(P, S, t + hh, hh, method, G, rhs, x, work, trial) == 0:
+        if try_step(P, S, t + hh, hh, method, G, G_static, rhs, x, lu, piv,
+                    G_prev, cached, tmp, trial) == 0:
             _load_state(S, snap)
             h = hh * 0.5
             continue
@@ -332,8 +360,10 @@ def solve_transient_fast(circuit: Circuit, *, end_time: float | None = None,
     samples, n_events, status = run_transient(
         plan.P, plan.S, t_end, h, ceiling, h_min, adaptive,
         0 if method == "be" else 1, reltol, abstol,
-        plan.G, plan.rhs, plan.x, plan.work, plan.S[4].copy(), plan.dev_i,
-        snap, np.zeros(n), times, rows, devrows, ev_t, ev_dev, ev_from, ev_to)
+        plan.G, plan.G_static, plan.rhs, plan.x, plan.lu, plan.piv,
+        plan.G_prev, plan.cached, plan.tmp,
+        plan.S[4].copy(), plan.dev_i, snap,
+        times, rows, devrows, ev_t, ev_dev, ev_from, ev_to)
     elapsed = _time.perf_counter() - started
 
     samples = int(samples)
