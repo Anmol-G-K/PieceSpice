@@ -367,12 +367,14 @@ measurement rather than argument: it is **flat against step size**, **flat
 against grid resolution** (and worse with more nodes), and **flat against the
 integration method** — LTspice's default *modified trap* is plain trap plus an
 output post-processing, and re-running the reference with `.options method=trap`
-changed the numbers in the fourth decimal place on all four devices. What is
-left is the **piecewise-linear contract**: the emitted model is a smooth
-tanh/rational surface, the solver reproduces it with planes, and the error sits
-where the trajectory crosses triangle boundaries. The table-model literature
-reaches <0.1 % only by leaving that contract for spline interpolation on
-Chebyshev samples (Gupta et al., *STEAM* / *A-LA-CARTE*).
+changed the numbers in the fourth decimal place on all four devices. A fourth test narrowed it further rather than closing it: replacing each
+triangle's chord plane with a **tangent-matched plane** (the fit's own `gm`/`gds`
+at the three corners) moved every device by less than 0.04 pp. So the residual
+is *not* the chord slope — the obvious half of the "piecewise-linear contract"
+explanation. What survives is the plane's value placement inside the cell, or a
+term outside the channel. The literature's <0.1 % (Gupta et al., *STEAM* /
+*A-LA-CARTE*) needs spline interpolation, which would abandon the one-plane-per-
+region property the engine is built on — a contract change, not an optimisation.
 
 ```bash
 uv run python -m cli.main solver epc2216            # print the G7 gate
