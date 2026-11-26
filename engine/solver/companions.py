@@ -163,7 +163,10 @@ class LinearSystem:
 def _device_for(stamp: mna.Stamp, circuit: Circuit,
                 temperature_c: float) -> PwlDevice:
     element = stamp.element
-    if element.kind is ElementKind.DIODE and isinstance(element.data, PwlTable):
+    # A declared `.model` wins over a sampled table: the emitter's Shockley
+    # parameters are the model, and the table is only the fallback when a deck
+    # carries a tabulated diode instead.
+    if element.kind is ElementKind.DIODE and element.model is None             and isinstance(element.data, PwlTable):
         return DiodeDevice(element.name, stamp.nodes, element.data)
     if element.kind is ElementKind.DIODE:
         model = circuit.models[element.model or ""]

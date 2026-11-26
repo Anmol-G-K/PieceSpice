@@ -115,6 +115,7 @@ def dpt(rom: SolverRom, conditions: DptConditions | None = None, *,
         ref: str = "dut") -> Circuit:
     """The clamped-inductive double pulse with *rom* as the device under test."""
     cond = conditions or DptConditions()
+    rom_circuit = rom.to_circuit()
     device = instantiate(rom, ref, {"d": "drain", "g": "gate", "s": "0"})
     elements = (
         Element(name="Vbus", kind=ElementKind.VSOURCE, nodes=("vbus", "0"),
@@ -132,13 +133,15 @@ def dpt(rom: SolverRom, conditions: DptConditions | None = None, *,
     directive = AnalysisDirective(kind="tran", raw=".tran (bench)",
                                   end_time=cond.t_end, start_time=0.0,
                                   max_step=cond.max_step)
+    models = dict(rom_circuit.models)
+    models["DCLAMP"] = DeviceModel(
+        name="DCLAMP", family="D",
+        params={"IS": str(cond.clamp_isat), "N": str(cond.clamp_n),
+                "RS": str(cond.clamp_rs)})
     return Circuit(
         title=f"DPT {rom.device}",
         elements=elements,
-        models={"DCLAMP": DeviceModel(
-            name="DCLAMP", family="D",
-            params={"IS": str(cond.clamp_isat), "N": str(cond.clamp_n),
-                    "RS": str(cond.clamp_rs)})},
+        models=models,
         node_index=NodeIndex.build(nodes),
         directives=(directive,),
         temperature_c=cond.temperature_c,

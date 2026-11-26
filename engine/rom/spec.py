@@ -38,6 +38,7 @@ from typing import Any
 from engine.ir.circuit import (
     AnalysisDirective,
     Circuit,
+    DeviceModel,
     Element,
     ElementKind,
     NodeIndex,
@@ -101,6 +102,11 @@ class SolverRom:
     qrss_nodes: tuple[str, str] = ("gi", "di")
     #: Gate-source bleeder resistance, emitted by the Tier-4 ANN as `RGS`.
     r_gs: float | None = None
+    #: Parametric body diode ``(IS, N, RS)`` as the emitter declares it.  The
+    #: emitted `.MODEL` is a Shockley fit of Curve 6, not the sampled curve, and
+    #: the two conduct differently through the clamp -- which is where a turn-off
+    #: spends its energy.
+    body_diode_params: tuple[float, float, float] | None = None
 
     # -- construction ------------------------------------------------------
 
@@ -232,6 +238,10 @@ class SolverRom:
         """
         import json
 
+        if spec is None:
+            from pipeline.fitting import build_pwl_spec
+
+            spec = build_pwl_spec(vendor)
         base = cls.from_ann_fit(vendor, spec=spec, **kwargs)
         factors = dict(calibration or {})
         if not factors:
@@ -258,13 +268,21 @@ class SolverRom:
         if not cinf:
             raise ValueError(f"{vendor}: the ANN charge fit carries no C-inf spec")
 
+        # Body diode: the emitter declares a Shockley `.MODEL`, so the solver
+        # must take the fitted parameters, not the sampled Curve-6 points.
+        from models.netlist_builder import fit_body_diode
+
+        diode = fit_body_diode(spec.body_diode_vsd, spec.body_diode_isd,
+                               rds_on=spec.rds_on)
+
         k_cds = float(factors.get("k_cds", 1.0))
         k_cdg = float(factors.get("k_cdg", 1.0))
         k_cgs = float(factors.get("k_cgs", 1.0))
         vds_top = max(base.channel.vds[-1], 1e-9)
         qoss = _cinf_charge(cinf["cds"], vds_top, k_cds, "Qoss")
         # Gate-drain charge is a function of V(di,gi), evaluated on the same span.
-        qrss = _cinf_charge(cinf["cdg"], vds_top, k_cdg, "Qrss")
+        qrss = _cinf_charge(cinf["cdg"], vds_top, k_cdg, "Qrss",
+                            excess=float(cinf.get("cdg_neg_excess_f") or 0.0))
 
         return cls(
             device=base.device,
@@ -286,6 +304,8 @@ class SolverRom:
             qrss=qrss,
             qrss_nodes=("di", "gi"),
             r_gs=1e7,
+            body_diode_params=(float(diode.isat), float(diode.n),
+                               float(diode.rs)),
         )
 
     # -- the circuit -------------------------------------------------------
@@ -309,7 +329,9 @@ class SolverRom:
             Element(name=f"C_QOSS_{name}", kind=ElementKind.PWL_CAP,
                     nodes=("di", "ss"), data=self.qoss),
             Element(name=f"D_BODY_{name}", kind=ElementKind.DIODE,
-                    nodes=("ss", "di"), data=self.body_diode),
+                    nodes=("ss", "di"), data=self.body_diode,
+                    model=(None if self.body_diode_params is None
+                           else f"D_BD_{name}")),
         )
         extra = []
         if self.qiss is not None:
@@ -332,13 +354,20 @@ class SolverRom:
             extra.append(Element(name="RGS", kind=ElementKind.RESISTOR,
                                  nodes=("gi", "ss"), value=self.r_gs))
         all_elements = elements + tuple(extra)
+        models: dict[str, DeviceModel] = {}
+        if self.body_diode_params is not None:
+            isat, n, rs = self.body_diode_params
+            models[f"D_BD_{name}"] = DeviceModel(
+                name=f"D_BD_{name}", family="D",
+                params={"IS": repr(float(isat)), "N": repr(float(n)),
+                        "RS": repr(float(rs))})
         nodes: list[str] = []
         for element in all_elements:
             nodes.extend(element.nodes)
         return Circuit(
             title=title or f"ROM {name}",
             elements=all_elements,
-            models={},
+            models=models,
             node_index=NodeIndex.build(nodes),
             directives=(),
         )
@@ -467,10 +496,21 @@ def _cinf_charge_at(cap_spec: Any, v: float) -> float:
 
 
 def _cinf_charge(cap_spec: Any, v_max: float, scale: float,
-                 label: str, points: int = CHARGE_RESAMPLE_POINTS) -> ChargeTable:
-    """Tabulate the emitted Q(v) curve itself."""
+                 label: str, points: int = CHARGE_RESAMPLE_POINTS,
+                 excess: float = 0.0) -> ChargeTable:
+    """Tabulate the emitted Q(v) curve itself.
+
+    ``excess`` is the emitter's gate-drain accumulation term for ``Vgs > Vds``
+    (``0.5*C*(v - sqrt(v^2+1e-2) + 1e-1)``).  It is zero for devices whose Cgd
+    does not rise below zero Vdg and several nanofarads for those where it
+    does, so omitting it is a *device-dependent* error, not a small one.
+    """
     grid = np.linspace(0.0, v_max, points)
-    charge = np.array([_cinf_charge_at(cap_spec, float(v)) for v in grid]) * scale
+    charge = np.array([_cinf_charge_at(cap_spec, float(v)) for v in grid])
+    if excess:
+        charge = charge + 0.5 * excess * (
+            grid - np.sqrt(grid * grid + 1.0e-2) + 1.0e-1)
+    charge = charge * scale
     charge = np.maximum.accumulate(np.maximum(charge, 0.0))
     charge -= charge[0]
     return ChargeTable(PwlTable(tuple(grid.tolist()), tuple(charge.tolist())))

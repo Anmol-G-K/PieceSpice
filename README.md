@@ -855,9 +855,22 @@ was a 3x gate-resistance error and a sign-flipped gate-drain charge, and it cost
 several percent before it was found by diffing the library element by element.
 
 With that, total error against the vendor golden is **0.44 / 0.32 % (EPC2216)**,
-2.48 / 3.72 % (CPM2), 4.25 / 4.60 % (TI) and 5.30 / 4.99 % (IRFS). EPC is
-comfortably inside the 1-2 % bar; TI's remaining error is its own model term
-(4.16 %) rather than the engine (1.15 %); IRFS is the one open case.
+2.03 / 3.21 % (CPM2), 4.25 / 4.60 % (TI) and 2.28 / 3.24 % (IRFS). EPC is
+comfortably inside the 1-2 % bar. TI's remaining error is its own model term
+(4.16 %), not the engine (1.14 %) — improving it means re-fitting that model,
+not changing the solver.
+
+One more emitted term mattered, and it is device-dependent: a gate-drain
+accumulation charge for `Vgs > Vds` whose coefficient is zero for TI and EPC
+and several nanofarads for IRFS and CPM2. Omitting it was a 0.9 pp engine error
+on exactly the two devices that carry it.
+
+The remaining lever is documented in the literature rather than guessed:
+Gupta et al. (*STEAM*, *A-LA-CARTE*) reach <0.1 % with spline interpolation on
+Chebyshev samples; Burenkov et al. (*Table models in SPICE3*) and Elber
+(*Error-bounded PWL approximation*) both place grid nodes by **local
+curvature**, not uniformly. Our failed grid sweeps refined everywhere, which is
+why they bought nothing — the next step is error-driven node placement.
 
 **The solver ROM is currently a hybrid, and that shows up in the edges.** The
 channel comes from the ANN; the charge tables and gate capacitances still come
