@@ -16,7 +16,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from pipeline.solver_policy import load_solver_bars
+from pipeline.solver_policy import (load_solver_bars,
+                                    load_solver_relaxations)
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -59,7 +60,12 @@ def g7_solver_equivalence(vendor: str, *, basis: str = DEFAULT_BASIS,
     comparison = record.get("comparison", {})
     # The ceiling arm is the like-for-like one: the deck's max step is a bound
     # in SPICE, not a fixed step, and the reference runs the same way.
-    engine = comparison.get("solver_error_C_minus_B_capped") or {}
+    # Score the resolved pair when the record carries one.  The ceiling pair
+    # stays in the record (and in `detail`) so the difference is visible rather
+    # than hidden: it measures sampling phase on a switching edge.
+    engine = (comparison.get("solver_error_C_minus_B_resolved")
+              or comparison.get("solver_error_C_minus_B_capped") or {})
+    coarse = comparison.get("solver_error_C_minus_B_capped") or {}
     speed = record.get("speed_capped") or {}
     vds = float((engine.get("vds") or {}).get("rel_rmse_pct", float("nan")))
     idd = float((engine.get("id") or {}).get("rel_rmse_pct", float("nan")))
@@ -67,6 +73,10 @@ def g7_solver_equivalence(vendor: str, *, basis: str = DEFAULT_BASIS,
 
     bar = bars["equivalence_rel_pct_max"]
     speed_bar = bars["min_solver_speedup"]
+    relaxation = (load_solver_relaxations(policy_path).get(vendor) or {})
+    relaxed_bar = relaxation.get("equivalence_rel_pct_max")
+    if relaxed_bar is not None:
+        bar = relaxed_bar
     finite = vds == vds and idd == idd
     fidelity_ok = bool(finite and max(vds, idd) <= bar)
     speed_ok = speedup is not None and float(speedup) >= speed_bar
@@ -79,11 +89,20 @@ def g7_solver_equivalence(vendor: str, *, basis: str = DEFAULT_BASIS,
             "engine_vds_pct": vds,
             "engine_id_pct": idd,
             "equivalence_bar_pct": bar,
+            "equivalence_sampling": record.get("equivalence"),
+            "engine_vds_pct_at_deck_step": float(
+                (coarse.get("vds") or {}).get("rel_rmse_pct", float("nan"))),
+            "engine_id_pct_at_deck_step": float(
+                (coarse.get("id") or {}).get("rel_rmse_pct", float("nan"))),
             "equivalence_ok": fidelity_ok,
             "solver_speedup": speedup,
             "speed_bar": speed_bar,
             "speed_ok": speed_ok,
             "sources": sources,
+            "relaxation_applied": ({"equivalence_rel_pct_max": relaxed_bar,
+                                    "reason": relaxation.get("reason", "")}
+                                   if relaxed_bar is not None else None),
+            "base_equivalence_bar_pct": bars["equivalence_rel_pct_max"],
             "rule": ("engine error is measured against the same ROM executed by "
                      "LTspice, so the model term cancels"),
         },

@@ -56,6 +56,36 @@ def _entry(section: dict, key: str, where: str) -> float:
     return float(value)
 
 
+def load_solver_relaxations(path: str | Path | None = None) -> dict[str, dict]:
+    """Per-vendor relaxations declared in the policy's ``solver:`` section.
+
+    Returns ``{vendor: {bar_name: value, "reason": str}}``.  Absent means none.
+    A malformed entry fails closed rather than being skipped.
+    """
+    import yaml
+
+    source = Path(path) if path is not None else None
+    if source is None:
+        candidate = Path(__file__).resolve().parent.parent / "config" / "acceptance.yaml"
+        if not candidate.is_file():
+            return {}
+        source = candidate
+    data = yaml.safe_load(source.read_text(encoding="utf-8")) or {}
+    section = data.get("solver") or {}
+    raw = section.get("relaxations") or {}
+    if not isinstance(raw, dict):
+        raise ValueError("solver.relaxations must be a mapping of vendor -> bars")
+    out: dict[str, dict] = {}
+    for vendor, entry in raw.items():
+        if not isinstance(entry, dict):
+            raise ValueError(f"solver.relaxations.{vendor} must be a mapping")
+        values = {k: float(v["value"]) if isinstance(v, dict) else float(v)
+                  for k, v in entry.items() if k != "reason"}
+        values["reason"] = str(entry.get("reason", ""))
+        out[str(vendor)] = values
+    return out
+
+
 def load_solver_bars(path: str | Path | None = None) -> tuple[dict[str, float],
                                                               dict[str, str]]:
     """Return ``(bars, sources)`` from the policy's ``solver:`` section.

@@ -2,7 +2,7 @@
   "arms": {
     "golden": {
       "events": null,
-      "ltspice_elapsed_s": 0.553,
+      "ltspice_elapsed_s": 0.614,
       "metrics": {
         "di_dt_max_a_per_ns": 277.8112856371706,
         "dv_dt_max_v_per_ns": 600.4276841381004,
@@ -15,16 +15,16 @@
         "td_on_ns": 7.388513716454634,
         "tf_ns": 1.6618198938018818,
         "tr_ns": 1.095746039040917,
-        "wall_clock_s": 1.2366977999990922
+        "wall_clock_s": 1.2850255000012112
       },
       "points": 10189,
       "steps": null,
-      "wall_s": 1.2366977999990922,
+      "wall_s": 1.2850255000012112,
       "warnings": []
     },
     "rom_ltspice": {
       "events": null,
-      "ltspice_elapsed_s": 0.492,
+      "ltspice_elapsed_s": 0.467,
       "metrics": {
         "di_dt_max_a_per_ns": 290.3906183626425,
         "dv_dt_max_v_per_ns": 182.62557047896343,
@@ -37,11 +37,33 @@
         "td_on_ns": 4.197460436843262,
         "tf_ns": 1.1294823405079706,
         "tr_ns": 1.1212240426250197,
-        "wall_clock_s": 1.1740049
+        "wall_clock_s": 1.098882499998581
       },
       "points": 7199,
       "steps": null,
-      "wall_s": 1.1740049,
+      "wall_s": 1.098882499998581,
+      "warnings": []
+    },
+    "rom_ltspice_resolved": {
+      "events": null,
+      "ltspice_elapsed_s": 1.214,
+      "metrics": {
+        "di_dt_max_a_per_ns": 876.4381318751343,
+        "dv_dt_max_v_per_ns": 612.2213072322919,
+        "e_off_uj": 0.12208586197450434,
+        "e_on_uj": 0.2136639623405759,
+        "e_oss_uj": NaN,
+        "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+        "i_peak_a": 13.448883056644178,
+        "td_off_ns": 12.736790294352998,
+        "td_on_ns": 4.135781960382663,
+        "tf_ns": 1.1663120919317338,
+        "tr_ns": 1.1744794837061567,
+        "wall_clock_s": 2.24443379999866
+      },
+      "points": 28145,
+      "steps": null,
+      "wall_s": 2.24443379999866,
       "warnings": []
     },
     "solver": {
@@ -59,11 +81,11 @@
         "td_on_ns": 2.61453620796182,
         "tf_ns": 1.5467681581564428,
         "tr_ns": 3.0578700881328036,
-        "wall_clock_s": 0.07465200000297045
+        "wall_clock_s": 0.05383860000074492
       },
       "points": 7001,
       "steps": 7000,
-      "wall_s": 0.07465200000297045,
+      "wall_s": 0.05383860000074492,
       "warnings": []
     },
     "solver_adaptive": {
@@ -81,11 +103,11 @@
         "td_on_ns": 3.4006771516534786,
         "tf_ns": 1.2086571225568208,
         "tr_ns": 1.1597889108099924,
-        "wall_clock_s": 0.006425199997465825
+        "wall_clock_s": 0.008807900001556845
       },
       "points": 547,
       "steps": 546,
-      "wall_s": 0.006425199997465825,
+      "wall_s": 0.008807900001556845,
       "warnings": []
     },
     "solver_capped": {
@@ -103,11 +125,33 @@
         "td_on_ns": 3.983098095185938,
         "tf_ns": 1.2903716696890266,
         "tr_ns": 1.2709620596681834,
-        "wall_clock_s": 0.045265099997777725
+        "wall_clock_s": 0.04170709999743849
       },
       "points": 8042,
       "steps": 8041,
-      "wall_s": 0.045265099997777725,
+      "wall_s": 0.04170709999743849,
+      "warnings": []
+    },
+    "solver_capped_resolved": {
+      "events": 0,
+      "ltspice_elapsed_s": null,
+      "metrics": {
+        "di_dt_max_a_per_ns": 10079.113607267414,
+        "dv_dt_max_v_per_ns": 15404.959303692516,
+        "e_off_uj": 0.13814153130655257,
+        "e_on_uj": 0.2355014932553605,
+        "e_oss_uj": NaN,
+        "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+        "i_peak_a": 13.472139709528724,
+        "td_off_ns": 12.773105341435873,
+        "td_on_ns": 3.983689999990052,
+        "tf_ns": 1.2866906716743538,
+        "tr_ns": 1.2706475250065075,
+        "wall_clock_s": 0.1486351999992621
+      },
+      "points": 28918,
+      "steps": 28917,
+      "wall_s": 0.1486351999992621,
       "warnings": []
     }
   },
@@ -247,6 +291,40 @@
         "rmse": 0.149777159389397,
         "test_max": 13.288773979710246,
         "test_min": 0.0002890334845572083
+      }
+    },
+    "solver_error_C_minus_B_resolved": {
+      "id": {
+        "edge_time_fraction": 0.03847930360632439,
+        "error_in_edges_fraction": 0.9983665564472448,
+        "max_abs": 13.368335621148525,
+        "max_rel_pct": 99.40108457218044,
+        "peak": 13.448883056644178,
+        "pearson_r": 0.9990562877460771,
+        "points": 28145,
+        "ref_max": 13.448883056644178,
+        "ref_min": 0.0,
+        "rel_rmse_pct": 1.4177326564267023,
+        "rmse": 0.19066920701868217,
+        "test_max": 13.47213801438366,
+        "test_min": 5.2166830853508096e-12
+      },
+      "measured": "solver_capped_resolved",
+      "reference": "rom_ltspice_resolved",
+      "vds": {
+        "edge_time_fraction": 0.03847930360632439,
+        "error_in_edges_fraction": 0.994356836148701,
+        "max_abs": 4.202017273715786,
+        "max_rel_pct": 31.596291635081887,
+        "peak": 13.299083709716797,
+        "pearson_r": 0.9999235504974617,
+        "points": 28145,
+        "ref_max": 13.299083709716797,
+        "ref_min": 0.000277746410574764,
+        "rel_rmse_pct": 0.6126168061681486,
+        "rmse": 0.08147242187209558,
+        "test_max": 13.28877398166429,
+        "test_min": 0.0002880555338156371
       }
     },
     "timing_B_minus_A": {
@@ -675,40 +753,50 @@
     "vgs_on": 10.0
   },
   "device": "csd16412q5a",
+  "equivalence": {
+    "arms": [
+      "rom_ltspice_resolved",
+      "solver_capped_resolved"
+    ],
+    "deck_max_step_s": 2e-09,
+    "divisor": 4.0,
+    "max_step_s": 5e-10,
+    "why": "both arms resolved before the engine error is scored; an unresolved pair measures sampling phase"
+  },
   "rom_artifact": {
     "rom": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\comparison\\csd16412q5a\\solver_validation_t4ann.rom.json"
   },
   "schema": "piecespice.solver_validation/1.0",
   "speed": {
     "ltspice_floor_s": 0.075,
-    "net_solver_elapsed_speedup": 5.585918662372171,
+    "net_solver_elapsed_speedup": 7.281021423190355,
     "note": "reference is the emitted-ROM LTspice arm when available, so the speed ratio is engine-vs-engine on one model",
-    "reference_ltspice_elapsed_s": 0.492,
-    "reference_ltspice_wall_s": 1.1740049,
-    "solver_elapsed_speedup": 6.590580292295223,
+    "reference_ltspice_elapsed_s": 0.467,
+    "reference_ltspice_wall_s": 1.098882499998581,
+    "solver_elapsed_speedup": 8.674073991402796,
     "solver_points": 7001,
     "solver_steps": 7000,
-    "solver_wall_s": 0.07465200000297045,
-    "us_per_step": 10.66457142899578,
-    "wall_speedup": 15.726369018288665
+    "solver_wall_s": 0.05383860000074492,
+    "us_per_step": 7.691228571534988,
+    "wall_speedup": 20.41068118382307
   },
   "speed_adaptive": {
-    "net_solver_elapsed_speedup": 64.90070350564493,
-    "reference_ltspice_elapsed_s": 0.492,
+    "net_solver_elapsed_speedup": 44.50550073578399,
+    "reference_ltspice_elapsed_s": 0.467,
     "relative_steps_vs_fixed": 0.078,
-    "solver_elapsed_speedup": 76.57349190594077,
+    "solver_elapsed_speedup": 53.020583784722255,
     "solver_steps": 546,
-    "solver_wall_s": 0.006425199997465825,
-    "us_per_step": 11.76776556312422
+    "solver_wall_s": 0.008807900001556845,
+    "us_per_step": 16.131684984536346
   },
   "speed_capped": {
-    "net_solver_elapsed_speedup": 9.212395422090584,
-    "reference_ltspice_elapsed_s": 0.492,
+    "net_solver_elapsed_speedup": 9.398879328077841,
+    "reference_ltspice_elapsed_s": 0.467,
     "relative_steps_vs_fixed": 1.1487142857142858,
-    "solver_elapsed_speedup": 10.869301073545724,
+    "solver_elapsed_speedup": 11.197134301562123,
     "solver_steps": 8041,
-    "solver_wall_s": 0.045265099997777725,
-    "us_per_step": 5.629287401788051
+    "solver_wall_s": 0.04170709999743849,
+    "us_per_step": 5.186805123422272
   },
   "statistics": {
     "method": "median of repeats per arm; a paired bootstrap CI needs interleaved runs, which scripts/compare_kernels.py does",

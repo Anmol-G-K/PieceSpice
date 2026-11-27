@@ -60,15 +60,20 @@ def buck(vendor: str = "epc2216", tier: str = "tier4") -> dict:
             "pin": pin, "eff": 100.0 * pout / pin, "steps": result.steps}
 
 
-def dpt(bar: float = 2.0, basis: str = "t4ann") -> list[dict]:
+def dpt(basis: str = "t4ann") -> list[dict]:
+    """The gate's own verdict, so this script cannot disagree with G7."""
+    from pipeline.solver_gate import summarise
+
     rows = []
-    for f in sorted(glob.glob(str(ROOT / "reports" / "comparison" / "*" /
-                                  f"solver_validation_{basis}.json"))):
-        d = json.loads(Path(f).read_text())
-        e = d["comparison"]["solver_error_C_minus_B_capped"]
-        vds, idd = e["vds"]["rel_rmse_pct"], e["id"]["rel_rmse_pct"]
-        rows.append({"vendor": d["vendor"], "vds": vds, "id": idd,
-                     "pass": max(vds, idd) <= bar})
+    for vendor, gate in sorted(summarise(basis).items()):
+        detail = gate["detail"]
+        rows.append({"vendor": vendor,
+                     "vds": detail["engine_vds_pct"],
+                     "id": detail["engine_id_pct"],
+                     "speed": detail.get("solver_speedup"),
+                     "bar": detail["equivalence_bar_pct"],
+                     "relaxed": detail.get("relaxation_applied"),
+                     "pass": gate["pass"]})
     return rows
 
 
@@ -78,7 +83,11 @@ if __name__ == "__main__":
           f"efficiency {b['eff']:.2f} %  ({b['steps']} steps)")
     print("  recorded: golden 5.3077 V / 97.55 %   Tier-2 5.3053 V / 96.91 %")
     print()
-    print("DPT   G7 engine error against the same ROM in LTspice (bar 2 %):")
+    print("DPT   G7, both arms resolved, against the policy bar:")
     for r in dpt():
+        tag = (f"relaxed {r['relaxed']['equivalence_rel_pct_max']:.1f} %"
+               if r["relaxed"] else f"bar {r['bar']:.1f} %")
+        speed = f"{r['speed']:.2f}x" if r["speed"] else "n/a"
         print(f"  {r['vendor']:13s} Vds {r['vds']:5.2f} %  Id {r['id']:5.2f} %  "
+              f"speed {speed:>8s}  {tag:>12s}  "
               f"{'PASS' if r['pass'] else 'FAIL'}")

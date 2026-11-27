@@ -2,7 +2,7 @@
   "arms": {
     "golden": {
       "events": null,
-      "ltspice_elapsed_s": 0.478,
+      "ltspice_elapsed_s": 0.49,
       "metrics": {
         "di_dt_max_a_per_ns": 2787.3551863569787,
         "dv_dt_max_v_per_ns": 3556.2034081685165,
@@ -15,11 +15,11 @@
         "td_on_ns": 8.279633410423578,
         "tf_ns": 1.2274909896712498,
         "tr_ns": 0.8455906106561757,
-        "wall_clock_s": 1.10767350000242
+        "wall_clock_s": 1.1565276000001177
       },
       "points": 7418,
       "steps": null,
-      "wall_s": 1.10767350000242,
+      "wall_s": 1.1565276000001177,
       "warnings": []
     },
     "rom_ltspice": {
@@ -37,11 +37,33 @@
         "td_on_ns": 8.38279446943058,
         "tf_ns": 1.1522930790965058,
         "tr_ns": 0.8442732661818393,
-        "wall_clock_s": 1.0711804999991728
+        "wall_clock_s": 1.0743450999980269
       },
       "points": 7194,
       "steps": null,
-      "wall_s": 1.0711804999991728,
+      "wall_s": 1.0743450999980269,
+      "warnings": []
+    },
+    "rom_ltspice_resolved": {
+      "events": null,
+      "ltspice_elapsed_s": 1.292,
+      "metrics": {
+        "di_dt_max_a_per_ns": 1948.0864436122267,
+        "dv_dt_max_v_per_ns": 2799.7681178503963,
+        "e_off_uj": 0.23231295347882697,
+        "e_on_uj": 0.4025157950046254,
+        "e_oss_uj": NaN,
+        "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+        "i_peak_a": 13.233710289003241,
+        "td_off_ns": 7.0215891824631385,
+        "td_on_ns": 8.336593208077518,
+        "tf_ns": 1.1378889855339356,
+        "tr_ns": 0.8866044653475856,
+        "wall_clock_s": 2.2841272999976354
+      },
+      "points": 28154,
+      "steps": null,
+      "wall_s": 2.2841272999976354,
       "warnings": []
     },
     "solver": {
@@ -59,11 +81,11 @@
         "td_on_ns": 8.31141404116463,
         "tf_ns": 1.5775606413166308,
         "tr_ns": 1.5629258905249042,
-        "wall_clock_s": 0.05205989999740268
+        "wall_clock_s": 0.049878400001034606
       },
       "points": 7001,
       "steps": 7000,
-      "wall_s": 0.05205989999740268,
+      "wall_s": 0.049878400001034606,
       "warnings": []
     },
     "solver_adaptive": {
@@ -81,11 +103,11 @@
         "td_on_ns": 8.396796415564971,
         "tf_ns": 1.0879940522917322,
         "tr_ns": 0.7928637097739103,
-        "wall_clock_s": 0.010672799999156268
+        "wall_clock_s": 0.010143199997401098
       },
       "points": 1098,
       "steps": 1097,
-      "wall_s": 0.010672799999156268,
+      "wall_s": 0.010143199997401098,
       "warnings": []
     },
     "solver_capped": {
@@ -103,11 +125,33 @@
         "td_on_ns": 8.389327599283995,
         "tf_ns": 1.0958588561197973,
         "tr_ns": 0.7999279790416627,
-        "wall_clock_s": 0.04148239999994985
+        "wall_clock_s": 0.04570460000104504
       },
       "points": 7958,
       "steps": 7957,
-      "wall_s": 0.04148239999994985,
+      "wall_s": 0.04570460000104504,
+      "warnings": []
+    },
+    "solver_capped_resolved": {
+      "events": 0,
+      "ltspice_elapsed_s": null,
+      "metrics": {
+        "di_dt_max_a_per_ns": 3247.764307910841,
+        "dv_dt_max_v_per_ns": 6027.71650594616,
+        "e_off_uj": 0.23558114949944686,
+        "e_on_uj": 0.4074788943689254,
+        "e_oss_uj": NaN,
+        "energy_current_definition": "I(Lload)-I(Dclamp) signed",
+        "i_peak_a": 13.258020364741373,
+        "td_off_ns": 7.044173135599955,
+        "td_on_ns": 8.389944017629873,
+        "tf_ns": 1.095010673035632,
+        "tr_ns": 0.8027450684531384,
+        "wall_clock_s": 0.1978361000001314
+      },
+      "points": 28888,
+      "steps": 28887,
+      "wall_s": 0.1978361000001314,
       "warnings": []
     }
   },
@@ -247,6 +291,40 @@
         "rmse": 0.04563943769002652,
         "test_max": 11.788258978727194,
         "test_min": 0.000483117293374331
+      }
+    },
+    "solver_error_C_minus_B_resolved": {
+      "id": {
+        "edge_time_fraction": 0.038822192228457765,
+        "error_in_edges_fraction": 0.9314667208926212,
+        "max_abs": 2.050162658379512,
+        "max_rel_pct": 15.491971741916755,
+        "peak": 13.233710289003241,
+        "pearson_r": 0.999974054875448,
+        "points": 28154,
+        "ref_max": 13.233710289003241,
+        "ref_min": 0.0,
+        "rel_rmse_pct": 0.24180053246685737,
+        "rmse": 0.03199918194393113,
+        "test_max": 13.258018821789651,
+        "test_min": 9.51478632647972e-10
+      },
+      "measured": "solver_capped_resolved",
+      "reference": "rom_ltspice_resolved",
+      "vds": {
+        "edge_time_fraction": 0.038822192228457765,
+        "error_in_edges_fraction": 0.8745273305101344,
+        "max_abs": 1.304160033741217,
+        "max_rel_pct": 11.054628275551005,
+        "peak": 11.797411918640137,
+        "pearson_r": 0.9999960601710972,
+        "points": 28154,
+        "ref_max": 11.797411918640137,
+        "ref_min": 0.0004581366665661335,
+        "rel_rmse_pct": 0.14621130896386572,
+        "rmse": 0.01724915039010285,
+        "test_max": 11.788258972243163,
+        "test_min": 0.0004863193698139565
       }
     },
     "timing_B_minus_A": {
@@ -675,40 +753,50 @@
     "vgs_on": 5.0
   },
   "device": "epc2216",
+  "equivalence": {
+    "arms": [
+      "rom_ltspice_resolved",
+      "solver_capped_resolved"
+    ],
+    "deck_max_step_s": 2e-09,
+    "divisor": 4.0,
+    "max_step_s": 5e-10,
+    "why": "both arms resolved before the engine error is scored; an unresolved pair measures sampling phase"
+  },
   "rom_artifact": {
     "rom": "C:\\Users\\GNKRISHNAN\\Documents\\GitHub\\PieceSpice\\reports\\comparison\\epc2216\\solver_validation_t4ann.rom.json"
   },
   "schema": "piecespice.solver_validation/1.0",
   "speed": {
     "ltspice_floor_s": 0.075,
-    "net_solver_elapsed_speedup": 7.2224495248503935,
+    "net_solver_elapsed_speedup": 7.5383332262502565,
     "note": "reference is the emitted-ROM LTspice arm when available, so the speed ratio is engine-vs-engine on one model",
     "reference_ltspice_elapsed_s": 0.451,
-    "reference_ltspice_wall_s": 1.0711804999991728,
-    "solver_elapsed_speedup": 8.663097701349807,
+    "reference_ltspice_wall_s": 1.0743450999980269,
+    "solver_elapsed_speedup": 9.041990119784218,
     "solver_points": 7001,
     "solver_steps": 7000,
-    "solver_wall_s": 0.05205989999740268,
-    "us_per_step": 7.437128571057526,
-    "wall_speedup": 20.575923120340512
+    "solver_wall_s": 0.049878400001034606,
+    "us_per_step": 7.125485714433515,
+    "wall_speedup": 21.53928554195287
   },
   "speed_adaptive": {
-    "net_solver_elapsed_speedup": 35.22974290061881,
+    "net_solver_elapsed_speedup": 37.06916950236012,
     "reference_ltspice_elapsed_s": 0.451,
     "relative_steps_vs_fixed": 0.15671428571428572,
-    "solver_elapsed_speedup": 42.25695225579544,
+    "solver_elapsed_speedup": 44.463285759479824,
     "solver_steps": 1097,
-    "solver_wall_s": 0.010672799999156268,
-    "us_per_step": 9.72907930643233
+    "solver_wall_s": 0.010143199997401098,
+    "us_per_step": 9.246308110666453
   },
   "speed_capped": {
-    "net_solver_elapsed_speedup": 9.064085009557175,
+    "net_solver_elapsed_speedup": 8.226743040993746,
     "reference_ltspice_elapsed_s": 0.451,
     "relative_steps_vs_fixed": 1.1367142857142858,
-    "solver_elapsed_speedup": 10.872080689655016,
+    "solver_elapsed_speedup": 9.86771572204303,
     "solver_steps": 7957,
-    "solver_wall_s": 0.04148239999994985,
-    "us_per_step": 5.213321603613151
+    "solver_wall_s": 0.04570460000104504,
+    "us_per_step": 5.743948724524952
   },
   "statistics": {
     "method": "median of repeats per arm; a paired bootstrap CI needs interleaved runs, which scripts/compare_kernels.py does",
