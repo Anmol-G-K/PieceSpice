@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import functools
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -35,6 +36,21 @@ def _build_spec(device: str):
     from pipeline.fitting import build_pwl_spec
 
     return build_pwl_spec(device)
+
+
+#: Building a solver ROM needs the *extracted* curves, and one of them -- the
+#: Coss-derived charge -- is extracted by a live LTspice capacitance run.  The
+#: curve YAMLs are committed, the charge is not: without a live engine the spec
+#: comes back with an empty Qoss table and every table build raises "need
+#: matching V/Q tables of length >= 2".  Gate the module the way the rest of the
+#: suite gates the live class, rather than inventing a zero charge to keep the
+#: tests green.  Recorded: this is why the LTspice-free CI run skips here.
+_LIVE = os.environ.get("PIECESPICE_LIVE", "1") == "1"
+
+pytestmark = pytest.mark.skipif(
+    not _LIVE,
+    reason="solver ROM tables need live-extracted curves (Coss charge); "
+           "live LTspice disabled via PIECESPICE_LIVE=0")
 
 
 def _spec_or_skip(device: str = "epc2216"):
