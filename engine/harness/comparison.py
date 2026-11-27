@@ -208,7 +208,8 @@ def _ltspice_arm(name: str, library: Path, subcircuit: str,
 
 def _solver_arm(rom: SolverRom, cond: dict, repeats: int = 3,
                 *, adaptive: bool = False, label: str = "solver",
-                honour_ceiling: bool = False) -> Arm:
+                honour_ceiling: bool = False,
+                method: str = "trap") -> Arm:
     conditions = DptConditions(
         vbus=cond["vbus"], vgs_on=cond["vgs_on"],
         i_load_target=cond["i_load_target"], l_load=cond["l_load"],
@@ -218,7 +219,7 @@ def _solver_arm(rom: SolverRom, cond: dict, repeats: int = 3,
         max_step=cond["max_step"], temperature_c=cond["temperature"],
     )
     circuit = dpt(rom, conditions)
-    kwargs = dict(engine="compiled", adaptive=adaptive)
+    kwargs = dict(engine="compiled", adaptive=adaptive, method=method)
     if not adaptive or honour_ceiling:
         kwargs["max_step"] = cond["max_step"]
     solve_transient(circuit, **kwargs)                  # warm the JIT
