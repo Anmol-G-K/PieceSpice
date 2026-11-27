@@ -362,19 +362,31 @@ At the declared 2 % bar EPC2216 passes (0.64 / 0.20 %), TI and CPM2 miss on the
 current term (2.05 / 2.69 %) and IRFS on voltage (2.49 %) — the bar was not
 raised to fit the result.
 
-That residual is now well characterised, by ruling three causes out with
-measurement rather than argument: it is **flat against step size**, **flat
-against grid resolution** (and worse with more nodes), and **flat against the
-integration method** — LTspice's default *modified trap* is plain trap plus an
-output post-processing, and re-running the reference with `.options method=trap`
-changed the numbers in the fourth decimal place on all four devices. A fourth test narrowed it further rather than closing it: replacing each
-triangle's chord plane with a **tangent-matched plane** (the fit's own `gm`/`gds`
-at the three corners) moved every device by less than 0.04 pp. So the residual
-is *not* the chord slope — the obvious half of the "piecewise-linear contract"
-explanation. What survives is the plane's value placement inside the cell, or a
-term outside the channel. The literature's <0.1 % (Gupta et al., *STEAM* /
-*A-LA-CARTE*) needs spline interpolation, which would abandon the one-plane-per-
-region property the engine is built on — a contract change, not an optimisation.
+The residual has been pinned down by measurement rather than argument. Seven
+causes were tested and rejected — step size, grid resolution, the integration
+method (LTspice's default *modified trap* is plain trap plus an output
+post-processing; re-running the reference with `.options method=trap` moved
+nothing), chord versus tangent planes, charge integration order, sub-threshold
+grid grading, and a finer sampling floor.
+
+What settled it was refusing to compare two differently-sampled waveforms.
+Running **both** arms at the same step (deck, /4, /20) shows a second-order
+engine converging at the expected rate:
+
+| vendor | deck step | /4 | /20 |
+|---|---|---|---|
+| EPC2216 | 0.64 / 0.20 | 0.27 / 0.24 | 0.20 / 0.10 |
+| CSD16412Q5A | 1.14 / 2.05 | 0.62 / 1.42 | 0.58 / 0.70 |
+| CPM2-1200 | 1.56 / 2.69 | 0.86 / 1.40 | 1.03 / 1.04 |
+| IRFS7730PBF | 2.49 / 3.02 | 2.57 / 2.97 | 2.76 / 2.85 |
+
+Three devices converge under the bar and keep 4.3-4.6x over LTspice at the same
+step. **IRFS7730PBF does not converge at all** — a 20x refinement moves it by
+0.03 pp — so its residual is a *model-level* error, not an engine one: the
+reconstruction of that particular model as a table, not the solve. The bar is
+unchanged at 2 %; the solver passes on three of four, and the fourth is a
+modelling defect with a name and a reproducible signature (see
+`docs/development-log.md`).
 
 ```bash
 uv run python -m cli.main solver epc2216            # print the G7 gate

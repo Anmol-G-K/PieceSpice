@@ -60,5 +60,11 @@ solver:
   # EPC 0.64 %, TI 1.14 %, CPM2 1.56 %, IRFS 2.49 %. The bar is declared at
   # 2 % and NOT raised to fit IRFS -- a gate set just under the measurement is
   # a description, not a gate.
+  #
+  # With BOTH arms resolved (deck step, /4, /20) the first three converge to
+  # 0.20-0.24 %, 0.58-0.70 % and 1.03-1.04 %; IRFS7730PBF does not converge
+  # (2.49 -> 2.57 -> 2.76 across a 20x refinement), so its residual is a
+  # model-level reconstruction error, not an engine error. See
+  # scripts/check_converged_pair.py and docs/development-log.md.
   equivalence_rel_pct_max: {value: 2.0, source: project_decision}
   min_solver_speedup: {value: 1.05, source: project_decision}
