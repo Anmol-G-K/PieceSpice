@@ -68,7 +68,34 @@ _Q_ZERO_TOL = 1e-15
 #: quadratically spaced so the first cell is a fraction of a volt wide instead
 #: of the whole knee.  This is a property of the emitter, not of a vendor.
 ANN_VGS_ROWS = 17
+#: Rows placed below the fitted threshold, so the turn-on region is resolved
+#: by interpolation rather than by one chord across it.
+ANN_VGS_BELOW_THRESHOLD = 9
+#: Half-width, in rows, of the graded band around the threshold, and the row
+#: spacing there.
+ANN_KNEE_ROWS = 8
+ANN_KNEE_STEP_V = 0.05
+#: Volts per row for the charge tables; the row count scales with the span so
+#: one physical resolution is held however far the device blocks.
+CHARGE_STEP_V = 0.05
 ANN_VDS_POINTS = 151
+
+
+def _blocking_voltage(vendor: str) -> float | None:
+    """The voltage the DPT bench asks *vendor* to block, from its config."""
+    import yaml
+
+    path = ROOT / "config" / "inputs" / f"{vendor}.yaml"
+    if not path.is_file():
+        return None
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    bench = (data.get("dpt") or {}).get("vbus") if isinstance(data, dict) else None
+    if bench is None:
+        return None
+    try:
+        return float(bench)
+    except (TypeError, ValueError):
+        return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -183,6 +210,28 @@ class SolverRom:
         # it below its training range is interpolation of its own form, not
         # invention of data.
         vgs.extend(np.linspace(v_th, vgs_hi, vgs_rows).tolist())
+        # Resolve the turn-on region between 0 V and the threshold.  Without
+        # these rows the first cell is one chord across the whole sub-threshold
+        # span -- and for a device whose threshold is 4.35 V that chord carries
+        # about an amp at Vgs = 3 V where the fit says zero.  It is a *value*
+        # error, so no time step removes it: IRFS7730PBF showed exactly that
+        # signature, sitting at 2.5-3 % through a 20x refinement of both engines
+        # while the other three converged below 1.4 %.  The rows are evenly
+        # spaced at the resolution the fitted region already uses above v_th.
+        for k in range(1, ANN_VGS_BELOW_THRESHOLD):
+            below = v_th * k / (ANN_VGS_BELOW_THRESHOLD + 1.0)
+            if below > 0.0:
+                vgs.append(below)
+        # The knee itself is exponential: Id turns over four decades within a
+        # few hundred millivolts of v_th, so a linear chord across it misplaces
+        # the turn-on instant by a large relative error even when the cells are
+        # only 0.35 V wide.  50 mV is the scale over which the exponential
+        # turns, so the band is graded at that resolution on both sides of the
+        # threshold.  It is a physical length, not a per-device parameter.
+        for k in range(-ANN_KNEE_ROWS, ANN_KNEE_ROWS + 1):
+            near = v_th + k * ANN_KNEE_STEP_V
+            if 0.0 < near <= vgs_hi:
+                vgs.append(near)
         vgs = sorted({round(v, 9) for v in vgs if 0.0 <= v <= vgs_hi})
 
         # Vds: quadratic spacing, so the first cells resolve the knee.
@@ -283,10 +332,29 @@ class SolverRom:
         k_cds = float(factors.get("k_cds", 1.0))
         k_cdg = float(factors.get("k_cdg", 1.0))
         k_cgs = float(factors.get("k_cgs", 1.0))
+        # The charge must be integrated to the voltage the device actually
+        # blocks.  Tied to the channel table's span it truncated at 10 V and
+        # clamped there: IRFS7730PBF carried 10.99 nC at the bench's 38 V where
+        # the emitted expression carries 23.0 nC, and its off-state ringing came
+        # out at 1.14 A against the reference's 2.63 A -- 59 % of that device's
+        # residual, and a *value* error, which is why it never converged with
+        # the time step.
+        #
+        # The span cannot simply be stretched: the tables are uniformly spaced,
+        # so covering 38 V with the default 201 rows gives 0.19 V per row where
+        # the 10 V table gave 0.05 V, and measuring that alone made IRFS worse
+        # (2.49 -> 3.84 %).  The row count therefore scales with the span to
+        # hold one physical resolution, the same 50 mV the knee band uses.
+        charge_top = max(base.channel.vds[-1], _blocking_voltage(vendor) or 0.0,
+                         1e-9)
+        charge_points = max(CHARGE_RESAMPLE_POINTS,
+                            int(np.ceil(charge_top / CHARGE_STEP_V)) + 1)
         vds_top = max(base.channel.vds[-1], 1e-9)
-        qoss = _cinf_charge(cinf["cds"], vds_top, k_cds, "Qoss")
+        qoss = _cinf_charge(cinf["cds"], charge_top, k_cds, "Qoss",
+                            points=charge_points)
         # Gate-drain charge is a function of V(di,gi), evaluated on the same span.
-        qrss = _cinf_charge(cinf["cdg"], vds_top, k_cdg, "Qrss",
+        qrss = _cinf_charge(cinf["cdg"], charge_top, k_cdg, "Qrss",
+                            points=charge_points,
                             excess=float(cinf.get("cdg_neg_excess_f") or 0.0))
 
         return cls(
