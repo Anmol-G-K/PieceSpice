@@ -1,0 +1,17 @@
+.include C:\Users\GNKRISHNAN\Documents\GitHub\PieceSpice\reports\models\epc2216_PIECESPICE_T4.lib
+* BUCK_epc2216_epc2216_PIECESPICE_T4
+Vbus bus 0 DC 12
+Vhssense bus vin DC 0
+Xhs vin ghs sw epc2216_PIECESPICE_T4
+Vghs ghs sw PULSE(0 5 0 2e-08 2e-08 2.21e-06 5e-06)
+Dfw 0 sw DFW
+.model DFW D(IS=1e-12 N=1.05 RS=0.01 CJO=1e-10)
+Vlssense sw sw_ls DC 0
+Xls sw_ls gls 0 epc2216_PIECESPICE_T4
+Vgls gls 0 PULSE(0 5 2.3e-06 2e-08 2e-08 2.61e-06 5e-06)
+Lout sw lx 2.2e-05
+Rldcr lx vout 0.006
+Cout vout_c 0 4.700000e-05
+Resr vout vout_c 0.004
+Rload vout 0 5
+.end

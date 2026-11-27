@@ -1,0 +1,12 @@
+* probe
+Vbus bus 0 DC 12
+Vsrc sw 0 PULSE(0 12 0 20n 20n 2.2u 5u)
+Lout sw lx 22u
+Rldcr lx vout 6m
+Cout vout_c 0 47u
+Resr vout vout_c 4m
+Rload vout 0 5
+.tran 0 1.5m 0 50n
+.end
+Dfw sw 0 DFW
+.model DFW D(IS=1e-12 N=1.05 RS=0.01 CJO=1e-10)
