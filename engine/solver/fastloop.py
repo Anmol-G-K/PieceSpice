@@ -185,6 +185,73 @@ def run_transient(P, S, t_end, h_init, h_max, h_min, adaptive, method_default,
                     shrink = 0.25
                 h = hh * shrink
                 continue
+            # A switch flipping inside the step is a real discontinuity, and
+            # the instant has to be located or the whole transition is placed
+            # by the step grid.  The fixed-step branch has always bisected for
+            # this; the adaptive branch did not, which is why the arm G7
+            # measures never localised an event and why taking four times as
+            # many steps left its error unchanged.
+            _load_state(S, snap)
+            for j in range(switches.size):
+                old_on[j] = S[4][switches[j]]
+            earliest = hh
+            crossed = -1
+            for j in range(switches.size):
+                e = switches[j]
+                if trial[e] == old_on[j]:
+                    continue
+                lo = 0.0
+                hi = hh
+                for _ in range(24):
+                    mid = 0.5 * (lo + hi)
+                    _load_state(S, snap)
+                    if try_step(P, S, t + mid, mid, method, G, G_static, rhs,
+                                x, lu, piv, G_prev, cached, tmp, trial) == 0:
+                        break
+                    if trial[e] != old_on[j]:
+                        hi = mid
+                    else:
+                        lo = mid
+                if hi < earliest:
+                    earliest = hi
+                    crossed = e
+            if crossed >= 0 and earliest > hh * 1e-9:
+                _load_state(S, snap)
+                if try_step(P, S, t + earliest, earliest, method, G, G_static,
+                            rhs, x, lu, piv, G_prev, cached, tmp, trial) != 0:
+                    device_currents(P, S, x, earliest, trial, dev_i)
+                    if k >= capacity:
+                        status = 1
+                        break
+                    for i in range(n):
+                        rows[k, i] = x[i]
+                    for e in range(nd):
+                        devrows[k, e] = dev_i[e]
+                    times[k] = t + earliest
+                    k += 1
+                    if n_events < ev_t.size:
+                        ev_t[n_events] = t + earliest
+                        ev_dev[n_events] = crossed
+                        ev_from[n_events] = S[4][crossed]
+                        ev_to[n_events] = trial[crossed]
+                        n_events += 1
+                    commit(P, S, x, earliest, method, trial)
+                    steps += 1
+                    t += earliest
+                    for slot in range(3, 0, -1):
+                        ht[slot] = ht[slot - 1]
+                        for i in range(n):
+                            hx[slot, i] = hx[slot - 1, i]
+                    ht[0] = t
+                    for i in range(n):
+                        hx[0, i] = x[i]
+                    n_hist += 1
+                    # Do not jump back to the ceiling across a transition:
+                    # ramp away from the event the way a step controller
+                    # should, or the next step straddles the same edge again.
+                    h = earliest
+                    continue
+                _load_state(S, snap)
             device_currents(P, S, x, hh, trial, dev_i)
             if k >= capacity:
                 status = 1
