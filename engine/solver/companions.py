@@ -210,10 +210,10 @@ def _device_for(stamp: mna.Stamp, circuit: Circuit,
             {k.lower(): v for k, v in params.items() if v is not None}),)
     if element.kind is ElementKind.PWL_CAP:
         assert isinstance(element.data, ChargeTable)
-        (ChargeCapDevice(element.name, stamp.nodes, element.data),)
+        return (ChargeCapDevice(element.name, stamp.nodes, element.data),)
     if element.kind is ElementKind.PWL_CHANNEL:
         assert isinstance(element.data, ChannelTable)
-        (ChannelDevice(element.name, stamp.nodes, element.data),)
+        return (ChannelDevice(element.name, stamp.nodes, element.data),)
     raise AssertionError(f"no device for {element.kind!r}")   # pragma: no cover
 
 
