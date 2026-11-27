@@ -137,9 +137,11 @@ class LinearSystem:
                              for e in circuit.of_kind(ElementKind.CAPACITOR)),
             inductors=tuple(stamps[e.name]
                             for e in circuit.of_kind(ElementKind.INDUCTOR)),
-            devices=tuple(_device_for(stamps[e.name], circuit, temperature)
-                          for e in circuit.elements
-                          if e.kind in _DEVICE_KINDS),
+            devices=tuple(
+                device
+                for e in circuit.elements if e.kind in _DEVICE_KINDS
+                for device in _device_for(stamps[e.name], circuit, temperature)
+            ),
         )
 
     @property
@@ -161,13 +163,13 @@ class LinearSystem:
 
 
 def _device_for(stamp: mna.Stamp, circuit: Circuit,
-                temperature_c: float) -> PwlDevice:
+                temperature_c: float) -> tuple[PwlDevice, ...]:
     element = stamp.element
     # A declared `.model` wins over a sampled table: the emitter's Shockley
     # parameters are the model, and the table is only the fallback when a deck
     # carries a tabulated diode instead.
     if element.kind is ElementKind.DIODE and element.model is None             and isinstance(element.data, PwlTable):
-        return DiodeDevice(element.name, stamp.nodes, element.data)
+        (DiodeDevice(element.name, stamp.nodes, element.data),)
     if element.kind is ElementKind.DIODE:
         model = circuit.models[element.model or ""]
         params = {k.upper(): model.get(k) for k in model.params}
@@ -177,20 +179,71 @@ def _device_for(stamp: mna.Stamp, circuit: Circuit,
             rs=float(params.get("RS") or 0.0),
             temperature_c=temperature_c,
         )
-        return DiodeDevice.from_model(element.name, stamp.nodes, diode)
+        device = DiodeDevice.from_model(element.name, stamp.nodes, diode)
+        # Junction capacitance.  A `.model ... D(... CJO=...)` declares one and
+        # the solver must carry it, or a term that changes the switching
+        # solution is dropped silently.  Built as a parallel charge capacitor
+        # from the SPICE depletion law -- ngspice manual 7.2 eq. 7.4 and the
+        # PSpice 1987 reference agree on it:
+        #     C = CJO (1 - V/VJ)^-M                     V <  FC*VJ
+        #     C = CJO (1-FC)^-(1+M) (1-FC(1+M) + M V/VJ)  V >= FC*VJ
+        # integrated from 0 V so Q(0) = 0 and Q is strictly increasing, which is
+        # what the charge companion requires.  The table saturates with zero
+        # slope beyond its ends like every other table here, so an overshoot
+        # clamps instead of extrapolating.
+        cjo = float(params.get("CJO") or 0.0)
+        if cjo > 0.0:
+            table = _junction_charge_table(
+                cjo=cjo,
+                vj=float(params.get("VJ") or 1.0),
+                m=float(params.get("M") or 0.5),
+                fc=float(params.get("FC") or 0.5),
+            )
+            return (device, ChargeCapDevice(f"{element.name}.CJ", stamp.nodes,
+                                            ChargeTable(table)))
+        return (device,)
     if element.kind is ElementKind.SWITCH:
         model = circuit.models[element.model or ""]
         params = {k.upper(): model.get(k) for k in model.params}
-        return SwitchDevice.from_model(
+        return (SwitchDevice.from_model(
             element.name, stamp.nodes,
-            {k.lower(): v for k, v in params.items() if v is not None})
+            {k.lower(): v for k, v in params.items() if v is not None}),)
     if element.kind is ElementKind.PWL_CAP:
         assert isinstance(element.data, ChargeTable)
-        return ChargeCapDevice(element.name, stamp.nodes, element.data)
+        (ChargeCapDevice(element.name, stamp.nodes, element.data),)
     if element.kind is ElementKind.PWL_CHANNEL:
         assert isinstance(element.data, ChannelTable)
-        return ChannelDevice(element.name, stamp.nodes, element.data)
+        (ChannelDevice(element.name, stamp.nodes, element.data),)
     raise AssertionError(f"no device for {element.kind!r}")   # pragma: no cover
+
+
+def _junction_charge_table(*, cjo: float, vj: float, m: float, fc: float,
+                           span_v: float = 60.0,
+                           step_v: float = 0.05) -> PwlTable:
+    """Q(V) for a SPICE diode junction, integrated from the depletion law.
+
+    ``span_v`` covers both polarities: the clamped-inductive bench blocks 38 V
+    and the buck 12 V, and a junction capacitance matters most in reverse.  The
+    table is built by integrating ``C(V)`` outward from 0 V on a fine grid, so it
+    is monotone by construction and anchored at zero charge.
+    """
+    fc_vj = fc * vj
+
+    def cap(v: float) -> float:
+        if v < fc_vj:
+            return cjo * (1.0 - v / vj) ** (-m)
+        return cjo * (1.0 - fc) ** (-(1.0 + m)) * (
+            1.0 - fc * (1.0 + m) + m * v / vj)
+
+    count = int(round(2.0 * span_v / step_v))
+    grid = [-span_v + i * step_v for i in range(count + 1)]
+    zero = min(range(len(grid)), key=lambda i: abs(grid[i]))
+    charge = [0.0] * len(grid)
+    for i in range(zero + 1, len(grid)):
+        charge[i] = charge[i - 1] + 0.5 * (cap(grid[i - 1]) + cap(grid[i]))             * (grid[i] - grid[i - 1])
+    for i in range(zero - 1, -1, -1):
+        charge[i] = charge[i + 1] - 0.5 * (cap(grid[i]) + cap(grid[i + 1]))             * (grid[i + 1] - grid[i])
+    return PwlTable.from_pairs(zip(grid, charge))
 
 
 @dataclass(slots=True)

@@ -127,7 +127,14 @@ class ChargeTable:
             raise ValueError(
                 "charge table must be non-decreasing in Q (negative "
                 "incremental capacitance is not physical)")
-        if self.table.y[0] != 0.0:
+        # Zero-anchored means Q = 0 at 0 V, not necessarily at the table's
+        # first point: a junction capacitance is tabulated across both
+        # polarities, where the charge is legitimately negative in reverse.
+        if 0.0 in self.table.x:
+            anchor = self.table.y[self.table.x.index(0.0)]
+        else:
+            anchor = self.table.y[0]
+        if anchor != 0.0:
             raise ValueError(
                 "charge table must be zero-anchored (Q(0) = 0) so switching "
                 "loss is not invented by an absolute offset")
