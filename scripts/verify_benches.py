@@ -43,10 +43,16 @@ def buck(vendor: str = "epc2216", tier: str = "tier4") -> dict:
                              max_step=max_step, adaptive=True)
     path.unlink(missing_ok=True)
 
+    truncated = [w for w in result.warnings if "sample buffer full" in w]
+    if truncated:
+        raise RuntimeError("run truncated: " + truncated[0])
     y = {k: np.asarray(v, dtype=float) for k, v in result.traces.items()}
     t = y["time"]
     window = t >= int(cond["simulation"]["settling_cycles"]) * period
     tw = t[window]
+    if tw.size < 10:
+        raise RuntimeError("measurement window not reached: run ended at "
+                           f"{t[-1]:.6g} s")
 
     def wmean(series: np.ndarray) -> float:
         s = series[window]
@@ -77,11 +83,32 @@ def dpt(basis: str = "t4ann") -> list[dict]:
     return rows
 
 
+VENDORS = ("epc2216", "csd16412q5a", "cpm2-1200", "irfs7730pbf")
+
+
+def buck_all() -> list[dict]:
+    """The buck for every vendor.  A failure is recorded as N/A with its
+    reason, never imputed and never skipped silently."""
+    rows = []
+    for vendor in VENDORS:
+        try:
+            rows.append(buck(vendor))
+        except Exception as exc:                      # noqa: BLE001
+            rows.append({"vendor": vendor,
+                         "error": f"{type(exc).__name__}: {exc}"[:240]})
+    return rows
+
+
 if __name__ == "__main__":
-    b = buck()
-    print(f"BUCK  {b['vendor']}: Vout {b['vout']:.4f} V  I_L {b['il']:.4f} A  "
-          f"efficiency {b['eff']:.2f} %  ({b['steps']} steps)")
-    print("  recorded: golden 5.3077 V / 97.55 %   Tier-2 5.3053 V / 96.91 %")
+    print("BUCK  every vendor, compiled engine, adaptive at the deck ceiling")
+    for b in buck_all():
+        if "error" in b:
+            print(f"  {b['vendor']:13s} N/A - {b['error']}")
+        else:
+            print(f"  {b['vendor']:13s} Vout {b['vout']:7.4f} V  "
+                  f"I_L {b['il']:7.4f} A  efficiency {b['eff']:6.2f} %  "
+                  f"({b['steps']} steps)")
+    print("  recorded EPC2216: golden 5.3077 V / 97.55 %   Tier-2 5.3053 V / 96.91 %")
     print()
     print("DPT   G7, both arms resolved, against the policy bar:")
     for r in dpt():

@@ -37,7 +37,7 @@ from engine.solver.result import Event, SolverResult
 
 #: Upper bound on recorded samples.  A 14 us transient at 2 ns needs 7,000; the
 #: buffer is generous so a slow deck cannot silently truncate.
-MAX_SAMPLES = 200_000
+MAX_SAMPLES = 400_000
 
 #: Upper bound on recorded events per run.
 MAX_EVENTS = 4096
