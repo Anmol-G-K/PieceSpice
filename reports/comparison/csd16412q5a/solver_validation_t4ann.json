@@ -15,16 +15,16 @@
         "td_on_ns": 7.388513716454634,
         "tf_ns": 1.6618198938018818,
         "tr_ns": 1.095746039040917,
-        "wall_clock_s": 1.3159921000005852
+        "wall_clock_s": 1.2733200000002398
       },
       "points": 10189,
       "steps": null,
-      "wall_s": 1.3159921000005852,
+      "wall_s": 1.2733200000002398,
       "warnings": []
     },
     "rom_ltspice": {
       "events": null,
-      "ltspice_elapsed_s": 0.501,
+      "ltspice_elapsed_s": 0.463,
       "metrics": {
         "di_dt_max_a_per_ns": 290.3906183626425,
         "dv_dt_max_v_per_ns": 182.62557047896343,
@@ -37,11 +37,11 @@
         "td_on_ns": 4.197460436843262,
         "tf_ns": 1.1294823405079706,
         "tr_ns": 1.1212240426250197,
-        "wall_clock_s": 1.1809327999999368
+        "wall_clock_s": 1.0736325000016222
       },
       "points": 7199,
       "steps": null,
-      "wall_s": 1.1809327999999368,
+      "wall_s": 1.0736325000016222,
       "warnings": []
     },
     "solver": {
@@ -59,11 +59,11 @@
         "td_on_ns": 2.619228656094421,
         "tf_ns": 1.5467861649164663,
         "tr_ns": 3.055731401554234,
-        "wall_clock_s": 0.05531249999876309
+        "wall_clock_s": 0.06217839999953867
       },
       "points": 7001,
       "steps": 7000,
-      "wall_s": 0.05531249999876309,
+      "wall_s": 0.06217839999953867,
       "warnings": []
     },
     "solver_adaptive": {
@@ -81,11 +81,11 @@
         "td_on_ns": 3.989917713786235,
         "tf_ns": 1.290022548739185,
         "tr_ns": 1.265976453903488,
-        "wall_clock_s": 0.009088199998586788
+        "wall_clock_s": 0.009134300000368967
       },
       "points": 952,
       "steps": 951,
-      "wall_s": 0.009088199998586788,
+      "wall_s": 0.009134300000368967,
       "warnings": []
     },
     "solver_capped": {
@@ -103,11 +103,11 @@
         "td_on_ns": 3.9904484570686747,
         "tf_ns": 1.2886671092816122,
         "tr_ns": 1.2657592025326505,
-        "wall_clock_s": 0.03952690000005532
+        "wall_clock_s": 0.057289799999125535
       },
       "points": 7945,
       "steps": 7944,
-      "wall_s": 0.03952690000005532,
+      "wall_s": 0.057289799999125535,
       "warnings": []
     }
   },
@@ -681,34 +681,34 @@
   "schema": "piecespice.solver_validation/1.0",
   "speed": {
     "ltspice_floor_s": 0.075,
-    "net_solver_elapsed_speedup": 7.701694915426464,
+    "net_solver_elapsed_speedup": 6.24010910545911,
     "note": "reference is the emitted-ROM LTspice arm when available, so the speed ratio is engine-vs-engine on one model",
-    "reference_ltspice_elapsed_s": 0.501,
-    "reference_ltspice_wall_s": 1.1809327999999368,
-    "solver_elapsed_speedup": 9.057627118846616,
+    "reference_ltspice_elapsed_s": 0.463,
+    "reference_ltspice_wall_s": 1.0736325000016222,
+    "solver_elapsed_speedup": 7.446315762442186,
     "solver_points": 7001,
     "solver_steps": 7000,
-    "solver_wall_s": 0.05531249999876309,
-    "us_per_step": 7.901785714109012,
-    "wall_speedup": 21.35019751460059
+    "solver_wall_s": 0.06217839999953867,
+    "us_per_step": 8.882628571362666,
+    "wall_speedup": 17.266968915404515
   },
   "speed_adaptive": {
-    "net_solver_elapsed_speedup": 46.87396844988478,
-    "reference_ltspice_elapsed_s": 0.501,
+    "net_solver_elapsed_speedup": 42.4772560551249,
+    "reference_ltspice_elapsed_s": 0.463,
     "relative_steps_vs_fixed": 0.13585714285714287,
-    "solver_elapsed_speedup": 55.126427684019426,
+    "solver_elapsed_speedup": 50.688065859594914,
     "solver_steps": 951,
-    "solver_wall_s": 0.009088199998586788,
-    "us_per_step": 9.556466875485581
+    "solver_wall_s": 0.009134300000368967,
+    "us_per_step": 9.60494216652888
   },
   "speed_capped": {
-    "net_solver_elapsed_speedup": 10.77747053271073,
-    "reference_ltspice_elapsed_s": 0.501,
+    "net_solver_elapsed_speedup": 6.772584299577279,
+    "reference_ltspice_elapsed_s": 0.463,
     "relative_steps_vs_fixed": 1.1348571428571428,
-    "solver_elapsed_speedup": 12.674912527906281,
+    "solver_elapsed_speedup": 8.081717862639898,
     "solver_steps": 7944,
-    "solver_wall_s": 0.03952690000005532,
-    "us_per_step": 4.975692346431939
+    "solver_wall_s": 0.057289799999125535,
+    "us_per_step": 7.211706948530405
   },
   "statistics": {
     "method": "median of repeats per arm; a paired bootstrap CI needs interleaved runs, which scripts/compare_kernels.py does",

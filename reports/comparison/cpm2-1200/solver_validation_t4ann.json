@@ -2,7 +2,7 @@
   "arms": {
     "golden": {
       "events": null,
-      "ltspice_elapsed_s": 0.51,
+      "ltspice_elapsed_s": 0.532,
       "metrics": {
         "di_dt_max_a_per_ns": 986.2625878706833,
         "dv_dt_max_v_per_ns": 373.7322739993671,
@@ -15,16 +15,16 @@
         "td_on_ns": 10.252879764066485,
         "tf_ns": 4.139181554911007,
         "tr_ns": 4.703011959080317,
-        "wall_clock_s": 1.2536270000000513
+        "wall_clock_s": 1.2323683999984496
       },
       "points": 7154,
       "steps": null,
-      "wall_s": 1.2536270000000513,
+      "wall_s": 1.2323683999984496,
       "warnings": []
     },
     "rom_ltspice": {
       "events": null,
-      "ltspice_elapsed_s": 0.459,
+      "ltspice_elapsed_s": 0.497,
       "metrics": {
         "di_dt_max_a_per_ns": 213.288112369082,
         "dv_dt_max_v_per_ns": 82.39756430453716,
@@ -37,11 +37,11 @@
         "td_on_ns": 9.035632593581965,
         "tf_ns": 4.267813393090341,
         "tr_ns": 4.576036019318094,
-        "wall_clock_s": 1.2118195000002743
+        "wall_clock_s": 1.176224100001491
       },
       "points": 7127,
       "steps": null,
-      "wall_s": 1.2118195000002743,
+      "wall_s": 1.176224100001491,
       "warnings": []
     },
     "solver": {
@@ -59,11 +59,11 @@
         "td_on_ns": 8.452211630807856,
         "tf_ns": 4.763179653955905,
         "tr_ns": 4.140360739587207,
-        "wall_clock_s": 0.06841150000036578
+        "wall_clock_s": 0.05248800000117626
       },
       "points": 7001,
       "steps": 7000,
-      "wall_s": 0.06841150000036578,
+      "wall_s": 0.05248800000117626,
       "warnings": []
     },
     "solver_adaptive": {
@@ -81,11 +81,11 @@
         "td_on_ns": 4.511989179328198,
         "tf_ns": 3.993780081852366,
         "tr_ns": 4.685042543886935,
-        "wall_clock_s": 0.0058494999993854435
+        "wall_clock_s": 0.005559399998674053
       },
       "points": 517,
       "steps": 516,
-      "wall_s": 0.0058494999993854435,
+      "wall_s": 0.005559399998674053,
       "warnings": []
     },
     "solver_capped": {
@@ -103,11 +103,11 @@
         "td_on_ns": 9.092904217807888,
         "tf_ns": 3.8774787389971928,
         "tr_ns": 3.6356085998694225,
-        "wall_clock_s": 0.04879120000077819
+        "wall_clock_s": 0.041405899999517715
       },
       "points": 7910,
       "steps": 7909,
-      "wall_s": 0.04879120000077819,
+      "wall_s": 0.041405899999517715,
       "warnings": []
     }
   },
@@ -681,34 +681,34 @@
   "schema": "piecespice.solver_validation/1.0",
   "speed": {
     "ltspice_floor_s": 0.075,
-    "net_solver_elapsed_speedup": 5.613091366187657,
+    "net_solver_elapsed_speedup": 8.039932936872102,
     "note": "reference is the emitted-ROM LTspice arm when available, so the speed ratio is engine-vs-engine on one model",
-    "reference_ltspice_elapsed_s": 0.459,
-    "reference_ltspice_wall_s": 1.2118195000002743,
-    "solver_elapsed_speedup": 6.709398273646183,
+    "reference_ltspice_elapsed_s": 0.497,
+    "reference_ltspice_wall_s": 1.176224100001491,
+    "solver_elapsed_speedup": 9.468830970676386,
     "solver_points": 7001,
     "solver_steps": 7000,
-    "solver_wall_s": 0.06841150000036578,
-    "us_per_step": 9.773071428623682,
-    "wall_speedup": 17.71368117924318
+    "solver_wall_s": 0.05248800000117626,
+    "us_per_step": 7.498285714453751,
+    "wall_speedup": 22.409390717404584
   },
   "speed_adaptive": {
-    "net_solver_elapsed_speedup": 65.64663647155203,
-    "reference_ltspice_elapsed_s": 0.459,
+    "net_solver_elapsed_speedup": 75.90747204746003,
+    "reference_ltspice_elapsed_s": 0.497,
     "relative_steps_vs_fixed": 0.07371428571428572,
-    "solver_elapsed_speedup": 78.46824515740204,
+    "solver_elapsed_speedup": 89.39813651087117,
     "solver_steps": 516,
-    "solver_wall_s": 0.0058494999993854435,
-    "us_per_step": 11.336240308886518
+    "solver_wall_s": 0.005559399998674053,
+    "us_per_step": 10.774031005182273
   },
   "speed_capped": {
-    "net_solver_elapsed_speedup": 7.870271688211715,
-    "reference_ltspice_elapsed_s": 0.459,
+    "net_solver_elapsed_speedup": 10.19178426274795,
+    "reference_ltspice_elapsed_s": 0.497,
     "relative_steps_vs_fixed": 1.129857142857143,
-    "solver_elapsed_speedup": 9.407434127315566,
+    "solver_elapsed_speedup": 12.003120328402206,
     "solver_steps": 7909,
-    "solver_wall_s": 0.04879120000077819,
-    "us_per_step": 6.169073207836413
+    "solver_wall_s": 0.041405899999517715,
+    "us_per_step": 5.235288911305817
   },
   "statistics": {
     "method": "median of repeats per arm; a paired bootstrap CI needs interleaved runs, which scripts/compare_kernels.py does",
