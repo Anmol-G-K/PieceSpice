@@ -92,6 +92,14 @@ def dd3_error(x, hx, ht, tn, h, n, abstol, reltol):
     second (or third) solve.  Step doubling cost two extra assembles and two
     extra solves per accepted step; this costs a handful of subtractions.
     """
+    # Degenerate history (a step truncated to the same time, or fewer than four
+    # distinct points) makes every denominator zero and the estimate NaN -- and
+    # a NaN silently *disables* the controller, because ``NaN > 1.0`` is False,
+    # so the step grows to the ceiling and stays there.  That is exactly how the
+    # buck bench ran with its error control doing nothing.  Refuse the estimate
+    # instead of poisoning it.
+    if tn - ht[0] <= 0.0 or ht[0] - ht[1] <= 0.0 or ht[1] - ht[2] <= 0.0:
+        return 0.0
     worst = 0.0
     for i in range(n):
         d1a = (x[i] - hx[0, i]) / (tn - ht[0])
@@ -102,6 +110,10 @@ def dd3_error(x, hx, ht, tn, h, n, abstol, reltol):
         d3 = (d2a - d2b) / (tn - ht[2])
         scale = abstol + reltol * max(abs(x[i]), abs(hx[0, i]))
         err = abs(LTE_FACTOR * h * h * h * d3) / scale
+        if err != err:
+            err = 1.0e12
+        elif err > 1.0e12:
+            err = 1.0e12
         if err > worst:
             worst = err
     return worst
@@ -215,7 +227,7 @@ def run_transient(P, S, t_end, h_init, h_max, h_min, adaptive, method_default,
                 if hi < earliest:
                     earliest = hi
                     crossed = e
-            if crossed >= 0 and earliest > hh * 1e-9:
+            if crossed >= 0 and earliest > hh * 1e-9 and earliest > h_min:
                 _load_state(S, snap)
                 if try_step(P, S, t + earliest, earliest, method, G, G_static,
                             rhs, x, lu, piv, G_prev, cached, tmp, trial) != 0:
@@ -246,10 +258,19 @@ def run_transient(P, S, t_end, h_init, h_max, h_min, adaptive, method_default,
                     for i in range(n):
                         hx[0, i] = x[i]
                     n_hist += 1
-                    # Do not jump back to the ceiling across a transition:
-                    # ramp away from the event the way a step controller
-                    # should, or the next step straddles the same edge again.
-                    h = earliest
+                    # Restart *small* after a discontinuity, which is what
+                    # SPICE does.  An ideal switch closing at its threshold is
+                    # a near-singularity: with Vds still at 12.8 V and Ron at
+                    # 20.5 mOhm the switch carries 622 A, and the node collapses
+                    # in about R*C = 1.3 ps.  A 50 ns step smears that pico-
+                    # second into a whole step, so one closure injects hundreds
+                    # of microjoules -- measured as a buck efficiency of 7 %
+                    # against the golden arm's 97.55 %.  Restarting at 1 % of
+                    # the truncated step lets the collapse resolve, and the
+                    # step then grows back by the usual doubling.
+                    h = earliest * 0.01
+                    if h < h_min * 1e3:
+                        h = h_min * 1e3
                     continue
                 _load_state(S, snap)
             device_currents(P, S, x, hh, trial, dev_i)
@@ -388,10 +409,6 @@ def solve_transient_fast(circuit: Circuit, *, end_time: float | None = None,
 
     t_end = _end_time(circuit, end_time)
     system = LinearSystem.compile(circuit)
-    if system.discontinuous and adaptive:
-        # Event truncation lives in the fixed-step branch; a switch circuit is
-        # therefore integrated at the deck's step rather than by error control.
-        adaptive = False
     plan = Plan.build(system)
 
     started = _time.perf_counter()
